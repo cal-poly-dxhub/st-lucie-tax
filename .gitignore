@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+cdk.out/
+.cdk.staging/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+
+# Logs
+*.log
+
+# CDK context
+cdk.context.json
+
+# AI agent artifacts
+.agents/reviews/
+.agents/scratchpad/
+.kiro
+
+# AIDLC documentation
+aidlc-docs/audit.md
