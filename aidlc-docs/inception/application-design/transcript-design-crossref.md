@@ -49,20 +49,20 @@
 **Impact**: Low. The data model supports it. This is more of a UX flow question for the chatbot state machine.
 **Recommendation**: In the scheduling state of BC-01, filter available locations to only those that offer the requested transaction type(s). If only one location qualifies, inform the customer proactively.
 
-### GAP-6: CDK in Python (Not TypeScript)
+### GAP-6: CDK in Python (Not TypeScript) — RESOLVED
 **Transcript**: User explicitly answered Q8 with "A (cdk in python please)."
 **Design**: application-design.md says "AWS CDK (TypeScript)" in the architectural decisions table. system-overview.md also says "AWS CDK (TypeScript)." The application-design-plan.md correctly records the answer as "A (cdk in python please)" but the generated artifacts didn't honor it.
-**Impact**: High. This is a direct contradiction of the user's stated preference.
-**Recommendation**: Update all references from "CDK (TypeScript)" to "CDK (Python)" in application-design.md and system-overview.md.
+**Impact**: ~~High~~ Resolved.
+**Resolution**: User clarified that TypeScript is correct for both CDK and Lambda runtime. application-design-plan.md Q8 updated to reflect confirmation. No changes needed to design artifacts.
 
 ---
 
 ## MISMATCHES — Design Diverges from Transcript Intent
 
-### MISMATCH-1: IaC Language — CDK TypeScript vs. CDK Python
+### MISMATCH-1: IaC Language — CDK TypeScript vs. CDK Python — RESOLVED
 **Transcript/User Answer**: "A (cdk in python please)" — user explicitly requested Python CDK.
 **Design**: All artifacts say "AWS CDK (TypeScript)" with rationale "CDK is TypeScript-first; best docs, fastest access to new constructs, matches backend language."
-**Resolution**: Change to CDK Python. The rationale about "matches backend language" is incorrect if the user wants Python. Update application-design.md and system-overview.md.
+**Resolution**: User subsequently confirmed TypeScript for both CDK and Lambda runtime. Design artifacts are correct as-is.
 
 ### MISMATCH-2: Data Access Layer Language
 **Design**: SI-03 is described as a "TypeScript shared module" and system-overview.md says CDK TypeScript "matches backend language."
