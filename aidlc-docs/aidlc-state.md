@@ -6,12 +6,13 @@
 - **Workspace Root**: ./
 
 ## Current Stage
-**CONSTRUCTION — Unit 1: Foundation — NFR Design** ⏳ NEXT
+**CONSTRUCTION — Unit 1: Foundation — Code Generation** ⏳ NEXT
 
 ## Extension Configuration
 | Extension | Enabled | Source |
 |-----------|---------|--------|
 | Security Baseline (SECURITY-01 through SECURITY-15) | Yes | Q21 — User selected Option A |
+| PR Task Generation (PRTASK-01, PRTASK-02) | Yes | User requested 2026-04-13 |
 
 ## Stage Progress
 
@@ -28,9 +29,9 @@
   - **Unit 1: Foundation**
     - [x] Functional Design — ✅ COMPLETE (approved 2026-04-08T09:34:20-07:00)
     - [x] NFR Requirements — ✅ COMPLETE (approved 2026-04-08T10:02:49-07:00)
-    - [ ] NFR Design — ⏳ NEXT
-    - [ ] Infrastructure Design
-    - [ ] Code Generation
+    - [x] NFR Design — ✅ COMPLETE (approved "lgtm")
+    - [x] Infrastructure Design — ✅ COMPLETE (approved "looks great, approve"; content in nfr-design-patterns.md Patterns 1-8)
+    - [ ] Code Generation — ⏳ NEXT
 - [ ] Build and Test
 
 ### OPERATIONS PHASE
@@ -64,3 +65,4 @@
 | Foundation NFR Requirements Plan | aidlc-docs/construction/plans/foundation-nfr-requirements-plan.md | Complete |
 | Foundation NFR Requirements | aidlc-docs/construction/foundation/nfr-requirements/nfr-requirements.md | Complete |
 | Foundation Tech Stack Decisions | aidlc-docs/construction/foundation/nfr-requirements/tech-stack-decisions.md | Complete |
+| Foundation PR Workflow | aidlc-docs/construction/plans/foundation-pr-workflow.md | Complete |
