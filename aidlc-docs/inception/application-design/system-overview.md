@@ -173,7 +173,7 @@ A read-only screen designed for TVs in the office lobby. Shows customer codes (n
 | AI knowledge | Prompt-switching for transactions + Bedrock Knowledge Bases for general Q&A | Transactional flows use deterministic DB-driven prompts; general website Q&A uses managed RAG as fallback |
 | Database | DynamoDB single-table design, tenant-prefixed keys | Structural multi-tenant isolation — impossible to accidentally query across counties |
 | Document storage | S3 with presigned URLs | Avoids API Gateway 10MB payload limit, decouples upload from processing |
-| Notifications | Twilio (SMS) + SendGrid (email) | Industry standard, reliable delivery, per-tenant configuration |
+| Notifications | Twilio (SMS) + Amazon SES (email, POC); swappable to SendGrid | Industry standard, reliable delivery, per-tenant configuration |
 | Infrastructure as Code | AWS CDK (TypeScript) | CDK is TypeScript-first; best docs, fastest access to new constructs, matches backend language |
 | Multi-tenancy | Tenant ID as DynamoDB partition key prefix | New county = new tenant ID, zero code changes, data isolation by design |
 
