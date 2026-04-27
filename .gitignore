@@ -39,6 +39,3 @@ cdk.context.json
 .agents/reviews/
 .agents/scratchpad/
 .kiro
-
-# AIDLC documentation
-aidlc-docs/audit.md
