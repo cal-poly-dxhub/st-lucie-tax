@@ -100,7 +100,7 @@ As an admin, I want to create and manage suggested prompt shortcuts (hot buttons
 
 ## 2.3.1 Database Design / Access Patterns
 
-[Link to design doc](database-design.md)
+[Database Design](database-design.md) | [Data Access Patterns](data-access-patterns.md)
 
 # 3 System Requirements
 

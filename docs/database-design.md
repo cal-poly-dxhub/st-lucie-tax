@@ -224,6 +224,7 @@ CREATE TABLE documents (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
     appointment_id  INT NOT NULL REFERENCES appointments(id),
+    doc_id          TEXT REFERENCES document_registry(doc_id), -- NULL for walk-in uploads not tied to a required doc
     name            TEXT NOT NULL,
     s3_key          TEXT,
     ai_review_status TEXT CHECK (ai_review_status IN ('accept', 'reject')),
@@ -338,7 +339,7 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 |----------|-------|
 | Next in queue (skill-matched) | `SELECT q.* FROM queue q JOIN appointments a ON q.appointment_id = a.id WHERE q.county_id = $1 AND q.office_id = $2 AND q.status = 'waiting' AND a.txn_type_ids && $3::int[] ORDER BY q.is_priority DESC, q.checked_in_at LIMIT 1` |
 | Customers currently testing | `SELECT * FROM queue WHERE county_id = $1 AND office_id = $2 AND status = 'testing'` |
-| Lobby display (now serving) | `SELECT queue_number, assigned_desk FROM queue WHERE county_id = $1 AND office_id = $2 AND status = 'serving' AND assigned_desk IS NOT NULL ORDER BY checked_in_at` |
+| Lobby display (now serving) | `SELECT q.queue_number, q.assigned_desk, a.first_name, a.last_name FROM queue q JOIN appointments a ON q.appointment_id = a.id WHERE q.county_id = $1 AND q.office_id = $2 AND q.status = 'serving' AND q.assigned_desk IS NOT NULL ORDER BY q.checked_in_at` |
 | Customer status by queue number | `SELECT status, assigned_desk FROM queue WHERE county_id = $1 AND office_id = $2 AND queue_number = $3 AND checked_in_at::date = CURRENT_DATE` |
 | Appointments assigned to a specific clerk | `SELECT * FROM appointments WHERE county_id = $1 AND requested_clerk_id = $2 AND appointment_date = $3` |
 | Available clerks | `SELECT * FROM clerk_sessions WHERE county_id = $1 AND office_id = $2 AND is_available = TRUE AND logged_out_at IS NULL` |
