@@ -77,7 +77,7 @@ CREATE TABLE clerks (
     status          TEXT NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'in_training', 'inactive')),
     skill_ids       INT[] NOT NULL DEFAULT '{}',  -- list of transaction_types.id
-    office_ids      INT[] NOT NULL DEFAULT '{}',  -- list of offices.id
+    office_ids      INT[] NOT NULL DEFAULT '{}',  -- list of offices.id that a clerk can be assigned to
     UNIQUE (email)
 );
 
@@ -203,9 +203,9 @@ CREATE TABLE appointments (
     last_name       TEXT NOT NULL,
     contact_email   TEXT NOT NULL,
     contact_phone   TEXT NOT NULL,
+    can_send_sms BOOLEAN NOT NULL DEFAULT FALSE,
     requested_clerk_id INT REFERENCES clerks(id), -- Used for check-in clerk to send to specific clerk
     txn_type_ids    INT[] NOT NULL,
-    estimated_duration_min INT NOT NULL, -- Total of avg_duration across txn types
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
     qr_code         TEXT, -- Unique code to generate qr code from ()
@@ -283,9 +283,23 @@ CREATE TABLE clerk_sessions (
     office_id       INT NOT NULL REFERENCES offices(id),
     desk_number     INT NOT NULL,
     is_available    BOOLEAN NOT NULL DEFAULT TRUE, -- Tracks to see if clerk is available (clerks can set if they are available manually)
+    on_lunch_shift_id INT REFERENCES office_lunch_shifts(id), -- NULL = not on lunch; set when clerk goes to lunch, cleared on return
     logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     logged_out_at   TIMESTAMPTZ
 );
+
+-- Clerk schedules (which clerk is assigned to which office on what day)
+-- Used for capacity planning and scheduling. clerks.office_ids tracks which
+-- offices a clerk *can* work at; this table tracks where they *will* work.
+CREATE TABLE clerk_schedules (
+    id              SERIAL PRIMARY KEY,
+    county_id       TEXT NOT NULL,
+    clerk_id        INT NOT NULL REFERENCES clerks(id),
+    office_id       INT NOT NULL REFERENCES offices(id),
+    schedule_date   DATE NOT NULL
+);
+CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date); -- One office per clerk per day
+CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);
 ```
 
 ---
@@ -327,7 +341,7 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 
 | Question | Query |
 |----------|-------|
-| Booked minutes for date/office/time range | `SELECT SUM(estimated_duration_min) FROM appointments WHERE county_id = $1 AND office_id = $2 AND appointment_date = $3 AND appointment_time BETWEEN $4 AND $5 AND status NOT IN ('cancelled','no_show')` |
+| Booked minutes for date/office/time range | `SELECT SUM(tt.avg_duration_min) FROM appointments a, unnest(a.txn_type_ids) AS tid JOIN transaction_types tt ON tt.id = tid WHERE a.county_id = $1 AND a.office_id = $2 AND a.appointment_date = $3 AND a.appointment_time BETWEEN $4 AND $5 AND a.status NOT IN ('cancelled','no_show')` |
 | Appointments at a specific time | `SELECT * FROM appointments WHERE county_id = $1 AND office_id = $2 AND appointment_date = $3 AND appointment_time = $4 AND status NOT IN ('cancelled','no_show')` |
 | Earliest ASAP availability | Compute: query appointments per office/date, compare against capacity from `offices` + `office_hours` + `office_lunch_shifts` |
 | Lookup by QR | `SELECT * FROM appointments WHERE qr_code = $1` |
@@ -343,6 +357,16 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Customer status by queue number | `SELECT status, assigned_desk FROM queue WHERE county_id = $1 AND office_id = $2 AND queue_number = $3 AND checked_in_at::date = CURRENT_DATE` |
 | Appointments assigned to a specific clerk | `SELECT * FROM appointments WHERE county_id = $1 AND requested_clerk_id = $2 AND appointment_date = $3` |
 | Available clerks | `SELECT * FROM clerk_sessions WHERE county_id = $1 AND office_id = $2 AND is_available = TRUE AND logged_out_at IS NULL` |
+| Clerks currently on lunch | `SELECT cs.*, c.first_name, c.last_name FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.on_lunch_shift_id IS NOT NULL AND cs.logged_out_at IS NULL` |
+| Available skills right now (excludes lunch) | `SELECT DISTINCT unnest(c.skill_ids) AS skill_id FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = TRUE AND cs.on_lunch_shift_id IS NULL AND cs.logged_out_at IS NULL` |
+
+### Clerk Schedules
+
+| Question | Query |
+|----------|-------|
+| Clerks scheduled at an office on a date | `SELECT cs.*, c.first_name, c.last_name, c.skill_ids FROM clerk_schedules cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.schedule_date = $3` |
+| Where is a clerk scheduled on a date | `SELECT cs.*, o.name AS office_name FROM clerk_schedules cs JOIN offices o ON cs.office_id = o.id WHERE cs.county_id = $1 AND cs.clerk_id = $2 AND cs.schedule_date = $3` |
+| Scheduled clerk count for capacity planning | `SELECT COUNT(*) FROM clerk_schedules WHERE county_id = $1 AND office_id = $2 AND schedule_date = $3` |
 
 ### Analytics
 
@@ -350,6 +374,8 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 |----------|-------|
 | Duration stats for recommendations | `SELECT AVG(duration_min) FROM service_history WHERE county_id = $1 AND txn_type_id = $2 AND served_at > NOW() - INTERVAL '30 days'` |
 | Pending recommendations | `SELECT * FROM duration_recommendations WHERE county_id = $1 AND status = 'pending'` |
+| Estimate vs actual per service | `SELECT sh.id, sh.txn_type_ids, sh.duration_min AS actual_min, (SELECT SUM(tt.avg_duration_min) FROM unnest(sh.txn_type_ids) AS tid JOIN transaction_types tt ON tt.id = tid) AS estimated_min FROM service_history sh WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days'` |
+| Average drift per txn type at office | `SELECT tt.id, tt.name, tt.avg_duration_min AS estimated_min, AVG(sh.duration_min) AS avg_actual_min, AVG(sh.duration_min) - tt.avg_duration_min AS avg_drift_min, COUNT(*) AS sample_size FROM service_history sh, unnest(sh.txn_type_ids) AS tid JOIN transaction_types tt ON tt.id = tid WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY tt.id, tt.name, tt.avg_duration_min` |
 
 ---
 
@@ -371,4 +397,5 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | `queue` | Ephemeral queue state with customer-facing ticket number (today's active customers, includes testing status) |
 | `service_history` | PII-free per-txn duration log for analytics |
 | `duration_recommendations` | Admin approval workflow for duration updates |
-| `clerk_sessions` | Who's logged in at which desk |
+| `clerk_sessions` | Who's logged in at which desk, lunch shift tracking |
+| `clerk_schedules` | Which clerk is assigned to which office on what day |
