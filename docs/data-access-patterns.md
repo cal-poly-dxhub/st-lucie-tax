@@ -70,6 +70,7 @@ TRANSACTIONAL — AI Assistant / Citizen Chatbot
 
 Conversation & Intent
 22. Get active transaction types for intent matching → same as #7, filtered to active
+23. (Reserved)
 24. Check if txn can be completed online → transaction_types.is_online_eligible + online_redirect_url
 
 Pre-Screening
