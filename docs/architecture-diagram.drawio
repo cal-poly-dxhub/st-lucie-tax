@@ -1,0 +1,244 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="St. Lucie Tax System Architecture" id="arch1">
+    <mxGraphModel dx="3352" dy="2030" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="3000" pageHeight="2000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="constituent" parent="1" style="shape=actor;whiteSpace=wrap;html=1;fontSize=14;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="-140" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_group" parent="1" style="swimlane;startSize=30;fontSize=14;fillColor=#647687;strokeColor=#314354;rounded=1;fontColor=#ffffff;" value="AI Assistant" vertex="1">
+          <mxGeometry height="290" width="200" x="50" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_chat" parent="ai_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Conversational UI&#xa;+ Hot Buttons" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_prescreen" parent="ai_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Pre-Screen Questions" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_docupload" parent="ai_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Document Upload" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_idverify" parent="ai_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Identity Verification" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_elig" parent="ai_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Eligibility Check" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai1" edge="1" parent="ai_group" source="ai_chat" target="ai_prescreen">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai2" edge="1" parent="ai_group" source="ai_prescreen" target="ai_docupload">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai3" edge="1" parent="ai_group" source="ai_docupload" target="ai_idverify">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai4" edge="1" parent="ai_group" source="ai_idverify" target="ai_elig">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="online_done" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#6d8764;strokeColor=#3A5431;fontColor=#ffffff;" value="Completed&lt;br&gt;Online" vertex="1">
+          <mxGeometry height="60" width="120" x="420" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="sched_group" parent="1" style="swimlane;startSize=30;fontSize=14;fillColor=#f0a30a;strokeColor=#BD7000;rounded=1;fontColor=#000000;" value="Scheduling System" vertex="1">
+          <mxGeometry height="190" width="200" x="400" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="sched_choices" parent="sched_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;" value="User Choices&lt;br&gt;AM/PM | Day of Week| Location&lt;br&gt;ASAP Option" vertex="1">
+          <mxGeometry height="50" width="160" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sched_engine" parent="sched_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="Schedule Engine" vertex="1">
+          <mxGeometry height="40" width="160" x="20" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sched_qr" parent="sched_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;" value="QR Code Confirmation" vertex="1">
+          <mxGeometry height="30" width="160" x="20" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s1" edge="1" parent="sched_group" source="sched_choices" target="sched_engine">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s2" edge="1" parent="sched_group" source="sched_engine" target="sched_qr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="office_group" parent="1" style="swimlane;startSize=30;fontSize=14;fillColor=#e51400;strokeColor=#B20000;rounded=1;fontColor=#ffffff;" value="Office (×3 Locations)" vertex="1">
+          <mxGeometry height="320" width="480" x="650" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_group" parent="office_group" style="swimlane;startSize=25;fontSize=12;fillColor=#e51400;strokeColor=#B20000;fontColor=#ffffff;" value="Check-in Desk" vertex="1">
+          <mxGeometry height="250" width="140" x="10" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_scan" parent="fd_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Scan QR /&#xa;Walk-in Lookup" vertex="1">
+          <mxGeometry height="35" width="120" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_review" parent="fd_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Review Docs&lt;br&gt;&amp;amp; Notes (Upload as well)" vertex="1">
+          <mxGeometry height="35" width="120" x="10" y="75" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_sms" parent="fd_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="SMS Pre-Screen&#xa;(if incomplete)" vertex="1">
+          <mxGeometry height="35" width="120" x="10" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_assign" parent="fd_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Assign to Queue&#xa;Regular / Priority" vertex="1">
+          <mxGeometry height="35" width="120" x="10" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_walkin" parent="fd_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Walk-in&#xa;Registration" vertex="1">
+          <mxGeometry height="30" width="120" x="10" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fd1" edge="1" parent="fd_group" source="fd_scan" target="fd_review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fd2" edge="1" parent="fd_group" source="fd_review" target="fd_sms">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fd3" edge="1" parent="fd_group" source="fd_sms" target="fd_assign">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="queue" parent="office_group" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=11;size=10;" value="" vertex="1">
+          <mxGeometry height="60" width="110" x="170" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="cust_display" parent="office_group" style="shape=display;whiteSpace=wrap;html=1;fontSize=11;" value="&amp;nbsp;Lobby Queue&lt;br&gt;Display" vertex="1">
+          <mxGeometry height="50" width="110" x="170" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_group" parent="office_group" style="swimlane;startSize=25;fontSize=12;fillColor=#fa6800;strokeColor=#C73500;fontColor=#000000;" value="Service Clerk Stations (1-N)" vertex="1">
+          <mxGeometry height="260" width="170" x="300" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_login" parent="sc_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Login →&#xa;Office / Station #" vertex="1">
+          <mxGeometry height="35" width="150" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_summon" parent="sc_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Summon Next&#xa;(Skill-Matched)" vertex="1">
+          <mxGeometry height="35" width="150" x="10" y="75" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_process" parent="sc_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Process TXN&lt;br&gt;Vision | Photo | Payment" vertex="1">
+          <mxGeometry height="40" width="150" x="10" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_upload" parent="sc_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Upload Docs&#xa;to State System" vertex="1">
+          <mxGeometry height="35" width="150" x="10" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_complete" parent="sc_group" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;" value="Complete &amp;&#xa;Summon Next" vertex="1">
+          <mxGeometry height="35" width="150" x="10" y="215" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sc1" edge="1" parent="sc_group" source="sc_login" target="sc_summon">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sc2" edge="1" parent="sc_group" source="sc_summon" target="sc_process">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sc3" edge="1" parent="sc_group" source="sc_process" target="sc_upload">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sc4" edge="1" parent="sc_group" source="sc_upload" target="sc_complete">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_loop" edge="1" parent="sc_group" source="sc_complete" style="edgeStyle=orthogonalEdgeStyle;curved=1;" target="sc_summon">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-10" y="232" />
+              <mxPoint x="-10" y="92" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_o1" edge="1" parent="office_group" source="fd_assign" target="queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_o2" edge="1" parent="office_group" source="queue" target="sc_summon">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_o3" edge="1" parent="office_group" source="queue" target="cust_display">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="03-0NQ_YDchTLmohlMbc-9" parent="office_group" style="text;whiteSpace=wrap;html=1;align=center;" value="&lt;span style=&quot;color: rgb(255, 255, 255); font-family: Helvetica; font-size: 11px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;Queue&lt;/span&gt;&lt;br style=&quot;forced-color-adjust: none; color: rgb(255, 255, 255); font-family: Helvetica; font-size: 11px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; box-shadow: none !important;&quot;&gt;&lt;span style=&quot;color: rgb(255, 255, 255); font-family: Helvetica; font-size: 11px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;Regular | Priority&lt;/span&gt;" vertex="1">
+          <mxGeometry height="50" width="120" x="165" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="admin" parent="1" style="shape=actor;whiteSpace=wrap;html=1;fontSize=14;" value="" vertex="1">
+          <mxGeometry height="80" width="80" x="1830" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="office_config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e51400;strokeColor=#B20000;fontColor=#ffffff;" value="Office Config&#xa;• Operating Hours&#xa;• # of Desks&#xa;• Lunch Schedules&#xa;• Run Rate (90%/110%)" vertex="1">
+          <mxGeometry height="100" width="180" x="1360" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="txn_config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#000000;" value="Transaction Config&#xa;• Avg Duration&#xa;• Description&#xa;• Availability Hours&#xa;• Available Locations" vertex="1">
+          <mxGeometry height="100" width="180" x="1360" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="clerk_config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fa6800;strokeColor=#C73500;fontColor=#000000;" value="Service Clerk Config&#xa;• Skilled TXN Types&#xa;• Office Assignment&#xa;• Name / Email&#xa;• Status&#xa;• Manual / CSV Upload" vertex="1">
+          <mxGeometry height="110" width="180" x="1360" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="chatbot_config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#647687;strokeColor=#314354;fontColor=#ffffff;" value="Chatbot Config&#xa;• Hot Buttons&#xa;• Pre-Screen Q&#39;s" vertex="1">
+          <mxGeometry height="60" width="180" x="1360" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="duration_engine" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#000000;" value="&amp;nbsp;Duration Engine&lt;br&gt;Monitor Actual Durations&lt;br&gt;Recommend Adjustments" vertex="1">
+          <mxGeometry height="70" width="180" x="1640" y="-30" as="geometry" />
+        </mxCell>
+        <mxCell id="e_main1" edge="1" parent="1" source="constituent" style="edgeStyle=orthogonalEdgeStyle;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ai_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_main2" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="sched_group" value="needs office visit">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="300" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_main3" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" target="online_done" value="">
+          <mxGeometry relative="1" x="0.4492" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="250" y="450" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_main4" edge="1" parent="1" source="sched_qr" style="edgeStyle=orthogonalEdgeStyle;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="650" y="305" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_adm1" edge="1" parent="1" source="admin" target="office_config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_adm2" edge="1" parent="1" source="admin" target="txn_config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_adm3" edge="1" parent="1" source="admin" style="" target="clerk_config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_adm4" edge="1" parent="1" source="admin" style="elbow=vertical;" target="chatbot_config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cfg1" edge="1" parent="1" source="office_config" style="dashed=1;strokeColor=#B20000;fillColor=#e51400;" target="office_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cfg2" edge="1" parent="1" source="txn_config" style="dashed=1;strokeColor=#B09500;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fillColor=#e3c800;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1220" y="220" />
+              <mxPoint x="1220" y="-30" />
+              <mxPoint x="500" y="-30" />
+            </Array>
+            <mxPoint x="500" y="140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_cfg3" edge="1" parent="1" source="clerk_config" style="dashed=1;strokeColor=#C73500;fillColor=#fa6800;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1130" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_cfg4" edge="1" parent="1" source="chatbot_config" style="dashed=1;strokeColor=#314354;entryX=0.5;entryY=1;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fillColor=#647687;" target="ai_group">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1450" y="590" />
+              <mxPoint x="150" y="590" />
+            </Array>
+            <mxPoint x="720" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_dur1" edge="1" parent="1" source="txn_config" style="dashed=1;strokeColor=#d6b656;edgeStyle=orthogonalEdgeStyle;" target="duration_engine">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dur3" edge="1" parent="1" source="duration_engine" style="dashed=1;strokeColor=#d6b656;fontSize=10;edgeStyle=orthogonalEdgeStyle;" target="admin" value="avg shifted?">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="03-0NQ_YDchTLmohlMbc-6" edge="1" parent="1" source="duration_engine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.817;entryY=0.003;entryDx=0;entryDy=0;entryPerimeter=0;dashed=1;fillColor=#e3c800;strokeColor=#B09500;" target="office_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="03-0NQ_YDchTLmohlMbc-7" parent="1" style="text;whiteSpace=wrap;html=1;align=center;" value="&lt;span style=&quot;color: rgb(255, 255, 255); font-family: Helvetica; font-size: 14px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;Constituent&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="100" x="-150" y="375" as="geometry" />
+        </mxCell>
+        <mxCell id="03-0NQ_YDchTLmohlMbc-8" parent="1" style="text;whiteSpace=wrap;html=1;align=center;" value="&lt;span style=&quot;color: rgb(255, 255, 255); font-family: Helvetica; font-size: 14px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;Admin&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="90" x="1825" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="03-0NQ_YDchTLmohlMbc-10" parent="1" style="text;whiteSpace=wrap;html=1;align=center;" value="&lt;span style=&quot;color: rgb(255, 255, 255); font-family: Helvetica; font-size: 10px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; background-color: rgb(18, 18, 18); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;online-eligible&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="90" x="280" y="430" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
