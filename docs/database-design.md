@@ -214,6 +214,7 @@ CREATE TABLE appointments (
     prescreen_responses JSONB DEFAULT '{}', -- keys are prescreen_questions.id, values are boolean e.g. {"12": true, "15": false}
     status          TEXT NOT NULL DEFAULT 'scheduled'
                     CHECK (status IN ('scheduled', 'completed', 'no_show', 'cancelled', 'diverted_online')),
+    is_priority     BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_appointments_qr ON appointments (qr_code) WHERE qr_code IS NOT NULL;
@@ -241,7 +242,6 @@ CREATE TABLE queue (
     queue_number    INT NOT NULL,  -- Customer-facing ticket number, assigned at check-in, unique per office+day
     status          TEXT NOT NULL DEFAULT 'waiting'
                     CHECK (status IN ('waiting', 'serving', 'testing', 'done')),
-    is_priority     BOOLEAN NOT NULL DEFAULT FALSE,
     checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     assigned_clerk_id INT REFERENCES clerks(id),
     assigned_desk   INT,
@@ -256,7 +256,7 @@ CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (county_id, office_id, (ch
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
-    txn_type_id     INT NOT NULL REFERENCES transaction_types(id),
+    txn_type_ids    INT[] NOT NULL REFERENCES transaction_types(id),
     office_id       INT NOT NULL REFERENCES offices(id),
     duration_min    INT NOT NULL,
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
