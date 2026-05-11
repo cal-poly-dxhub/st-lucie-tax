@@ -217,6 +217,7 @@ CREATE TABLE appointments (
     prescreen_responses JSONB DEFAULT '{}', -- keys are prescreen_questions.id, values are boolean e.g. {"12": true, "15": false}
     status          TEXT NOT NULL DEFAULT 'scheduled'
                     CHECK (status IN ('scheduled', 'completed', 'no_show', 'cancelled', 'diverted_online')),
+    is_walk_in     BOOLEAN NOT NULL DEFAULT FALSE,
     is_priority     BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
