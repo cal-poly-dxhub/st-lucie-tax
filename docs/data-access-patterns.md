@@ -10,7 +10,7 @@ CONFIG — Offices
 3. Get desk count for an office → offices.total_desks
 4. Get capacity run rate for an office → offices.run_rate_pct
 5. Get lunch shifts for an office → office_lunch_shifts filtered by office_id, ordered by start_time
-6. Get a specific office by office_id → offices filtered by county_id + office_id
+6. Get a specific office by name → offices filtered by county_id + office_name (the human-readable slug like 'ftpierce')
 
 Writes: create/update office, set hours per day, set lunch shifts, set run rate.
 
@@ -51,7 +51,7 @@ DC-1. Get a document definition by doc_id → document_registry filtered by coun
 DC-2. List all document definitions → document_registry filtered by county_id
 DC-3. Get the transaction flow for a txn type → transaction_flows.steps filtered by txn_type_id
 DC-4. List all transaction flows → transaction_flows joined with transaction_types
-DC-5. Resolve docs from a completed flow → walk steps in app code, collect require_docs doc_ids, then SELECT from document_registry WHERE doc_id = ANY($1)
+DC-5. Resolve docs from a completed flow → walk steps in app code, collect require_docs doc_ids, then SELECT from document_registry WHERE county_id = $1 AND doc_id = ANY($2)
 DC-6. Find flows that require a specific document → transaction_flows WHERE steps @> JSONB pattern matching the doc_id
 
 Writes: create/update document definitions, create/update transaction flows.
@@ -88,7 +88,6 @@ Identity Verification
 32. Check identity verification status → appointments.identity_verified
 
 Appointment Booking
-33. Get booked minutes for office/date/time range → SUM(appointments.estimated_duration_min) filtered by office_id + date + time range, excluding cancelled/no_show
 34. Get remaining capacity for office/date/period → effective capacity (#82) minus booked minutes (#33)
 35. Find earliest ASAP slot across all offices → scan offices × dates, check capacity (#34) + clerk coverage (#15) + time restrictions (#9), return first fit
 36. Filter slots by customer preferences → filter #35 results by office, day of week, period

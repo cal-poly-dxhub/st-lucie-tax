@@ -17,7 +17,7 @@ Admin-managed configuration. Low volume, read-heavy, rarely written.
 CREATE TABLE offices (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,          -- e.g. 'stlucie'
-    office_id            TEXT NOT NULL,          -- e.g. 'ftpierce', 'slwest'
+    office_name            TEXT NOT NULL,          -- e.g. 'ftpierce', 'slwest'
     name            TEXT NOT NULL,
     address         TEXT,
     total_desks     INT NOT NULL,
@@ -103,17 +103,20 @@ CREATE UNIQUE INDEX idx_prescreen_unique ON prescreen_questions (county_id, txn_
 
 -- Document registry (shared definitions, referenced by doc_id from transaction flows)
 CREATE TABLE document_registry (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,     
-    doc_id        TEXT NOT NULL, -- e.g. 'drivers_license', 'hsmv_82040'
-    name        TEXT NOT NULL,
+    county_id       TEXT NOT NULL,
+    doc_id          TEXT NOT NULL, -- e.g. 'drivers_license', 'hsmv_82040'
+    name            TEXT NOT NULL,
     description     TEXT,
     alternatives    TEXT[] NOT NULL DEFAULT '{}',  -- e.g. '{"passport","state_id"}'
-    UNIQUE (county_id, doc_id)
+    PRIMARY KEY (county_id, doc_id)
 );
 
 -- Transaction flows (deterministic decision trees for chatbot pre-screening)
 -- Each flow is a self-contained JSON document walked client-side.
+-- doc_id strings appearing in steps.require_docs resolve against
+-- document_registry using this row's county_id — i.e., (county_id, doc_id).
+-- Postgres can't enforce FKs from values inside JSONB, so this linkage is
+-- maintained at the application layer when flows are authored.
 CREATE TABLE transaction_flows (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
@@ -132,7 +135,7 @@ Node types:
 - `conditional` — multiple branches based on answer matching (`conditions` list with `if` / `require_docs` / `next`)
 - `info` — display-only node (no branching), advances to `next`
 
-Each branch can specify `require_docs` (list of `document_registry.doc_id` references) and `next` (ID of the next node, or `null` to end).
+Each branch can specify `require_docs` (list of `document_registry.doc_id` values, resolved against the same `county_id` as the flow row) and `next` (ID of the next node, or `null` to end).
 
 Example: `txn_type_id = 'oos_title_transfer'`
 
@@ -225,12 +228,13 @@ CREATE TABLE documents (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
     appointment_id  INT NOT NULL REFERENCES appointments(id),
-    doc_id          TEXT REFERENCES document_registry(doc_id), -- NULL for walk-in uploads not tied to a required doc
+    doc_id          TEXT, -- NULL for walk-in uploads not tied to a required doc
     name            TEXT NOT NULL,
     s3_key          TEXT,
     ai_review_status TEXT CHECK (ai_review_status IN ('accept', 'reject')),
     ai_review_notes  TEXT,               -- AI-generated reasoning, e.g. "Valid FL utility bill, issued 2026-03-15"
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (county_id, doc_id) REFERENCES document_registry(county_id, doc_id)
 );
 
 -- Queue (ephemeral, high-write state for today's active customers)
@@ -326,7 +330,7 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Question | Query |
 |----------|-------|
 | Office capacities | `SELECT total_desks, run_rate_pct FROM offices WHERE id = $1` |
-| Office by office_id | `SELECT * FROM offices WHERE county_id = $1 AND office_id = $2` |
+| Office by office_name | `SELECT * FROM offices WHERE county_id = $1 AND office_name = $2` |
 | Office operating hours | `SELECT * FROM office_hours WHERE office_id = $1 ORDER BY day_of_week` |
 | Lunch shifts / timing / overlap | `SELECT * FROM office_lunch_shifts WHERE office_id = $1 ORDER BY start_time` |
 | Desks per office | `SELECT total_desks FROM offices WHERE id = $1` |
