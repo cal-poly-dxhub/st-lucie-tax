@@ -59,7 +59,7 @@ Writes: create/update document definitions, create/update transaction flows.
 
 TRANSACTIONAL — Duration Engine
 
-19. Get actual average duration for txn type X over last N days → AVG(service_history.duration_min) filtered by txn_type_id + served_at range. service_history is PII-free and denormalizes txn_type_id + office_id so no join is needed. Only single-transaction appointments contribute rows (multi-txn appointments can't be split by type and are not recorded here).
+19. Get actual average duration for txn type X over last N days → AVG(service_history.duration_min) joined to service_history_txn_types, filtered by txn_type_id + served_at range. service_history is PII-free and carries office_id directly; the txn type list lives in the service_history_txn_types junction table since Postgres can't enforce FKs on array elements. Multi-txn appointments contribute one row per appointment with multiple junction rows.
 20. List pending duration recommendations → duration_recommendations where status = 'pending'
 21. Compare recommended vs current duration → duration_recommendations.recommended_avg_min vs current_avg_min
 
@@ -150,7 +150,7 @@ Queue Operations
 71. Summon next customer → UPDATE queue set status = 'serving', assigned_clerk_id, assigned_desk
 72. Get full record for summoned customer → appointment (with inlined PII) + documents + prescreen_responses + identity_verified + queue.notes
 73. Send customer for written test → UPDATE queue.status = 'testing'
-74. Complete transaction → UPDATE queue.status = 'done', INSERT into service_history (txn_type_id, office_id, duration_min), UPDATE appointments.status = 'completed'. service_history is PII-free: no clerk_id, appointment_id, or customer linkage.
+74. Complete transaction → UPDATE queue.status = 'done', INSERT into service_history (office_id, duration_min) and INSERT one row per txn_type_id into service_history_txn_types, UPDATE appointments.status = 'completed'. service_history is PII-free: no clerk_id, appointment_id, or customer linkage.
 75. Complete and summon next → atomic: #74 then #69 + #71
 
 Queue View
@@ -182,6 +182,6 @@ CROSS-CUTTING NOTES
 - Written test: #73 uses queue status 'testing' beyond the standard waiting/serving/done.
 - All dashboards poll at ~5s. No websockets in PoC.
 - No cross-visit customer record: PII is inlined on appointments and scoped to a single visit's lifecycle so it can be purged on a fixed schedule. Patterns #39–43, #59, and #64 are intentionally omitted/reserved. Walk-in lookup (#51) searches today's appointments by name.
-- service_history is PII-free: it carries txn_type_id, office_id, duration_min, served_at — no clerk_id, appointment_id, or customer linkage. It exists solely to drive duration_recommendations.
+- service_history is PII-free: it carries office_id, duration_min, served_at, with txn types in the service_history_txn_types junction table — no clerk_id, appointment_id, or customer linkage. It exists solely to drive duration_recommendations.
 - Lien letters (#44–47) and notifications (#48–49) reference tables not yet in the schema.
 - Many patterns are reused across surfaces (noted with "same as #N") — one implementation, multiple callers.

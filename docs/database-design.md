@@ -256,10 +256,19 @@ CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (county_id, office_id, (ch
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
-    txn_type_ids    INT[] NOT NULL REFERENCES transaction_types(id),
     office_id       INT NOT NULL REFERENCES offices(id),
     duration_min    INT NOT NULL,
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Junction table for the many-to-many between service_history and
+-- transaction_types. Postgres can't enforce FKs on array elements, so the
+-- txn_type list is normalized into its own table to keep referential
+-- integrity with transaction_types.
+CREATE TABLE service_history_txn_types (
+    service_history_id INT NOT NULL REFERENCES service_history(id) ON DELETE CASCADE,
+    txn_type_id        INT NOT NULL REFERENCES transaction_types(id),
+    PRIMARY KEY (service_history_id, txn_type_id)
 );
 
 -- Duration recommendations (admin approval workflow)
@@ -372,10 +381,10 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 
 | Question | Query |
 |----------|-------|
-| Duration stats for recommendations | `SELECT AVG(duration_min) FROM service_history WHERE county_id = $1 AND txn_type_id = $2 AND served_at > NOW() - INTERVAL '30 days'` |
+| Duration stats for recommendations | `SELECT AVG(sh.duration_min) FROM service_history sh JOIN service_history_txn_types sht ON sht.service_history_id = sh.id WHERE sh.county_id = $1 AND sht.txn_type_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days'` |
 | Pending recommendations | `SELECT * FROM duration_recommendations WHERE county_id = $1 AND status = 'pending'` |
-| Estimate vs actual per service | `SELECT sh.id, sh.txn_type_ids, sh.duration_min AS actual_min, (SELECT SUM(tt.avg_duration_min) FROM unnest(sh.txn_type_ids) AS tid JOIN transaction_types tt ON tt.id = tid) AS estimated_min FROM service_history sh WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days'` |
-| Average drift per txn type at office | `SELECT tt.id, tt.name, tt.avg_duration_min AS estimated_min, AVG(sh.duration_min) AS avg_actual_min, AVG(sh.duration_min) - tt.avg_duration_min AS avg_drift_min, COUNT(*) AS sample_size FROM service_history sh, unnest(sh.txn_type_ids) AS tid JOIN transaction_types tt ON tt.id = tid WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY tt.id, tt.name, tt.avg_duration_min` |
+| Estimate vs actual per service | `SELECT sh.id, ARRAY_AGG(sht.txn_type_id) AS txn_type_ids, sh.duration_min AS actual_min, SUM(tt.avg_duration_min) AS estimated_min FROM service_history sh JOIN service_history_txn_types sht ON sht.service_history_id = sh.id JOIN transaction_types tt ON tt.id = sht.txn_type_id WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY sh.id, sh.duration_min` |
+| Average drift per txn type at office | `SELECT tt.id, tt.name, tt.avg_duration_min AS estimated_min, AVG(sh.duration_min) AS avg_actual_min, AVG(sh.duration_min) - tt.avg_duration_min AS avg_drift_min, COUNT(*) AS sample_size FROM service_history sh JOIN service_history_txn_types sht ON sht.service_history_id = sh.id JOIN transaction_types tt ON tt.id = sht.txn_type_id WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY tt.id, tt.name, tt.avg_duration_min` |
 
 ---
 
@@ -395,7 +404,8 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | `appointments` | Booking data + inlined customer contact (date, time, office, transactions, prescreen) |
 | `documents` | Per-appointment uploaded documents |
 | `queue` | Ephemeral queue state with customer-facing ticket number (today's active customers, includes testing status) |
-| `service_history` | PII-free per-txn duration log for analytics |
+| `service_history` | PII-free per-service duration log for analytics |
+| `service_history_txn_types` | Junction table linking service_history rows to their transaction types |
 | `duration_recommendations` | Admin approval workflow for duration updates |
 | `clerk_sessions` | Who's logged in at which desk, lunch shift tracking |
 | `clerk_schedules` | Which clerk is assigned to which office on what day |
