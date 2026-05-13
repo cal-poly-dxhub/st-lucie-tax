@@ -22,7 +22,7 @@ CREATE TABLE offices (
     address         TEXT,
     total_desks     INT NOT NULL,
     run_rate_pct    INT NOT NULL DEFAULT 100, -- e.g. 90 or 110
-    UNIQUE (county_id, office_id)
+    UNIQUE (county_id, office_name)
 );
 
 -- Office operating hours (one row per office per day)
