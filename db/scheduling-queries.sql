@@ -1,31 +1,53 @@
 -- Scheduling Engine Queries
 -- These are the queries the heatmap/capacity endpoints run.
 -- Substitute officeId = 1, date = '2026-05-12', countyId = 'stlucie' as needed.
+-- All queries filter on county_id even though RLS enforces tenant isolation —
+-- explicit filters keep query plans tight and protect against missing
+-- session GUC (`app.current_tenant`) in non-request contexts (jobs, repls).
+--
+-- Override model (per writeup): per-office transaction_types rows can override
+-- the global row's `available_from`, `available_until`, and `status` (e.g.
+-- mark 'hidden' to drop the txn at one office). Duration (avg_duration_min)
+-- is treated as GLOBAL — overriding it would force per-office blocks_needed
+-- and break the constant-width window-function fit check, which is not worth
+-- the complexity until a real duration-override use case shows up.
 
 -- =============================================================================
 -- 1. Get office config
 -- =============================================================================
 SELECT id, office_name, name, total_desks, run_rate_pct
-FROM offices WHERE id = 1;
+FROM offices
+WHERE county_id = 'stlucie' AND id = 1;
 
 -- =============================================================================
 -- 2. Get office hours (find open/close for that day of week)
 -- =============================================================================
 SELECT day_of_week, open_time::text, close_time::text
-FROM office_hours WHERE office_id = 1 ORDER BY day_of_week;
+FROM office_hours
+WHERE county_id = 'stlucie' AND office_id = 1
+ORDER BY day_of_week;
 
 -- =============================================================================
 -- 3. Get lunch shifts
 -- =============================================================================
 SELECT id, shift_num, start_time::text, end_time::text
-FROM office_lunch_shifts WHERE office_id = 1 ORDER BY start_time;
+FROM office_lunch_shifts
+WHERE county_id = 'stlucie' AND office_id = 1
+ORDER BY start_time;
 
 -- =============================================================================
--- 4. Get active transaction types (with bookable time windows)
+-- 4. Get active transaction types effective at an office
+--    Reads from effective_transaction_types view, which resolves the global
+--    row + office-specific overrides. status reflects the effective row, so
+--    a 'hidden' override at this office drops the txn from the result.
 -- =============================================================================
-SELECT id, name, avg_duration_min,
+SELECT global_id AS id, txn_type_id, name, avg_duration_min,
        available_from::text, available_until::text
-FROM transaction_types WHERE office_id IS NULL AND status = 'active' ORDER BY id;
+FROM effective_transaction_types
+WHERE county_id = 'stlucie'
+  AND office_id = 1
+  AND status    = 'active'
+ORDER BY global_id;
 
 -- =============================================================================
 -- 5. Get appointments for the day (with computed end times)
@@ -40,7 +62,8 @@ SELECT a.id, a.appointment_time::text,
                               * interval '1 minute'))::text AS end_time,
        a.txn_type_ids
 FROM appointments a
-WHERE a.office_id = 1
+WHERE a.county_id = 'stlucie'
+  AND a.office_id = 1
   AND a.appointment_date = '2026-05-12'
   AND a.status NOT IN ('cancelled', 'no_show');
 
@@ -49,8 +72,10 @@ WHERE a.office_id = 1
 --    Run once per txn type. Example: skill id = 1 (road test)
 -- =============================================================================
 SELECT c.id as clerk_id, cs.lunch_shift_id
-FROM clerk_schedules cs JOIN clerks c ON c.id = cs.clerk_id
-WHERE cs.office_id = 1
+FROM clerk_schedules cs
+JOIN clerks c ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+WHERE cs.county_id = 'stlucie'
+  AND cs.office_id = 1
   AND cs.schedule_date = '2026-05-12'
   AND 1 = ANY(c.skill_ids)
   AND c.status = 'active';
@@ -62,7 +87,8 @@ WHERE cs.office_id = 1
 -- Note: in the app this is done in a loop, not SQL. This is the SQL equivalent.
 SELECT count(*) AS concurrent
 FROM appointments a
-WHERE a.office_id = 1
+WHERE a.county_id = 'stlucie'
+  AND a.office_id = 1
   AND a.appointment_date = '2026-05-12'
   AND a.status NOT IN ('cancelled', 'no_show')
   AND 1 = ANY(a.txn_type_ids)
@@ -74,7 +100,10 @@ WHERE a.office_id = 1
 -- 8. Booking query (CTE variant): same logic, no function dependency
 -- =============================================================================
 -- Inputs (params CTE):
---   target_skills    : skills the booking needs, e.g. ARRAY[1,3]
+--   county_id        : tenant — every config/transactional table is filtered
+--                      on this. RLS will also enforce it via app.current_tenant.
+--   target_skills    : skills the booking needs, e.g. ARRAY[1,3]. Surrogate
+--                      ids of GLOBAL (office_id IS NULL) txn_types rows.
 --   asap             : if TRUE, ignore preferences and return earliest slot first
 --   preferred_office : office_id (NULL = any office)
 --   preferred_dow    : day of week 0=Sun..6=Sat (NULL = any)
@@ -84,6 +113,7 @@ WHERE a.office_id = 1
 -- =============================================================================
 WITH params AS (
   SELECT
+    'stlucie'::text   AS county_id,
     ARRAY[1]          AS target_skills,
     FALSE             AS asap,                -- TRUE = earliest slot, any office
     1::int            AS preferred_office,    -- NULL = any
@@ -94,24 +124,38 @@ WITH params AS (
     14                AS days
 ),
 
--- Effective txn window across all requested skills + total duration + blocks_needed.
--- MAX/MIN ignore NULLs, so a NULL on any skill's available_from/available_until
--- means "that skill doesn't constrain that side."
---   earliest_start     = latest available_from across skills (slot must start at/after)
---   latest_end         = earliest available_until across skills (appt must end by)
---   total_duration_min = sum of avg_duration_min across skills
---   blocks_needed      = total_duration_min rounded UP to next block_min boundary
---                        e.g. 27 min on 15-min grid -> CEIL(27/15) = 2 blocks
+-- Global txn window: duration is global, so blocks_needed is constant across
+-- offices. earliest_start / latest_end here are the global defaults — offices
+-- can tighten them via overrides (handled in office_txn_window below).
 txn_window AS (
   SELECT
-    MAX(transaction_types.available_from)                                   AS earliest_start,
-    MIN(transaction_types.available_until)                                  AS latest_end,
-    SUM(transaction_types.avg_duration_min)::int                            AS total_duration_min,
-    CEIL(SUM(transaction_types.avg_duration_min)::numeric / params.block_min)::int AS blocks_needed
-  FROM transaction_types
+    SUM(g.avg_duration_min)::int                            AS total_duration_min,
+    CEIL(SUM(g.avg_duration_min)::numeric / params.block_min)::int AS blocks_needed
+  FROM transaction_types g
   CROSS JOIN params
-  WHERE transaction_types.id = ANY(params.target_skills)
+  WHERE g.county_id  = params.county_id
+    AND g.office_id IS NULL
+    AND g.id         = ANY(params.target_skills)
+    AND g.status     = 'active'
   GROUP BY params.block_min
+),
+
+-- Per-office available_from/until after applying overrides. Reads from the
+-- effective_transaction_types view, which resolves global + override per
+-- (office, skill). HAVING drops offices that don't offer ALL requested
+-- skills as 'active' (a 'hidden' override at one office removes that row).
+office_txn_window AS (
+  SELECT
+    ett.office_id,
+    MAX(ett.available_from)  AS earliest_start,
+    MIN(ett.available_until) AS latest_end
+  FROM effective_transaction_types ett
+  CROSS JOIN params
+  WHERE ett.county_id = params.county_id
+    AND ett.global_id = ANY(params.target_skills)
+    AND ett.status    = 'active'
+  GROUP BY ett.office_id
+  HAVING COUNT(*) = (SELECT cardinality(target_skills) FROM params)
 ),
 
 -- One row per date in the lookahead window
@@ -125,7 +169,7 @@ target_dates AS (
   ) d
 ),
 
--- Per-day open/close window per office (joined on day_of_week)
+-- Per-day open/close window, scoped to offices that offer all target skills
 office_window AS (
   SELECT offices.id AS office_id,
          offices.run_rate_pct,
@@ -134,10 +178,14 @@ office_window AS (
          EXTRACT(EPOCH FROM (office_hours.close_time - office_hours.open_time))::int / 60
            AS minutes_open
   FROM offices
+  CROSS JOIN params
   CROSS JOIN target_dates
+  JOIN office_txn_window ON office_txn_window.office_id = offices.id
   JOIN office_hours
-    ON office_hours.office_id = offices.id
+    ON office_hours.office_id   = offices.id
+   AND office_hours.county_id   = params.county_id
    AND office_hours.day_of_week = EXTRACT(DOW FROM target_dates.date)::int
+  WHERE offices.county_id = params.county_id
 ),
 
 -- The grid: every block_time within every (office, date) window
@@ -158,13 +206,16 @@ supply AS (
          FLOOR(
            (SELECT count(*)
             FROM clerk_schedules
-            JOIN clerks ON clerks.id = clerk_schedules.clerk_id
+            JOIN clerks ON clerks.id         = clerk_schedules.clerk_id
+                       AND clerks.county_id = clerk_schedules.county_id
             LEFT JOIN office_lunch_shifts
-                   ON office_lunch_shifts.id = clerk_schedules.lunch_shift_id
-            WHERE clerk_schedules.office_id    = blocks.office_id
+                   ON office_lunch_shifts.id        = clerk_schedules.lunch_shift_id
+                  AND office_lunch_shifts.county_id = clerk_schedules.county_id
+            WHERE clerk_schedules.county_id     = params.county_id
+              AND clerk_schedules.office_id     = blocks.office_id
               AND clerk_schedules.schedule_date = blocks.date
-              AND target_skill.skill_id = ANY(clerks.skill_ids)
-              AND clerks.status = 'active'
+              AND target_skill.skill_id          = ANY(clerks.skill_ids)
+              AND clerks.status                  = 'active'
               AND NOT (office_lunch_shifts.start_time <= blocks.block_time
                    AND office_lunch_shifts.end_time   >  blocks.block_time))
            * blocks.run_rate_pct / 100.0
@@ -179,7 +230,8 @@ demand AS (
   SELECT supply.office_id, supply.date, supply.block_time, supply.skill_id,
          (SELECT count(*)
           FROM appointments
-          WHERE appointments.office_id        = supply.office_id
+          WHERE appointments.county_id        = params.county_id
+            AND appointments.office_id        = supply.office_id
             AND appointments.appointment_date = supply.date
             AND appointments.status NOT IN ('cancelled', 'no_show')
             AND supply.skill_id = ANY(appointments.txn_type_ids)
@@ -190,6 +242,7 @@ demand AS (
                               JOIN transaction_types ON transaction_types.id = tid), 0)
                     || ' minutes')::interval)::time > supply.block_time) AS demand
   FROM supply
+  CROSS JOIN params
 ),
 
 -- Multi-skill collapse: appt needing skills [1,3] needs BOTH simultaneously.
@@ -207,7 +260,7 @@ min_per_block AS (
 ),
 
 -- Multi-block fit: a 30-min appt at 14:45 needs 14:45 AND 15:00 available.
--- Window MIN across the next blocks_needed rows within (office, date).
+-- blocks_needed is global (constant), so a window MIN works again.
 fits AS (
   SELECT min_per_block.office_id,
          min_per_block.date AS slot_date,
@@ -221,21 +274,23 @@ fits AS (
   FROM min_per_block
 ),
 
--- Apply txn-window gating: zero out slots whose start is before the effective
--- earliest_start, or whose end (start + total_duration) runs past latest_end.
+-- Apply per-office txn-window gating: zero out slots whose start is before
+-- that office's effective earliest_start, or whose end (start + global
+-- total_duration) runs past that office's effective latest_end.
 heatmap AS (
   SELECT fits.office_id,
          fits.slot_date,
          fits.slot_time,
          CASE
-           WHEN txn_window.earliest_start IS NOT NULL
-                AND fits.slot_time < txn_window.earliest_start THEN 0
-           WHEN txn_window.latest_end IS NOT NULL
+           WHEN otw.earliest_start IS NOT NULL
+                AND fits.slot_time < otw.earliest_start THEN 0
+           WHEN otw.latest_end IS NOT NULL
                 AND (fits.slot_time + (txn_window.total_duration_min || ' minutes')::interval)::time
-                    > txn_window.latest_end THEN 0
+                    > otw.latest_end THEN 0
            ELSE fits.available_through_appt
          END AS available
   FROM fits
+  JOIN office_txn_window otw ON otw.office_id = fits.office_id
   CROSS JOIN txn_window
 )
 
