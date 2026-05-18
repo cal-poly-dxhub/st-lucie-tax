@@ -326,3 +326,180 @@ CREATE POLICY tenant_isolation ON service_history_txn_types
   WITH CHECK (EXISTS (SELECT 1 FROM service_history sh
                        WHERE sh.id = service_history_id
                          AND sh.county_id = current_tenant()));
+
+-- =============================================================================
+-- Booking
+-- =============================================================================
+-- book_appointment: atomic capacity check + insert.
+--
+-- Locks the (office, date) clerk_schedules rows FOR UPDATE so that two
+-- concurrent bookings against the same supply pool serialize. Rechecks
+-- per-skill supply > demand at the requested time, then INSERTs and returns
+-- the new appointment id.
+--
+-- Raises 'capacity_exceeded' (SQLSTATE P0001) if any requested skill is full.
+-- Raises 'office_closed'      (SQLSTATE P0002) if the slot falls outside the
+--                                              office's open/close window for
+--                                              that day.
+-- Raises 'txn_unavailable'    (SQLSTATE P0003) if any requested skill isn't
+--                                              effectively active at the
+--                                              office, or the slot is outside
+--                                              its available_from / until.
+--
+-- Capacity formula matches the booking heatmap (scheduling-queries.sql query 8):
+--   supply = floor(count(scheduled clerks with skill, lunch-not-overlapping)
+--                  * run_rate_pct / 100)
+--   demand = count(non-cancelled overlapping appts that need this skill)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION book_appointment(
+  p_county_id        TEXT,
+  p_office_id        INT,
+  p_date             DATE,
+  p_time             TIME,
+  p_txn_type_ids     INT[],
+  p_first_name       TEXT,
+  p_last_name        TEXT,
+  p_contact_email    TEXT,
+  p_contact_phone    TEXT,
+  p_qr_code          TEXT DEFAULT NULL,
+  p_is_walk_in       BOOLEAN DEFAULT FALSE,
+  p_is_priority      BOOLEAN DEFAULT FALSE
+) RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_slot_start  TIMESTAMP := (p_date + p_time)::timestamp;
+  v_duration    INT;
+  v_slot_end    TIMESTAMP;
+  v_close_time  TIME;
+  v_open_time   TIME;
+  v_skill       INT;
+  v_supply      INT;
+  v_demand      INT;
+  v_run_rate    INT;
+  v_appt_id     INT;
+BEGIN
+  -- 1. Lock the supply pool for this (office, date). Anyone else trying to
+  --    book the same office/day will block on this until we COMMIT.
+  PERFORM 1
+  FROM clerk_schedules
+  WHERE county_id     = p_county_id
+    AND office_id     = p_office_id
+    AND schedule_date = p_date
+  FOR UPDATE;
+
+  -- 2. Office hours gate: the requested time must be inside the day's window.
+  SELECT oh.open_time, oh.close_time
+    INTO v_open_time, v_close_time
+  FROM office_hours oh
+  WHERE oh.county_id   = p_county_id
+    AND oh.office_id   = p_office_id
+    AND oh.day_of_week = EXTRACT(DOW FROM p_date)::int;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- 3. Compute total duration from effective txn rows. Also asserts every
+  --    requested skill is effectively active at this office.
+  SELECT SUM(ett.avg_duration_min)::int
+    INTO v_duration
+  FROM effective_transaction_types ett
+  WHERE ett.county_id = p_county_id
+    AND ett.office_id = p_office_id
+    AND ett.global_id = ANY(p_txn_type_ids)
+    AND ett.status    = 'active';
+
+  IF v_duration IS NULL
+     OR (SELECT COUNT(*)
+           FROM effective_transaction_types ett
+          WHERE ett.county_id = p_county_id
+            AND ett.office_id = p_office_id
+            AND ett.global_id = ANY(p_txn_type_ids)
+            AND ett.status    = 'active')
+        <> cardinality(p_txn_type_ids)
+  THEN
+    RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
+  END IF;
+
+  v_slot_end := v_slot_start + (v_duration * interval '1 minute');
+
+  -- 4. Office hours: start must be at/after open, end must be at/before close.
+  IF p_time < v_open_time
+     OR v_slot_end > (p_date + v_close_time)::timestamp THEN
+    RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- 5. Per-skill txn availability window: slot must fit inside the effective
+  --    available_from / available_until for every requested skill.
+  PERFORM 1
+  FROM effective_transaction_types ett
+  WHERE ett.county_id = p_county_id
+    AND ett.office_id = p_office_id
+    AND ett.global_id = ANY(p_txn_type_ids)
+    AND ett.status    = 'active'
+    AND ((ett.available_from  IS NOT NULL AND p_time     < ett.available_from)
+      OR (ett.available_until IS NOT NULL AND v_slot_end > (p_date + ett.available_until)::timestamp));
+
+  IF FOUND THEN
+    RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
+  END IF;
+
+  -- 6. Per-skill capacity recheck. supply > demand for EVERY requested skill.
+  SELECT run_rate_pct INTO v_run_rate
+  FROM offices
+  WHERE county_id = p_county_id AND id = p_office_id;
+
+  FOREACH v_skill IN ARRAY p_txn_type_ids LOOP
+    -- Supply: clerks scheduled at this office/date with this skill, whose
+    -- lunch shift (if any) does not overlap the slot start, scaled by run_rate.
+    SELECT FLOOR(COUNT(*) * v_run_rate / 100.0)::int
+      INTO v_supply
+    FROM clerk_schedules cs
+    JOIN clerks c
+      ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+    LEFT JOIN office_lunch_shifts ols
+      ON ols.id        = cs.lunch_shift_id
+     AND ols.county_id = cs.county_id
+     AND ols.office_id = cs.office_id
+    WHERE cs.county_id     = p_county_id
+      AND cs.office_id     = p_office_id
+      AND cs.schedule_date = p_date
+      AND c.status         = 'active'
+      AND v_skill          = ANY(c.skill_ids)
+      AND (ols.id IS NULL
+        OR NOT (ols.start_time <= p_time AND ols.end_time > p_time));
+
+    -- Demand: overlapping non-cancelled appts that need this skill.
+    SELECT COUNT(*)::int
+      INTO v_demand
+    FROM appointment_durations ad
+    WHERE ad.county_id        = p_county_id
+      AND ad.office_id        = p_office_id
+      AND ad.appointment_date = p_date
+      AND ad.status NOT IN ('cancelled', 'no_show')
+      AND v_skill = ANY(ad.txn_type_ids)
+      AND ad.start_at <= v_slot_start
+      AND ad.end_at   >  v_slot_start;
+
+    IF v_supply <= v_demand THEN
+      RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
+    END IF;
+  END LOOP;
+
+  -- 7. Insert.
+  INSERT INTO appointments (
+    county_id, office_id,
+    first_name, last_name, contact_email, contact_phone,
+    txn_type_ids, appointment_date, appointment_time,
+    qr_code, status, is_walk_in, is_priority
+  ) VALUES (
+    p_county_id, p_office_id,
+    p_first_name, p_last_name, p_contact_email, p_contact_phone,
+    p_txn_type_ids, p_date, p_time,
+    p_qr_code, 'scheduled', p_is_walk_in, p_is_priority
+  )
+  RETURNING id INTO v_appt_id;
+
+  RETURN v_appt_id;
+END $$;
