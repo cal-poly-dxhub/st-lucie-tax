@@ -5,6 +5,19 @@
 -- Config Tables
 -- =============================================================================
 
+-- counties: per-tenant scheduling defaults. id is the same value used as
+-- county_id everywhere else (RLS predicate, app.current_tenant GUC).
+CREATE TABLE counties (
+    id                       TEXT PRIMARY KEY,
+    name                     TEXT NOT NULL,
+    timezone                 TEXT NOT NULL DEFAULT 'America/New_York',
+    scheduling_block_min     INT  NOT NULL DEFAULT 15
+                             CHECK (scheduling_block_min > 0
+                                AND scheduling_block_min <= 60),
+    default_lookahead_days   INT  NOT NULL DEFAULT 14
+                             CHECK (default_lookahead_days BETWEEN 1 AND 365)
+);
+
 CREATE TABLE offices (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
@@ -327,6 +340,13 @@ CREATE POLICY tenant_isolation ON service_history_txn_types
                        WHERE sh.id = service_history_id
                          AND sh.county_id = current_tenant()));
 
+-- counties: tenant key is `id`, not `county_id`. Same isolation contract.
+ALTER TABLE counties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counties FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON counties
+  USING      (id = current_tenant())
+  WITH CHECK (id = current_tenant());
+
 -- =============================================================================
 -- Booking
 -- =============================================================================
@@ -373,6 +393,8 @@ DECLARE
   v_slot_end    TIMESTAMP;
   v_close_time  TIME;
   v_open_time   TIME;
+  v_block_min   INT;
+  v_block_t     TIMESTAMP;
   v_skill       INT;
   v_supply      INT;
   v_demand      INT;
@@ -445,46 +467,58 @@ BEGIN
     RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
   END IF;
 
-  -- 6. Per-skill capacity recheck. supply > demand for EVERY requested skill.
+  -- 6. Per-skill capacity recheck across EVERY block the appt occupies.
+  --    Walk from slot_start in scheduling_block_min increments up to (but
+  --    not including) slot_end. At each block, supply > demand must hold
+  --    for every requested skill. Catches mid-appt supply drops (e.g. a
+  --    clerk going on lunch partway through the appointment).
   SELECT run_rate_pct INTO v_run_rate
   FROM offices
   WHERE county_id = p_county_id AND id = p_office_id;
 
-  FOREACH v_skill IN ARRAY p_txn_type_ids LOOP
-    -- Supply: clerks scheduled at this office/date with this skill, whose
-    -- lunch shift (if any) does not overlap the slot start, scaled by run_rate.
-    SELECT FLOOR(COUNT(*) * v_run_rate / 100.0)::int
-      INTO v_supply
-    FROM clerk_schedules cs
-    JOIN clerks c
-      ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-    LEFT JOIN office_lunch_shifts ols
-      ON ols.id        = cs.lunch_shift_id
-     AND ols.county_id = cs.county_id
-     AND ols.office_id = cs.office_id
-    WHERE cs.county_id     = p_county_id
-      AND cs.office_id     = p_office_id
-      AND cs.schedule_date = p_date
-      AND c.status         = 'active'
-      AND v_skill          = ANY(c.skill_ids)
-      AND (ols.id IS NULL
-        OR NOT (ols.start_time <= p_time AND ols.end_time > p_time));
+  SELECT scheduling_block_min INTO v_block_min
+  FROM counties WHERE id = p_county_id;
 
-    -- Demand: overlapping non-cancelled appts that need this skill.
-    SELECT COUNT(*)::int
-      INTO v_demand
-    FROM appointment_durations ad
-    WHERE ad.county_id        = p_county_id
-      AND ad.office_id        = p_office_id
-      AND ad.appointment_date = p_date
-      AND ad.status NOT IN ('cancelled', 'no_show')
-      AND v_skill = ANY(ad.txn_type_ids)
-      AND ad.start_at <= v_slot_start
-      AND ad.end_at   >  v_slot_start;
+  v_block_t := v_slot_start;
+  WHILE v_block_t < v_slot_end LOOP
+    FOREACH v_skill IN ARRAY p_txn_type_ids LOOP
+      -- Supply: clerks scheduled at this office/date with this skill, whose
+      -- lunch shift (if any) does not overlap THIS block, scaled by run_rate.
+      SELECT FLOOR(COUNT(*) * v_run_rate / 100.0)::int
+        INTO v_supply
+      FROM clerk_schedules cs
+      JOIN clerks c
+        ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+      LEFT JOIN office_lunch_shifts ols
+        ON ols.id        = cs.lunch_shift_id
+       AND ols.county_id = cs.county_id
+       AND ols.office_id = cs.office_id
+      WHERE cs.county_id     = p_county_id
+        AND cs.office_id     = p_office_id
+        AND cs.schedule_date = p_date
+        AND c.status         = 'active'
+        AND v_skill          = ANY(c.skill_ids)
+        AND (ols.id IS NULL
+          OR NOT (ols.start_time <= v_block_t::time
+              AND ols.end_time   >  v_block_t::time));
 
-    IF v_supply <= v_demand THEN
-      RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
-    END IF;
+      -- Demand: overlapping non-cancelled appts that need this skill.
+      SELECT COUNT(*)::int
+        INTO v_demand
+      FROM appointment_durations ad
+      WHERE ad.county_id        = p_county_id
+        AND ad.office_id        = p_office_id
+        AND ad.appointment_date = p_date
+        AND ad.status NOT IN ('cancelled', 'no_show')
+        AND v_skill = ANY(ad.txn_type_ids)
+        AND ad.start_at <= v_block_t
+        AND ad.end_at   >  v_block_t;
+
+      IF v_supply <= v_demand THEN
+        RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
+      END IF;
+    END LOOP;
+    v_block_t := v_block_t + (v_block_min * interval '1 minute');
   END LOOP;
 
   -- 7. Insert.
