@@ -40,10 +40,10 @@ INSERT INTO office_lunch_shifts (county_id, office_id, shift_num, start_time, en
 -- Transaction Types (3 types, global — no office override)
 -- skill_ids reference: 1=road_test, 2=id_card, 3=license_original
 -- =============================================================================
-INSERT INTO transaction_types (county_id, txn_type_id, name, description, avg_duration_min, status) VALUES
-    ('stlucie', 'road_test',        'Road Test',               'Behind-the-wheel driving test',    30, 'active'),
-    ('stlucie', 'id_card',          'State ID Card',           'Non-driver identification card',   15, 'active'),
-    ('stlucie', 'license_original', 'Original Driver License', 'First-time FL driver license',     25, 'active');
+INSERT INTO transaction_types (county_id, txn_type_id, name, description, avg_duration_min, status, available_from, available_until) VALUES
+    ('stlucie', 'road_test',        'Road Test',               'Behind-the-wheel driving test',    30, 'active', '09:00', '15:00'),
+    ('stlucie', 'id_card',          'State ID Card',           'Non-driver identification card',   15, 'active', NULL,    NULL),
+    ('stlucie', 'license_original', 'Original Driver License', 'First-time FL driver license',     25, 'active', NULL,    NULL);
 
 -- =============================================================================
 -- Clerks (3 per office, distributed skills)
