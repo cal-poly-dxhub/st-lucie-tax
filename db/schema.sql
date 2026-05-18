@@ -32,8 +32,7 @@ CREATE TABLE office_lunch_shifts (
     office_id       INT NOT NULL REFERENCES offices(id),
     shift_num       INT NOT NULL,
     start_time      TIME NOT NULL,
-    end_time        TIME NOT NULL,
-    clerk_count     INT NOT NULL
+    end_time        TIME NOT NULL
 );
 
 CREATE TABLE transaction_types (
@@ -197,7 +196,6 @@ CREATE TABLE clerk_sessions (
     office_id       INT NOT NULL REFERENCES offices(id),
     desk_number     INT NOT NULL,
     is_available    BOOLEAN NOT NULL DEFAULT TRUE,
-    on_lunch_shift_id INT REFERENCES office_lunch_shifts(id),
     logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     logged_out_at   TIMESTAMPTZ
 );
@@ -207,7 +205,8 @@ CREATE TABLE clerk_schedules (
     county_id       TEXT NOT NULL,
     clerk_id        INT NOT NULL REFERENCES clerks(id),
     office_id       INT NOT NULL REFERENCES offices(id),
-    schedule_date   DATE NOT NULL
+    schedule_date   DATE NOT NULL,
+    lunch_shift_id  INT REFERENCES office_lunch_shifts(id)
 );
 CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date);
 CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);

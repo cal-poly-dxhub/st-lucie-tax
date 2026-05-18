@@ -43,8 +43,7 @@ CREATE TABLE office_lunch_shifts (
     office_id       INT NOT NULL REFERENCES offices(id),
     shift_num       INT NOT NULL,
     start_time      TIME NOT NULL,
-    end_time        TIME NOT NULL,
-    clerk_count     INT NOT NULL            -- how many clerks go on this shift
+    end_time        TIME NOT NULL
 );
 
 -- Transaction types
@@ -178,16 +177,7 @@ Chatbot flow: walk all `transaction_flows` for selected txn types, then get all 
 
 ### Lunch Capacity
 
-Lunch capacity is calculated by overlap. When multiple shifts overlap at a point in time, capacity is reduced by the sum of clerk_count across overlapping shifts:
-
-```
-Lunches
-==== =====
-  ======
-====
-  X
-Capacity has three reductions at point X due to overlap
-```
+Lunch capacity reduction is per-skill. Each clerk's `clerk_schedules.lunch_shift_id` ties them to a specific lunch shift window. To compute capacity at a given time, count clerks on overlapping shifts filtered by skill — this tells you exactly which skills lose capacity and when, not just a generic headcount.
 
 ---
 
@@ -297,7 +287,6 @@ CREATE TABLE clerk_sessions (
     office_id       INT NOT NULL REFERENCES offices(id),
     desk_number     INT NOT NULL,
     is_available    BOOLEAN NOT NULL DEFAULT TRUE, -- Tracks to see if clerk is available (clerks can set if they are available manually)
-    on_lunch_shift_id INT REFERENCES office_lunch_shifts(id), -- NULL = not on lunch; set when clerk goes to lunch, cleared on return
     logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     logged_out_at   TIMESTAMPTZ
 );
@@ -310,7 +299,8 @@ CREATE TABLE clerk_schedules (
     county_id       TEXT NOT NULL,
     clerk_id        INT NOT NULL REFERENCES clerks(id),
     office_id       INT NOT NULL REFERENCES offices(id),
-    schedule_date   DATE NOT NULL
+    schedule_date   DATE NOT NULL,
+    lunch_shift_id  INT REFERENCES office_lunch_shifts(id) -- which lunch shift this clerk is assigned to
 );
 CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date); -- One office per clerk per day
 CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);
@@ -333,7 +323,7 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Office capacities | `SELECT total_desks, run_rate_pct FROM offices WHERE id = $1` |
 | Office by office_name | `SELECT * FROM offices WHERE county_id = $1 AND office_name = $2` |
 | Office operating hours | `SELECT * FROM office_hours WHERE office_id = $1 ORDER BY day_of_week` |
-| Lunch shifts / timing / overlap | `SELECT * FROM office_lunch_shifts WHERE office_id = $1 ORDER BY start_time` |
+| Lunch shifts / timing | `SELECT * FROM office_lunch_shifts WHERE office_id = $1 ORDER BY start_time` |
 | Desks per office | `SELECT total_desks FROM offices WHERE id = $1` |
 | Transaction types at all offices | `SELECT * FROM transaction_types WHERE county_id = $1 AND office_id IS NULL AND status = 'active'` |
 | Transaction types scoped to one office | `SELECT * FROM transaction_types WHERE county_id = $1 AND office_id = $2 AND status = 'active'` |
@@ -371,8 +361,8 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Customer status by queue number | `SELECT status, assigned_desk FROM queue WHERE county_id = $1 AND office_id = $2 AND queue_number = $3 AND checked_in_at::date = CURRENT_DATE` |
 | Appointments assigned to a specific clerk | `SELECT * FROM appointments WHERE county_id = $1 AND requested_clerk_id = $2 AND appointment_date = $3` |
 | Available clerks | `SELECT * FROM clerk_sessions WHERE county_id = $1 AND office_id = $2 AND is_available = TRUE AND logged_out_at IS NULL` |
-| Clerks currently on lunch | `SELECT cs.*, c.first_name, c.last_name FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.on_lunch_shift_id IS NOT NULL AND cs.logged_out_at IS NULL` |
-| Available skills right now (excludes lunch) | `SELECT DISTINCT unnest(c.skill_ids) AS skill_id FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = TRUE AND cs.on_lunch_shift_id IS NULL AND cs.logged_out_at IS NULL` |
+| Clerks currently on lunch | `SELECT cs.*, c.first_name, c.last_name FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = FALSE AND cs.logged_out_at IS NULL` |
+| Available skills right now | `SELECT DISTINCT unnest(c.skill_ids) AS skill_id FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = TRUE AND cs.logged_out_at IS NULL` |
 
 ### Clerk Schedules
 
@@ -399,7 +389,7 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 |-------|---------|
 | `offices` | Office locations, capacity, run rate |
 | `office_hours` | Per-day operating hours |
-| `office_lunch_shifts` | Lunch shift schedules for capacity reduction |
+| `office_lunch_shifts` | Lunch shift time windows (clerks assigned via clerk_schedules.lunch_shift_id) |
 | `transaction_types` | Services offered (global or office-scoped, online-eligible flag) |
 | `clerks` | Clerk profiles, skills, office assignments |
 | `hotbuttons` | Chatbot quick-action buttons |
@@ -412,5 +402,5 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | `service_history` | PII-free per-service duration log for analytics |
 | `service_history_txn_types` | Junction table linking service_history rows to their transaction types |
 | `duration_recommendations` | Admin approval workflow for duration updates |
-| `clerk_sessions` | Who's logged in at which desk, lunch shift tracking |
-| `clerk_schedules` | Which clerk is assigned to which office on what day |
+| `clerk_sessions` | Who's logged in at which desk, availability tracking |
+| `clerk_schedules` | Which clerk is assigned to which office on what day, lunch shift assignment |

@@ -30,11 +30,11 @@ INSERT INTO office_hours (county_id, office_id, day_of_week, open_time, close_ti
 -- Fort Pierce: 1 clerk out 11:30-12:15, then 2 clerks out 12:15-13:00
 -- St. Lucie West: 2 clerks out 11:30-12:15, then 1 clerk out 12:15-13:00
 -- =============================================================================
-INSERT INTO office_lunch_shifts (county_id, office_id, shift_num, start_time, end_time, clerk_count) VALUES
-    ('stlucie', 1, 1, '11:30', '12:15', 1),
-    ('stlucie', 1, 2, '12:15', '13:00', 2),
-    ('stlucie', 2, 1, '11:30', '12:15', 2),
-    ('stlucie', 2, 2, '12:15', '13:00', 1);
+INSERT INTO office_lunch_shifts (county_id, office_id, shift_num, start_time, end_time) VALUES
+    ('stlucie', 1, 1, '11:30', '12:15'),
+    ('stlucie', 1, 2, '12:15', '13:00'),
+    ('stlucie', 2, 1, '11:30', '12:15'),
+    ('stlucie', 2, 2, '12:15', '13:00');
 
 -- =============================================================================
 -- Transaction Types (3 types, global — no office override)
@@ -67,8 +67,13 @@ INSERT INTO clerks (county_id, first_name, last_name, email, status, skill_ids, 
 -- All 3 Fort Pierce clerks scheduled every weekday at office 1
 -- All 3 St. Lucie West clerks scheduled every weekday at office 2
 -- =============================================================================
-INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date)
-SELECT 'stlucie', c.id, 1, d.dt
+INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date, lunch_shift_id)
+SELECT 'stlucie', c.id, 1, d.dt,
+    CASE c.id
+        WHEN 1 THEN 1  -- clerk 1 on shift 1 (11:30-12:15)
+        WHEN 2 THEN 2  -- clerk 2 on shift 2 (12:15-13:00)
+        WHEN 3 THEN 2  -- clerk 3 on shift 2 (12:15-13:00)
+    END
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
@@ -77,8 +82,13 @@ CROSS JOIN (
 ) d
 WHERE c.id BETWEEN 1 AND 3;
 
-INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date)
-SELECT 'stlucie', c.id, 2, d.dt
+INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date, lunch_shift_id)
+SELECT 'stlucie', c.id, 2, d.dt,
+    CASE c.id
+        WHEN 4 THEN 3  -- clerk 4 on shift 1 (11:30-12:15)
+        WHEN 5 THEN 3  -- clerk 5 on shift 1 (11:30-12:15)
+        WHEN 6 THEN 4  -- clerk 6 on shift 2 (12:15-13:00)
+    END
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
