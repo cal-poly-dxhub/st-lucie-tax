@@ -51,21 +51,18 @@ ORDER BY global_id;
 
 -- =============================================================================
 -- 5. Get appointments for the day (with computed end times)
+--    Reads from appointment_durations.
 -- =============================================================================
-SELECT a.id, a.appointment_time::text,
-       COALESCE((SELECT SUM(tt.avg_duration_min)
-                 FROM unnest(a.txn_type_ids) AS tid
-                 JOIN transaction_types tt ON tt.id = tid), 0) AS total_duration,
-       (a.appointment_time + (COALESCE((SELECT SUM(tt.avg_duration_min)
-                                        FROM unnest(a.txn_type_ids) AS tid
-                                        JOIN transaction_types tt ON tt.id = tid), 0)
-                              * interval '1 minute'))::text AS end_time,
-       a.txn_type_ids
-FROM appointments a
-WHERE a.county_id = 'stlucie'
-  AND a.office_id = 1
-  AND a.appointment_date = '2026-05-12'
-  AND a.status NOT IN ('cancelled', 'no_show');
+SELECT id,
+       appointment_time::text,
+       total_duration_min,
+       end_at::text,
+       txn_type_ids
+FROM appointment_durations
+WHERE county_id = 'stlucie'
+  AND office_id = 1
+  AND appointment_date = '2026-05-12'
+  AND status NOT IN ('cancelled', 'no_show');
 
 -- =============================================================================
 -- 6. Get scheduled clerks with lunch shift for a given skill
@@ -82,19 +79,19 @@ WHERE cs.county_id = 'stlucie'
 
 -- =============================================================================
 -- 7. Count concurrent appointments needing a skill at a specific time
---    Example: skill_id = 1, time = 08:00 (minute 480)
+--    Example: skill_id = 1, time = 08:00 on 2026-05-12.
 -- =============================================================================
 -- Note: in the app this is done in a loop, not SQL. This is the SQL equivalent.
+-- Uses appointment_durations.start_at / end_at (TIMESTAMPs, midnight-safe).
 SELECT count(*) AS concurrent
-FROM appointments a
-WHERE a.county_id = 'stlucie'
-  AND a.office_id = 1
-  AND a.appointment_date = '2026-05-12'
-  AND a.status NOT IN ('cancelled', 'no_show')
-  AND 1 = ANY(a.txn_type_ids)
-  AND (EXTRACT(HOUR FROM a.appointment_time)::int * 60 + EXTRACT(MINUTE FROM a.appointment_time)::int) <= 480
-  AND (EXTRACT(HOUR FROM a.appointment_time)::int * 60 + EXTRACT(MINUTE FROM a.appointment_time)::int)
-      + COALESCE((SELECT SUM(tt.avg_duration_min) FROM unnest(a.txn_type_ids) tid JOIN transaction_types tt ON tt.id = tid), 0) > 480;
+FROM appointment_durations ad
+WHERE ad.county_id = 'stlucie'
+  AND ad.office_id = 1
+  AND ad.appointment_date = '2026-05-12'
+  AND ad.status NOT IN ('cancelled', 'no_show')
+  AND 1 = ANY(ad.txn_type_ids)
+  AND ad.start_at <= TIMESTAMP '2026-05-12 08:00'
+  AND ad.end_at   >  TIMESTAMP '2026-05-12 08:00';
 
 -- =============================================================================
 -- 8. Booking query (CTE variant): same logic, no function dependency
