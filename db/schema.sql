@@ -210,3 +210,76 @@ CREATE TABLE clerk_schedules (
 );
 CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date);
 CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);
+
+-- =============================================================================
+-- Views
+-- =============================================================================
+-- effective_transaction_types: one row per (office, global txn type), with
+-- per-office overrides applied. The global row (office_id IS NULL) is the
+-- base; an office-specific row with the same county_id + txn_type_id slug
+-- overrides available_from/until and status per-column. Duration stays
+-- global. Consumers (booking engine, admin UI, prescreen lookup) read this
+-- as if it were a flat table — no override resolution at the call site.
+-- security_invoker = true so RLS on transaction_types/offices applies to
+-- the view caller, not the view owner.
+CREATE VIEW effective_transaction_types
+WITH (security_invoker = true) AS
+SELECT
+  o.id          AS office_id,
+  o.county_id,
+  g.id          AS global_id,        -- surrogate id of the global row
+  g.txn_type_id,                     -- slug, e.g. 'road_test'
+  g.name,
+  g.description,
+  g.avg_duration_min,                -- global, not overridable
+  g.is_online_eligible,
+  g.online_redirect_url,
+  COALESCE(ov.available_from,  g.available_from)  AS available_from,
+  COALESCE(ov.available_until, g.available_until) AS available_until,
+  COALESCE(ov.status,          g.status)          AS status
+FROM offices o
+JOIN transaction_types g
+  ON g.county_id  = o.county_id
+ AND g.office_id IS NULL
+LEFT JOIN transaction_types ov
+  ON ov.county_id   = g.county_id
+ AND ov.txn_type_id = g.txn_type_id
+ AND ov.office_id   = o.id;
+
+-- =============================================================================
+-- Row-Level Security
+-- =============================================================================
+-- All tenant-scoped tables enforce isolation via the `app.current_tenant`
+-- session GUC. The application sets this at the start of each request:
+--   SET LOCAL app.current_tenant = 'stlucie';
+-- The policies below filter every read and write to that county. The TRUE
+-- fallback in current_setting(...) lets superuser/migration tooling run when
+-- the GUC is unset; combined with FORCE ROW LEVEL SECURITY this still blocks
+-- table owners from bypassing tenant scope in normal app sessions.
+--
+-- service_history_txn_types has no county_id column — its rows inherit
+-- isolation through the FK to service_history, which is RLS-protected.
+
+CREATE OR REPLACE FUNCTION current_tenant() RETURNS TEXT AS $$
+  SELECT current_setting('app.current_tenant', TRUE);
+$$ LANGUAGE SQL STABLE;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'offices','office_hours','office_lunch_shifts','transaction_types',
+    'clerks','hotbuttons','prescreen_questions','document_registry',
+    'transaction_flows','appointments','documents','queue',
+    'service_history','duration_recommendations','clerk_sessions',
+    'clerk_schedules'
+  ] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+    EXECUTE format($p$
+      CREATE POLICY tenant_isolation ON %I
+        USING      (county_id = current_tenant())
+        WITH CHECK (county_id = current_tenant())
+    $p$, t);
+  END LOOP;
+END $$;
