@@ -5,31 +5,36 @@
 -- supply/demand for the requested slot atomically.
 
 -- =============================================================================
--- Booking heatmap query (CTE variant)
+-- Booking heatmap query
 -- =============================================================================
--- Inputs (params CTE):
+-- Inputs:
 --   county_id        : tenant — every config/transactional table is filtered
 --                      on this. RLS will also enforce it via app.current_tenant.
 --   target_skills    : skills the booking needs, e.g. ARRAY[1,3]. Surrogate
---                      ids of GLOBAL (office_id IS NULL) txn_types rows.
+--                      ids of txn_types rows.
 --   asap             : if TRUE, ignore preferences and return earliest slot first
+--                      across all offices/times.
 --   preferred_office : office_id (NULL = any office)
 --   preferred_dow    : day of week 0=Sun..6=Sat (NULL = any)
 --   preferred_time   : 'morning' (< 12:00), 'afternoon' (>= 12:00), or NULL = any
 --   start_date, days : how far ahead to look
 --   block_min        : grid resolution in minutes
+--   now_ts           : "current time" used to hide slots in the past. Production
+--                      callers pass NOW(); tests pass a frozen timestamp so the
+--                      seeded date range stays in the future.
 -- =============================================================================
 WITH params AS (
   SELECT
-    'stlucie'::text   AS county_id,
-    ARRAY[1]          AS target_skills,
-    FALSE             AS asap,                -- TRUE = earliest slot, any office
-    1::int            AS preferred_office,    -- NULL = any
-    2::int            AS preferred_dow,       -- 0=Sun..6=Sat, NULL = any
-    'morning'::text   AS preferred_time,      -- 'morning' | 'afternoon' | NULL
-    15                AS block_min,
-    DATE '2026-05-12' AS start_date,
-    14                AS days
+    'stlucie'::text              AS county_id,
+    ARRAY[1]                     AS target_skills,
+    FALSE                        AS asap,             -- TRUE = earliest slot, any office
+    1::int                       AS preferred_office, -- NULL = any
+    2::int                       AS preferred_dow,    -- 0=Sun..6=Sat, NULL = any
+    'morning'::text              AS preferred_time,   -- 'morning' | 'afternoon' | NULL
+    15                           AS block_min,
+    DATE '2026-05-12'            AS start_date,       -- production callers pass CURRENT_DATE
+    14                           AS days,
+    TIMESTAMP '2026-05-12 06:00' AS now_ts            -- production callers pass NOW()
 ),
 
 -- Global txn window: duration is global, so blocks_needed is constant across
@@ -198,14 +203,16 @@ fits AS (
 
 -- Apply gating, all using full timestamps so cross-midnight / 24:00 cases
 -- don't silently wrap:
---   1. Slot must start at or after the per-office earliest_start (txn override).
---   2. Slot end (start + global total_duration) must be at or before the
+--   1. Slot start must be strictly after now_ts (no booking in the past).
+--   2. Slot must start at or after the per-office earliest_start (txn override).
+--   3. Slot end (start + global total_duration) must be at or before the
 --      per-office latest_end (txn override) AND at or before the office close.
 heatmap AS (
   SELECT fits.office_id,
          fits.slot_date,
          fits.slot_time,
          CASE
+           WHEN (fits.slot_date + fits.slot_time)::timestamp <= params.now_ts THEN 0
            WHEN otw.earliest_start IS NOT NULL
                 AND fits.slot_time < otw.earliest_start THEN 0
            WHEN otw.latest_end IS NOT NULL
@@ -220,6 +227,7 @@ heatmap AS (
   FROM fits
   JOIN office_txn_window otw ON otw.office_id = fits.office_id
   CROSS JOIN txn_window
+  CROSS JOIN params
 )
 
 SELECT
