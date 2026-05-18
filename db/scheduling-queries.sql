@@ -17,7 +17,7 @@ FROM office_hours WHERE office_id = 1 ORDER BY day_of_week;
 -- =============================================================================
 -- 3. Get lunch shifts
 -- =============================================================================
-SELECT id, shift_num, start_time::text, end_time::text, clerk_count
+SELECT id, shift_num, start_time::text, end_time::text
 FROM office_lunch_shifts WHERE office_id = 1 ORDER BY start_time;
 
 -- =============================================================================
