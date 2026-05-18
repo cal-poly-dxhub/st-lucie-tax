@@ -246,6 +246,21 @@ LEFT JOIN transaction_types ov
  AND ov.txn_type_id = g.txn_type_id
  AND ov.office_id   = o.id;
 
+-- appointment_durations: appointments with computed total duration and end
+-- time. Allows us to
+CREATE VIEW appointment_durations
+WITH (security_invoker = true) AS
+SELECT a.*,
+       COALESCE((SELECT SUM(tt.avg_duration_min)
+                 FROM unnest(a.txn_type_ids) AS tid
+                 JOIN transaction_types tt ON tt.id = tid), 0) AS total_duration_min,
+       (a.appointment_time
+        + (COALESCE((SELECT SUM(tt.avg_duration_min)
+                     FROM unnest(a.txn_type_ids) AS tid
+                     JOIN transaction_types tt ON tt.id = tid), 0)
+           * interval '1 minute'))::time AS end_time
+FROM appointments a;
+
 -- =============================================================================
 -- Row-Level Security
 -- =============================================================================

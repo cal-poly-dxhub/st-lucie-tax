@@ -216,8 +216,9 @@ supply AS (
               AND clerk_schedules.schedule_date = blocks.date
               AND target_skill.skill_id          = ANY(clerks.skill_ids)
               AND clerks.status                  = 'active'
-              AND NOT (office_lunch_shifts.start_time <= blocks.block_time
-                   AND office_lunch_shifts.end_time   >  blocks.block_time))
+              AND (office_lunch_shifts.id IS NULL
+                OR NOT (office_lunch_shifts.start_time <= blocks.block_time
+                    AND office_lunch_shifts.end_time   >  blocks.block_time)))
            * blocks.run_rate_pct / 100.0
          )::int AS supply
   FROM blocks
@@ -225,22 +226,19 @@ supply AS (
   CROSS JOIN unnest(params.target_skills) AS target_skill(skill_id)
 ),
 
--- Live demand: overlapping appts that need this skill (start <= t AND end > t)
+-- Live demand: overlapping appts that need this skill (start <= t AND end > t).
+-- Reads from appointment_durations view, which precomputes end_time per appt.
 demand AS (
   SELECT supply.office_id, supply.date, supply.block_time, supply.skill_id,
          (SELECT count(*)
-          FROM appointments
-          WHERE appointments.county_id        = params.county_id
-            AND appointments.office_id        = supply.office_id
-            AND appointments.appointment_date = supply.date
-            AND appointments.status NOT IN ('cancelled', 'no_show')
-            AND supply.skill_id = ANY(appointments.txn_type_ids)
-            AND appointments.appointment_time <= supply.block_time
-            AND (appointments.appointment_time
-                 + (COALESCE((SELECT SUM(transaction_types.avg_duration_min)
-                              FROM unnest(appointments.txn_type_ids) AS tid
-                              JOIN transaction_types ON transaction_types.id = tid), 0)
-                    || ' minutes')::interval)::time > supply.block_time) AS demand
+          FROM appointment_durations ad
+          WHERE ad.county_id        = params.county_id
+            AND ad.office_id        = supply.office_id
+            AND ad.appointment_date = supply.date
+            AND ad.status NOT IN ('cancelled', 'no_show')
+            AND supply.skill_id      = ANY(ad.txn_type_ids)
+            AND ad.appointment_time <= supply.block_time
+            AND ad.end_time          > supply.block_time) AS demand
   FROM supply
   CROSS JOIN params
 ),
