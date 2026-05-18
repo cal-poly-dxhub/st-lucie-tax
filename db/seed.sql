@@ -4,6 +4,12 @@
 -- 2 offices, 3 clerks each, 3 transaction types, ~50% capacity bookings
 
 -- =============================================================================
+-- Counties (single tenant for now)
+-- =============================================================================
+INSERT INTO counties (id, name, timezone, scheduling_block_min, default_lookahead_days) VALUES
+    ('stlucie', 'St. Lucie County', 'America/New_York', 15, 14);
+
+-- =============================================================================
 -- Offices (2 locations, 3 desks each)
 -- =============================================================================
 INSERT INTO offices (county_id, office_name, name, address, total_desks, run_rate_pct) VALUES
