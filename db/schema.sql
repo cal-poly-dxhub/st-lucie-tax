@@ -22,7 +22,8 @@ CREATE TABLE office_hours (
     office_id       INT NOT NULL REFERENCES offices(id),
     day_of_week     INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
     open_time       TIME NOT NULL,
-    close_time      TIME NOT NULL
+    close_time      TIME NOT NULL,
+    CHECK (open_time < close_time)
 );
 CREATE UNIQUE INDEX idx_office_hours_unique ON office_hours (county_id, office_id, day_of_week);
 
@@ -32,7 +33,8 @@ CREATE TABLE office_lunch_shifts (
     office_id       INT NOT NULL REFERENCES offices(id),
     shift_num       INT NOT NULL,
     start_time      TIME NOT NULL,
-    end_time        TIME NOT NULL
+    end_time        TIME NOT NULL,
+    CHECK (start_time < end_time)
 );
 
 CREATE TABLE transaction_types (
@@ -42,14 +44,15 @@ CREATE TABLE transaction_types (
     office_id       INT REFERENCES offices(id),
     name            TEXT NOT NULL,
     description     TEXT,
-    avg_duration_min INT NOT NULL,
+    avg_duration_min INT NOT NULL CHECK (avg_duration_min > 0),
     status          TEXT NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'internal', 'hidden')),
     available_from  TIME,
     available_until TIME,
     is_online_eligible BOOLEAN NOT NULL DEFAULT FALSE,
     online_redirect_url TEXT,
-    UNIQUE NULLS NOT DISTINCT (county_id, txn_type_id, office_id)
+    UNIQUE NULLS NOT DISTINCT (county_id, txn_type_id, office_id),
+    CHECK (available_from IS NULL OR available_until IS NULL OR available_from < available_until)
 );
 
 CREATE TABLE clerks (
@@ -64,6 +67,7 @@ CREATE TABLE clerks (
     office_ids      INT[] NOT NULL DEFAULT '{}',
     UNIQUE (email)
 );
+CREATE INDEX idx_clerks_skill_ids ON clerks USING GIN (skill_ids);
 
 CREATE TABLE hotbuttons (
     id              SERIAL PRIMARY KEY,
@@ -159,7 +163,7 @@ CREATE TABLE queue (
 -- Postgres requires an IMMUTABLE function to use in an index expression
 CREATE OR REPLACE FUNCTION date_from_timestamptz(ts TIMESTAMPTZ) RETURNS DATE AS $$
   SELECT ts::date;
-$$ LANGUAGE SQL IMMUTABLE;
+$$;
 
 CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (county_id, office_id, date_from_timestamptz(checked_in_at), queue_number);
 
@@ -167,7 +171,7 @@ CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
     office_id       INT NOT NULL REFERENCES offices(id),
-    duration_min    INT NOT NULL,
+    duration_min    INT NOT NULL CHECK (duration_min >= 0),
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -181,9 +185,9 @@ CREATE TABLE duration_recommendations (
     id              SERIAL PRIMARY KEY,
     county_id       TEXT NOT NULL,
     txn_type_id     INT NOT NULL REFERENCES transaction_types(id),
-    current_avg_min INT NOT NULL,
-    recommended_avg_min INT NOT NULL,
-    sample_size     INT NOT NULL,
+    current_avg_min INT NOT NULL CHECK (current_avg_min > 0),
+    recommended_avg_min INT NOT NULL CHECK (recommended_avg_min > 0),
+    sample_size     INT NOT NULL CHECK (sample_size > 0),
     status          TEXT NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending', 'approved', 'rejected')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -246,19 +250,30 @@ LEFT JOIN transaction_types ov
  AND ov.txn_type_id = g.txn_type_id
  AND ov.office_id   = o.id;
 
--- appointment_durations: appointments with computed total duration and end
--- time. Allows us to
+-- appointment_durations: capacity-relevant projection of appointments with
+-- computed total duration and start/end timestamps. Exposes only the columns
+-- the booking heatmap needs (no PII).
 CREATE VIEW appointment_durations
 WITH (security_invoker = true) AS
-SELECT a.*,
+SELECT a.id,
+       a.county_id,
+       a.office_id,
+       a.appointment_date,
+       a.appointment_time,
+       a.txn_type_ids,
+       a.status,
        COALESCE((SELECT SUM(tt.avg_duration_min)
                  FROM unnest(a.txn_type_ids) AS tid
-                 JOIN transaction_types tt ON tt.id = tid), 0) AS total_duration_min,
-       (a.appointment_time
+                 JOIN transaction_types tt ON tt.id = tid), 0)
+         AS total_duration_min,
+       (a.appointment_date + a.appointment_time)::timestamp
+         AS start_at,
+       (a.appointment_date + a.appointment_time
         + (COALESCE((SELECT SUM(tt.avg_duration_min)
                      FROM unnest(a.txn_type_ids) AS tid
                      JOIN transaction_types tt ON tt.id = tid), 0)
-           * interval '1 minute'))::time AS end_time
+           * interval '1 minute'))::timestamp
+         AS end_at
 FROM appointments a;
 
 -- =============================================================================
@@ -267,17 +282,18 @@ FROM appointments a;
 -- All tenant-scoped tables enforce isolation via the `app.current_tenant`
 -- session GUC. The application sets this at the start of each request:
 --   SET LOCAL app.current_tenant = 'stlucie';
--- The policies below filter every read and write to that county. The TRUE
--- fallback in current_setting(...) lets superuser/migration tooling run when
--- the GUC is unset; combined with FORCE ROW LEVEL SECURITY this still blocks
--- table owners from bypassing tenant scope in normal app sessions.
+-- The policies below filter every read and write to that county. Combined
+-- with FORCE ROW LEVEL SECURITY, even table owners cannot bypass.
 --
 -- service_history_txn_types has no county_id column — its rows inherit
 -- isolation through the FK to service_history, which is RLS-protected.
 
-CREATE OR REPLACE FUNCTION current_tenant() RETURNS TEXT AS $$
-  SELECT current_setting('app.current_tenant', TRUE);
-$$ LANGUAGE SQL STABLE;
+CREATE OR REPLACE FUNCTION current_tenant() RETURNS TEXT
+LANGUAGE SQL STABLE
+SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT pg_catalog.current_setting('app.current_tenant', TRUE);
+$$;
 
 DO $$
 DECLARE t TEXT;
@@ -298,3 +314,15 @@ BEGIN
     $p$, t);
   END LOOP;
 END $$;
+
+-- service_history_txn_types: no county_id column. Policy enforces tenant
+-- scope by checking the parent service_history row.
+ALTER TABLE service_history_txn_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE service_history_txn_types FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON service_history_txn_types
+  USING (EXISTS (SELECT 1 FROM service_history sh
+                  WHERE sh.id = service_history_id
+                    AND sh.county_id = current_tenant()))
+  WITH CHECK (EXISTS (SELECT 1 FROM service_history sh
+                       WHERE sh.id = service_history_id
+                         AND sh.county_id = current_tenant()));
