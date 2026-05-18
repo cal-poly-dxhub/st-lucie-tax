@@ -155,23 +155,27 @@ office_txn_window AS (
   HAVING COUNT(*) = (SELECT cardinality(target_skills) FROM params)
 ),
 
--- One row per date in the lookahead window
+-- One row per date in the lookahead window. `days` is inclusive: days=14
+-- yields 14 dates [start_date .. start_date + 13].
 target_dates AS (
   SELECT d::date AS date
   FROM params
   CROSS JOIN generate_series(
     (SELECT start_date FROM params),
-    (SELECT start_date + days FROM params),
+    (SELECT start_date + days - 1 FROM params),
     interval '1 day'
   ) d
 ),
 
--- Per-day open/close window, scoped to offices that offer all target skills
+-- Per-day open/close window, scoped to offices that offer all target skills.
+-- Carries close_time downstream so the heatmap can gate slots whose end runs
+-- past office close (using full timestamps to avoid 24h-wrap bugs).
 office_window AS (
   SELECT offices.id AS office_id,
          offices.run_rate_pct,
          target_dates.date,
          office_hours.open_time,
+         office_hours.close_time,
          EXTRACT(EPOCH FROM (office_hours.close_time - office_hours.open_time))::int / 60
            AS minutes_open
   FROM offices
@@ -185,11 +189,13 @@ office_window AS (
   WHERE offices.county_id = params.county_id
 ),
 
--- The grid: every block_time within every (office, date) window
+-- The grid: every block_time within every (office, date) window. close_time
+-- is carried so downstream gating can compare against full timestamps.
 blocks AS (
   SELECT office_window.office_id,
          office_window.run_rate_pct,
          office_window.date,
+         office_window.close_time,
          (office_window.open_time + (n || ' minutes')::interval)::time AS block_time
   FROM office_window
   CROSS JOIN params
@@ -197,7 +203,9 @@ blocks AS (
 ),
 
 -- Supply per skill per block: clerks with that skill scheduled at office/date,
--- not on a lunch shift overlapping block_time, scaled by run_rate_pct
+-- not on a lunch shift overlapping block_time, scaled by run_rate_pct. The
+-- lunch_shifts join is constrained to the SAME office so a foreign office's
+-- lunch window can't suppress this clerk's supply.
 supply AS (
   SELECT blocks.office_id, blocks.date, blocks.block_time, target_skill.skill_id,
          FLOOR(
@@ -208,6 +216,7 @@ supply AS (
             LEFT JOIN office_lunch_shifts
                    ON office_lunch_shifts.id        = clerk_schedules.lunch_shift_id
                   AND office_lunch_shifts.county_id = clerk_schedules.county_id
+                  AND office_lunch_shifts.office_id = clerk_schedules.office_id
             WHERE clerk_schedules.county_id     = params.county_id
               AND clerk_schedules.office_id     = blocks.office_id
               AND clerk_schedules.schedule_date = blocks.date
@@ -224,7 +233,8 @@ supply AS (
 ),
 
 -- Live demand: overlapping appts that need this skill (start <= t AND end > t).
--- Reads from appointment_durations view, which precomputes end_time per appt.
+-- Reads from appointment_durations view; start_at/end_at are TIMESTAMPs so the
+-- comparison is midnight-safe (vs. the time-of-day form, which wraps at 24h).
 demand AS (
   SELECT supply.office_id, supply.date, supply.block_time, supply.skill_id,
          (SELECT count(*)
@@ -234,8 +244,8 @@ demand AS (
             AND ad.appointment_date = supply.date
             AND ad.status NOT IN ('cancelled', 'no_show')
             AND supply.skill_id      = ANY(ad.txn_type_ids)
-            AND ad.appointment_time <= supply.block_time
-            AND ad.end_time          > supply.block_time) AS demand
+            AND ad.start_at <= (supply.date + supply.block_time)::timestamp
+            AND ad.end_at   >  (supply.date + supply.block_time)::timestamp) AS demand
   FROM supply
   CROSS JOIN params
 ),
@@ -244,13 +254,18 @@ demand AS (
 -- Take MIN(supply - demand) across the requested skills.
 min_per_block AS (
   SELECT supply.office_id, supply.date, supply.block_time,
-         MIN(GREATEST(supply.supply - demand.demand, 0)) AS available
+         MIN(GREATEST(supply.supply - demand.demand, 0)) AS available,
+         MIN(blocks.close_time) AS close_time
   FROM supply
   JOIN demand
     ON demand.office_id  = supply.office_id
    AND demand.date       = supply.date
    AND demand.block_time = supply.block_time
    AND demand.skill_id   = supply.skill_id
+  JOIN blocks
+    ON blocks.office_id  = supply.office_id
+   AND blocks.date       = supply.date
+   AND blocks.block_time = supply.block_time
   GROUP BY supply.office_id, supply.date, supply.block_time
 ),
 
@@ -260,6 +275,7 @@ fits AS (
   SELECT min_per_block.office_id,
          min_per_block.date AS slot_date,
          min_per_block.block_time AS slot_time,
+         min_per_block.close_time,
          MIN(min_per_block.available) OVER (
            PARTITION BY min_per_block.office_id, min_per_block.date
            ORDER BY min_per_block.block_time
@@ -269,9 +285,11 @@ fits AS (
   FROM min_per_block
 ),
 
--- Apply per-office txn-window gating: zero out slots whose start is before
--- that office's effective earliest_start, or whose end (start + global
--- total_duration) runs past that office's effective latest_end.
+-- Apply gating, all using full timestamps so cross-midnight / 24:00 cases
+-- don't silently wrap:
+--   1. Slot must start at or after the per-office earliest_start (txn override).
+--   2. Slot end (start + global total_duration) must be at or before the
+--      per-office latest_end (txn override) AND at or before the office close.
 heatmap AS (
   SELECT fits.office_id,
          fits.slot_date,
@@ -280,8 +298,12 @@ heatmap AS (
            WHEN otw.earliest_start IS NOT NULL
                 AND fits.slot_time < otw.earliest_start THEN 0
            WHEN otw.latest_end IS NOT NULL
-                AND (fits.slot_time + (txn_window.total_duration_min || ' minutes')::interval)::time
-                    > otw.latest_end THEN 0
+                AND (fits.slot_date + fits.slot_time
+                     + (txn_window.total_duration_min * interval '1 minute'))::timestamp
+                    > (fits.slot_date + otw.latest_end)::timestamp THEN 0
+           WHEN (fits.slot_date + fits.slot_time
+                 + (txn_window.total_duration_min * interval '1 minute'))::timestamp
+                > (fits.slot_date + fits.close_time)::timestamp THEN 0
            ELSE fits.available_through_appt
          END AS available
   FROM fits
