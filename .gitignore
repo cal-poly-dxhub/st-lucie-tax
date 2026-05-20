@@ -39,3 +39,5 @@ cdk.context.json
 .agents/reviews/
 .agents/scratchpad/
 .kiro
+.reviews/
+.claude
