@@ -365,6 +365,11 @@ CREATE POLICY tenant_isolation ON counties
 --                                              effectively active at the
 --                                              office, or the slot is outside
 --                                              its available_from / until.
+-- Raises 'slot_in_past'       (SQLSTATE P0004) if the requested slot start is
+--                                              at or before p_now_ts (defaults
+--                                              to NOW(); tests inject a frozen
+--                                              clock so seeded dates remain in
+--                                              the future).
 --
 -- Capacity formula matches the booking heatmap (scheduling-queries.sql query 8):
 --   supply = floor(count(scheduled clerks with skill, lunch-not-overlapping)
@@ -383,7 +388,8 @@ CREATE OR REPLACE FUNCTION book_appointment(
   p_contact_phone    TEXT,
   p_qr_code          TEXT DEFAULT NULL,
   p_is_walk_in       BOOLEAN DEFAULT FALSE,
-  p_is_priority      BOOLEAN DEFAULT FALSE
+  p_is_priority      BOOLEAN DEFAULT FALSE,
+  p_now_ts           TIMESTAMP DEFAULT NOW()
 ) RETURNS INT
 LANGUAGE plpgsql
 AS $$
@@ -401,7 +407,14 @@ DECLARE
   v_run_rate    INT;
   v_appt_id     INT;
 BEGIN
-  -- 1. Lock the supply pool for this (office, date). Anyone else trying to
+  -- 1. Past-slot gate. Reject before taking row locks — a slot whose start
+  --    is already at/past now_ts can never become bookable. Strict <= so
+  --    "right now" also fails (no zero-lead-time bookings).
+  IF v_slot_start <= p_now_ts THEN
+    RAISE EXCEPTION 'slot_in_past' USING ERRCODE = 'P0004';
+  END IF;
+
+  -- 2. Lock the supply pool for this (office, date). Anyone else trying to
   --    book the same office/day will block on this until we COMMIT.
   PERFORM 1
   FROM clerk_schedules
@@ -410,7 +423,7 @@ BEGIN
     AND schedule_date = p_date
   FOR UPDATE;
 
-  -- 2. Office hours gate: the requested time must be inside the day's window.
+  -- 3. Office hours gate: the requested time must be inside the day's window.
   SELECT oh.open_time, oh.close_time
     INTO v_open_time, v_close_time
   FROM office_hours oh
@@ -422,7 +435,7 @@ BEGIN
     RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
   END IF;
 
-  -- 3. Compute total duration from effective txn rows. Also asserts every
+  -- 4. Compute total duration from effective txn rows. Also asserts every
   --    requested skill is effectively active at this office.
   SELECT SUM(ett.avg_duration_min)::int
     INTO v_duration
@@ -446,13 +459,13 @@ BEGIN
 
   v_slot_end := v_slot_start + (v_duration * interval '1 minute');
 
-  -- 4. Office hours: start must be at/after open, end must be at/before close.
+  -- 5. Office hours: start must be at/after open, end must be at/before close.
   IF p_time < v_open_time
      OR v_slot_end > (p_date + v_close_time)::timestamp THEN
     RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
   END IF;
 
-  -- 5. Per-skill txn availability window: slot must fit inside the effective
+  -- 6. Per-skill txn availability window: slot must fit inside the effective
   --    available_from / available_until for every requested skill.
   PERFORM 1
   FROM effective_transaction_types ett
@@ -467,7 +480,7 @@ BEGIN
     RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
   END IF;
 
-  -- 6. Per-skill capacity recheck across EVERY block the appt occupies.
+  -- 7. Per-skill capacity recheck across EVERY block the appt occupies.
   --    Walk from slot_start in scheduling_block_min increments up to (but
   --    not including) slot_end. At each block, supply > demand must hold
   --    for every requested skill. Catches mid-appt supply drops (e.g. a
@@ -521,7 +534,7 @@ BEGIN
     v_block_t := v_block_t + (v_block_min * interval '1 minute');
   END LOOP;
 
-  -- 7. Insert.
+  -- 8. Insert.
   INSERT INTO appointments (
     county_id, office_id,
     first_name, last_name, contact_email, contact_phone,
