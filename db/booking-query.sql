@@ -17,16 +17,14 @@
 --   preferred_office : office_id (NULL = any office)
 --   preferred_dow    : day of week 0=Sun..6=Sat (NULL = any)
 --   preferred_time   : 'morning' (< 12:00), 'afternoon' (>= 12:00), or NULL = any
---   start_date, days : how far ahead to look
+--   start_date, days : date to start from, and how many days after to look
 --   block_min        : grid resolution in minutes
---   now_ts           : "current time" used to hide slots in the past. Production
---                      callers pass NOW(); tests pass a frozen timestamp so the
---                      seeded date range stays in the future.
+--   now_ts           : "current time" used to hide slots in the past
 -- =============================================================================
 WITH params AS (
   SELECT
     'stlucie'::text              AS county_id,
-    ARRAY[1]                     AS target_skills,
+    ARRAY[1,2]                     AS target_skills,
     FALSE                        AS asap,             -- TRUE = earliest slot, any office
     1::int                       AS preferred_office, -- NULL = any
     2::int                       AS preferred_dow,    -- 0=Sun..6=Sat, NULL = any
@@ -37,9 +35,8 @@ WITH params AS (
     TIMESTAMP '2026-05-12 06:00' AS now_ts            -- production callers pass NOW()
 ),
 
--- Global txn window: duration is global, so blocks_needed is constant across
--- offices. earliest_start / latest_end here are the global defaults — offices
--- can tighten them via overrides (handled in office_txn_window below).
+-- Computes the total number of minutes needed for a given set of txns
+-- and the number of time blocks required.
 txn_window AS (
   SELECT
     SUM(g.avg_duration_min)::int                            AS total_duration_min,
@@ -53,11 +50,12 @@ txn_window AS (
   GROUP BY params.block_min
 ),
 
--- Per-office available_from/until after applying overrides. Reads from the
--- effective_transaction_types view, which resolves global + override per
--- (office, skill). HAVING drops offices that don't offer ALL requested
--- skills as 'active' (a 'hidden' override at one office removes that row).
-office_txn_window AS (
+-- Calculates the earliest a group of txns can start and
+-- the latest they can end per office.
+-- We go with the tightest window for sake of simplicity,
+-- if Road Testing starts 9:30 and DL renewal at 9:00, the earliest
+-- the multi transaction appt can be scheduled is 9:30.
+office_txn_windows AS (
   SELECT
     ett.office_id,
     MAX(ett.available_from)  AS earliest_start,
@@ -71,8 +69,8 @@ office_txn_window AS (
   HAVING COUNT(*) = (SELECT cardinality(target_skills) FROM params)
 ),
 
--- One row per date in the lookahead window. `days` is inclusive: days=14
--- yields 14 dates [start_date .. start_date + 13].
+-- Returns a row for every date in the given range,
+-- used in queries below.
 target_dates AS (
   SELECT d::date AS date
   FROM params
@@ -83,21 +81,17 @@ target_dates AS (
   ) d
 ),
 
--- Per-day open/close window, scoped to offices that offer all target skills.
--- Carries close_time downstream so the heatmap can gate slots whose end runs
--- past office close (using full timestamps to avoid 24h-wrap bugs).
-office_window AS (
+-- Returns per-office availability information (run_rate, open, close) for each target date per office.
+office_daily_windows AS (
   SELECT offices.id AS office_id,
          offices.run_rate_pct,
          target_dates.date,
          office_hours.open_time,
-         office_hours.close_time,
-         EXTRACT(EPOCH FROM (office_hours.close_time - office_hours.open_time))::int / 60
-           AS minutes_open
+         office_hours.close_time
   FROM offices
   CROSS JOIN params
   CROSS JOIN target_dates
-  JOIN office_txn_window ON office_txn_window.office_id = offices.id
+  JOIN office_txn_windows ON office_txn_windows.office_id = offices.id
   JOIN office_hours
     ON office_hours.office_id   = offices.id
    AND office_hours.county_id   = params.county_id
@@ -105,23 +99,27 @@ office_window AS (
   WHERE offices.county_id = params.county_id
 ),
 
--- The grid: every block_time within every (office, date) window. close_time
--- is carried so downstream gating can compare against full timestamps.
+-- Creates a grid of times in block_min increments. Allows us to assign capacities to specific appointment blocks.
 blocks AS (
-  SELECT office_window.office_id,
-         office_window.run_rate_pct,
-         office_window.date,
-         office_window.close_time,
-         (office_window.open_time + (n || ' minutes')::interval)::time AS block_time
-  FROM office_window
-  CROSS JOIN params
-  CROSS JOIN generate_series(0, office_window.minutes_open - params.block_min, params.block_min) AS n
+  SELECT office_daily_windows.office_id,
+         office_daily_windows.run_rate_pct,
+         office_daily_windows.date,
+         office_daily_windows.close_time,
+         (office_daily_windows.open_time + (n || ' minutes')::interval)::time AS block_time
+  FROM office_daily_windows
+  CROSS JOIN params -- Add params to every row
+  -- Create one row per block from open until close (without running over).
+  CROSS JOIN generate_series(
+    0,
+    EXTRACT(EPOCH FROM (office_daily_windows.close_time - office_daily_windows.open_time))::int / 60
+      - params.block_min,
+    params.block_min
+  ) AS n
 ),
 
--- Supply per skill per block: clerks with that skill scheduled at office/date,
--- not on a lunch shift overlapping block_time, scaled by run_rate_pct. The
--- lunch_shifts join is constrained to the SAME office so a foreign office's
--- lunch window can't suppress this clerk's supply.
+
+-- Calculates the number of clerks that can do a specific skill
+-- for a given time block. One row for every office, date, block_time, and skill id.
 supply AS (
   SELECT blocks.office_id, blocks.date, blocks.block_time, target_skill.skill_id,
          FLOOR(
@@ -129,28 +127,29 @@ supply AS (
             FROM clerk_schedules
             JOIN clerks ON clerks.id         = clerk_schedules.clerk_id
                        AND clerks.county_id = clerk_schedules.county_id
-            LEFT JOIN office_lunch_shifts
+            LEFT JOIN office_lunch_shifts -- keep clerks with no assigned lunch
                    ON office_lunch_shifts.id        = clerk_schedules.lunch_shift_id
                   AND office_lunch_shifts.county_id = clerk_schedules.county_id
                   AND office_lunch_shifts.office_id = clerk_schedules.office_id
             WHERE clerk_schedules.county_id     = params.county_id
               AND clerk_schedules.office_id     = blocks.office_id
               AND clerk_schedules.schedule_date = blocks.date
-              AND target_skill.skill_id          = ANY(clerks.skill_ids)
+              AND target_skill.skill_id          = ANY(clerks.skill_ids) -- Clerk has given skill
               AND clerks.status                  = 'active'
+              -- Remove clerks who are out at lunch
               AND (office_lunch_shifts.id IS NULL
                 OR NOT (office_lunch_shifts.start_time <= blocks.block_time
                     AND office_lunch_shifts.end_time   >  blocks.block_time)))
-           * blocks.run_rate_pct / 100.0
+           * blocks.run_rate_pct / 100.0 -- Scale by run rate pct
          )::int AS supply
   FROM blocks
   CROSS JOIN params
+  -- Pair every skill id with a given block
   CROSS JOIN unnest(params.target_skills) AS target_skill(skill_id)
 ),
 
--- Live demand: overlapping appts that need this skill (start <= t AND end > t).
--- Reads from appointment_durations view; start_at/end_at are TIMESTAMPs so the
--- comparison is midnight-safe (vs. the time-of-day form, which wraps at 24h).
+-- Calculate demand as the number of appointments who are using
+-- a given skill in a given time block.
 demand AS (
   SELECT supply.office_id, supply.date, supply.block_time, supply.skill_id,
          (SELECT count(*)
@@ -166,10 +165,11 @@ demand AS (
   CROSS JOIN params
 ),
 
--- Multi-skill collapse: appt needing skills [1,3] needs BOTH simultaneously.
--- Take MIN(supply - demand) across the requested skills.
+-- Calculates the number of appointments that can start at a given
+-- block time requiring all target_skills given current bookings.
 min_per_block AS (
   SELECT supply.office_id, supply.date, supply.block_time,
+         -- Resolves multiple transactions to ensure that all skills have capacity
          MIN(GREATEST(supply.supply - demand.demand, 0)) AS available,
          MIN(blocks.close_time) AS close_time
   FROM supply
@@ -225,7 +225,7 @@ heatmap AS (
            ELSE fits.available_through_appt
          END AS available
   FROM fits
-  JOIN office_txn_window otw ON otw.office_id = fits.office_id
+  JOIN office_txn_windows otw ON otw.office_id = fits.office_id
   CROSS JOIN txn_window
   CROSS JOIN params
 )
