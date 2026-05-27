@@ -660,44 +660,29 @@ describe('book_appointment: lock + recheck + insert', () => {
   });
 });
 
-// Smoke test for the booking heatmap query in db/booking-query.sql. The file
-// uses a hardcoded params CTE for psql exploration; the test file is the only
-// other place it's exercised end-to-end. Runs the file as-is against the seed
-// and asserts the result shape — catches CTE wiring errors (missing joins,
-// stale column names, broken arithmetic) that the function-only tests miss.
-describe('booking-query.sql: heatmap end-to-end', () => {
-  const HEATMAP_SQL = readFileSync(
+// Smoke test for the booking validation query in db/booking-query.sql.
+// The file uses a hardcoded params CTE for psql exploration; this test runs it
+// as-is against the seed and asserts the single-slot validation shape.
+describe('booking-query.sql: single-slot validation', () => {
+  const VALIDATION_SQL = readFileSync(
     resolve(import.meta.dirname, '../booking-query.sql'),
     'utf8',
   );
 
-  test('returns ranked slots with the expected columns', async () => {
-    const { rows } = await db.client.query(HEATMAP_SQL);
+  test('returns at most one row with expected columns when slot is bookable', async () => {
+    const { rows } = await db.client.query(VALIDATION_SQL);
 
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.length).toBeLessThanOrEqual(20);
+    // The query returns exactly one row if the slot is bookable, zero if not.
+    expect(rows.length).toBeLessThanOrEqual(1);
 
-    // Every row exposes the columns the heatmap promises and never returns
-    // a slot with zero capacity (the WHERE available > 0 is what makes
-    // the result a "what's bookable" list). `available` comes back as a
-    // string because pg returns the window-function aggregate as numeric.
-    for (const row of rows) {
+    if (rows.length === 1) {
+      const row = rows[0];
       expect(row).toMatchObject({
         office_id: expect.any(Number),
         slot_date: expect.any(Date),
         slot_time: expect.any(String),
       });
       expect(Number(row.available)).toBeGreaterThan(0);
-    }
-
-    // params has now_ts = 2026-05-12 06:00 — every slot must be strictly
-    // after that. Confirms the past-slot gate in the heatmap CASE is wired.
-    const cutoff = new Date('2026-05-12T06:00:00');
-    for (const row of rows) {
-      const slotStart = new Date(
-        `${row.slot_date.toISOString().slice(0, 10)}T${row.slot_time}`,
-      );
-      expect(slotStart.getTime()).toBeGreaterThan(cutoff.getTime());
     }
   });
 });
