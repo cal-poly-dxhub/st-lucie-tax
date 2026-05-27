@@ -228,6 +228,17 @@ CREATE TABLE clerk_schedules (
 CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date);
 CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);
 
+CREATE TABLE clerk_absences (
+    id          SERIAL PRIMARY KEY,
+    county_id   TEXT NOT NULL,
+    clerk_id    INT NOT NULL REFERENCES clerks(id),
+    start_date  DATE NOT NULL,
+    end_date    DATE NOT NULL,
+    reason      TEXT,
+    CONSTRAINT valid_range CHECK (end_date >= start_date)
+);
+CREATE INDEX idx_clerk_absences_lookup ON clerk_absences (county_id, clerk_id, start_date, end_date);
+
 -- =============================================================================
 -- Views
 -- =============================================================================
@@ -348,14 +359,112 @@ CREATE POLICY tenant_isolation ON counties
   WITH CHECK (id = current_tenant());
 
 -- =============================================================================
+-- Capacity validation
+-- =============================================================================
+-- validate_slot: change-point capacity sweep for a single slot.
+--
+-- Returns the minimum available capacity (supply − demand) across all
+-- change-points within [slot_time, slot_time + duration). Returns 0 if
+-- no capacity is available. Used by book_appointment (under row lock) and
+-- find_appointment (during candidate evaluation).
+--
+-- Change-points are moments where supply or demand shifts:
+--   1. The slot start itself (baseline)
+--   2. A lunch shift beginning inside the window (supply drops)
+--   3. Another appointment starting inside the window (demand rises)
+CREATE OR REPLACE FUNCTION validate_slot(
+  p_county_id      TEXT,
+  p_office_id      INT,
+  p_date           DATE,
+  p_time           TIME,
+  p_target_skills  INT[],
+  p_duration_min   INT
+) RETURNS INT
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  v_slot_start  TIMESTAMP := (p_date + p_time)::timestamp;
+  v_slot_end    TIMESTAMP := (p_date + p_time)::timestamp + (p_duration_min * interval '1 minute');
+  v_run_rate    INT;
+  v_min_avail   INT;
+BEGIN
+  SELECT run_rate_pct INTO v_run_rate
+  FROM offices
+  WHERE county_id = p_county_id AND id = p_office_id;
+
+  IF v_run_rate IS NULL THEN RETURN 0; END IF;
+
+  WITH change_points AS (
+      SELECT p_time AS cp_t
+    UNION
+      SELECT ols.start_time
+      FROM office_lunch_shifts ols
+      WHERE ols.county_id = p_county_id
+        AND ols.office_id = p_office_id
+        AND ols.start_time >  p_time
+        AND ols.start_time <  (p_time + (p_duration_min || ' minutes')::interval)::time
+    UNION
+      SELECT ad.appointment_time
+      FROM appointment_durations ad
+      WHERE ad.county_id        = p_county_id
+        AND ad.office_id        = p_office_id
+        AND ad.appointment_date = p_date
+        AND ad.status NOT IN ('cancelled', 'no_show')
+        AND ad.start_at >  v_slot_start
+        AND ad.start_at <  v_slot_end
+  )
+  SELECT MIN(GREATEST(
+           FLOOR(
+             (SELECT count(*)
+              FROM clerk_schedules cs
+              JOIN clerks c
+                ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+              LEFT JOIN office_lunch_shifts ols
+                ON ols.id        = cs.lunch_shift_id
+               AND ols.county_id = cs.county_id
+               AND ols.office_id = cs.office_id
+              WHERE cs.county_id     = p_county_id
+                AND cs.office_id     = p_office_id
+                AND cs.schedule_date = p_date
+                AND c.status         = 'active'
+                AND c.skill_ids     @> p_target_skills
+                AND NOT EXISTS (
+                  SELECT 1 FROM clerk_absences ca
+                  WHERE ca.county_id = cs.county_id
+                    AND ca.clerk_id  = cs.clerk_id
+                    AND p_date BETWEEN ca.start_date AND ca.end_date)
+                AND (ols.id IS NULL
+                  OR NOT (ols.start_time <= cp.cp_t
+                      AND ols.end_time   >  cp.cp_t)))
+             * v_run_rate / 100.0
+           )::int
+           - (SELECT count(*)::int
+              FROM appointment_durations ad
+              WHERE ad.county_id        = p_county_id
+                AND ad.office_id        = p_office_id
+                AND ad.appointment_date = p_date
+                AND ad.status NOT IN ('cancelled', 'no_show')
+                AND ad.start_at <= (p_date + cp.cp_t)::timestamp
+                AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
+           0
+         ))::int
+    INTO v_min_avail
+  FROM change_points cp;
+
+  RETURN COALESCE(v_min_avail, 0);
+END;
+$$;
+
+-- =============================================================================
 -- Booking
 -- =============================================================================
 -- book_appointment: atomic capacity check + insert.
 --
 -- Locks the (office, date) clerk_schedules rows FOR UPDATE so that two
 -- concurrent bookings against the same supply pool serialize. Rechecks
--- per-skill supply > demand at the requested time, then INSERTs and returns
--- the new appointment id.
+-- capacity using the same change-point sweep as find_appointment, then
+-- INSERTs and returns the new appointment id.
 --
 -- Raises 'capacity_exceeded' (SQLSTATE P0001) if any requested skill is full.
 -- Raises 'office_closed'      (SQLSTATE P0002) if the slot falls outside the
@@ -371,10 +480,10 @@ CREATE POLICY tenant_isolation ON counties
 --                                              clock so seeded dates remain in
 --                                              the future).
 --
--- Capacity formula matches the booking heatmap (scheduling-queries.sql query 8):
---   supply = floor(count(scheduled clerks with skill, lunch-not-overlapping)
+-- Capacity formula matches find_appointment:
+--   supply = floor(count(scheduled clerks with ALL skills, lunch-not-overlapping)
 --                  * run_rate_pct / 100)
---   demand = count(non-cancelled overlapping appts that need this skill)
+--   demand = count(non-cancelled overlapping appts consuming a clerk)
 -- =============================================================================
 CREATE OR REPLACE FUNCTION book_appointment(
   p_county_id        TEXT,
@@ -399,12 +508,6 @@ DECLARE
   v_slot_end    TIMESTAMP;
   v_close_time  TIME;
   v_open_time   TIME;
-  v_block_min   INT;
-  v_block_t     TIMESTAMP;
-  v_skill       INT;
-  v_supply      INT;
-  v_demand      INT;
-  v_run_rate    INT;
   v_appt_id     INT;
 BEGIN
   -- 1. Past-slot gate. Reject before taking row locks — a slot whose start
@@ -480,59 +583,10 @@ BEGIN
     RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
   END IF;
 
-  -- 7. Per-skill capacity recheck across EVERY block the appt occupies.
-  --    Walk from slot_start in scheduling_block_min increments up to (but
-  --    not including) slot_end. At each block, supply > demand must hold
-  --    for every requested skill. Catches mid-appt supply drops (e.g. a
-  --    clerk going on lunch partway through the appointment).
-  SELECT run_rate_pct INTO v_run_rate
-  FROM offices
-  WHERE county_id = p_county_id AND id = p_office_id;
-
-  SELECT scheduling_block_min INTO v_block_min
-  FROM counties WHERE id = p_county_id;
-
-  v_block_t := v_slot_start;
-  WHILE v_block_t < v_slot_end LOOP
-    FOREACH v_skill IN ARRAY p_txn_type_ids LOOP
-      -- Supply: clerks scheduled at this office/date with this skill, whose
-      -- lunch shift (if any) does not overlap THIS block, scaled by run_rate.
-      SELECT FLOOR(COUNT(*) * v_run_rate / 100.0)::int
-        INTO v_supply
-      FROM clerk_schedules cs
-      JOIN clerks c
-        ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-      LEFT JOIN office_lunch_shifts ols
-        ON ols.id        = cs.lunch_shift_id
-       AND ols.county_id = cs.county_id
-       AND ols.office_id = cs.office_id
-      WHERE cs.county_id     = p_county_id
-        AND cs.office_id     = p_office_id
-        AND cs.schedule_date = p_date
-        AND c.status         = 'active'
-        AND v_skill          = ANY(c.skill_ids)
-        AND (ols.id IS NULL
-          OR NOT (ols.start_time <= v_block_t::time
-              AND ols.end_time   >  v_block_t::time));
-
-      -- Demand: overlapping non-cancelled appts that need this skill.
-      SELECT COUNT(*)::int
-        INTO v_demand
-      FROM appointment_durations ad
-      WHERE ad.county_id        = p_county_id
-        AND ad.office_id        = p_office_id
-        AND ad.appointment_date = p_date
-        AND ad.status NOT IN ('cancelled', 'no_show')
-        AND v_skill = ANY(ad.txn_type_ids)
-        AND ad.start_at <= v_block_t
-        AND ad.end_at   >  v_block_t;
-
-      IF v_supply <= v_demand THEN
-        RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
-      END IF;
-    END LOOP;
-    v_block_t := v_block_t + (v_block_min * interval '1 minute');
-  END LOOP;
+  -- 7. Capacity recheck via validate_slot (same logic find_appointment uses).
+  IF validate_slot(p_county_id, p_office_id, p_date, p_time, p_txn_type_ids, v_duration) <= 0 THEN
+    RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
+  END IF;
 
   -- 8. Insert.
   INSERT INTO appointments (

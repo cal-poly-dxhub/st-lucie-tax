@@ -144,73 +144,10 @@ BEGIN
            <= (c.slot_date + c.latest_end)::timestamp)
     ORDER BY c.slot_date, c.slot_time, c.office_id
   LOOP
-    -- Sweep across [slot_time, slot_time + duration) to look for points of change.
-    -- We look for points where supply could drop (lunch start) or demand could rise
-    -- (other appt starts), plus the start itself.
-    -- We do this to ensure that there is at least one available clerk throughout
-    -- the entire appointment.
-    WITH change_points AS (
-        SELECT v_cell.slot_time AS cp_t
-      UNION
-        SELECT ols.start_time
-        FROM office_lunch_shifts ols
-        WHERE ols.county_id = p_county_id
-          AND ols.office_id = v_cell.office_id
-          AND ols.start_time >  v_cell.slot_time
-          AND ols.start_time
-              <  (v_cell.slot_time + (v_total_duration || ' minutes')::interval)::time
-      UNION
-        SELECT ad.appointment_time
-        FROM appointment_durations ad
-        WHERE ad.county_id        = p_county_id
-          AND ad.office_id        = v_cell.office_id
-          AND ad.appointment_date = v_cell.slot_date
-          AND ad.status NOT IN ('cancelled', 'no_show')
-          AND ad.start_at >  (v_cell.slot_date + v_cell.slot_time)::timestamp
-          AND ad.start_at <  (v_cell.slot_date + v_cell.slot_time
-                              + (v_total_duration * interval '1 minute'))::timestamp
-    )
-    -- For each change-point, supply − demand. MIN across rows is the
-    -- worst-case free capacity during the appointment, if any point has
-    -- no free clerks, the slot is unbookable.
-    SELECT MIN(GREATEST(
-             FLOOR(
-                -- Calculate supply as number of clerks with requested skills
-                -- not on lunch, then apply run rate scaling to this number.
-               (SELECT count(*)
-                FROM clerk_schedules cs
-                JOIN clerks c
-                  ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-                LEFT JOIN office_lunch_shifts ols
-                  ON ols.id        = cs.lunch_shift_id
-                 AND ols.county_id = cs.county_id
-                 AND ols.office_id = cs.office_id
-                WHERE cs.county_id     = p_county_id
-                  AND cs.office_id     = v_cell.office_id
-                  AND cs.schedule_date = v_cell.slot_date
-                  AND c.status         = 'active'
-                  AND c.skill_ids     @> p_target_skills
-                  AND (ols.id IS NULL
-                    OR NOT (ols.start_time <= cp.cp_t
-                        AND ols.end_time   >  cp.cp_t)))
-               * v_cell.run_rate_pct / 100.0
-             )::int
-             -- Calculate demand as the number of appointments scheduled to be running
-             -- at this block (each one consumes one clerk).
-             -- Skill-agnostic on purpose: any active appt is using a clerk
-             -- no matter the skills used by each clerk.
-             - (SELECT count(*)::int
-                FROM appointment_durations ad
-                WHERE ad.county_id        = p_county_id
-                  AND ad.office_id        = v_cell.office_id
-                  AND ad.appointment_date = v_cell.slot_date
-                  AND ad.status NOT IN ('cancelled', 'no_show')
-                  AND ad.start_at <= (v_cell.slot_date + cp.cp_t)::timestamp
-                  AND ad.end_at   >  (v_cell.slot_date + cp.cp_t)::timestamp),
-             0
-           ))::int
-      INTO v_min_avail
-    FROM change_points cp;
+    v_min_avail := validate_slot(
+      p_county_id, v_cell.office_id, v_cell.slot_date,
+      v_cell.slot_time, p_target_skills, v_total_duration
+    );
 
     IF v_min_avail > 0 THEN
       office_id := v_cell.office_id;
