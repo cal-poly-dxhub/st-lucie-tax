@@ -454,9 +454,32 @@ BEGIN
                   AND ad.start_at <= (p_date + cp.cp_t)::timestamp
                   AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
              0),
-           -- Constraint 2: total concurrent appointments vs effective desk cap
+           -- Constraint 2: total concurrent vs min(effective_desks, clerks_on_floor)
            GREATEST(
-             v_effective_desks
+             LEAST(
+               v_effective_desks,
+               -- Clerks actually on the floor at this change-point (not on lunch)
+               (SELECT count(*)
+                FROM clerk_schedules cs
+                JOIN clerks c
+                  ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+                LEFT JOIN office_lunch_shifts ols
+                  ON ols.id        = cs.lunch_shift_id
+                 AND ols.county_id = cs.county_id
+                 AND ols.office_id = cs.office_id
+                WHERE cs.county_id     = p_county_id
+                  AND cs.office_id     = p_office_id
+                  AND cs.schedule_date = p_date
+                  AND c.status         = 'active'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM clerk_absences ca
+                    WHERE ca.county_id = cs.county_id
+                      AND ca.clerk_id  = cs.clerk_id
+                      AND p_date BETWEEN ca.start_date AND ca.end_date)
+                  AND (ols.id IS NULL
+                    OR NOT (ols.start_time <= cp.cp_t
+                        AND ols.end_time   >  cp.cp_t)))::int
+             )
              - (SELECT count(*)::int
                 FROM appointment_durations ad
                 WHERE ad.county_id        = p_county_id
