@@ -408,6 +408,70 @@ describe('findAppointment: multi-day search', () => {
   });
 });
 
+describe('findAppointment: CELL_QUERY correctness (Cases 25-26)', () => {
+  test('Case 25: checkCell rejects slot with available=0 during lunch', async () => {
+    await clearOfficeDay(db.client);
+    await clearOfficeDay(db.client, 2);
+
+    // Book at 12:15 (skill 1). During shift 2 (12:15-13:00), clerks 2+3 on lunch.
+    // Only clerk 1 on floor. After booking: concurrent=1, cap=min(3,1)=1, avail=0.
+    await db.client.query(BOOK_SQL, bookParams({ time: '12:15', skills: [ID_CARD], email: 'c25pre@x.com' }));
+
+    // findAppointment for skill 2 at preferred office 1 should NOT return 12:15
+    // (it has available=0 there). It should find a different time.
+    const result = await findAppointment(db.client, baseInput({
+      targetSkills: [ID_CARD],
+      preferredOffice: 1,
+      asap: false,
+    }));
+    expect(result).not.toBeNull();
+    // Should find a slot that's NOT 12:15 at office 1 (since that's full)
+    if (result!.officeId === 1) {
+      expect(result!.slotTime).not.toBe('12:15:00');
+    }
+    expect(result!.available).toBeGreaterThan(0);
+  });
+
+  test('Case 26: afternoon slots reachable after morning packs up', async () => {
+    await clearOfficeDay(db.client);
+    await clearOfficeDay(db.client, 2);
+
+    // Sequentially book id_card (15 min) appointments using the engine itself.
+    // With 3 desks × 2 offices, the engine should pack morning → lunch → afternoon.
+    let booked = 0;
+    let lastTime = '';
+    for (let i = 0; i < 80; i++) {
+      const result = await findAppointment(db.client, baseInput({
+        targetSkills: [ID_CARD],
+        asap: true,
+      }));
+      if (!result) break;
+
+      await db.client.query('SAVEPOINT book_slot');
+      try {
+        await db.client.query(BOOK_SQL, bookParams({
+          office: result.officeId,
+          time: result.slotTime,
+          skills: [ID_CARD],
+          email: `c26-${i}@x.com`,
+        }));
+        await db.client.query('RELEASE SAVEPOINT book_slot');
+        booked++;
+        lastTime = result.slotTime;
+      } catch {
+        await db.client.query('ROLLBACK TO SAVEPOINT book_slot');
+        break;
+      }
+    }
+
+    // Should book at least 30 appointments (fills past morning into lunch/afternoon).
+    expect(booked).toBeGreaterThan(30);
+    // Last booked time should be past morning (>= 11:00), proving the engine
+    // doesn't get stuck in early morning slots.
+    expect(toMinutes(lastTime)).toBeGreaterThanOrEqual(11 * 60);
+  });
+});
+
 function toMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
