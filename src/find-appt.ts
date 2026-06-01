@@ -23,7 +23,7 @@ export interface FindApptInput {
   preferredTime: "morning" | "afternoon" | null;
   startDate: Date; // production: new Date()
   days: number; // search-window length
-  nowTs: Date; // production: new Date()
+  nowTs: string; // 'YYYY-MM-DD HH:MM' — local time, no TZ conversion
 }
 
 export interface FindApptResult {
@@ -77,8 +77,9 @@ interface Candidate {
 /**
  * Build candidate start times using the packing model:
  *   1. Office open time (first-of-day)
- *   2. End of each lunch shift (capacity returns post-lunch)
- *   3. End time of every existing skill-overlapping appointment (pack tightly)
+ *   2. Transaction available_from time (earliest the skill set allows)
+ *   3. End of each lunch shift (capacity returns post-lunch)
+ *   4. End time of every existing skill-overlapping appointment (pack tightly)
  *
  * Candidates are then sorted by the preference ranking and returned.
  */
@@ -90,6 +91,28 @@ async function buildCandidates(
 ): Promise<Candidate[]> {
   const { countyId, targetSkills, startDate, days } = input;
   const officeIds = offices.map((o) => o.id);
+
+  // Fetch the intersected txn availability window per office (earliest_start
+  // = MAX(available_from) across skills). This is the earliest valid start.
+  const txnWindowRes = await db.query<{
+    office_id: number;
+    earliest_start: string | null;
+  }>(
+    `SELECT ett.office_id,
+            MAX(ett.available_from)::text AS earliest_start
+     FROM effective_transaction_types ett
+     WHERE ett.county_id = $1
+       AND ett.office_id = ANY($2::int[])
+       AND ett.global_id = ANY($3::int[])
+       AND ett.status    = 'active'
+     GROUP BY ett.office_id
+     HAVING COUNT(*) = $4`,
+    [countyId, officeIds, targetSkills, targetSkills.length],
+  );
+  const earliestStartByOffice = new Map<number, string>();
+  for (const r of txnWindowRes.rows) {
+    if (r.earliest_start) earliestStartByOffice.set(r.office_id, r.earliest_start);
+  }
 
   // Fetch lunch shift end times for all qualifying offices.
   const lunchRes = await db.query<{
@@ -144,11 +167,11 @@ async function buildCandidates(
 
   for (let dayOffset = 0; dayOffset < days; dayOffset++) {
     const date = addDays(startDate, dayOffset);
-    const dow = date.getDay();
+    const dayOfWeek = dow(date);
     const dateStr = isoDate(date);
 
     for (const office of offices) {
-      const hours = office.hoursByDow.get(dow);
+      const hours = office.hoursByDow.get(dayOfWeek);
       if (!hours) continue;
 
       const openMin = toMinutes(hours.openTime);
@@ -160,13 +183,17 @@ async function buildCandidates(
       // 1. Office open time.
       startTimes.add(hours.openTime);
 
-      // 2. End of each lunch shift at this office.
+      // 2. Transaction available_from (intersected across skills).
+      const earliestStart = earliestStartByOffice.get(office.id);
+      if (earliestStart) startTimes.add(earliestStart);
+
+      // 3. End of each lunch shift at this office.
       const lunchEnds = lunchEndsByOffice.get(office.id);
       if (lunchEnds) {
         for (const t of lunchEnds) startTimes.add(t);
       }
 
-      // 3. End of each existing skill-overlapping appointment on this day.
+      // 4. End of each existing skill-overlapping appointment on this day.
       const apptEnds = apptEndsByKey.get(`${office.id}:${dateStr}`);
       if (apptEnds) {
         for (const t of apptEnds) startTimes.add(t);
@@ -182,7 +209,7 @@ async function buildCandidates(
         const rank = computeRank(input, {
           officeId: office.id,
           dateStr,
-          dow,
+          dow: dayOfWeek,
           slotTime,
         });
         cells.push({ officeId: office.id, slotDate: dateStr, slotTime, rank });
@@ -342,7 +369,7 @@ interface CellInput {
   slotDate: string;
   slotTime: string;
   totalDurationMin: number;
-  nowTs: Date;
+  nowTs: string;
 }
 
 /**
@@ -537,15 +564,19 @@ HAVING MIN(GREATEST(
 
 function addDays(d: Date, n: number): Date {
   const out = new Date(d);
-  out.setDate(out.getDate() + n);
+  out.setUTCDate(out.getUTCDate() + n);
   return out;
 }
 
 function isoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function dow(d: Date): number {
+  return d.getUTCDay();
 }
 
 function dateToOrdinal(iso: string): number {
@@ -561,8 +592,3 @@ function timeToMinutes(t: string): number {
   return toMinutes(t);
 }
 
-function fromMinutes(total: number): string {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
-}
