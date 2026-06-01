@@ -327,7 +327,7 @@ BEGIN
     'clerks','hotbuttons','prescreen_questions','document_registry',
     'transaction_flows','appointments','documents','queue',
     'service_history','duration_recommendations','clerk_sessions',
-    'clerk_schedules'
+    'clerk_schedules','clerk_absences'
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
