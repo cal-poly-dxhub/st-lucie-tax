@@ -658,3 +658,154 @@ describe('book_appointment: lock + recheck + insert', () => {
   });
 });
 
+// ─── Cases 16–24: Total concurrent cap (run_rate_pct + lunch) ─────────────────
+
+describe('total concurrent cap (run_rate_pct + lunch)', () => {
+  test('Case 16: run_rate_pct caps total concurrent with diverse skills', async () => {
+    await clearOfficeDay(db.client);
+
+    // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
+    await db.client.query(
+      `UPDATE offices SET run_rate_pct = 50 WHERE county_id='stlucie' AND id=1`,
+    );
+
+    // Book 1 appointment (any skill) — fills the effective desk cap.
+    await db.client.query(BOOK_SQL, bookParams({ skills: [2], email: 'cap1@x.com' }));
+
+    // Second booking with a DIFFERENT skill should be rejected (desk cap hit).
+    const result = await tryBook(db.client, bookParams({ skills: [1], email: 'cap2@x.com' }));
+    expect(result.ok).toBe(false);
+    expect((result as { code: string }).code).toBe('P0001');
+
+    // Restore run_rate_pct.
+    await db.client.query(
+      `UPDATE offices SET run_rate_pct = 100 WHERE county_id='stlucie' AND id=1`,
+    );
+  });
+
+  test('Case 17: lunch reduces effective cap below effective_desks', async () => {
+    await clearOfficeDay(db.client);
+
+    // At 12:20: clerks B(2) and C(3) are on lunch shift 2 (12:15-13:00).
+    // Only clerk A(1) on floor. Cap = min(3, 1) = 1.
+    // Book one appointment at 12:20 → fills cap.
+    await db.client.query(BOOK_SQL, bookParams({ time: '12:20', skills: [2], email: 'lunch1@x.com' }));
+
+    // Second booking at same time with different skill → rejected (only 1 clerk on floor).
+    const result = await tryBook(db.client, bookParams({ time: '12:20', skills: [3], email: 'lunch2@x.com' }));
+    expect(result.ok).toBe(false);
+    expect((result as { code: string }).code).toBe('P0001');
+  });
+
+  test('Case 18: appointment spanning into lunch rejected when exceeding on-floor count', async () => {
+    await clearOfficeDay(db.client);
+
+    // Office 1 shift 2 (12:15-13:00): James(2) + Angela(3) on lunch. Only Maria on floor.
+    // Book at 12:00 (30-min road_test, ends 12:30). At 12:00: 3 on floor, OK.
+    await db.client.query(BOOK_SQL, bookParams({ time: '12:00', skills: [1], email: 'pre18@x.com' }));
+
+    // Try booking at 12:10 (15-min id_card, ends 12:25). Spans into shift 2.
+    // At 12:15 change-point: 1 on floor (Maria), 1 existing still running → concurrent=1, cap=1, deskAvail=0.
+    const result = await tryBook(db.client, bookParams({ time: '12:10', skills: [2], email: 'span18@x.com' }));
+    expect(result.ok).toBe(false);
+    expect((result as { code: string }).code).toBe('P0001');
+  });
+
+  test('Case 19: appointment starting after lunch ends — full capacity restored', async () => {
+    await clearOfficeDay(db.client);
+
+    // At 12:15: lunch shift 1 ends, all 3 clerks back. Should book fine.
+    const result = await tryBook(db.client, bookParams({ time: '12:15', skills: [2], email: 'postlunch@x.com' }));
+    expect(result.ok).toBe(true);
+  });
+
+  test('Case 22: diverse-skill appointments cannot exceed clerks on floor during lunch', async () => {
+    await clearOfficeDay(db.client);
+
+    // Book at 12:00 (skill 1, 30 min → ends 12:30). At 12:00 all 3 on floor, OK.
+    await db.client.query(BOOK_SQL, bookParams({ time: '12:00', skills: [1], email: 'pre22@x.com' }));
+
+    // Try booking skill 2 at 12:15. At 12:15: shift 2 starts (clerks 2,3 on lunch).
+    // Only clerk 1 on floor. Existing appt from 12:00 still running → concurrent=1, cap=1, rejected.
+    const result = await tryBook(db.client, bookParams({ time: '12:15', skills: [2], email: 'div22@x.com' }));
+    expect(result.ok).toBe(false);
+    expect((result as { code: string }).code).toBe('P0001');
+  });
+
+  test('Case 23: sequential bookings cannot saturate lunch period beyond on-floor count', async () => {
+    await clearOfficeDay(db.client);
+
+    // Book #1 at 12:00 (road_test skill 1, 30 min → spans 12:00-12:30, into shift 2).
+    // At 12:00: 3 on floor, cap=3. At 12:15 change-point: 1 on floor, cap=1, concurrent=0. OK.
+    const first = await tryBook(db.client, bookParams({ time: '12:00', skills: [1], email: 'seq1@x.com' }));
+    expect(first.ok).toBe(true);
+
+    // Book #2 at 12:00 (license_original skill 3, 25 min → spans 12:00-12:25, into shift 2).
+    // Duration 25 min. Window [12:00, 12:25). Lunch shift 2 starts at 12:15. 12:15 > 12:00 AND 12:15 < 12:25 → change-point.
+    // At 12:15: 1 on floor, concurrent=1 (first booking still running), cap=1, deskAvail=0. REJECTED.
+    const second = await tryBook(db.client, bookParams({ time: '12:00', skills: [3], email: 'seq2@x.com' }));
+    expect(second.ok).toBe(false);
+    expect((second as { code: string }).code).toBe('P0001');
+  });
+
+  test('Case 24: appointment ending exactly at lunch start does not block', async () => {
+    await clearOfficeDay(db.client);
+
+    // Book at 11:15 (15-min id_card → ends exactly at 11:30 when lunch starts).
+    await db.client.query(BOOK_SQL, bookParams({ time: '11:15', skills: [2], email: 'pre24@x.com' }));
+
+    // Book at 11:30 (15-min id_card). At 11:30: shift 1 starts (1 clerk out).
+    // 2 clerks on floor. Existing appt ended at 11:30 (exclusive end), so concurrent=0.
+    // Cap = min(3, 2) = 2. deskAvail=2. Should succeed.
+    const result = await tryBook(db.client, bookParams({ time: '11:30', skills: [2], email: 'adj24@x.com' }));
+    expect(result.ok).toBe(true);
+  });
+
+  test('Case 20: run_rate_pct + lunch compound — walk-in headroom maintained', async () => {
+    await clearOfficeDay(db.client);
+
+    // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
+    await db.client.query(
+      `UPDATE offices SET run_rate_pct = 50 WHERE county_id='stlucie' AND id=1`,
+    );
+
+    // At 12:20 during shift 2: James+Angela on lunch, only Maria on floor.
+    // Cap = min(effective_desks=1, clerks_on_floor=1) = 1.
+    // First booking should succeed (fills the single slot).
+    const first = await tryBook(db.client, bookParams({ time: '12:20', skills: [2], email: 'c20a@x.com' }));
+    expect(first.ok).toBe(true);
+
+    // Second booking same time → rejected (cap=1, concurrent=1).
+    const second = await tryBook(db.client, bookParams({ time: '12:20', skills: [3], email: 'c20b@x.com' }));
+    expect(second.ok).toBe(false);
+    expect((second as { code: string }).code).toBe('P0001');
+
+    // At 09:00 (all 3 on floor): cap = min(1, 3) = 1. Still only 1 allowed.
+    const third = await tryBook(db.client, bookParams({ time: '09:00', skills: [1], email: 'c20c@x.com' }));
+    expect(third.ok).toBe(true);
+    const fourth = await tryBook(db.client, bookParams({ time: '09:00', skills: [2], email: 'c20d@x.com' }));
+    expect(fourth.ok).toBe(false);
+    expect((fourth as { code: string }).code).toBe('P0001');
+
+    // Restore.
+    await db.client.query(
+      `UPDATE offices SET run_rate_pct = 100 WHERE county_id='stlucie' AND id=1`,
+    );
+  });
+
+  test('Case 21: multi-skill appointment spanning lunch — duration summed correctly', async () => {
+    await clearOfficeDay(db.client);
+
+    // Multi-skill [1,3] = road_test(30) + license_original(25) = 55 min.
+    // Book at 11:00 → spans 11:00-11:55. Lunch shift 1 starts at 11:30 (inside window).
+    // At 11:30: Maria on lunch, James+Angela on floor (2 clerks).
+    // Skill [1,3] supply: only Maria has both 1 and 3 → supply=0 at 11:30 (she's on lunch).
+    // Skill avail = 0 - 0 = 0. Rejected.
+    // Actually: Maria has {1,2,3}. Angela has {1,2}. James has {2,3}.
+    // Clerks with BOTH skills 1 AND 3: only Maria. At 11:30 Maria is on lunch → supply=0.
+    const result = await tryBook(db.client, bookParams({ time: '11:00', skills: [1, 3], email: 'c21@x.com' }));
+    expect(result.ok).toBe(false);
+    expect((result as { code: string }).code).toBe('P0001');
+  });
+});
+
