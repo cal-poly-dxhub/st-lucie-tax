@@ -21,6 +21,9 @@ finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/schem
 echo "Loading seed data..."
 finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed.sql"
 
+echo "Loading scheduling functions (find-appt.sql)..."
+finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/find-appt.sql"
+
 echo "Done. Verifying row counts..."
 finch exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "
 SELECT 'offices' AS tbl, COUNT(*) FROM offices
