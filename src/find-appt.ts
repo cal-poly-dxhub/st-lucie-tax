@@ -63,7 +63,6 @@ export async function findAppointment(
       slotDate: cell.slotDate,
       slotTime: cell.slotTime,
       totalDurationMin,
-      blockMin: input.blockMin,
       nowTs: input.nowTs,
     });
     if (hit !== null) return hit;
@@ -293,13 +292,13 @@ interface CellInput {
   slotDate: string;
   slotTime: string;
   totalDurationMin: number;
-  blockMin: number;
   nowTs: Date;
 }
 
 /**
- * Per-cell capacity check. Mirrors db/find-appt-cell.sql but in
- * parameterized form for pg's $1/$2/... binding.
+ * Per-cell capacity check. Uses the same change-point sweep as
+ * validate_slot in db/schema.sql: skill-filtered demand, absence-aware
+ * supply, evaluated only at moments where supply or demand shifts.
  */
 async function checkCell(
   db: Pool | PoolClient,
@@ -317,7 +316,6 @@ async function checkCell(
     c.slotDate,
     c.slotTime,
     c.totalDurationMin,
-    c.blockMin,
     c.nowTs,
   ]);
 
@@ -331,17 +329,16 @@ async function checkCell(
   };
 }
 
-// Inlined to keep deployment a single file. Mirrors db/find-appt-cell.sql.
+// Mirrors validate_slot (db/schema.sql) — change-point capacity sweep.
 const CELL_QUERY = `
 WITH params AS (
-  SELECT $1::text  AS county_id,
-         $2::int[] AS target_skills,
-         $3::int   AS office_id,
-         $4::date  AS slot_date,
-         $5::time  AS slot_time,
-         $6::int   AS total_duration_min,
-         $7::int   AS block_min,
-         $8::timestamp AS now_ts
+  SELECT $1::text      AS county_id,
+         $2::int[]     AS target_skills,
+         $3::int       AS office_id,
+         $4::date      AS slot_date,
+         $5::time      AS slot_time,
+         $6::int       AS total_duration_min,
+         $7::timestamp AS now_ts
 ),
 office_window AS (
   SELECT oh.open_time, oh.close_time, o.run_rate_pct
@@ -365,75 +362,124 @@ office_txn_window AS (
     AND ett.status    = 'active'
   HAVING COUNT(*) = (SELECT cardinality(target_skills) FROM params)
 ),
-appt_blocks AS (
-  SELECT (params.slot_time + (n || ' minutes')::interval)::time AS block_time
+slot_bounds AS (
+  SELECT (params.slot_date + params.slot_time)::timestamp AS slot_start,
+         (params.slot_date + params.slot_time)::timestamp
+           + (params.total_duration_min * interval '1 minute') AS slot_end
   FROM params
-  CROSS JOIN generate_series(
-    0,
-    (CEIL(params.total_duration_min::numeric / params.block_min)::int - 1)
-      * params.block_min,
-    params.block_min
-  ) AS n
 ),
-qualified_per_block AS (
-  SELECT ab.block_time,
-         FLOOR(
-           (SELECT count(*)
-            FROM clerk_schedules cs
-            JOIN clerks c
-              ON c.id        = cs.clerk_id
-             AND c.county_id = cs.county_id
-            LEFT JOIN office_lunch_shifts ols
-                   ON ols.id        = cs.lunch_shift_id
-                  AND ols.county_id = cs.county_id
-                  AND ols.office_id = cs.office_id
-            CROSS JOIN params
-            WHERE cs.county_id     = params.county_id
-              AND cs.office_id     = params.office_id
-              AND cs.schedule_date = params.slot_date
-              AND c.status         = 'active'
-              AND c.skill_ids @> params.target_skills
-              AND (ols.id IS NULL
-                OR NOT (ols.start_time <= ab.block_time
-                    AND ols.end_time   >  ab.block_time)))
-           * (SELECT run_rate_pct FROM office_window) / 100.0
-         )::int AS qualified
-  FROM appt_blocks ab
-),
-consumed_per_block AS (
-  SELECT ab.block_time,
-         (SELECT count(*)
-          FROM appointment_durations ad
-          CROSS JOIN params
-          WHERE ad.county_id        = params.county_id
-            AND ad.office_id        = params.office_id
-            AND ad.appointment_date = params.slot_date
-            AND ad.status NOT IN ('cancelled', 'no_show')
-            AND ad.start_at <= (params.slot_date + ab.block_time)::timestamp
-            AND ad.end_at   >  (params.slot_date + ab.block_time)::timestamp) AS consumed
-  FROM appt_blocks ab
+change_points AS (
+    SELECT params.slot_time AS cp_t FROM params
+  UNION
+    SELECT ols.start_time
+    FROM office_lunch_shifts ols
+    CROSS JOIN params
+    WHERE ols.county_id = params.county_id
+      AND ols.office_id = params.office_id
+      AND ols.start_time >  params.slot_time
+      AND ols.start_time <  (params.slot_time + (params.total_duration_min || ' minutes')::interval)::time
+  UNION
+    SELECT ad.appointment_time
+    FROM appointment_durations ad
+    CROSS JOIN params
+    WHERE ad.county_id        = params.county_id
+      AND ad.office_id        = params.office_id
+      AND ad.appointment_date = params.slot_date
+      AND ad.status NOT IN ('cancelled', 'no_show')
+      AND ad.txn_type_ids    && params.target_skills
+      AND ad.start_at > (SELECT slot_start FROM slot_bounds)
+      AND ad.start_at < (SELECT slot_end FROM slot_bounds)
 )
 SELECT
   params.office_id::int  AS office_id,
   params.slot_date::text AS slot_date,
   params.slot_time::text AS slot_time,
-  MIN(GREATEST(qpb.qualified - cpb.consumed, 0))::int AS available
-FROM qualified_per_block qpb
-JOIN consumed_per_block cpb ON cpb.block_time = qpb.block_time
+  MIN(GREATEST(
+    FLOOR(
+      (SELECT count(*)
+       FROM clerk_schedules cs
+       JOIN clerks c
+         ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+       LEFT JOIN office_lunch_shifts ols
+         ON ols.id        = cs.lunch_shift_id
+        AND ols.county_id = cs.county_id
+        AND ols.office_id = cs.office_id
+       CROSS JOIN params p2
+       WHERE cs.county_id     = p2.county_id
+         AND cs.office_id     = p2.office_id
+         AND cs.schedule_date = p2.slot_date
+         AND c.status         = 'active'
+         AND c.skill_ids     @> p2.target_skills
+         AND NOT EXISTS (
+           SELECT 1 FROM clerk_absences ca
+           WHERE ca.county_id = cs.county_id
+             AND ca.clerk_id  = cs.clerk_id
+             AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
+         AND (ols.id IS NULL
+           OR NOT (ols.start_time <= cp.cp_t
+               AND ols.end_time   >  cp.cp_t)))
+      * (SELECT run_rate_pct FROM office_window) / 100.0
+    )::int
+    - (SELECT count(*)::int
+       FROM appointment_durations ad
+       CROSS JOIN params p3
+       WHERE ad.county_id        = p3.county_id
+         AND ad.office_id        = p3.office_id
+         AND ad.appointment_date = p3.slot_date
+         AND ad.status NOT IN ('cancelled', 'no_show')
+         AND ad.txn_type_ids    && p3.target_skills
+         AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
+         AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
+    0
+  ))::int AS available
+FROM change_points cp
 CROSS JOIN params
 CROSS JOIN office_window ow
 CROSS JOIN office_txn_window otw
-WHERE (params.slot_date + params.slot_time)::timestamp > params.now_ts
+CROSS JOIN slot_bounds sb
+WHERE sb.slot_start > params.now_ts
   AND (otw.earliest_start IS NULL OR params.slot_time >= otw.earliest_start)
-  AND (otw.latest_end IS NULL
-       OR (params.slot_date + params.slot_time
-           + (params.total_duration_min * interval '1 minute'))::timestamp
-          <= (params.slot_date + otw.latest_end)::timestamp)
-  AND (params.slot_date + params.slot_time
-       + (params.total_duration_min * interval '1 minute'))::timestamp
-      <= (params.slot_date + ow.close_time)::timestamp
+  AND (otw.latest_end IS NULL OR sb.slot_end <= (params.slot_date + otw.latest_end)::timestamp)
+  AND sb.slot_end <= (params.slot_date + ow.close_time)::timestamp
 GROUP BY params.office_id, params.slot_date, params.slot_time
-HAVING MIN(GREATEST(qpb.qualified - cpb.consumed, 0)) > 0;
+HAVING MIN(GREATEST(
+  FLOOR(
+    (SELECT count(*)
+     FROM clerk_schedules cs
+     JOIN clerks c
+       ON c.id = cs.clerk_id AND c.county_id = cs.county_id
+     LEFT JOIN office_lunch_shifts ols
+       ON ols.id        = cs.lunch_shift_id
+      AND ols.county_id = cs.county_id
+      AND ols.office_id = cs.office_id
+     CROSS JOIN params p2
+     WHERE cs.county_id     = p2.county_id
+       AND cs.office_id     = p2.office_id
+       AND cs.schedule_date = p2.slot_date
+       AND c.status         = 'active'
+       AND c.skill_ids     @> p2.target_skills
+       AND NOT EXISTS (
+         SELECT 1 FROM clerk_absences ca
+         WHERE ca.county_id = cs.county_id
+           AND ca.clerk_id  = cs.clerk_id
+           AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
+       AND (ols.id IS NULL
+         OR NOT (ols.start_time <= cp.cp_t
+             AND ols.end_time   >  cp.cp_t)))
+    * (SELECT run_rate_pct FROM office_window) / 100.0
+  )::int
+  - (SELECT count(*)::int
+     FROM appointment_durations ad
+     CROSS JOIN params p3
+     WHERE ad.county_id        = p3.county_id
+       AND ad.office_id        = p3.office_id
+       AND ad.appointment_date = p3.slot_date
+       AND ad.status NOT IN ('cancelled', 'no_show')
+       AND ad.txn_type_ids    && p3.target_skills
+       AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
+       AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
+  0
+)) > 0;
 `;
 
 // ---------------------------------------------------------------------------
