@@ -521,10 +521,12 @@ $$;
 --                                              clock so seeded dates remain in
 --                                              the future).
 --
--- Capacity formula matches find_appointment:
---   supply = floor(count(scheduled clerks with ALL skills, lunch-not-overlapping)
---                  * run_rate_pct / 100)
---   demand = count(non-cancelled overlapping appts consuming a clerk)
+-- Capacity recheck delegates to validate_slot, which enforces two constraints
+-- at every change-point in the slot window:
+--   1. Skill supply: clerks with ALL required skills (not on lunch/absent)
+--      minus skill-overlapping demand >= 1
+--   2. Desk cap: LEAST(effective_desks, clerks_on_floor) minus total
+--      concurrent appointments >= 1
 -- =============================================================================
 CREATE OR REPLACE FUNCTION book_appointment(
   p_county_id        TEXT,
