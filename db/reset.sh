@@ -2,7 +2,7 @@
 # Reset the local database: drop all tables, recreate schema, load seed data.
 # Usage: ./db/reset.sh
 #
-# Assumes a finch/docker postgres container named "st-lucie-tax-db-1"
+# Assumes a postgres container named "st-lucie-tax-db-1"
 # with user "stlucie" and database "stlucie".
 
 set -e
