@@ -125,22 +125,25 @@ async function buildCandidates(
     [countyId, officeIds],
   );
 
-  // Fetch end times of existing skill-overlapping appointments in the window.
+  // Fetch ALL appointment intervals in the window (for desk-occupancy filter).
   const endDate = addDays(startDate, days - 1);
-  const apptEndRes = await db.query<{
+  const allApptsRes = await db.query<{
     office_id: number;
     appointment_date: string;
+    start_time: string;
     end_time: string;
+    skill_overlap: boolean;
   }>(
     `SELECT ad.office_id,
             ad.appointment_date::text,
-            (ad.appointment_time + (ad.total_duration_min * interval '1 minute'))::time::text AS end_time
+            ad.appointment_time::text AS start_time,
+            (ad.appointment_time + (ad.total_duration_min * interval '1 minute'))::time::text AS end_time,
+            (ad.txn_type_ids && $5::int[]) AS skill_overlap
      FROM appointment_durations ad
      WHERE ad.county_id = $1
        AND ad.office_id = ANY($2::int[])
        AND ad.appointment_date BETWEEN $3 AND $4
-       AND ad.status NOT IN ('cancelled', 'no_show')
-       AND ad.txn_type_ids && $5::int[]`,
+       AND ad.status NOT IN ('cancelled', 'no_show')`,
     [countyId, officeIds, isoDate(startDate), isoDate(endDate), targetSkills],
   );
 
@@ -153,14 +156,34 @@ async function buildCandidates(
     lunchEndsByOffice.get(r.office_id)!.add(r.end_time);
   }
 
-  // Index appointment ends by (office, date).
+  // Index appointment ends (skill-overlapping only) by (office, date).
   const apptEndsByKey = new Map<string, Set<string>>();
-  for (const r of apptEndRes.rows) {
+  for (const r of allApptsRes.rows) {
+    if (!r.skill_overlap) continue;
     const key = `${r.office_id}:${r.appointment_date}`;
     if (!apptEndsByKey.has(key)) {
       apptEndsByKey.set(key, new Set());
     }
     apptEndsByKey.get(key)!.add(r.end_time);
+  }
+
+  // Index ALL appointment intervals by (office, date) for desk-occupancy check.
+  const intervalsByKey = new Map<string, Array<{ startMin: number; endMin: number }>>();
+  for (const r of allApptsRes.rows) {
+    const key = `${r.office_id}:${r.appointment_date}`;
+    if (!intervalsByKey.has(key)) {
+      intervalsByKey.set(key, []);
+    }
+    intervalsByKey.get(key)!.push({
+      startMin: toMinutes(r.start_time),
+      endMin: toMinutes(r.end_time),
+    });
+  }
+
+  // Build effective desk count per office (desks * run_rate).
+  const desksByOffice = new Map<number, number>();
+  for (const o of offices) {
+    desksByOffice.set(o.id, Math.floor(o.totalDesks * o.runRatePct / 100));
   }
 
   const cells: Array<Candidate & { rank: number[] }> = [];
@@ -199,12 +222,22 @@ async function buildCandidates(
         for (const t of apptEnds) startTimes.add(t);
       }
 
-      // Filter to candidates that fit within office hours (start >= open,
-      // start + duration <= close).
+      // Filter candidates: must fit within office hours AND have a free desk.
+      const intervals = intervalsByKey.get(`${office.id}:${dateStr}`) || [];
+      const desks = desksByOffice.get(office.id) || 1;
+
       for (const slotTime of startTimes) {
         const startMin = toMinutes(slotTime);
         if (startMin < openMin) continue;
         if (startMin + totalDurationMin > closeMin) continue;
+
+        // Pre-filter A: skip if all desks are occupied at this start time.
+        // Count appointments overlapping [startMin, startMin+1).
+        let concurrent = 0;
+        for (const iv of intervals) {
+          if (startMin >= iv.startMin && startMin < iv.endMin) concurrent++;
+        }
+        if (concurrent >= desks) continue;
 
         const rank = computeRank(input, {
           officeId: office.id,
@@ -282,6 +315,7 @@ function compareRank(a: number[], b: number[]): number {
 interface OfficeMeta {
   id: number;
   runRatePct: number;
+  totalDesks: number;
   hoursByDow: Map<number, { openTime: string; closeTime: string }>;
 }
 
@@ -314,9 +348,10 @@ async function loadSearchMeta(
   const officesRes = await db.query<{
     id: number;
     run_rate_pct: number;
+    total_desks: number;
   }>(
     `
-    SELECT o.id, o.run_rate_pct
+    SELECT o.id, o.run_rate_pct, o.total_desks
     FROM offices o
     WHERE o.county_id = $1
       AND (
@@ -350,6 +385,7 @@ async function loadSearchMeta(
   const offices: OfficeMeta[] = officesRes.rows.map((r) => ({
     id: r.id,
     runRatePct: r.run_rate_pct,
+    totalDesks: r.total_desks,
     hoursByDow: new Map(),
   }));
   const officesById = new Map(offices.map((o) => [o.id, o]));
