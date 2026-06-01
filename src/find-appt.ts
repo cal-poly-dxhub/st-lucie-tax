@@ -156,10 +156,10 @@ async function buildCandidates(
     lunchEndsByOffice.get(r.office_id)!.add(r.end_time);
   }
 
-  // Index appointment ends (skill-overlapping only) by (office, date).
+  // Index ALL appointment ends by (office, date) — not just skill-overlapping.
+  // A desk frees up when ANY appointment ends, regardless of skill.
   const apptEndsByKey = new Map<string, Set<string>>();
   for (const r of allApptsRes.rows) {
-    if (!r.skill_overlap) continue;
     const key = `${r.office_id}:${r.appointment_date}`;
     if (!apptEndsByKey.has(key)) {
       apptEndsByKey.set(key, new Set());
@@ -434,6 +434,7 @@ async function checkCell(
 
   if (res.rows.length === 0) return null;
   const r = res.rows[0];
+  if (r.available <= 0) return null;
   return {
     officeId: r.office_id,
     slotDate: r.slot_date,
