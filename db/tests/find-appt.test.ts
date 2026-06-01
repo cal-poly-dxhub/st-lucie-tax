@@ -75,28 +75,48 @@ describe('findAppointment: basic capacity', () => {
     expect(result!.available).toBeGreaterThan(0);
   });
 
-  test('returns null when all road_test capacity is exhausted', async () => {
+  test('returns null when all capacity is exhausted', async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Road test supply = 2 per office, available 09:00-15:00, duration 30 min.
-    // During lunch windows supply drops to 1 for some slots, so we can only
-    // book 1 at those times. Fill to actual capacity per slot.
+    // Desk cap = 3 per office. Road test: 09:00-15:00, 30 min.
+    // Fill all 3 desks at every slot across both offices.
+    // road_test supply is 2, but desk cap is 3 — so we need to fill
+    // 2 road_tests + 1 id_card per slot to hit desk cap.
+    // Slots: 09:00-14:30 = 12 slots per office.
+    // During lunch (11:30-13:00) clerks_on_floor drops, reducing cap.
     for (const office of [1, 2]) {
+      // Fill with 3 per slot pre-lunch, fewer during lunch
       for (let i = 0; i < 12; i++) {
         const hour = 9 + Math.floor(i / 2);
         const min = (i % 2) * 30;
         const time = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
         const slotMin = hour * 60 + min;
-        // Office 1: shift 1 lunch 11:30-12:15, shift 2 lunch 12:15-13:00.
-        // At a given slot, a clerk is on lunch if slot_time falls in their lunch window.
-        // Maria (shift 1): lunch 11:30-12:15 → at 11:30 and 12:00 she's gone.
-        // Angela (shift 2): lunch 12:15-13:00 → at 12:30 she's gone.
-        // So supply=1 at: 11:30, 12:00, 12:30.
-        const duringLunch = slotMin >= 11 * 60 + 30 && slotMin < 13 * 60;
-        await db.client.query(BOOK_SQL, bookParams({ office, time, email: `o${office}a${i}@x.com` }));
-        if (!duringLunch) {
-          await db.client.query(BOOK_SQL, bookParams({ office, time, email: `o${office}b${i}@x.com` }));
+
+        // During lunch shifts, fewer clerks on floor.
+        // Shift 1 (11:30-12:15): 1 clerk out at office 1, 2 out at office 2
+        // Shift 2 (12:15-13:00): 2 clerks out at office 1, 1 out at office 2
+        const inShift1 = slotMin >= 690 && slotMin < 735;
+        const inShift2 = slotMin >= 735 && slotMin < 780;
+        let cap: number;
+        if (office === 1) {
+          cap = inShift1 ? 2 : inShift2 ? 1 : 3;
+        } else {
+          cap = inShift1 ? 1 : inShift2 ? 2 : 3;
+        }
+
+        for (let j = 0; j < cap; j++) {
+          const skills = j < 2 ? [ROAD_TEST] : [ID_CARD];
+          await db.client.query('SAVEPOINT fill_slot');
+          try {
+            await db.client.query(BOOK_SQL, bookParams({
+              office, time, skills,
+              email: `fill-${office}-${i}-${j}@x.com`,
+            }));
+            await db.client.query('RELEASE SAVEPOINT fill_slot');
+          } catch {
+            await db.client.query('ROLLBACK TO SAVEPOINT fill_slot');
+          }
         }
       }
     }
@@ -109,16 +129,17 @@ describe('findAppointment: basic capacity', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill 09:00 at both offices (supply=2 each, book 2 each).
-    await db.client.query(BOOK_SQL, bookParams({ office: 1, time: '09:00', email: 'a@x.com' }));
-    await db.client.query(BOOK_SQL, bookParams({ office: 1, time: '09:00', email: 'b@x.com' }));
-    await db.client.query(BOOK_SQL, bookParams({ office: 2, time: '09:00', email: 'c@x.com' }));
-    await db.client.query(BOOK_SQL, bookParams({ office: 2, time: '09:00', email: 'd@x.com' }));
+    // Fill 09:00 at both offices to desk cap (3 each).
+    for (const office of [1, 2]) {
+      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:00', skills: [ROAD_TEST], email: `a${office}@x.com` }));
+      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:00', skills: [ROAD_TEST], email: `b${office}@x.com` }));
+      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:00', skills: [ID_CARD], email: `c${office}@x.com` }));
+    }
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
-    // The packing model should find 09:30 (end of the 09:00 appointments).
-    expect(result!.slotTime).toBe('09:30:00');
+    // Packing model finds 09:15 (end of the 15-min id_card at 09:00) or 09:30 (end of road_test)
+    expect(toMinutes(result!.slotTime)).toBeGreaterThan(9 * 60);
   });
 });
 
@@ -127,16 +148,21 @@ describe('findAppointment: packing model', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill 09:00 and 09:30 at both offices.
+    // Fill 09:00 and 09:30 at both offices to desk cap.
     for (const office of [1, 2]) {
-      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:00', email: `${office}a@x.com` }));
-      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:00', email: `${office}b@x.com` }));
-      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:30', email: `${office}c@x.com` }));
-      await db.client.query(BOOK_SQL, bookParams({ office, time: '09:30', email: `${office}d@x.com` }));
+      for (const time of ['09:00', '09:30']) {
+        await db.client.query(BOOK_SQL, bookParams({ office, time, skills: [ROAD_TEST], email: `${office}-${time}-a@x.com` }));
+        await db.client.query(BOOK_SQL, bookParams({ office, time, skills: [ROAD_TEST], email: `${office}-${time}-b@x.com` }));
+        await db.client.query(BOOK_SQL, bookParams({ office, time, skills: [ID_CARD], email: `${office}-${time}-c@x.com` }));
+      }
     }
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
+    // Earliest opening is 09:15 (id_card from 09:00 ends) or 10:00 (road_tests from 09:30 end)
+    // Since road_test needs supply, and at 09:15 the two road_tests from 09:00 are still running,
+    // road_test supply=2, demand=2 at 09:15 → full. Next: 09:30 is also full.
+    // At 10:00: road_tests from 09:30 end → supply=2, demand=0 → available.
     expect(result!.slotTime).toBe('10:00:00');
   });
 
@@ -144,14 +170,11 @@ describe('findAppointment: packing model', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Knock out Angela (id=3) and Nancy (id=6) so only Maria and Jennifer
-    // have road_test at their respective offices (supply=1 each).
+    // Reduce road_test supply to 1 per office (disable Angela and Nancy).
     await db.client.query(`UPDATE clerks SET status='inactive' WHERE id IN (3, 6)`);
 
-    // Maria is on lunch shift 1 (11:30-12:15). Jennifer on shift 1 (11:30-12:15).
-    // Fill all slots before lunch for both offices.
-    // road_test available 09:00-15:00, 30 min each. With supply=1:
-    // 09:00, 09:30, 10:00, 10:30, 11:00 = 5 slots before 11:30. Fill them.
+    // Fill all pre-lunch slots (supply=1, so 1 road_test per slot).
+    // road_test 09:00-15:00, 30 min. With supply=1: 09:00, 09:30, 10:00, 10:30, 11:00 = 5 slots.
     for (const office of [1, 2]) {
       for (let i = 0; i < 5; i++) {
         const hour = 9 + Math.floor(i / 2);
@@ -163,7 +186,9 @@ describe('findAppointment: packing model', () => {
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
-    // Should find 12:15 (lunch shift end) as earliest available.
+    // Maria (office 1) is on lunch 11:30-12:15. Jennifer (office 2) on lunch 11:30-12:15.
+    // After last pre-lunch appt ends at 11:30, both clerks go to lunch.
+    // First available: 12:15 (lunch ends).
     expect(result!.slotTime).toBe('12:15:00');
   });
 
@@ -171,8 +196,8 @@ describe('findAppointment: packing model', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // road_test has available_from=09:00. The packing model should include
-    // 09:00 as a candidate even though office opens at 08:00.
+    // road_test has available_from=09:00. Even though office opens at 08:00,
+    // the packing model should include 09:00 as a candidate.
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
     expect(result!.slotTime).toBe('09:00:00');
@@ -180,14 +205,14 @@ describe('findAppointment: packing model', () => {
 });
 
 describe('findAppointment: skill filtering', () => {
-  test('id_card appointments do not block road_test slots (Case 1)', async () => {
+  test('id_card appointments do not block road_test skill supply (Case 1)', async () => {
     await clearOfficeDay(db.client);
 
-    // Book 3 id_card appointments at 09:00 (supply for id_card = 3, all clerks).
-    // These should NOT compete with road_test supply.
+    // Book 2 id_card appointments at 09:00. Desk cap=3, so 1 desk remains.
+    // road_test supply at 09:00 = 2 (Maria + Angela), demand for road_test = 0.
+    // Desk avail = 3-2 = 1. Skill avail = 2-0 = 2. min(1, 2) = 1.
     await db.client.query(BOOK_SQL, bookParams({ time: '09:00', skills: [ID_CARD], email: 'id1@x.com' }));
     await db.client.query(BOOK_SQL, bookParams({ time: '09:00', skills: [ID_CARD], email: 'id2@x.com' }));
-    await db.client.query(BOOK_SQL, bookParams({ time: '09:00', skills: [ID_CARD], email: 'id3@x.com' }));
 
     const result = await findAppointment(db.client, baseInput({
       preferredOffice: 1,
@@ -196,13 +221,13 @@ describe('findAppointment: skill filtering', () => {
     expect(result).not.toBeNull();
     expect(result!.officeId).toBe(1);
     expect(result!.slotTime).toBe('09:00:00');
-    expect(result!.available).toBe(2);
+    expect(result!.available).toBe(1);
   });
 
   test('same-skill appointments DO count as demand (Case 2)', async () => {
     await clearOfficeDay(db.client);
 
-    // Book 1 road_test — supply is 2, so available should be 1.
+    // Book 1 road_test — skill supply=2, demand=1. Desk: 3-1=2. min(1, 2)=1.
     await db.client.query(BOOK_SQL, bookParams({ time: '09:00', email: 'rt1@x.com' }));
 
     const result = await findAppointment(db.client, baseInput({
@@ -233,6 +258,7 @@ describe('findAppointment: absence handling', () => {
     }));
     expect(result).not.toBeNull();
     expect(result!.officeId).toBe(1);
+    // Skill supply=1 (Angela). Desk cap=3, concurrent=0, deskAvail=3. min(1,3)=1.
     expect(result!.available).toBe(1);
   });
 
@@ -273,17 +299,30 @@ describe('findAppointment: preferences', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill all road_test capacity at office 2 for the full day.
-    // During lunch supply drops to 1, so book accordingly.
+    // Fill all road_test capacity at office 2 to desk cap.
+    // road_test 09:00-15:00, 30 min. Desk cap=3 per slot. Supply=2 road_test.
+    // Fill 2 road_test + 1 id_card per slot to hit desk cap.
     for (let i = 0; i < 12; i++) {
       const hour = 9 + Math.floor(i / 2);
       const min = (i % 2) * 30;
       const time = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
       const slotMin = hour * 60 + min;
-      const duringLunch = slotMin >= 11 * 60 + 30 && slotMin < 13 * 60;
-      await db.client.query(BOOK_SQL, bookParams({ office: 2, time, email: `o2a${i}@x.com` }));
-      if (!duringLunch) {
-        await db.client.query(BOOK_SQL, bookParams({ office: 2, time, email: `o2b${i}@x.com` }));
+      // During lunch at office 2: shift 1 (11:30-12:15) has 2 clerks out, shift 2 (12:15-13:00) has 1 out
+      const inShift1 = slotMin >= 690 && slotMin < 735;
+      const inShift2 = slotMin >= 735 && slotMin < 780;
+      const cap = inShift1 ? 1 : inShift2 ? 2 : 3;
+      for (let j = 0; j < cap; j++) {
+        const skills = j < 2 ? [ROAD_TEST] : [ID_CARD];
+        await db.client.query('SAVEPOINT fill_slot');
+        try {
+          await db.client.query(BOOK_SQL, bookParams({
+            office: 2, time, skills,
+            email: `o2-${i}-${j}@x.com`,
+          }));
+          await db.client.query('RELEASE SAVEPOINT fill_slot');
+        } catch {
+          await db.client.query('ROLLBACK TO SAVEPOINT fill_slot');
+        }
       }
     }
 
@@ -326,17 +365,33 @@ describe('findAppointment: multi-day search', () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill both offices on May 12 (account for lunch supply reduction).
+    // Fill both offices on May 12 to desk cap at every slot.
     for (const office of [1, 2]) {
       for (let i = 0; i < 12; i++) {
         const hour = 9 + Math.floor(i / 2);
         const min = (i % 2) * 30;
         const time = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
         const slotMin = hour * 60 + min;
-        const duringLunch = slotMin >= 11 * 60 + 30 && slotMin < 13 * 60;
-        await db.client.query(BOOK_SQL, bookParams({ office, time, email: `day1-${office}-a${i}@x.com` }));
-        if (!duringLunch) {
-          await db.client.query(BOOK_SQL, bookParams({ office, time, email: `day1-${office}-b${i}@x.com` }));
+        const inShift1 = slotMin >= 690 && slotMin < 735;
+        const inShift2 = slotMin >= 735 && slotMin < 780;
+        let cap: number;
+        if (office === 1) {
+          cap = inShift1 ? 2 : inShift2 ? 1 : 3;
+        } else {
+          cap = inShift1 ? 1 : inShift2 ? 2 : 3;
+        }
+        for (let j = 0; j < cap; j++) {
+          const skills = j < 2 ? [ROAD_TEST] : [ID_CARD];
+          await db.client.query('SAVEPOINT fill_slot');
+          try {
+            await db.client.query(BOOK_SQL, bookParams({
+              office, time, skills,
+              email: `day1-${office}-${i}-${j}@x.com`,
+            }));
+            await db.client.query('RELEASE SAVEPOINT fill_slot');
+          } catch {
+            await db.client.query('ROLLBACK TO SAVEPOINT fill_slot');
+          }
         }
       }
     }

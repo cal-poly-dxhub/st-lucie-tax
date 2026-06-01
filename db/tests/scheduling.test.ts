@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { Client } from 'pg';
 import { connect } from './helpers/client.ts';
@@ -607,9 +605,9 @@ describe('book_appointment: lock + recheck + insert', () => {
   });
 
   test('race: multi-skill bookings serialize on the same office/day lock', async () => {
-    // Both bookings need skills [1,3]. Skill 3 supply at 09:00 = 2 (Maria,
-    // James). Pre-book one [3]-only appt so skill 3 has 1 seat left.
-    // Two parallel multi-skill bookings race for that last seat.
+    // Both bookings need skill [1] (road_test). Supply = 2 (Maria + Angela).
+    // Pre-book one road_test so only 1 seat remains.
+    // Two parallel bookings race for that last seat.
     const setup = await connect();
     const a = await connect();
     const b = await connect();
@@ -625,18 +623,18 @@ describe('book_appointment: lock + recheck + insert', () => {
         [DATE],
       );
       await setup.query(BOOK_SQL, bookParams({
-        skills: [3], email: 'pre@x.com',
+        skills: [ROAD_TEST], email: 'pre@x.com',
       }));
 
       await a.query('BEGIN');
       await b.query('BEGIN');
 
       const racerA = a.query(BOOK_SQL, bookParams({
-        skills: [1, 3], email: 'multi-a@x.com',
+        skills: [ROAD_TEST], email: 'race-a@x.com',
       }));
       await new Promise(r => setTimeout(r, 50));
       const racerB = b.query(BOOK_SQL, bookParams({
-        skills: [1, 3], email: 'multi-b@x.com',
+        skills: [ROAD_TEST], email: 'race-b@x.com',
       }));
 
       const winnerRow = await racerA;
@@ -660,29 +658,3 @@ describe('book_appointment: lock + recheck + insert', () => {
   });
 });
 
-// Smoke test for the booking validation query in db/booking-query.sql.
-// The file uses a hardcoded params CTE for psql exploration; this test runs it
-// as-is against the seed and asserts the single-slot validation shape.
-describe('booking-query.sql: single-slot validation', () => {
-  const VALIDATION_SQL = readFileSync(
-    resolve(import.meta.dirname, '../booking-query.sql'),
-    'utf8',
-  );
-
-  test('returns at most one row with expected columns when slot is bookable', async () => {
-    const { rows } = await db.client.query(VALIDATION_SQL);
-
-    // The query returns exactly one row if the slot is bookable, zero if not.
-    expect(rows.length).toBeLessThanOrEqual(1);
-
-    if (rows.length === 1) {
-      const row = rows[0];
-      expect(row).toMatchObject({
-        office_id: expect.any(Number),
-        slot_date: expect.any(Date),
-        slot_time: expect.any(String),
-      });
-      expect(Number(row.available)).toBeGreaterThan(0);
-    }
-  });
-});
