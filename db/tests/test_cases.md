@@ -233,3 +233,71 @@ These cases test the desk-level cap that prevents more scheduled appointments th
 **Book:** multi-skill appointment at 11:00-11:45
 
 **Expected:** Change-points: 11:00, 11:30 (lunch starts inside [11:00, 11:45)). At 11:00: 3 on floor, cap=3, concurrent=0, avail=3. At 11:30: 1 on floor, cap=1, concurrent=0 (only this proposed one, which isn't yet booked), avail=1. Bookable (it's the first appointment). A second booking at the same time would be rejected at 11:30 (cap=1, concurrent=1).
+
+---
+
+### Case 22: Diverse-skill appointments cannot exceed clerks on floor during lunch
+
+**Setup:** 3 clerks (A, B, C), all skills. Lunch shift 2: clerks B, C (12:15-13:00). run_rate_pct=100. Clerk A is NOT on lunch during 12:15-13:00. 1 existing appointment at 12:00-12:30 (skill 1, booked before lunch started — valid at booking time since all 3 clerks were on floor at 12:00).
+
+**Book:** skill 2 appointment at 12:15-12:30
+
+**Expected:** Change-points: 12:15. Clerks on floor = 1 (only A). Cap = min(3, 1) = 1. Total concurrent at 12:15 = 1 (the existing skill 1 appointment). deskAvail = 1 - 1 = 0. Rejected.
+
+**Bug this catches:** Without the clerks-on-floor cap, effective_desks = 3, deskAvail = 3 - 1 = 2. Skill supply for skill 2 at 12:15 = 1 (only A on floor with skill 2). Skill demand = 0 (no skill 2 appointments running). skillAvail = 1. The LEAST check gives min(1, 2) = 1, which would incorrectly allow booking. But only 1 clerk is physically present and already serving the existing appointment — there's no one to serve this new one.
+
+**Regression guard:** The desk cap MUST use `LEAST(effective_desks, clerks_on_floor)` not just `effective_desks`. This is the root cause of appointments overlapping during lunch.
+
+---
+
+### Case 23: Sequential bookings cannot saturate lunch period beyond on-floor count
+
+**Setup:** 3 clerks (A, B, C), all skills. Lunch shift 2: clerks B, C (12:15-13:00). run_rate_pct=100. Empty schedule.
+
+**Book in sequence:**
+1. Skill 1 at 12:00-12:30 → Should succeed (at 12:00: 3 on floor; at 12:15 change-point: 1 on floor, cap=1, concurrent=0, avail=1)
+2. Skill 2 at 12:00-12:30 → Should succeed (at 12:00: 3 on floor, concurrent=1, cap=3, avail=2; at 12:15: 1 on floor, cap=1, concurrent=1, avail=0... **REJECTED**)
+
+**Expected:** Second booking is rejected. Even though at 12:00 there's plenty of capacity, the appointment spans into 12:15 where only 1 clerk is on the floor and 1 appointment is already running.
+
+**Key insight:** The first booking at 12:00 gets the slot because at its 12:15 change-point, concurrent (existing) = 0 and cap = 1, so avail = 1. But the second booking at 12:00 sees concurrent = 1 at the 12:15 change-point and cap = 1, so avail = 0. This correctly limits the lunch period to 1 concurrent appointment — matching the 1 clerk on floor.
+
+---
+
+### Case 24: Appointment ending exactly at lunch start does not block
+
+**Setup:** 3 clerks. Lunch shift 1: clerks A, B (11:30-12:15). 1 existing appointment at 11:15-11:30 (ends exactly when lunch starts).
+
+**Book:** appointment at 11:30-11:45
+
+**Expected:** At 11:30: clerks on floor = 1 (only C). Total concurrent = 0 (the existing appointment ended at 11:30, exclusive end: `11:30 < 11:30` is false, so not counted). Cap = min(3, 1) = 1. deskAvail = 1. Bookable.
+
+**Note:** Interval semantics are half-open `[start, end)`. An appointment ending at 11:30 does NOT overlap with one starting at 11:30.
+
+---
+
+## CELL_QUERY / checkCell Correctness
+
+### Case 25: checkCell must reject slots with available=0 (HAVING clause mismatch)
+
+**Setup:** 3 clerks (A, B, C). Lunch shift 2: B, C on lunch 12:15-13:00. 1 existing appointment at 12:15 (skill 1). All clerks have all skills. run_rate_pct=100.
+
+**Find:** skill 2 appointment with preferred office, preferred time "morning" (so 12:15 is a candidate at this office)
+
+**Expected:** At 12:15: clerks on floor = 1 (only A), total concurrent = 1, cap = min(3, 1) = 1, deskAvail = 0. checkCell must return NULL (no capacity), not a row with available=0.
+
+**Bug this catches:** The CELL_QUERY SELECT correctly computes `available=0` using `LEAST(effective_desks, clerks_on_floor)`, but the HAVING clause used raw `effective_desks` (without the clerks-on-floor cap). This caused the query to return a row with `available=0` instead of no rows. `findAppointment` then returned this as a "successful" find, and `book_appointment` subsequently rejected it — wasting a round-trip and causing the search to terminate prematurely.
+
+**Fix:** `checkCell` explicitly checks `if (r.available <= 0) return null` before returning a result.
+
+---
+
+### Case 26: Afternoon slots reachable after morning/lunch packs up
+
+**Setup:** 3 clerks, all skills. Empty schedule. ASAP mode. 100 sequential bookings (skill 2, 15 min each).
+
+**Expected:** Bookings pack from 8:00 through morning, navigate through lunch (reduced capacity), and continue filling afternoon up to 16:45 (latest 15-min slot before 17:00 close). At least 90+ should succeed across 2 offices (total capacity: 2 offices × ~100 slots each).
+
+**Bug this catches:** If candidate generation only uses skill-overlapping appointment end-times, and the HAVING clause falsely returns `available=0` slots as hits, the search terminates before reaching afternoon candidates. The algorithm gets stuck thinking morning/lunch is "available" (because of the HAVING bug), never tries the valid afternoon times, and rejects appointments that should easily fit.
+
+**Key invariant:** With ASAP mode, all skills available at all times, and empty offices, the engine must be able to fill the entire day to physical capacity before rejecting.
