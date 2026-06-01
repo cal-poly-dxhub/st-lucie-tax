@@ -163,3 +163,73 @@ These cases demonstrate the tradeoff documented in design decision #11: `validat
 **Expected (system):** At 10:00: supply = 1 (Angela), demand = 1. Available = 0. Slot rejected.
 
 **Note:** The aggregate check correctly rejects this even though the handoff issue also applies. When demand is nonzero, the aggregate check is more conservative than it might otherwise be.
+
+---
+
+## Total Concurrent Cap (run_rate_pct + lunch)
+
+These cases test the desk-level cap that prevents more scheduled appointments than clerks can physically serve, regardless of skill distribution.
+
+### Case 16: run_rate_pct caps total concurrent (diverse skills)
+
+**Setup:** 4 clerks, all with different skills: A={1}, B={2}, C={3}, D={1,2,3}. run_rate_pct=50. 2 existing appointments: one for skill 1, one for skill 2.
+
+**Book:** skill 3 appointment at the same time
+
+**Expected:** effective_desks = floor(4 * 50 / 100) = 2. Total concurrent at this moment = 2. Cap reached. Rejected.
+
+**Before fix:** Per-skill check passed (supply for skill 3 = 2 clerks C+D, demand = 0, avail = 2). Desk cap used raw desk count (4), so deskAvail = 4-2 = 2. Booked. Walk-in arrives, no desk available.
+
+---
+
+### Case 17: Lunch reduces effective cap below effective_desks
+
+**Setup:** 3 clerks, all skills. Lunch shift 1: clerk A (11:30-12:15). Lunch shift 2: clerks B, C (12:15-13:00). run_rate_pct=100. 1 existing appointment at 12:20-12:45 (skill 1).
+
+**Book:** skill 2 appointment at 12:20-12:35
+
+**Expected:** At 12:20: clerks on floor = 1 (only clerk A, B+C on lunch). effective_desks = 3. Cap = min(3, 1) = 1. Total concurrent = 1 (existing appointment). deskAvail = 1-1 = 0. Rejected.
+
+**Before fix:** Cap was just effective_desks=3. deskAvail = 3-1 = 2. Skill check: supply=1 (only A on floor with skill 2), demand=0. avail = min(1, 2) = 1. Booked. But now 2 appointments running with only 1 clerk on floor.
+
+---
+
+### Case 18: Appointment spanning into lunch rejected when it would exceed on-floor count
+
+**Setup:** 3 clerks. Lunch shift 1: clerks A, B (11:30-12:15). run_rate_pct=100. 1 existing appointment at 11:15-11:45 (skill 1). Proposed slot: 11:20-11:45 (skill 2).
+
+**Book:** skill 2 appointment at 11:20-11:45
+
+**Expected:** Change-points: 11:20, 11:30 (lunch starts). At 11:20: clerks on floor = 3, total concurrent = 1, cap = min(3,3) = 3, deskAvail = 2. OK. At 11:30: clerks on floor = 1 (A+B on lunch), total concurrent = 2 (existing + proposed would make 2 but we check existing only = 1), cap = min(3,1) = 1, deskAvail = 1-1 = 0. Rejected.
+
+**Note:** The lunch start at 11:30 is correctly added as a change-point because it falls inside [11:20, 11:45). Without this change-point, the check at 11:20 alone would pass.
+
+---
+
+### Case 19: Appointment starting after lunch ends — full capacity restored
+
+**Setup:** 3 clerks. Lunch shift 1: clerks A, B (11:30-12:15). run_rate_pct=100. 0 existing appointments.
+
+**Book:** skill 1 appointment at 12:15-12:30
+
+**Expected:** At 12:15: clerks on floor = 3 (lunch ended). Cap = min(3, 3) = 3. deskAvail = 3. Bookable.
+
+---
+
+### Case 20: run_rate_pct + lunch compound — walk-in headroom maintained
+
+**Setup:** 6 clerks. run_rate_pct=50. Lunch shift 1: clerks A, B, C (11:30-12:15). 0 existing appointments.
+
+**Book:** appointment at 11:30-11:45
+
+**Expected:** effective_desks = floor(6 * 50 / 100) = 3. Clerks on floor at 11:30 = 3 (D, E, F). Cap = min(3, 3) = 3. deskAvail = 3. Bookable. But only 3 total slots available — matching the 3 clerks present, with 0 extra headroom since run_rate already halved the cap to match the on-floor count.
+
+---
+
+### Case 21: Multi-skill appointment spanning lunch — duration summed correctly
+
+**Setup:** 3 clerks, all skills. Lunch shift 1: clerks A, B (11:30-12:15). Proposed: {road_test, id_card} at 11:00. Duration = 30+15 = 45 min (11:00-11:45).
+
+**Book:** multi-skill appointment at 11:00-11:45
+
+**Expected:** Change-points: 11:00, 11:30 (lunch starts inside [11:00, 11:45)). At 11:00: 3 on floor, cap=3, concurrent=0, avail=3. At 11:30: 1 on floor, cap=1, concurrent=0 (only this proposed one, which isn't yet booked), avail=1. Bookable (it's the first appointment). A second booking at the same time would be rejected at 11:30 (cap=1, concurrent=1).
