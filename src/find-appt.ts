@@ -271,7 +271,7 @@ function computeRank(
       0,
       0,
       dateToOrdinal(cell.dateStr),
-      timeToMinutes(cell.slotTime),
+      toMinutes(cell.slotTime),
       cell.officeId,
     ];
   }
@@ -282,7 +282,7 @@ function computeRank(
   const dowRank =
     preferredDow === null || cell.dow === preferredDow ? 0 : 1;
 
-  const isMorning = timeToMinutes(cell.slotTime) < 12 * 60;
+  const isMorning = toMinutes(cell.slotTime) < 12 * 60;
   const timeRank =
     preferredTime === null
       ? 0
@@ -297,7 +297,7 @@ function computeRank(
     dowRank,
     timeRank,
     dateToOrdinal(cell.dateStr),
-    timeToMinutes(cell.slotTime),
+    toMinutes(cell.slotTime),
     cell.officeId,
   ];
 }
@@ -409,10 +409,6 @@ interface CellInput {
   nowTs: string;
 }
 
-/**
- * Per-cell capacity check. Mirrors validate_slot (db/schema.sql):
- * change-point sweep, skill-filtered demand, absence-aware supply.
- */
 async function checkCell(
   db: Pool | PoolClient,
   c: CellInput,
@@ -443,227 +439,32 @@ async function checkCell(
   };
 }
 
-// Mirrors validate_slot (db/schema.sql) — change-point capacity sweep.
-// Two constraints: (1) skill supply vs skill demand, (2) total concurrent vs effective desk cap.
 const CELL_QUERY = `
-WITH params AS (
-  SELECT $1::text      AS county_id,
-         $2::int[]     AS target_skills,
-         $3::int       AS office_id,
-         $4::date      AS slot_date,
-         $5::time      AS slot_time,
-         $6::int       AS total_duration_min,
-         $7::timestamp AS now_ts
-),
-office_window AS (
-  SELECT oh.open_time, oh.close_time,
-         FLOOR(o.total_desks * o.run_rate_pct / 100.0)::int AS effective_desks
-  FROM offices o
-  JOIN office_hours oh
-    ON oh.office_id   = o.id
-   AND oh.county_id   = o.county_id
-   AND oh.day_of_week = EXTRACT(DOW FROM (SELECT slot_date FROM params))::int
-  CROSS JOIN params
-  WHERE o.id        = params.office_id
-    AND o.county_id = params.county_id
-),
-office_txn_window AS (
+WITH txn_window AS (
   SELECT MAX(ett.available_from)  AS earliest_start,
          MIN(ett.available_until) AS latest_end
   FROM effective_transaction_types ett
-  CROSS JOIN params
-  WHERE ett.county_id = params.county_id
-    AND ett.office_id = params.office_id
-    AND ett.global_id = ANY(params.target_skills)
+  WHERE ett.county_id = $1
+    AND ett.office_id = $3
+    AND ett.global_id = ANY($2::int[])
     AND ett.status    = 'active'
-  HAVING COUNT(*) = (SELECT cardinality(target_skills) FROM params)
-),
-slot_bounds AS (
-  SELECT (params.slot_date + params.slot_time)::timestamp AS slot_start,
-         (params.slot_date + params.slot_time)::timestamp
-           + (params.total_duration_min * interval '1 minute') AS slot_end
-  FROM params
-),
-change_points AS (
-    SELECT params.slot_time AS cp_t FROM params
-  UNION
-    SELECT ols.start_time
-    FROM office_lunch_shifts ols
-    CROSS JOIN params
-    WHERE ols.county_id = params.county_id
-      AND ols.office_id = params.office_id
-      AND ols.start_time >  params.slot_time
-      AND ols.start_time <  (params.slot_time + (params.total_duration_min || ' minutes')::interval)::time
-  UNION
-    -- All appointments starting in window (not just skill-overlapping)
-    SELECT ad.appointment_time
-    FROM appointment_durations ad
-    CROSS JOIN params
-    WHERE ad.county_id        = params.county_id
-      AND ad.office_id        = params.office_id
-      AND ad.appointment_date = params.slot_date
-      AND ad.status NOT IN ('cancelled', 'no_show')
-      AND ad.start_at > (SELECT slot_start FROM slot_bounds)
-      AND ad.start_at < (SELECT slot_end FROM slot_bounds)
+  HAVING COUNT(*) = cardinality($2::int[])
 )
-SELECT
-  params.office_id::int  AS office_id,
-  params.slot_date::text AS slot_date,
-  params.slot_time::text AS slot_time,
-  MIN(LEAST(
-    -- Constraint 1: skill-filtered supply vs skill-filtered demand
-    GREATEST(
-      (SELECT count(*)
-       FROM clerk_schedules cs
-       JOIN clerks c
-         ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-       LEFT JOIN office_lunch_shifts ols
-         ON ols.id        = cs.lunch_shift_id
-        AND ols.county_id = cs.county_id
-        AND ols.office_id = cs.office_id
-       CROSS JOIN params p2
-       WHERE cs.county_id     = p2.county_id
-         AND cs.office_id     = p2.office_id
-         AND cs.schedule_date = p2.slot_date
-         AND c.status         = 'active'
-         AND c.skill_ids     @> p2.target_skills
-         AND NOT EXISTS (
-           SELECT 1 FROM clerk_absences ca
-           WHERE ca.county_id = cs.county_id
-             AND ca.clerk_id  = cs.clerk_id
-             AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
-         AND (ols.id IS NULL
-           OR NOT (ols.start_time <= cp.cp_t
-               AND ols.end_time   >  cp.cp_t)))::int
-      - (SELECT count(*)::int
-         FROM appointment_durations ad
-         CROSS JOIN params p3
-         WHERE ad.county_id        = p3.county_id
-           AND ad.office_id        = p3.office_id
-           AND ad.appointment_date = p3.slot_date
-           AND ad.status NOT IN ('cancelled', 'no_show')
-           AND ad.txn_type_ids    && p3.target_skills
-           AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
-           AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
-      0),
-    -- Constraint 2: total concurrent vs min(effective_desks, clerks_on_floor)
-    GREATEST(
-      LEAST(
-        (SELECT effective_desks FROM office_window),
-        (SELECT count(*)
-         FROM clerk_schedules cs
-         JOIN clerks c
-           ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-         LEFT JOIN office_lunch_shifts ols
-           ON ols.id        = cs.lunch_shift_id
-          AND ols.county_id = cs.county_id
-          AND ols.office_id = cs.office_id
-         CROSS JOIN params p5
-         WHERE cs.county_id     = p5.county_id
-           AND cs.office_id     = p5.office_id
-           AND cs.schedule_date = p5.slot_date
-           AND c.status         = 'active'
-           AND NOT EXISTS (
-             SELECT 1 FROM clerk_absences ca
-             WHERE ca.county_id = cs.county_id
-               AND ca.clerk_id  = cs.clerk_id
-               AND p5.slot_date BETWEEN ca.start_date AND ca.end_date)
-           AND (ols.id IS NULL
-             OR NOT (ols.start_time <= cp.cp_t
-                 AND ols.end_time   >  cp.cp_t)))::int
-      )
-      - (SELECT count(*)::int
-         FROM appointment_durations ad
-         CROSS JOIN params p4
-         WHERE ad.county_id        = p4.county_id
-           AND ad.office_id        = p4.office_id
-           AND ad.appointment_date = p4.slot_date
-           AND ad.status NOT IN ('cancelled', 'no_show')
-           AND ad.start_at <= (p4.slot_date + cp.cp_t)::timestamp
-           AND ad.end_at   >  (p4.slot_date + cp.cp_t)::timestamp),
-      0)
-  ))::int AS available
-FROM change_points cp
-CROSS JOIN params
-CROSS JOIN office_window ow
-CROSS JOIN office_txn_window otw
-CROSS JOIN slot_bounds sb
-WHERE sb.slot_start > params.now_ts
-  AND (otw.earliest_start IS NULL OR params.slot_time >= otw.earliest_start)
-  AND (otw.latest_end IS NULL OR sb.slot_end <= (params.slot_date + otw.latest_end)::timestamp)
-  AND sb.slot_end <= (params.slot_date + ow.close_time)::timestamp
-GROUP BY params.office_id, params.slot_date, params.slot_time
-HAVING MIN(LEAST(
-  GREATEST(
-    (SELECT count(*)
-     FROM clerk_schedules cs
-     JOIN clerks c
-       ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-     LEFT JOIN office_lunch_shifts ols
-       ON ols.id        = cs.lunch_shift_id
-      AND ols.county_id = cs.county_id
-      AND ols.office_id = cs.office_id
-     CROSS JOIN params p2
-     WHERE cs.county_id     = p2.county_id
-       AND cs.office_id     = p2.office_id
-       AND cs.schedule_date = p2.slot_date
-       AND c.status         = 'active'
-       AND c.skill_ids     @> p2.target_skills
-       AND NOT EXISTS (
-         SELECT 1 FROM clerk_absences ca
-         WHERE ca.county_id = cs.county_id
-           AND ca.clerk_id  = cs.clerk_id
-           AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
-       AND (ols.id IS NULL
-         OR NOT (ols.start_time <= cp.cp_t
-             AND ols.end_time   >  cp.cp_t)))::int
-    - (SELECT count(*)::int
-       FROM appointment_durations ad
-       CROSS JOIN params p3
-       WHERE ad.county_id        = p3.county_id
-         AND ad.office_id        = p3.office_id
-         AND ad.appointment_date = p3.slot_date
-         AND ad.status NOT IN ('cancelled', 'no_show')
-         AND ad.txn_type_ids    && p3.target_skills
-         AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
-         AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
-    0),
-  GREATEST(
-    LEAST(
-      (SELECT effective_desks FROM office_window),
-      (SELECT count(*)
-       FROM clerk_schedules cs
-       JOIN clerks c
-         ON c.id = cs.clerk_id AND c.county_id = cs.county_id
-       LEFT JOIN office_lunch_shifts ols
-         ON ols.id        = cs.lunch_shift_id
-        AND ols.county_id = cs.county_id
-        AND ols.office_id = cs.office_id
-       CROSS JOIN params p5
-       WHERE cs.county_id     = p5.county_id
-         AND cs.office_id     = p5.office_id
-         AND cs.schedule_date = p5.slot_date
-         AND c.status         = 'active'
-         AND NOT EXISTS (
-           SELECT 1 FROM clerk_absences ca
-           WHERE ca.county_id = cs.county_id
-             AND ca.clerk_id  = cs.clerk_id
-             AND p5.slot_date BETWEEN ca.start_date AND ca.end_date)
-         AND (ols.id IS NULL
-           OR NOT (ols.start_time <= cp.cp_t
-               AND ols.end_time   >  cp.cp_t)))::int
-    )
-    - (SELECT count(*)::int
-       FROM appointment_durations ad
-       CROSS JOIN params p4
-       WHERE ad.county_id        = p4.county_id
-         AND ad.office_id        = p4.office_id
-         AND ad.appointment_date = p4.slot_date
-         AND ad.status NOT IN ('cancelled', 'no_show')
-         AND ad.start_at <= (p4.slot_date + cp.cp_t)::timestamp
-         AND ad.end_at   >  (p4.slot_date + cp.cp_t)::timestamp),
-    0)
-)) > 0;
+SELECT $3::int  AS office_id,
+       $4::text AS slot_date,
+       $5::text AS slot_time,
+       validate_slot($1, $3, $4::date, $5::time, $2, $6) AS available
+FROM txn_window tw
+CROSS JOIN office_hours oh
+WHERE oh.county_id   = $1
+  AND oh.office_id   = $3
+  AND oh.day_of_week = EXTRACT(DOW FROM $4::date)::int
+  AND ($4::date + $5::time)::timestamp > $7::timestamp
+  AND ($5::time >= tw.earliest_start OR tw.earliest_start IS NULL)
+  AND (($4::date + $5::time)::timestamp + ($6 * interval '1 minute')
+       <= ($4::date + tw.latest_end)::timestamp OR tw.latest_end IS NULL)
+  AND ($4::date + $5::time)::timestamp + ($6 * interval '1 minute')
+       <= ($4::date + oh.close_time)::timestamp
 `;
 
 // ---------------------------------------------------------------------------
@@ -694,9 +495,5 @@ function dateToOrdinal(iso: string): number {
 function toMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
-}
-
-function timeToMinutes(t: string): number {
-  return toMinutes(t);
 }
 

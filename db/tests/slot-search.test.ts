@@ -1,54 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { useDb } from './helpers/fixture.ts';
 import { findAppointment, type FindApptInput } from '../../src/find-appt.ts';
+import { BOOK_SQL, bookParams, clearOfficeDay, DATE, FROZEN_NOW, ROAD_TEST, ID_CARD } from './helpers/booking.ts';
 
 const db = useDb();
-
-const DATE = '2026-05-12';
-const FROZEN_NOW = '2026-05-12 06:00';
-const ROAD_TEST = 1;
-const ID_CARD = 2;
-
-const BOOK_SQL = `
-  SELECT book_appointment(
-    p_county_id     := $1,
-    p_office_id     := $2,
-    p_date          := $3,
-    p_time          := $4,
-    p_txn_type_ids  := $5,
-    p_first_name    := $6,
-    p_last_name     := $7,
-    p_contact_email := $8,
-    p_contact_phone := $9,
-    p_now_ts        := $10::timestamp
-  ) AS id
-`;
-
-function bookParams(overrides: Partial<{
-  office: number; date: string; time: string; skills: number[];
-  email: string; now: string;
-}> = {}) {
-  return [
-    'stlucie',
-    overrides.office ?? 1,
-    overrides.date   ?? DATE,
-    overrides.time   ?? '09:00',
-    overrides.skills ?? [ROAD_TEST],
-    'Test',
-    'Booker',
-    overrides.email ?? 'test@example.com',
-    '555-0000',
-    overrides.now   ?? '2026-05-12 06:00',
-  ];
-}
-
-async function clearOfficeDay(client: typeof db.client, office = 1) {
-  await client.query(
-    `DELETE FROM appointments
-      WHERE county_id='stlucie' AND office_id=$1 AND appointment_date=$2`,
-    [office, DATE],
-  );
-}
 
 function baseInput(overrides: Partial<FindApptInput> = {}): FindApptInput {
   return {
