@@ -232,23 +232,17 @@ export function isSlotAvailable(
     const bookableSlots = Math.floor((availableClerks * runRatePct) / 100);
 
     // Demand: count appointments that overlap this time AND need ANY skill from our set
-    // (they consume a clerk who could serve us)
-    let concurrentAny = 0;
+    let demand = 0;
     for (const a of appointments) {
       if (a.start_min <= checkTime && a.end_min > checkTime) {
         const sharesAnySkill = txnTypeIds.some((id) => a.txn_type_ids.includes(id));
         if (sharesAnySkill) {
-          concurrentAny++;
+          demand++;
         }
       }
     }
 
-    // Adjust for lunch overlap: appointments that started before lunch and are still
-    // running are being served by clerks now on lunch. Those clerks are already excluded
-    // from supply, so their appointments shouldn't count as demand against remaining clerks.
-    const effectiveDemand = Math.max(0, concurrentAny - onLunch);
-
-    if (effectiveDemand >= bookableSlots) {
+    if (demand >= bookableSlots) {
       return false;
     }
   }
