@@ -1,13 +1,11 @@
 // Scheduling Engine — find one appointment (application-layer search).
 //
-// Generates candidate (office, date, time) cells in preference order and
-// asks the database whether each one has capacity, stopping at the first
-// hit. The DB query (db/find-appt-cell.sql) checks one cell at a time.
-//
-// In the happy path (low utilization, user gets their preferred office /
-// day / time-of-day), this calls the DB 1–3 times and stops. In the worst
-// case (saturated office, unsatisfiable preferences) it walks the full
-// candidate space — same cost as the heatmap query — and returns null.
+// Generates candidate (office, date, time) cells in preference order using
+// a packing model: candidate start times are (1) office open, (2) end of
+// each lunch shift, (3) end of each existing skill-overlapping appointment.
+// Each candidate is validated against the DB using the same change-point
+// capacity sweep as validate_slot (db/schema.sql), stopping at the first
+// hit.
 //
 // The returned slot is a candidate, not a reservation. The caller (the
 // book_appointment PL/pgSQL function in db/schema.sql) takes a FOR UPDATE
@@ -25,7 +23,6 @@ export interface FindApptInput {
   preferredTime: "morning" | "afternoon" | null;
   startDate: Date; // production: new Date()
   days: number; // search-window length
-  blockMin: number; // grid resolution, e.g. 15
   nowTs: Date; // production: new Date()
 }
 
@@ -46,16 +43,13 @@ export async function findAppointment(
 ): Promise<FindApptResult | null> {
   const { countyId, targetSkills } = input;
 
-  // One up-front query: which offices in this county offer ALL requested
-  // skills, and what's the total appointment duration? Both are static for
-  // the search.
   const meta = await loadSearchMeta(db, countyId, targetSkills);
-  if (meta === null) return null; // no office offers the full skill set
+  if (meta === null) return null;
   const { offices, totalDurationMin } = meta;
 
-  // Generate (office, date, blockTime) candidates in preference order, then
-  // check each against the DB until one passes.
-  for (const cell of candidateCells(input, offices)) {
+  const candidates = await buildCandidates(db, input, offices, totalDurationMin);
+
+  for (const cell of candidates) {
     const hit = await checkCell(db, {
       countyId,
       targetSkills,
@@ -71,7 +65,7 @@ export async function findAppointment(
 }
 
 // ---------------------------------------------------------------------------
-// Candidate generation
+// Candidate generation — packing model
 // ---------------------------------------------------------------------------
 
 interface Candidate {
@@ -81,23 +75,71 @@ interface Candidate {
 }
 
 /**
- * Yield candidates in the preference order from
- * docs/scheduling-design-writeup.md:
- *   asap     → strict (date, time) ascending across all offices
- *   else     → preferred_office first, then preferred_dow, then
- *              preferred_time, then earliest
+ * Build candidate start times using the packing model:
+ *   1. Office open time (first-of-day)
+ *   2. End of each lunch shift (capacity returns post-lunch)
+ *   3. End time of every existing skill-overlapping appointment (pack tightly)
  *
- * Implementation: we materialize the full candidate list and sort by a
- * composite key matching the writeup's priority. Materializing is fine —
- * 180 days × 3 offices × ~36 blocks ≈ 19K candidates, each ~50 bytes. The
- * point of doing this in the app instead of in SQL is that the DB-side
- * capacity check runs lazily, one cell at a time.
+ * Candidates are then sorted by the preference ranking and returned.
  */
-function* candidateCells(
+async function buildCandidates(
+  db: Pool | PoolClient,
   input: FindApptInput,
   offices: OfficeMeta[],
-): Generator<Candidate> {
-  const { startDate, days, blockMin, asap } = input;
+  totalDurationMin: number,
+): Promise<Candidate[]> {
+  const { countyId, targetSkills, startDate, days } = input;
+  const officeIds = offices.map((o) => o.id);
+
+  // Fetch lunch shift end times for all qualifying offices.
+  const lunchRes = await db.query<{
+    office_id: number;
+    end_time: string;
+  }>(
+    `SELECT office_id, end_time::text
+     FROM office_lunch_shifts
+     WHERE county_id = $1 AND office_id = ANY($2::int[])`,
+    [countyId, officeIds],
+  );
+
+  // Fetch end times of existing skill-overlapping appointments in the window.
+  const endDate = addDays(startDate, days - 1);
+  const apptEndRes = await db.query<{
+    office_id: number;
+    appointment_date: string;
+    end_time: string;
+  }>(
+    `SELECT ad.office_id,
+            ad.appointment_date::text,
+            (ad.appointment_time + (ad.total_duration_min * interval '1 minute'))::time::text AS end_time
+     FROM appointment_durations ad
+     WHERE ad.county_id = $1
+       AND ad.office_id = ANY($2::int[])
+       AND ad.appointment_date BETWEEN $3 AND $4
+       AND ad.status NOT IN ('cancelled', 'no_show')
+       AND ad.txn_type_ids && $5::int[]`,
+    [countyId, officeIds, isoDate(startDate), isoDate(endDate), targetSkills],
+  );
+
+  // Index lunch ends by office.
+  const lunchEndsByOffice = new Map<number, Set<string>>();
+  for (const r of lunchRes.rows) {
+    if (!lunchEndsByOffice.has(r.office_id)) {
+      lunchEndsByOffice.set(r.office_id, new Set());
+    }
+    lunchEndsByOffice.get(r.office_id)!.add(r.end_time);
+  }
+
+  // Index appointment ends by (office, date).
+  const apptEndsByKey = new Map<string, Set<string>>();
+  for (const r of apptEndRes.rows) {
+    const key = `${r.office_id}:${r.appointment_date}`;
+    if (!apptEndsByKey.has(key)) {
+      apptEndsByKey.set(key, new Set());
+    }
+    apptEndsByKey.get(key)!.add(r.end_time);
+  }
+
   const cells: Array<Candidate & { rank: number[] }> = [];
 
   for (let dayOffset = 0; dayOffset < days; dayOffset++) {
@@ -107,14 +149,35 @@ function* candidateCells(
 
     for (const office of offices) {
       const hours = office.hoursByDow.get(dow);
-      if (!hours) continue; // office closed that day-of-week
+      if (!hours) continue;
 
-      const minutesOpen =
-        toMinutes(hours.closeTime) - toMinutes(hours.openTime);
-      // Generate block start times from open to close-blockMin.
-      for (let m = 0; m + blockMin <= minutesOpen; m += blockMin) {
-        const blockMinutes = toMinutes(hours.openTime) + m;
-        const slotTime = fromMinutes(blockMinutes);
+      const openMin = toMinutes(hours.openTime);
+      const closeMin = toMinutes(hours.closeTime);
+
+      // Collect unique candidate start times for this (office, date).
+      const startTimes = new Set<string>();
+
+      // 1. Office open time.
+      startTimes.add(hours.openTime);
+
+      // 2. End of each lunch shift at this office.
+      const lunchEnds = lunchEndsByOffice.get(office.id);
+      if (lunchEnds) {
+        for (const t of lunchEnds) startTimes.add(t);
+      }
+
+      // 3. End of each existing skill-overlapping appointment on this day.
+      const apptEnds = apptEndsByKey.get(`${office.id}:${dateStr}`);
+      if (apptEnds) {
+        for (const t of apptEnds) startTimes.add(t);
+      }
+
+      // Filter to candidates that fit within office hours (start >= open,
+      // start + duration <= close).
+      for (const slotTime of startTimes) {
+        const startMin = toMinutes(slotTime);
+        if (startMin < openMin) continue;
+        if (startMin + totalDurationMin > closeMin) continue;
 
         const rank = computeRank(input, {
           officeId: office.id,
@@ -127,13 +190,12 @@ function* candidateCells(
     }
   }
 
-  // Lexicographic sort on the rank tuple: lower is better.
   cells.sort((a, b) => compareRank(a.rank, b.rank));
-  for (const c of cells) yield c;
+  return cells;
 }
 
 /**
- * Compose a sortable tuple matching the writeup's preference priority.
+ * Compose a sortable tuple matching the preference priority.
  * Lower components win.
  */
 function computeRank(
@@ -142,27 +204,23 @@ function computeRank(
 ): number[] {
   const { asap, preferredOffice, preferredDow, preferredTime } = input;
 
-  // ASAP: pure (date, time) ascending. All other preferences ignored.
   if (asap) {
     return [
-      0, // dummy office-pref slot
-      0, // dummy dow-pref slot
-      0, // dummy time-pref slot
+      0,
+      0,
+      0,
       dateToOrdinal(cell.dateStr),
       timeToMinutes(cell.slotTime),
       cell.officeId,
     ];
   }
 
-  // Office preference: matching office sorts before non-matching.
   const officeRank =
     preferredOffice === null || cell.officeId === preferredOffice ? 0 : 1;
 
-  // Day-of-week preference: matching DOW sorts before non-matching.
   const dowRank =
     preferredDow === null || cell.dow === preferredDow ? 0 : 1;
 
-  // Time-of-day preference: morning < 12:00, afternoon ≥ 12:00.
   const isMorning = timeToMinutes(cell.slotTime) < 12 * 60;
   const timeRank =
     preferredTime === null
@@ -205,17 +263,11 @@ interface SearchMeta {
   totalDurationMin: number;
 }
 
-/**
- * Up-front query: total appointment duration + which offices offer all the
- * requested skills + each office's open hours. Static for the search.
- */
 async function loadSearchMeta(
   db: Pool | PoolClient,
   countyId: string,
   targetSkills: number[],
 ): Promise<SearchMeta | null> {
-  // Total duration. If any requested skill is missing or inactive, return
-  // null — we can't size the appointment.
   const durRes = await db.query<{ total_duration_min: number; n: number }>(
     `
     SELECT
@@ -232,7 +284,6 @@ async function loadSearchMeta(
   if (durRes.rows[0].n !== targetSkills.length) return null;
   const totalDurationMin = durRes.rows[0].total_duration_min;
 
-  // Offices that offer ALL requested skills.
   const officesRes = await db.query<{
     id: number;
     run_rate_pct: number;
@@ -255,7 +306,6 @@ async function loadSearchMeta(
   if (officesRes.rows.length === 0) return null;
 
   const officeIds = officesRes.rows.map((r) => r.id);
-  // One query for all hours across all qualifying offices.
   const hoursRes = await db.query<{
     office_id: number;
     day_of_week: number;
@@ -296,9 +346,8 @@ interface CellInput {
 }
 
 /**
- * Per-cell capacity check. Uses the same change-point sweep as
- * validate_slot in db/schema.sql: skill-filtered demand, absence-aware
- * supply, evaluated only at moments where supply or demand shifts.
+ * Per-cell capacity check. Mirrors validate_slot (db/schema.sql):
+ * change-point sweep, skill-filtered demand, absence-aware supply.
  */
 async function checkCell(
   db: Pool | PoolClient,
@@ -500,12 +549,10 @@ function isoDate(d: Date): string {
 }
 
 function dateToOrdinal(iso: string): number {
-  // Days since 1970-01-01. Used purely for sort ordering, not arithmetic.
   return Math.floor(new Date(iso + "T00:00:00Z").getTime() / 86400000);
 }
 
 function toMinutes(t: string): number {
-  // 'HH:MM' or 'HH:MM:SS'
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
