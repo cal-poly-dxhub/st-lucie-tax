@@ -411,11 +411,14 @@ BEGIN
         AND ad.office_id        = p_office_id
         AND ad.appointment_date = p_date
         AND ad.status NOT IN ('cancelled', 'no_show')
+        AND ad.txn_type_ids    && p_target_skills
         AND ad.start_at >  v_slot_start
         AND ad.start_at <  v_slot_end
   )
   SELECT MIN(GREATEST(
            FLOOR(
+             -- Calculate supply as number of clerks with the necessary skills
+             -- who are available (scheduled, not on lunch, not absent)
              (SELECT count(*)
               FROM clerk_schedules cs
               JOIN clerks c
@@ -439,12 +442,14 @@ BEGIN
                       AND ols.end_time   >  cp.cp_t)))
              * v_run_rate / 100.0
            )::int
+           -- Calculate demand as number of concurrent appointments at a given change point
            - (SELECT count(*)::int
               FROM appointment_durations ad
               WHERE ad.county_id        = p_county_id
                 AND ad.office_id        = p_office_id
                 AND ad.appointment_date = p_date
                 AND ad.status NOT IN ('cancelled', 'no_show')
+                AND ad.txn_type_ids    && p_target_skills
                 AND ad.start_at <= (p_date + cp.cp_t)::timestamp
                 AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
            0
