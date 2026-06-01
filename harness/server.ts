@@ -10,7 +10,7 @@ app.use(express.json());
 
 const COUNTY_ID = "stlucie";
 const DEMO_DATE = "2026-05-12";
-const NOW_TS = new Date("2026-05-12T06:00:00Z");
+const NOW_TS = "2026-05-12 06:00";
 
 // Serve demo HTML
 app.get("/", (_req, res) => {
@@ -74,6 +74,7 @@ app.get("/api/config", async (_req, res) => {
 app.get("/api/appointments/:officeId", async (req, res) => {
   try {
     const officeId = parseInt(req.params.officeId);
+    if (isNaN(officeId)) return res.status(400).json({ error: "Invalid officeId" });
     const rows = await withTenant(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.appointment_time::text AS start_time, a.txn_type_ids,
@@ -103,6 +104,11 @@ app.post("/api/find-appointment", async (req, res) => {
     const { targetSkills, asap, preferredOffice, preferredDow, preferredTime } =
       req.body;
 
+    if (!Array.isArray(targetSkills) || targetSkills.length === 0 ||
+        !targetSkills.every((s: unknown) => Number.isInteger(s))) {
+      return res.status(400).json({ error: "targetSkills must be a non-empty array of integers" });
+    }
+
     const result = await withTenant(async (client) => {
       return findAppointment(client, {
         countyId: COUNTY_ID,
@@ -131,6 +137,11 @@ app.post("/api/find-appointment", async (req, res) => {
 app.post("/api/book-appointment", async (req, res) => {
   try {
     const { officeId, date, time, txnTypeIds, firstName, lastName } = req.body;
+
+    if (!officeId || !date || !time || !firstName || !lastName ||
+        !Array.isArray(txnTypeIds) || txnTypeIds.length === 0) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     const result = await withTenant(async (client) => {
       const r = await client.query(
