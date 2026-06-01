@@ -384,16 +384,21 @@ LANGUAGE plpgsql
 STABLE
 AS $$
 DECLARE
-  v_slot_start  TIMESTAMP := (p_date + p_time)::timestamp;
-  v_slot_end    TIMESTAMP := (p_date + p_time)::timestamp + (p_duration_min * interval '1 minute');
-  v_run_rate    INT;
-  v_min_avail   INT;
+  v_slot_start      TIMESTAMP := (p_date + p_time)::timestamp;
+  v_slot_end        TIMESTAMP := (p_date + p_time)::timestamp + (p_duration_min * interval '1 minute');
+  v_run_rate        INT;
+  v_total_desks     INT;
+  v_effective_desks INT;
+  v_min_avail       INT;
 BEGIN
-  SELECT run_rate_pct INTO v_run_rate
+  SELECT run_rate_pct, total_desks INTO v_run_rate, v_total_desks
   FROM offices
   WHERE county_id = p_county_id AND id = p_office_id;
 
   IF v_run_rate IS NULL THEN RETURN 0; END IF;
+
+  -- Effective desk cap: reserves remaining desks for walk-ins
+  v_effective_desks := FLOOR(v_total_desks * v_run_rate / 100.0)::int;
 
   WITH change_points AS (
       SELECT p_time AS cp_t
@@ -405,20 +410,19 @@ BEGIN
         AND ols.start_time >  p_time
         AND ols.start_time <  (p_time + (p_duration_min || ' minutes')::interval)::time
     UNION
+      -- Change-points from ALL concurrent appointments (not just skill-overlapping)
       SELECT ad.appointment_time
       FROM appointment_durations ad
       WHERE ad.county_id        = p_county_id
         AND ad.office_id        = p_office_id
         AND ad.appointment_date = p_date
         AND ad.status NOT IN ('cancelled', 'no_show')
-        AND ad.txn_type_ids    && p_target_skills
         AND ad.start_at >  v_slot_start
         AND ad.start_at <  v_slot_end
   )
-  SELECT MIN(GREATEST(
-           FLOOR(
-             -- Calculate supply as number of clerks with the necessary skills
-             -- who are available (scheduled, not on lunch, not absent)
+  SELECT MIN(LEAST(
+           -- Constraint 1: skill-filtered supply vs skill-filtered demand
+           GREATEST(
              (SELECT count(*)
               FROM clerk_schedules cs
               JOIN clerks c
@@ -439,20 +443,29 @@ BEGIN
                     AND p_date BETWEEN ca.start_date AND ca.end_date)
                 AND (ols.id IS NULL
                   OR NOT (ols.start_time <= cp.cp_t
-                      AND ols.end_time   >  cp.cp_t)))
-             * v_run_rate / 100.0
-           )::int
-           -- Calculate demand as number of concurrent appointments at a given change point
-           - (SELECT count(*)::int
-              FROM appointment_durations ad
-              WHERE ad.county_id        = p_county_id
-                AND ad.office_id        = p_office_id
-                AND ad.appointment_date = p_date
-                AND ad.status NOT IN ('cancelled', 'no_show')
-                AND ad.txn_type_ids    && p_target_skills
-                AND ad.start_at <= (p_date + cp.cp_t)::timestamp
-                AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
-           0
+                      AND ols.end_time   >  cp.cp_t)))::int
+             - (SELECT count(*)::int
+                FROM appointment_durations ad
+                WHERE ad.county_id        = p_county_id
+                  AND ad.office_id        = p_office_id
+                  AND ad.appointment_date = p_date
+                  AND ad.status NOT IN ('cancelled', 'no_show')
+                  AND ad.txn_type_ids    && p_target_skills
+                  AND ad.start_at <= (p_date + cp.cp_t)::timestamp
+                  AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
+             0),
+           -- Constraint 2: total concurrent appointments vs effective desk cap
+           GREATEST(
+             v_effective_desks
+             - (SELECT count(*)::int
+                FROM appointment_durations ad
+                WHERE ad.county_id        = p_county_id
+                  AND ad.office_id        = p_office_id
+                  AND ad.appointment_date = p_date
+                  AND ad.status NOT IN ('cancelled', 'no_show')
+                  AND ad.start_at <= (p_date + cp.cp_t)::timestamp
+                  AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
+             0)
          ))::int
     INTO v_min_avail
   FROM change_points cp;

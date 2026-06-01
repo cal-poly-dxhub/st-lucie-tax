@@ -180,10 +180,11 @@ async function buildCandidates(
     });
   }
 
-  // Build effective desk count per office (desks * run_rate).
-  const desksByOffice = new Map<number, number>();
+  // Effective scheduled-appointment cap per office: total_desks * run_rate_pct / 100.
+  // This reserves remaining desks for walk-ins.
+  const effectiveDesksByOffice = new Map<number, number>();
   for (const o of offices) {
-    desksByOffice.set(o.id, Math.floor(o.totalDesks * o.runRatePct / 100));
+    effectiveDesksByOffice.set(o.id, Math.floor(o.totalDesks * o.runRatePct / 100));
   }
 
   const cells: Array<Candidate & { rank: number[] }> = [];
@@ -224,7 +225,7 @@ async function buildCandidates(
 
       // Filter candidates: must fit within office hours AND have a free desk.
       const intervals = intervalsByKey.get(`${office.id}:${dateStr}`) || [];
-      const desks = desksByOffice.get(office.id) || 1;
+      const desks = effectiveDesksByOffice.get(office.id) || 1;
 
       for (const slotTime of startTimes) {
         const startMin = toMinutes(slotTime);
@@ -442,6 +443,7 @@ async function checkCell(
 }
 
 // Mirrors validate_slot (db/schema.sql) — change-point capacity sweep.
+// Two constraints: (1) skill supply vs skill demand, (2) total concurrent vs effective desk cap.
 const CELL_QUERY = `
 WITH params AS (
   SELECT $1::text      AS county_id,
@@ -453,7 +455,8 @@ WITH params AS (
          $7::timestamp AS now_ts
 ),
 office_window AS (
-  SELECT oh.open_time, oh.close_time, o.run_rate_pct
+  SELECT oh.open_time, oh.close_time,
+         FLOOR(o.total_desks * o.run_rate_pct / 100.0)::int AS effective_desks
   FROM offices o
   JOIN office_hours oh
     ON oh.office_id   = o.id
@@ -491,6 +494,7 @@ change_points AS (
       AND ols.start_time >  params.slot_time
       AND ols.start_time <  (params.slot_time + (params.total_duration_min || ' minutes')::interval)::time
   UNION
+    -- All appointments starting in window (not just skill-overlapping)
     SELECT ad.appointment_time
     FROM appointment_durations ad
     CROSS JOIN params
@@ -498,7 +502,6 @@ change_points AS (
       AND ad.office_id        = params.office_id
       AND ad.appointment_date = params.slot_date
       AND ad.status NOT IN ('cancelled', 'no_show')
-      AND ad.txn_type_ids    && params.target_skills
       AND ad.start_at > (SELECT slot_start FROM slot_bounds)
       AND ad.start_at < (SELECT slot_end FROM slot_bounds)
 )
@@ -506,8 +509,9 @@ SELECT
   params.office_id::int  AS office_id,
   params.slot_date::text AS slot_date,
   params.slot_time::text AS slot_time,
-  MIN(GREATEST(
-    FLOOR(
+  MIN(LEAST(
+    -- Constraint 1: skill-filtered supply vs skill-filtered demand
+    GREATEST(
       (SELECT count(*)
        FROM clerk_schedules cs
        JOIN clerks c
@@ -529,20 +533,31 @@ SELECT
              AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
          AND (ols.id IS NULL
            OR NOT (ols.start_time <= cp.cp_t
-               AND ols.end_time   >  cp.cp_t)))
-      * (SELECT run_rate_pct FROM office_window) / 100.0
-    )::int
-    - (SELECT count(*)::int
-       FROM appointment_durations ad
-       CROSS JOIN params p3
-       WHERE ad.county_id        = p3.county_id
-         AND ad.office_id        = p3.office_id
-         AND ad.appointment_date = p3.slot_date
-         AND ad.status NOT IN ('cancelled', 'no_show')
-         AND ad.txn_type_ids    && p3.target_skills
-         AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
-         AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
-    0
+               AND ols.end_time   >  cp.cp_t)))::int
+      - (SELECT count(*)::int
+         FROM appointment_durations ad
+         CROSS JOIN params p3
+         WHERE ad.county_id        = p3.county_id
+           AND ad.office_id        = p3.office_id
+           AND ad.appointment_date = p3.slot_date
+           AND ad.status NOT IN ('cancelled', 'no_show')
+           AND ad.txn_type_ids    && p3.target_skills
+           AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
+           AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
+      0),
+    -- Constraint 2: total concurrent vs effective desk cap (run_rate_pct)
+    GREATEST(
+      (SELECT effective_desks FROM office_window)
+      - (SELECT count(*)::int
+         FROM appointment_durations ad
+         CROSS JOIN params p4
+         WHERE ad.county_id        = p4.county_id
+           AND ad.office_id        = p4.office_id
+           AND ad.appointment_date = p4.slot_date
+           AND ad.status NOT IN ('cancelled', 'no_show')
+           AND ad.start_at <= (p4.slot_date + cp.cp_t)::timestamp
+           AND ad.end_at   >  (p4.slot_date + cp.cp_t)::timestamp),
+      0)
   ))::int AS available
 FROM change_points cp
 CROSS JOIN params
@@ -554,8 +569,8 @@ WHERE sb.slot_start > params.now_ts
   AND (otw.latest_end IS NULL OR sb.slot_end <= (params.slot_date + otw.latest_end)::timestamp)
   AND sb.slot_end <= (params.slot_date + ow.close_time)::timestamp
 GROUP BY params.office_id, params.slot_date, params.slot_time
-HAVING MIN(GREATEST(
-  FLOOR(
+HAVING MIN(LEAST(
+  GREATEST(
     (SELECT count(*)
      FROM clerk_schedules cs
      JOIN clerks c
@@ -577,20 +592,30 @@ HAVING MIN(GREATEST(
            AND p2.slot_date BETWEEN ca.start_date AND ca.end_date)
        AND (ols.id IS NULL
          OR NOT (ols.start_time <= cp.cp_t
-             AND ols.end_time   >  cp.cp_t)))
-    * (SELECT run_rate_pct FROM office_window) / 100.0
-  )::int
-  - (SELECT count(*)::int
-     FROM appointment_durations ad
-     CROSS JOIN params p3
-     WHERE ad.county_id        = p3.county_id
-       AND ad.office_id        = p3.office_id
-       AND ad.appointment_date = p3.slot_date
-       AND ad.status NOT IN ('cancelled', 'no_show')
-       AND ad.txn_type_ids    && p3.target_skills
-       AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
-       AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
-  0
+             AND ols.end_time   >  cp.cp_t)))::int
+    - (SELECT count(*)::int
+       FROM appointment_durations ad
+       CROSS JOIN params p3
+       WHERE ad.county_id        = p3.county_id
+         AND ad.office_id        = p3.office_id
+         AND ad.appointment_date = p3.slot_date
+         AND ad.status NOT IN ('cancelled', 'no_show')
+         AND ad.txn_type_ids    && p3.target_skills
+         AND ad.start_at <= (p3.slot_date + cp.cp_t)::timestamp
+         AND ad.end_at   >  (p3.slot_date + cp.cp_t)::timestamp),
+    0),
+  GREATEST(
+    (SELECT effective_desks FROM office_window)
+    - (SELECT count(*)::int
+       FROM appointment_durations ad
+       CROSS JOIN params p4
+       WHERE ad.county_id        = p4.county_id
+         AND ad.office_id        = p4.office_id
+         AND ad.appointment_date = p4.slot_date
+         AND ad.status NOT IN ('cancelled', 'no_show')
+         AND ad.start_at <= (p4.slot_date + cp.cp_t)::timestamp
+         AND ad.end_at   >  (p4.slot_date + cp.cp_t)::timestamp),
+    0)
 )) > 0;
 `;
 
