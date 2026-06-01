@@ -54,22 +54,6 @@
 
 ---
 
-## Optimistic Edge Case (accepted tradeoff)
-
-### Case 6: Shared clerk at full utilization
-
-**Setup:** 9 clerks have {id_card}. Maria has {road_test, id_card} (she's one of the 9). 9 concurrent id_card appointments (all 9 id_card clerks consumed, including Maria).
-
-**Book:** road_test appointment
-
-**Expected (system):** available = 1 (Maria). Demand for road_test = 0 (none of the existing appointments need road_test, so `{id_card} && {road_test}` is false).
-
-**Reality:** Maria is actually busy with an id_card appointment. Only Angela (if she exists) is truly free.
-
-**Why this is acceptable:** Reaching 9/9 id_card utilization is prevented by run_rate_pct. At 80% run rate, effective capacity is floor(9 * 0.8) = 7, so max concurrent id_card demand is 7, leaving 2 id_card clerks (potentially including Maria) idle. Maria will be available in practice.
-
----
-
 ## Change-Point Interactions
 
 ### Case 7: Competing appointment starts mid-slot
