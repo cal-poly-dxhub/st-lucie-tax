@@ -204,26 +204,19 @@ app.post("/api/demo/reset", async (req, res) => {
     const { clerkCount, runRatePct, crossTrain, activeTxnIds } = req.body;
 
     await withTenant(async (client) => {
-      // Clear appointments for demo date
       await client.query(
         `DELETE FROM appointments WHERE county_id = 'stlucie' AND appointment_date = $1`,
         [DEMO_DATE],
       );
 
-      // Toggle txn type status if provided
       if (activeTxnIds && Array.isArray(activeTxnIds)) {
         await client.query(
-          `UPDATE transaction_types SET status = 'hidden' WHERE county_id = 'stlucie' AND office_id IS NULL`,
+          `UPDATE transaction_types SET status = CASE WHEN id = ANY($1::int[]) THEN 'active' ELSE 'hidden' END
+           WHERE county_id = 'stlucie' AND office_id IS NULL`,
+          [activeTxnIds],
         );
-        if (activeTxnIds.length > 0) {
-          await client.query(
-            `UPDATE transaction_types SET status = 'active' WHERE county_id = 'stlucie' AND office_id IS NULL AND id = ANY($1::int[])`,
-            [activeTxnIds],
-          );
-        }
       }
 
-      // Update office run rate
       if (runRatePct != null) {
         await client.query(
           `UPDATE offices SET run_rate_pct = $1 WHERE county_id = 'stlucie'`,
@@ -231,25 +224,19 @@ app.post("/api/demo/reset", async (req, res) => {
         );
       }
 
-      // Update desk count + rebuild clerks if clerkCount provided
       if (clerkCount != null) {
         await client.query(
           `UPDATE offices SET total_desks = $1 WHERE county_id = 'stlucie'`,
           [clerkCount],
         );
-
-        // Deactivate all existing clerks
         await client.query(
           `UPDATE clerks SET status = 'inactive' WHERE county_id = 'stlucie'`,
         );
-
-        // Clear schedules for demo date
         await client.query(
           `DELETE FROM clerk_schedules WHERE county_id = 'stlucie' AND schedule_date = $1`,
           [DEMO_DATE],
         );
 
-        // Get offices and txn types for skill assignment
         const officesRes = await client.query(
           `SELECT id FROM offices WHERE county_id = 'stlucie' ORDER BY id`,
         );
@@ -259,14 +246,12 @@ app.post("/api/demo/reset", async (req, res) => {
         const txnIds = txnRes.rows.map((r: any) => r.id);
         const crossTrainPct = (crossTrain ?? 100) / 100;
 
-        // Get lunch shifts
         const lunchRes = await client.query(
           `SELECT id, office_id FROM office_lunch_shifts WHERE county_id = 'stlucie' ORDER BY office_id, start_time`,
         );
         const lunchByOffice: Record<number, number[]> = {};
         for (const r of lunchRes.rows) {
-          if (!lunchByOffice[r.office_id]) lunchByOffice[r.office_id] = [];
-          lunchByOffice[r.office_id].push(r.id);
+          (lunchByOffice[r.office_id] ??= []).push(r.id);
         }
 
         let clerkId = 1;
@@ -274,15 +259,11 @@ app.post("/api/demo/reset", async (req, res) => {
           const officeLunches = lunchByOffice[office.id] || [];
 
           for (let i = 0; i < clerkCount; i++) {
-            // Assign skills based on cross-training
             let skills: number[];
             if (crossTrainPct >= 1 || txnIds.length <= 1) {
               skills = [...txnIds];
             } else {
-              const numSkills = Math.max(
-                1,
-                Math.round(txnIds.length * crossTrainPct),
-              );
+              const numSkills = Math.max(1, Math.round(txnIds.length * crossTrainPct));
               const shuffled = [...txnIds];
               for (let j = shuffled.length - 1; j > 0; j--) {
                 const k = (i * 7 + j * 13 + office.id * 3) % (j + 1);
@@ -291,40 +272,18 @@ app.post("/api/demo/reset", async (req, res) => {
               skills = shuffled.slice(0, numSkills);
             }
 
-            // Assign lunch shift (stagger across shifts)
-            const lunchShiftId =
-              officeLunches.length > 0
-                ? officeLunches[i % officeLunches.length]
-                : null;
+            const lunchShiftId = officeLunches.length > 0
+              ? officeLunches[i % officeLunches.length]
+              : null;
 
-            // Upsert clerk (reuse IDs if they exist)
-            const existing = await client.query(
-              `SELECT id FROM clerks WHERE county_id = 'stlucie' AND id = $1`,
-              [clerkId],
+            await client.query(
+              `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
+               VALUES ('stlucie', $1, $2, $3, $4, 'active', $5, $6)
+               ON CONFLICT (email) DO UPDATE
+               SET status = 'active', skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids`,
+              [clerkId, `Clerk${clerkId}`, `C${clerkId}`, `clerk${clerkId}@demo.com`, skills, [office.id]],
             );
 
-            if (existing.rows.length > 0) {
-              await client.query(
-                `UPDATE clerks SET status = 'active', skill_ids = $1, office_ids = $2
-                 WHERE county_id = 'stlucie' AND id = $3`,
-                [skills, [office.id], clerkId],
-              );
-            } else {
-              await client.query(
-                `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
-                 VALUES ('stlucie', $1, $2, $3, $4, 'active', $5, $6)`,
-                [
-                  clerkId,
-                  `Clerk${clerkId}`,
-                  `C${clerkId}`,
-                  `clerk${clerkId}@demo.com`,
-                  skills,
-                  [office.id],
-                ],
-              );
-            }
-
-            // Schedule for demo date
             await client.query(
               `INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date, lunch_shift_id)
                VALUES ('stlucie', $1, $2, $3, $4)
