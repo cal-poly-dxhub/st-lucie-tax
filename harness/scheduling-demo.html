@@ -84,6 +84,17 @@ button.secondary:hover { background: #3a3f42; }
 }
 .appt-block.existing { opacity: 0.5; }
 .appt-block.new { opacity: 1; animation: fadeSlotIn 0.4s ease; }
+.appt-block.multi {
+  background: none; border: 2px solid #fff; overflow: hidden; display: flex; align-items: stretch; padding: 0;
+}
+.appt-seg {
+  position: absolute; top: 0; height: 100%;
+}
+.appt-label {
+  position: relative; z-index: 1; width: 100%; text-align: center;
+  font-size: 0.65rem; font-weight: 500; color: rgba(255,255,255,0.9);
+  display: flex; align-items: center; justify-content: center;
+}
 @keyframes fadeSlotIn { from { opacity: 0; transform: scaleX(0.3); } to { opacity: 1; transform: scaleX(1); } }
 
 .flying-pill {
@@ -344,8 +355,17 @@ function generateRandomAppointments(n) {
   const appts = [];
   const allAsap = document.getElementById('all-asap').checked;
   for (let i = 0; i < n; i++) {
-    const txn = pick(CONFIG.txnTypes);
-    const skills = [txn.id];
+    let skills;
+    const r = Math.random();
+    if (r < 0.05 && CONFIG.txnTypes.length >= 3) {
+      const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
+      skills = shuffled.slice(0, 3).map(t => t.id);
+    } else if (r < 0.30 && CONFIG.txnTypes.length >= 2) {
+      const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
+      skills = shuffled.slice(0, 2).map(t => t.id);
+    } else {
+      skills = [pick(CONFIG.txnTypes).id];
+    }
     const isAsap = allAsap || Math.random() < 0.25;
     const hasPrefs = !isAsap && Math.random() < 0.75;
     appts.push({
@@ -478,17 +498,43 @@ function addApptBlock(officeId, appt, isNew) {
   const apptIdx = bookedAppointments.indexOf(appt);
   const lane = getLane(officeId, apptIdx);
 
-  const block = document.createElement('div');
   const isPreExisting = appt.isExisting;
-  block.className = `appt-block${isNew ? ' new' : ''}${isPreExisting ? ' existing' : ''}`;
-  block.style.left = `${pct(appt.startMin)}%`;
-  block.style.width = `${pctWidth(appt.duration)}%`;
-  block.style.top = `${lane * LANE_H + 2}px`;
-  block.style.height = `${LANE_H - 4}px`;
-  block.style.background = txnColor(appt.skills[0]);
-  block.textContent = appt.queueId ? `#${appt.queueId}` : '';
-  block.title = `${minToTime(appt.startMin)} (${appt.duration}min)`;
-  track.appendChild(block);
+  if (appt.skills.length > 1) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `appt-block multi${isNew ? ' new' : ''}${isPreExisting ? ' existing' : ''}`;
+    wrapper.style.left = `${pct(appt.startMin)}%`;
+    wrapper.style.width = `${pctWidth(appt.duration)}%`;
+    wrapper.style.top = `${lane * LANE_H + 2}px`;
+    wrapper.style.height = `${LANE_H - 4}px`;
+    wrapper.title = `${minToTime(appt.startMin)} (${appt.duration}min) — ${appt.skills.map(s => CONFIG.txnTypes.find(t => t.id === s)?.name || '#'+s).join(' + ')}`;
+    let offset = 0;
+    for (const skillId of appt.skills) {
+      const dur = CONFIG.txnTypes.find(t => t.id === skillId)?.duration || 0;
+      const seg = document.createElement('div');
+      seg.className = 'appt-seg';
+      seg.style.left = `${(offset / appt.duration) * 100}%`;
+      seg.style.width = `${(dur / appt.duration) * 100}%`;
+      seg.style.background = txnColor(skillId);
+      wrapper.appendChild(seg);
+      offset += dur;
+    }
+    const label = document.createElement('span');
+    label.className = 'appt-label';
+    label.textContent = appt.queueId ? `#${appt.queueId}` : '';
+    wrapper.appendChild(label);
+    track.appendChild(wrapper);
+  } else {
+    const block = document.createElement('div');
+    block.className = `appt-block${isNew ? ' new' : ''}${isPreExisting ? ' existing' : ''}`;
+    block.style.left = `${pct(appt.startMin)}%`;
+    block.style.width = `${pctWidth(appt.duration)}%`;
+    block.style.top = `${lane * LANE_H + 2}px`;
+    block.style.height = `${LANE_H - 4}px`;
+    block.style.background = txnColor(appt.skills[0]);
+    block.textContent = appt.queueId ? `#${appt.queueId}` : '';
+    block.title = `${minToTime(appt.startMin)} (${appt.duration}min)`;
+    track.appendChild(block);
+  }
 }
 
 function rerenderOfficeBlocks(officeId, newAppt) {
@@ -583,7 +629,9 @@ function flyToSlot(appt, result) {
     const pill = document.createElement('div');
     pill.className = 'flying-pill';
     pill.style.transition = `all ${flyDur}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-    pill.style.background = txnColor(appt.skills[0]);
+    pill.style.background = appt.skills.length > 1
+      ? `linear-gradient(135deg, ${appt.skills.map(s => txnColor(s)).join(', ')})`
+      : txnColor(appt.skills[0]);
     pill.textContent = `#${appt.id} ${appt.firstName}`;
     pill.style.left = `${sourceRect.left}px`;
     pill.style.top = `${sourceRect.top + sourceRect.height / 2 - 14}px`;
