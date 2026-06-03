@@ -367,14 +367,13 @@ function generateRandomAppointments(n) {
       skills = [pick(CONFIG.txnTypes).id];
     }
     const isAsap = allAsap || Math.random() < 0.25;
-    const hasPrefs = !isAsap && Math.random() < 0.75;
     appts.push({
       id: i + 1,
       firstName: pick(FIRST_NAMES),
       lastName: pick(LAST_NAMES),
       skills,
-      preferredOffice: hasPrefs ? pick(CONFIG.offices).id : null,
-      preferredTime: hasPrefs ? pick(['morning', 'afternoon']) : null,
+      preferredOffice: isAsap ? null : pick(CONFIG.offices).id,
+      preferredTime: isAsap ? null : pick(['morning', 'afternoon']),
       asap: isAsap,
       status: null, result: null,
     });
