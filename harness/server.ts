@@ -14,7 +14,7 @@ const NOW_TS = "2026-05-12 06:00";
 
 // Serve demo HTML
 app.get("/", (_req, res) => {
-  res.sendFile(path.resolve(__dirname, "../docs/scheduling-demo.html"));
+  res.sendFile(path.resolve(__dirname, "scheduling-demo.html"));
 });
 
 // ─── GET /api/config ────────────────────────────────────────────────────────
@@ -279,8 +279,9 @@ app.post("/api/demo/reset", async (req, res) => {
             await client.query(
               `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
                VALUES ('stlucie', $1, $2, $3, $4, 'active', $5, $6)
-               ON CONFLICT (email) DO UPDATE
-               SET status = 'active', skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids`,
+               ON CONFLICT (id) DO UPDATE
+               SET status = 'active', skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids,
+                   first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email`,
               [clerkId, `Clerk${clerkId}`, `C${clerkId}`, `clerk${clerkId}@demo.com`, skills, [office.id]],
             );
 
