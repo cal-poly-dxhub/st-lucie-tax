@@ -176,7 +176,7 @@ CREATE TABLE queue (
 -- Postgres requires an IMMUTABLE function to use in an index expression
 CREATE OR REPLACE FUNCTION date_from_timestamptz(ts TIMESTAMPTZ) RETURNS DATE AS $$
   SELECT ts::date;
-$$;
+$$ LANGUAGE SQL IMMUTABLE;
 
 CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (county_id, office_id, date_from_timestamptz(checked_in_at), queue_number);
 

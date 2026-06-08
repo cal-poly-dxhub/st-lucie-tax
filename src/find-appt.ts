@@ -194,7 +194,10 @@ async function buildCandidates(
     const dayOfWeek = dow(date);
     const dateStr = isoDate(date);
 
+    if (input.preferredDow !== null && dayOfWeek !== input.preferredDow) continue;
+
     for (const office of offices) {
+      if (input.preferredOffice !== null && office.id !== input.preferredOffice) continue;
       const hours = office.hoursByDow.get(dayOfWeek);
       if (!hours) continue;
 
@@ -231,6 +234,9 @@ async function buildCandidates(
         const startMin = toMinutes(slotTime);
         if (startMin < openMin) continue;
         if (startMin + totalDurationMin > closeMin) continue;
+
+        if (input.preferredTime === 'morning' && startMin >= 12 * 60) continue;
+        if (input.preferredTime === 'afternoon' && startMin < 12 * 60) continue;
 
         // Pre-filter A: skip if all desks are occupied at this start time.
         // Count appointments overlapping [startMin, startMin+1).
