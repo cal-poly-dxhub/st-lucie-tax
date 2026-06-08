@@ -175,16 +175,6 @@ Example: `txn_type_id = 'oos_title_transfer'`
 
 Chatbot flow: walk all `transaction_flows` for selected txn types, then get all docs and prescreen Qs and then dedupe by doc_id and question text.
 
-### Capacity Model
-
-Slot availability is governed by two independent constraints — both must pass:
-
-1. **Per-skill supply** — Each clerk's `clerk_schedules.lunch_shift_id` ties them to a specific lunch shift window. To compute per-skill capacity at a given time, count clerks on overlapping shifts filtered by skill. Lunch reduces per-skill supply because clerks on lunch are subtracted from the available pool for each of their skills. A slot is rejected if demand for any required skill would exceed its supply.
-
-2. **Total desk cap** — `LEAST(effective_desks, clerks_on_floor)` minus total concurrent appointments at that time. `effective_desks` is `floor(total_desks * run_rate_pct / 100)`. This ensures you can never book more concurrent appointments than clerks physically on the floor, regardless of skill distribution. The remaining capacity (when `run_rate_pct < 100`) is reserved for walk-ins.
-
-Both constraints are checked independently. A slot can fail on per-skill supply even when desk capacity is available, or vice versa.
-
 ---
 
 ## Transactional Tables
