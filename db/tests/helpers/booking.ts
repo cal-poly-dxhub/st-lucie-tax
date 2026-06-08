@@ -1,8 +1,8 @@
-import type { Client } from 'pg';
-import { connect } from './client.ts';
+import type { Client } from "pg";
+import { connect } from "./client.ts";
 
-export const DATE = '2026-05-12';
-export const FROZEN_NOW = '2026-05-12 06:00';
+export const DATE = "2026-05-12";
+export const FROZEN_NOW = "2026-05-12 06:00";
 export const ROAD_TEST = 1;
 export const ID_CARD = 2;
 
@@ -21,22 +21,30 @@ export const BOOK_SQL = `
   ) AS id
 `;
 
-export function bookParams(overrides: Partial<{
-  office: number; date: string; time: string; skills: number[];
-  first: string; last: string; email: string; phone: string;
-  now: string;
-}> = {}) {
+export function bookParams(
+  overrides: Partial<{
+    office: number;
+    date: string;
+    time: string;
+    skills: number[];
+    first: string;
+    last: string;
+    email: string;
+    phone: string;
+    now: string;
+  }> = {},
+) {
   return [
-    'stlucie',
+    "stlucie",
     overrides.office ?? 1,
-    overrides.date   ?? DATE,
-    overrides.time   ?? '09:00',
+    overrides.date ?? DATE,
+    overrides.time ?? "09:00",
     overrides.skills ?? [ROAD_TEST],
-    overrides.first  ?? 'Test',
-    overrides.last   ?? 'Booker',
-    overrides.email  ?? 'test@example.com',
-    overrides.phone  ?? '555-0000',
-    overrides.now    ?? FROZEN_NOW,
+    overrides.first ?? "Test",
+    overrides.last ?? "Booker",
+    overrides.email ?? "test@example.com",
+    overrides.phone ?? "555-0000",
+    overrides.now ?? FROZEN_NOW,
   ];
 }
 
@@ -48,18 +56,26 @@ export async function clearOfficeDay(client: Client, office = 1) {
   );
 }
 
-export async function tryBook(client: Client, params: unknown[]): Promise<{
-  ok: true;  id: number;
-} | {
-  ok: false; code: string;
-}> {
-  await client.query('SAVEPOINT s');
+export async function tryBook(
+  client: Client,
+  params: unknown[],
+): Promise<
+  | {
+      ok: true;
+      id: number;
+    }
+  | {
+      ok: false;
+      code: string;
+    }
+> {
+  await client.query("SAVEPOINT s");
   try {
     const { rows } = await client.query(BOOK_SQL, params);
-    await client.query('RELEASE SAVEPOINT s');
+    await client.query("RELEASE SAVEPOINT s");
     return { ok: true, id: rows[0].id };
   } catch (err) {
-    await client.query('ROLLBACK TO SAVEPOINT s');
+    await client.query("ROLLBACK TO SAVEPOINT s");
     return { ok: false, code: (err as { code: string }).code };
   }
 }
@@ -85,21 +101,21 @@ export async function raceTest(opts: {
     );
     await setup.query(BOOK_SQL, opts.preBookParams);
 
-    await a.query('BEGIN');
-    await b.query('BEGIN');
+    await a.query("BEGIN");
+    await b.query("BEGIN");
 
     const racerA = a.query(BOOK_SQL, opts.racerAParams);
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
     const racerB = b.query(BOOK_SQL, opts.racerBParams);
 
     const winnerRow = await racerA;
-    await a.query('COMMIT');
+    await a.query("COMMIT");
 
     const loserResult = await racerB.then(
       () => null,
       (err: { code: string }) => err.code,
     );
-    await b.query('ROLLBACK');
+    await b.query("ROLLBACK");
 
     await setup.query(
       `DELETE FROM appointments

@@ -263,7 +263,10 @@ app.post("/api/demo/reset", async (req, res) => {
             if (crossTrainPct >= 1 || txnIds.length <= 1) {
               skills = [...txnIds];
             } else {
-              const numSkills = Math.max(1, Math.round(txnIds.length * crossTrainPct));
+              const numSkills = Math.max(
+                1,
+                Math.round(txnIds.length * crossTrainPct),
+              );
               const shuffled = [...txnIds];
               for (let j = shuffled.length - 1; j > 0; j--) {
                 const k = (i * 7 + j * 13 + office.id * 3) % (j + 1);
@@ -272,9 +275,10 @@ app.post("/api/demo/reset", async (req, res) => {
               skills = shuffled.slice(0, numSkills);
             }
 
-            const lunchShiftId = officeLunches.length > 0
-              ? officeLunches[i % officeLunches.length]
-              : null;
+            const lunchShiftId =
+              officeLunches.length > 0
+                ? officeLunches[i % officeLunches.length]
+                : null;
 
             await client.query(
               `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
@@ -282,7 +286,14 @@ app.post("/api/demo/reset", async (req, res) => {
                ON CONFLICT (id) DO UPDATE
                SET status = 'active', skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids,
                    first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email`,
-              [clerkId, `Clerk${clerkId}`, `C${clerkId}`, `clerk${clerkId}@demo.com`, skills, [office.id]],
+              [
+                clerkId,
+                `Clerk${clerkId}`,
+                `C${clerkId}`,
+                `clerk${clerkId}@demo.com`,
+                skills,
+                [office.id],
+              ],
             );
 
             await client.query(
