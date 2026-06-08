@@ -1,8 +1,8 @@
-import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
-import type { Client } from 'pg';
-import { connect } from './client.ts';
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
+import type { Client } from "pg";
+import { connect } from "./client.ts";
 
-const TENANT = 'stlucie';
+const TENANT = "stlucie";
 
 export interface DbContext {
   /** Transactional client for the current test. Rolled back in afterEach. */
@@ -31,14 +31,14 @@ export function useDb(): DbContext {
   });
 
   beforeEach(async () => {
-    if (!connection) throw new Error('connection not initialised');
-    await connection.query('BEGIN');
+    if (!connection) throw new Error("connection not initialised");
+    await connection.query("BEGIN");
     await connection.query(`SET LOCAL app.current_tenant = '${TENANT}'`);
     ctx.client = connection;
   });
 
   afterEach(async () => {
-    await connection?.query('ROLLBACK');
+    await connection?.query("ROLLBACK");
   });
 
   return ctx;

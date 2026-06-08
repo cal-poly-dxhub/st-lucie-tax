@@ -1,11 +1,11 @@
-import { Client, type ClientConfig } from 'pg';
+import { Client, type ClientConfig } from "pg";
 
 export const dbConfig: ClientConfig = {
-  host:     process.env.PGHOST     ?? 'localhost',
-  port:     Number(process.env.PGPORT ?? 5432),
-  user:     process.env.PGUSER     ?? 'stlucie',
-  password: process.env.PGPASSWORD ?? 'localdev',
-  database: process.env.PGDATABASE ?? 'stlucie',
+  host: process.env.PGHOST ?? "localhost",
+  port: Number(process.env.PGPORT ?? 5432),
+  user: process.env.PGUSER ?? "stlucie",
+  password: process.env.PGPASSWORD ?? "localdev",
+  database: process.env.PGDATABASE ?? "stlucie",
 };
 
 export async function connect(): Promise<Client> {
