@@ -9,9 +9,7 @@ CREATE TABLE counties (
     id                       TEXT PRIMARY KEY,
     name                     TEXT NOT NULL,
     timezone                 TEXT NOT NULL DEFAULT 'America/New_York',
-    scheduling_block_min     INT  NOT NULL DEFAULT 15
-                             CHECK (scheduling_block_min > 0
-                                AND scheduling_block_min <= 60),
+    scheduling_block_padding INT  NOT NULL DEFAULT 0, -- How much time to add in between appts
     default_lookahead_days   INT  NOT NULL DEFAULT 14
                              CHECK (default_lookahead_days BETWEEN 1 AND 365)
 );
