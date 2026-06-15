@@ -616,3 +616,93 @@ BEGIN
 
   RETURN v_appt_id;
 END $$;
+
+-- =============================================================================
+-- Queue Operations
+-- =============================================================================
+
+-- check_in_to_queue adds a customer to the queue after check-in.
+-- Assigns the next queue number for the office/day and returns the queue row id.
+CREATE OR REPLACE FUNCTION check_in_to_queue(
+  p_county_id      TEXT,
+  p_office_id      INT,
+  p_appointment_id INT,
+  p_notes          TEXT DEFAULT NULL
+) RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_next_number INT;
+  v_queue_id    INT;
+BEGIN
+  SELECT COALESCE(MAX(queue_number), 0) + 1
+    INTO v_next_number
+  FROM queue
+  WHERE county_id = p_county_id
+    AND office_id = p_office_id
+    AND date_from_timestamptz(checked_in_at) = CURRENT_DATE;
+
+  INSERT INTO queue (county_id, office_id, appointment_id, queue_number, status, notes)
+  VALUES (p_county_id, p_office_id, p_appointment_id, v_next_number, 'waiting', p_notes)
+  RETURNING id INTO v_queue_id;
+
+  RETURN v_queue_id;
+END $$;
+
+-- assign_next_customer pulls the next customer from the queue which the clerk can serve.
+-- Called on prior appointment completion.
+-- Returns the queue id that was assigned, or NULL if queue has no skill-matched appts.
+CREATE OR REPLACE FUNCTION assign_next_customer(
+  p_county_id  TEXT,
+  p_office_id  INT,
+  p_clerk_id   INT
+) RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_clerk_skills INT[];
+  v_queue_id     INT;
+  v_desk         INT;
+BEGIN
+  SELECT c.skill_ids, cs.desk_number
+    INTO v_clerk_skills, v_desk
+  FROM clerks c
+  JOIN clerk_sessions cs ON cs.clerk_id = c.id
+    AND cs.office_id = p_office_id
+    AND cs.logged_out_at IS NULL
+    AND cs.is_available = TRUE
+  WHERE c.id = p_clerk_id
+    AND c.county_id = p_county_id;
+
+  IF v_clerk_skills IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT q.id INTO v_queue_id
+  FROM queue q
+  JOIN appointments a ON a.id = q.appointment_id
+  WHERE q.county_id = p_county_id
+    AND q.office_id = p_office_id
+    AND q.status = 'waiting'
+    AND a.txn_type_ids <@ v_clerk_skills
+  ORDER BY a.is_priority DESC, q.checked_in_at ASC
+  LIMIT 1;
+
+  IF v_queue_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE queue
+  SET status = 'serving',
+      assigned_clerk_id = p_clerk_id,
+      assigned_desk = v_desk
+  WHERE id = v_queue_id;
+
+  UPDATE clerk_sessions
+  SET is_available = FALSE
+  WHERE clerk_id = p_clerk_id
+    AND office_id = p_office_id
+    AND logged_out_at IS NULL;
+
+  RETURN v_queue_id;
+END $$;
