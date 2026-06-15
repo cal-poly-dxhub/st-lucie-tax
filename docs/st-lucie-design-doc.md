@@ -98,9 +98,9 @@ As an admin, I want to create and manage suggested prompt shortcuts (hot buttons
 
 ![Arch Diagram Image](tax-arch-diagram.png)
 
-## 2.3.1 Database Design / Access Patterns
+## 2.3.1 Database Design
 
-[Database Design](database-design.md) | [Data Access Patterns](data-access-patterns.md)
+[Database Design](database-design.md)
 
 # 3 System Requirements
 
