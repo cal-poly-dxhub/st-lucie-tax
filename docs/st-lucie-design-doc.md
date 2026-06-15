@@ -62,7 +62,7 @@ As a check-in clerk, I want to send incomplete customers their remaining pre-scr
 
 As a check-in clerk, I want to attach notes to a customer's record (special circumstances, repeat visitor context) so the service clerk has that information when they summon the customer.
 
-As a check-in clerk, I want to assign a customer to the regular queue, priority queue (govt official/important person), or a specific service clerk so I can route them appropriately based on their situation.
+As a check-in clerk, I want to assign a customer to the regular queue, priority queue (govt official/important person)
 
 As a check-in clerk, I want to handle walk-in customers who haven't used the AI assistant by scanning them into the system and starting their record at the desk.
 
@@ -139,7 +139,7 @@ The scheduling engine is a core technical component that calculates real-time ap
 - Document scanning at check-in desk to scan docs not completed online
 - Clerk sends SMS pre-screening check-in questions via text if not completed online already, customer completes in lobby, system auto-queues on completion
 - Notes system for flagging special circumstances or providing context to the service clerk
-- Three-tier queue assignment: regular queue, priority queue (moves important customers up in line), or assignment to a specific clerk (need to track what clerk the user has met with in the past, so check-in clerk can see and assign based on that)
+- Three-tier queue assignment: regular queue, priority queue (moves important customers up in line)
 
 ### 3.1.4 Queue
 
