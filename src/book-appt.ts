@@ -6,6 +6,9 @@ export interface BookApptInput {
   date: string; // 'YYYY-MM-DD'
   time: string; // 'HH:MM:SS'
   txnTypeIds: number[];
+  requiredDocIds: string[];
+  prescreenCompleted?: boolean;
+  prescreenResponses?: Record<string, boolean>;
   firstName: string;
   lastName: string;
   contactEmail: string;
@@ -39,13 +42,14 @@ export async function bookAppointment(
 ): Promise<BookApptResult> {
   try {
     const res = await db.query<{ book_appointment: number }>(
-      `SELECT book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      `SELECT book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         input.countyId,
         input.officeId,
         input.date,
         input.time,
         input.txnTypeIds,
+        input.requiredDocIds,
         input.firstName,
         input.lastName,
         input.contactEmail,
@@ -53,6 +57,8 @@ export async function bookAppointment(
         input.qrCode ?? null,
         input.isWalkIn ?? false,
         input.isPriority ?? false,
+        input.prescreenCompleted ?? false,
+        JSON.stringify(input.prescreenResponses ?? {}),
         input.nowTs ?? null,
       ],
     );

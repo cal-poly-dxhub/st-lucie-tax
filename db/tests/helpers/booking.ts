@@ -8,16 +8,17 @@ export const ID_CARD = 2;
 
 export const BOOK_SQL = `
   SELECT book_appointment(
-    p_county_id     := $1,
-    p_office_id     := $2,
-    p_date          := $3,
-    p_time          := $4,
-    p_txn_type_ids  := $5,
-    p_first_name    := $6,
-    p_last_name     := $7,
-    p_contact_email := $8,
-    p_contact_phone := $9,
-    p_now_ts        := $10::timestamp
+    p_county_id        := $1,
+    p_office_id        := $2,
+    p_date             := $3,
+    p_time             := $4,
+    p_txn_type_ids     := $5,
+    p_required_doc_ids := $6,
+    p_first_name       := $7,
+    p_last_name        := $8,
+    p_contact_email    := $9,
+    p_contact_phone    := $10,
+    p_now_ts           := $11::timestamp
   ) AS id
 `;
 
@@ -27,6 +28,7 @@ export function bookParams(
     date: string;
     time: string;
     skills: number[];
+    requiredDocIds: string[];
     first: string;
     last: string;
     email: string;
@@ -40,6 +42,7 @@ export function bookParams(
     overrides.date ?? DATE,
     overrides.time ?? "09:00",
     overrides.skills ?? [ROAD_TEST],
+    overrides.requiredDocIds ?? [],
     overrides.first ?? "Test",
     overrides.last ?? "Booker",
     overrides.email ?? "test@example.com",
