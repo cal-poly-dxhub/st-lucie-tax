@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { camelRows } from "./utils.js";
 
 export interface AssignResult {
   queueId: number;
@@ -19,15 +20,9 @@ export async function assignNextCustomer(
   const queueId = rows[0].queue_id;
   if (queueId === null) return null;
 
-  const qRow = await db.query<{
-    assigned_desk: number;
-    assigned_clerk_id: number;
-  }>(`SELECT assigned_desk, assigned_clerk_id FROM queue WHERE id = $1`, [
-    queueId,
-  ]);
-  return {
-    queueId,
-    deskNumber: qRow.rows[0].assigned_desk,
-    clerkId: qRow.rows[0].assigned_clerk_id,
-  };
+  const qRow = await db.query(
+    `SELECT id, assigned_desk, assigned_clerk_id FROM queue WHERE id = $1`,
+    [queueId],
+  );
+  return camelRows<AssignResult>(qRow.rows)[0];
 }
