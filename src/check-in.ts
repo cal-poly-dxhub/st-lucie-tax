@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import QRCode from "qrcode";
+import { camelRows } from "./utils.js";
 
 export function generateQrCode(): string {
   return randomUUID();
@@ -10,25 +11,25 @@ export async function generateQrCodeDataUrl(content: string): Promise<string> {
   return QRCode.toDataURL(content, { errorCorrectionLevel: "M", width: 200 });
 }
 
+export interface QrLookupResult {
+  appointmentId: number;
+  officeId: number;
+  status: string;
+}
+
 export async function lookupByQrCode(
   db: Pool | PoolClient,
   countyId: string,
   qrCode: string,
-): Promise<{ appointmentId: number; officeId: number; status: string } | null> {
-  const { rows } = await db.query<{
-    id: number;
-    office_id: number;
-    status: string;
-  }>(
-    `SELECT id, office_id, status FROM appointments WHERE county_id = $1 AND qr_code = $2`,
+): Promise<QrLookupResult | null> {
+  const { rows } = await db.query(
+    `SELECT id, office_id, status
+     FROM appointments
+     WHERE county_id = $1 AND qr_code = $2`,
     [countyId, qrCode],
   );
   if (rows.length === 0) return null;
-  return {
-    appointmentId: rows[0].id,
-    officeId: rows[0].office_id,
-    status: rows[0].status,
-  };
+  return camelRows<QrLookupResult>(rows)[0];
 }
 
 export interface CheckInResult {
@@ -54,4 +55,90 @@ export async function checkInToQueue(
     [queueId],
   );
   return { queueId, queueNumber: qRow.rows[0].queue_number };
+}
+
+export interface AppointmentDocument {
+  id: number;
+  docId: string | null;
+  name: string;
+  s3Key: string | null;
+  aiReviewStatus: "accept" | "reject" | null;
+  aiReviewNotes: string | null;
+  createdAt: string;
+}
+
+export async function getAppointmentDocuments(
+  db: Pool | PoolClient,
+  countyId: string,
+  appointmentId: number,
+): Promise<AppointmentDocument[]> {
+  const { rows } = await db.query(
+    `SELECT id, doc_id, name, s3_key, ai_review_status, ai_review_notes, created_at
+     FROM documents
+     WHERE county_id = $1 AND appointment_id = $2
+     ORDER BY created_at`,
+    [countyId, appointmentId],
+  );
+  return camelRows<AppointmentDocument>(rows);
+}
+
+export interface DocStatus {
+  docId: string;
+  name: string;
+  uploaded: boolean;
+  aiReviewStatus: "accept" | "reject" | null;
+}
+
+export async function getRequiredDocsStatus(
+  db: Pool | PoolClient,
+  countyId: string,
+  appointmentId: number,
+): Promise<DocStatus[]> {
+  const { rows } = await db.query(
+    `SELECT dr.doc_id, dr.name,
+            (d.id IS NOT NULL) AS uploaded,
+            d.ai_review_status
+     FROM appointments a
+     CROSS JOIN LATERAL unnest(a.required_doc_ids) AS req(doc_id)
+     JOIN document_registry dr
+       ON dr.county_id = a.county_id AND dr.doc_id = req.doc_id
+     LEFT JOIN documents d
+       ON d.county_id = a.county_id
+      AND d.appointment_id = a.id
+      AND d.doc_id = req.doc_id
+     WHERE a.county_id = $1 AND a.id = $2
+     ORDER BY dr.doc_id`,
+    [countyId, appointmentId],
+  );
+  return camelRows<DocStatus>(rows);
+}
+
+export async function updateQueueNotes(
+  db: Pool | PoolClient,
+  countyId: string,
+  queueId: number,
+  notes: string,
+): Promise<void> {
+  const { rowCount } = await db.query(
+    `UPDATE queue SET notes = $3 WHERE county_id = $1 AND id = $2`,
+    [countyId, queueId, notes],
+  );
+  if (rowCount === 0) {
+    throw new Error(`Queue entry ${queueId} not found`);
+  }
+}
+
+export async function setAppointmentPriority(
+  db: Pool | PoolClient,
+  countyId: string,
+  appointmentId: number,
+  isPriority: boolean,
+): Promise<void> {
+  const { rowCount } = await db.query(
+    `UPDATE appointments SET is_priority = $3 WHERE county_id = $1 AND id = $2`,
+    [countyId, appointmentId, isPriority],
+  );
+  if (rowCount === 0) {
+    throw new Error(`Appointment ${appointmentId} not found`);
+  }
 }
