@@ -205,6 +205,7 @@ CREATE TABLE appointments (
     can_send_sms BOOLEAN NOT NULL DEFAULT FALSE,
     requested_clerk_id INT REFERENCES clerks(id), -- Used for check-in clerk to send to specific clerk
     txn_type_ids    INT[] NOT NULL,
+    required_doc_ids TEXT[] NOT NULL DEFAULT '{}', -- doc_id values from transaction_flows, resolved at booking time
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
     qr_code         TEXT, -- Unique code to generate qr code from ()
