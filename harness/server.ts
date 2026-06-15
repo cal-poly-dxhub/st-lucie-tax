@@ -236,7 +236,7 @@ app.get("/api/schedule/appointments", async (req, res) => {
 // ─── POST /api/schedule/reschedule ──────────────────────────────────────────
 app.post("/api/schedule/reschedule", async (req, res) => {
   try {
-    const { appointmentId, newDate, newTime } = req.body;
+    const { appointmentId, newDate, newTime, force } = req.body;
 
     if (!appointmentId || !newDate || !newTime) {
       return res
@@ -271,20 +271,22 @@ app.post("/api/schedule/reschedule", async (req, res) => {
         [appointmentId],
       );
 
-      // Check capacity at new slot
-      const capRes = await client.query(
-        `SELECT validate_slot('stlucie', $1, $2::date, $3::time, $4, $5) AS available`,
-        [appt.office_id, newDate, newTime, appt.txn_type_ids, duration],
-      );
-      const available = capRes.rows[0]?.available || 0;
-
-      if (available <= 0) {
-        // Rollback: restore status
-        await client.query(
-          `UPDATE appointments SET status = 'scheduled' WHERE id = $1`,
-          [appointmentId],
+      if (!force) {
+        // Check capacity at new slot
+        const capRes = await client.query(
+          `SELECT validate_slot('stlucie', $1, $2::date, $3::time, $4, $5) AS available`,
+          [appt.office_id, newDate, newTime, appt.txn_type_ids, duration],
         );
-        return { success: false, error: "capacity_exceeded" };
+        const available = capRes.rows[0]?.available || 0;
+
+        if (available <= 0) {
+          // Rollback: restore status
+          await client.query(
+            `UPDATE appointments SET status = 'scheduled' WHERE id = $1`,
+            [appointmentId],
+          );
+          return { success: false, error: "capacity_exceeded" };
+        }
       }
 
       // Move the appointment

@@ -338,11 +338,11 @@ async function apiGetWeekAppointments(officeId, startDate, endDate) {
   return resp.json();
 }
 
-async function apiReschedule(appointmentId, newDate, newTime) {
+async function apiReschedule(appointmentId, newDate, newTime, force) {
   const resp = await fetch('/api/schedule/reschedule', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId, newDate, newTime }),
+    body: JSON.stringify({ appointmentId, newDate, newTime, force: !!force }),
   });
   return resp.json();
 }
@@ -667,13 +667,19 @@ async function onDragEnd(e) {
     if (targetDate !== appt.date || targetMin !== appt.startMin) {
       showStatus(`Moving ${appt.firstName} ${appt.lastName.charAt(0)}. to ${formatDate(new Date(targetDate + 'T00:00:00'))} @ ${minToTime(targetMin)}...`, '', 5000);
 
-      const result = await apiReschedule(appt.id, targetDate, newTime);
+      let result = await apiReschedule(appt.id, targetDate, newTime, false);
+      if (!result.success && result.error === 'capacity_exceeded') {
+        const confirmed = confirm(`This slot exceeds estimated capacity. Move ${appt.firstName} ${appt.lastName.charAt(0)}. anyway?`);
+        if (confirmed) {
+          result = await apiReschedule(appt.id, targetDate, newTime, true);
+        }
+      }
       if (result.success) {
         showStatus(`Moved ${appt.firstName} ${appt.lastName.charAt(0)}. to ${minToTime(targetMin)}`, 'success', 3000);
         await loadAppointments();
         render();
-      } else {
-        showStatus(`Cannot move: ${result.error || 'capacity exceeded'}`, 'error', 4000);
+      } else if (result.error !== 'capacity_exceeded') {
+        showStatus(`Cannot move: ${result.error || 'unknown error'}`, 'error', 4000);
       }
     }
   }
