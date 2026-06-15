@@ -624,6 +624,94 @@ BEGIN
 END $$;
 
 -- =============================================================================
+-- Walk-in Registration
+-- =============================================================================
+-- register_walk_in: insert an appointment for a walk-in customer.
+--
+-- Validates office hours and txn availability but skips capacity validation
+-- (validate_slot) and the FOR UPDATE lock. Walk-in capacity is reserved by
+-- the run_rate_pct < 100% on scheduled bookings.
+-- Does NOT check-in to queue — walk-ins must complete prescreen first.
+-- =============================================================================
+CREATE OR REPLACE FUNCTION register_walk_in(
+  p_county_id        TEXT,
+  p_office_id        INT,
+  p_txn_type_ids     INT[],
+  p_first_name       TEXT,
+  p_last_name        TEXT,
+  p_contact_email    TEXT,
+  p_contact_phone    TEXT,
+  p_is_priority      BOOLEAN DEFAULT FALSE,
+  p_now_ts           TIMESTAMP DEFAULT NOW()
+) RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_date        DATE := p_now_ts::date;
+  v_time        TIME := p_now_ts::time;
+  v_duration    INT;
+  v_slot_end    TIMESTAMP;
+  v_close_time  TIME;
+  v_open_time   TIME;
+  v_appt_id     INT;
+BEGIN
+  -- 1. Ensure office is open today
+  SELECT oh.open_time, oh.close_time
+    INTO v_open_time, v_close_time
+  FROM office_hours oh
+  WHERE oh.county_id   = p_county_id
+    AND oh.office_id   = p_office_id
+    AND oh.day_of_week = EXTRACT(DOW FROM v_date)::int;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_time < v_open_time OR v_time >= v_close_time THEN
+    RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- 2. Validate all requested txn types are active at this office
+  SELECT SUM(ett.avg_duration_min)::int
+    INTO v_duration
+  FROM effective_transaction_types ett
+  WHERE ett.county_id = p_county_id
+    AND ett.office_id = p_office_id
+    AND ett.global_id = ANY(p_txn_type_ids)
+    AND ett.status    = 'active';
+
+  IF v_duration IS NULL
+     OR (SELECT COUNT(*)
+           FROM effective_transaction_types ett
+          WHERE ett.county_id = p_county_id
+            AND ett.office_id = p_office_id
+            AND ett.global_id = ANY(p_txn_type_ids)
+            AND ett.status    = 'active')
+        <> cardinality(p_txn_type_ids)
+  THEN
+    RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
+  END IF;
+
+  -- 3. Insert appointment
+  INSERT INTO appointments (
+    county_id, office_id,
+    first_name, last_name, contact_email, contact_phone,
+    txn_type_ids, required_doc_ids, prescreen_completed, prescreen_responses,
+    appointment_date, appointment_time,
+    qr_code, status, is_walk_in, is_priority
+  ) VALUES (
+    p_county_id, p_office_id,
+    p_first_name, p_last_name, p_contact_email, p_contact_phone,
+    p_txn_type_ids, '{}', FALSE, '{}',
+    v_date, v_time,
+    NULL, 'scheduled', TRUE, p_is_priority
+  )
+  RETURNING id INTO v_appt_id;
+
+  RETURN v_appt_id;
+END $$;
+
+-- =============================================================================
 -- Queue Operations
 -- =============================================================================
 
