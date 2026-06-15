@@ -9,7 +9,9 @@ CREATE TABLE counties (
     id                       TEXT PRIMARY KEY,
     name                     TEXT NOT NULL,
     timezone                 TEXT NOT NULL DEFAULT 'America/New_York',
-    scheduling_block_padding INT  NOT NULL DEFAULT 0, -- How much time to add in between appts
+    scheduling_block_padding INT  NOT NULL DEFAULT 0
+                             CHECK (scheduling_block_padding >= 0
+                                AND scheduling_block_padding <= 30),
     default_lookahead_days   INT  NOT NULL DEFAULT 14
                              CHECK (default_lookahead_days BETWEEN 1 AND 365)
 );
@@ -374,13 +376,19 @@ LANGUAGE plpgsql
 STABLE
 AS $$
 DECLARE
+  v_padding         INT;
   v_slot_start      TIMESTAMP := (p_date + p_time)::timestamp;
-  v_slot_end        TIMESTAMP := (p_date + p_time)::timestamp + (p_duration_min * interval '1 minute');
+  v_slot_end        TIMESTAMP;
   v_run_rate        INT;
   v_total_desks     INT;
   v_effective_desks INT;
   v_min_avail       INT;
 BEGIN
+  SELECT COALESCE(c.scheduling_block_padding, 0) INTO v_padding
+  FROM counties c WHERE c.id = p_county_id;
+
+  v_slot_end := v_slot_start + ((p_duration_min + v_padding) * interval '1 minute');
+
   SELECT run_rate_pct, total_desks INTO v_run_rate, v_total_desks
   FROM offices
   WHERE county_id = p_county_id AND id = p_office_id;
@@ -398,7 +406,7 @@ BEGIN
       WHERE ols.county_id = p_county_id
         AND ols.office_id = p_office_id
         AND ols.start_time >  p_time
-        AND ols.start_time <  (p_time + (p_duration_min || ' minutes')::interval)::time
+        AND ols.start_time <  (p_time + ((p_duration_min + v_padding) || ' minutes')::interval)::time
     UNION
       -- Change-points from ALL concurrent appointments (not just skill-overlapping)
       SELECT ad.appointment_time
@@ -442,7 +450,7 @@ BEGIN
                   AND ad.status NOT IN ('cancelled', 'no_show')
                   AND ad.txn_type_ids    && p_target_skills
                   AND ad.start_at <= (p_date + cp.cp_t)::timestamp
-                  AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
+                  AND ad.end_at + (v_padding * interval '1 minute') > (p_date + cp.cp_t)::timestamp),
              0),
            -- Constraint 2: total concurrent vs min(effective_desks, clerks_on_floor)
            GREATEST(
@@ -477,7 +485,7 @@ BEGIN
                   AND ad.appointment_date = p_date
                   AND ad.status NOT IN ('cancelled', 'no_show')
                   AND ad.start_at <= (p_date + cp.cp_t)::timestamp
-                  AND ad.end_at   >  (p_date + cp.cp_t)::timestamp),
+                  AND ad.end_at + (v_padding * interval '1 minute') > (p_date + cp.cp_t)::timestamp),
              0)
          ))::int
     INTO v_min_avail

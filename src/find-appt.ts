@@ -31,13 +31,14 @@ export async function findAppointment(
 
   const meta = await loadSearchMeta(db, countyId, targetSkills);
   if (meta === null) return null;
-  const { offices, totalDurationMin } = meta;
+  const { offices, totalDurationMin, paddingMin } = meta;
 
   const candidates = await buildCandidates(
     db,
     input,
     offices,
     totalDurationMin,
+    paddingMin,
   );
 
   for (const cell of candidates) {
@@ -67,6 +68,7 @@ async function buildCandidates(
   input: FindApptInput,
   offices: OfficeMeta[],
   totalDurationMin: number,
+  paddingMin: number,
 ): Promise<Candidate[]> {
   const { countyId, targetSkills, startDate, days } = input;
   const officeIds = offices.map((o) => o.id);
@@ -159,7 +161,7 @@ async function buildCandidates(
     }
     intervalsByKey.get(key)!.push({
       startMin: toMinutes(r.start_time),
-      endMin: toMinutes(r.end_time),
+      endMin: toMinutes(r.end_time) + paddingMin,
     });
   }
 
@@ -208,10 +210,10 @@ async function buildCandidates(
         for (const t of lunchEnds) startTimes.add(t);
       }
 
-      // 4. End of each existing skill-overlapping appointment on this day.
+      // 4. End of each existing appointment on this day + padding.
       const apptEnds = apptEndsByKey.get(`${office.id}:${dateStr}`);
       if (apptEnds) {
-        for (const t of apptEnds) startTimes.add(t);
+        for (const t of apptEnds) startTimes.add(addMinutes(t, paddingMin));
       }
 
       // Filter candidates: must fit within office hours AND have a free desk.
@@ -316,6 +318,7 @@ interface OfficeMeta {
 interface SearchMeta {
   offices: OfficeMeta[];
   totalDurationMin: number;
+  paddingMin: number;
 }
 
 async function loadSearchMeta(
@@ -323,11 +326,16 @@ async function loadSearchMeta(
   countyId: string,
   targetSkills: number[],
 ): Promise<SearchMeta | null> {
-  const durRes = await db.query<{ total_duration_min: number; n: number }>(
+  const durRes = await db.query<{
+    total_duration_min: number;
+    n: number;
+    padding: number;
+  }>(
     `
     SELECT
       COALESCE(SUM(g.avg_duration_min), 0)::int AS total_duration_min,
-      COUNT(*)::int AS n
+      COUNT(*)::int AS n,
+      (SELECT c.scheduling_block_padding FROM counties c WHERE c.id = $1) AS padding
     FROM transaction_types g
     WHERE g.county_id  = $1
       AND g.office_id IS NULL
@@ -338,6 +346,7 @@ async function loadSearchMeta(
   );
   if (durRes.rows[0].n !== targetSkills.length) return null;
   const totalDurationMin = durRes.rows[0].total_duration_min;
+  const paddingMin = durRes.rows[0].padding ?? 0;
 
   const officesRes = await db.query<{
     id: number;
@@ -389,7 +398,7 @@ async function loadSearchMeta(
       closeTime: h.close_time,
     });
   }
-  return { offices, totalDurationMin };
+  return { offices, totalDurationMin, paddingMin };
 }
 
 interface CellInput {
@@ -446,7 +455,7 @@ WITH txn_window AS (
 SELECT $3::int  AS office_id,
        $4::text AS slot_date,
        $5::text AS slot_time,
-       validate_slot($1, $3, $4::date, $5::time, $2, $6) AS available
+       validate_slot($1, $3, $4::date, $5::time, $2, $6::int) AS available
 FROM txn_window tw
 CROSS JOIN office_hours oh
 WHERE oh.county_id   = $1
@@ -484,4 +493,12 @@ function dateToOrdinal(iso: string): number {
 function toMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
+}
+
+function addMinutes(t: string, min: number): string {
+  if (min === 0) return t;
+  const total = toMinutes(t) + min;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }

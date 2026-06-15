@@ -477,12 +477,12 @@ describe("book_appointment: lock + recheck + insert", () => {
   test("boundary: appt ending one minute past close rejected", async () => {
     await clearOfficeDay(db.client);
 
-    // license_original is 25 min and has no override. Start 16:36 ends 17:01.
+    // license_original is 20 min and has no override. Start 16:41 ends 17:01.
     await expect(
       db.client.query(
         BOOK_SQL,
         bookParams({
-          time: "16:36",
+          time: "16:41",
           skills: [3],
           email: "past-close@x.com",
         }),

@@ -9,6 +9,7 @@ import {
   FROZEN_NOW,
   ROAD_TEST,
   ID_CARD,
+  tryBook,
 } from "./helpers/booking.ts";
 
 const db = useDb();
@@ -933,6 +934,90 @@ describe("findAppointment: combined preferences — full scenario", () => {
       }),
     );
     expect(result).toBeNull();
+  });
+});
+
+describe("findAppointment: scheduling_block_padding", () => {
+  test("next slot respects padding gap", async () => {
+    await clearOfficeDay(db.client);
+    await clearOfficeDay(db.client, 2);
+    await db.client.query(
+      "UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'",
+    );
+    // Fill both road_test clerk slots at 09:00 (30-min → raw end 09:30)
+    await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
+    await db.client.query(
+      BOOK_SQL,
+      bookParams({ time: "09:00", email: "pad2@x.com" }),
+    );
+
+    // Find next slot — should be 09:35 (09:30 + 5 padding), not 09:30
+    const result = await findAppointment(
+      db.client,
+      baseInput({ preferredOffice: 1 }),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.slotTime).toBe("09:35:00");
+  });
+
+  test("booking inside padding zone is rejected", async () => {
+    await clearOfficeDay(db.client);
+    await db.client.query(
+      "UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'",
+    );
+    // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
+    await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
+    await db.client.query(
+      BOOK_SQL,
+      bookParams({ time: "09:00", email: "pad2@x.com" }),
+    );
+
+    // Try to book at 09:31 — inside the padded zone
+    const result = await tryBook(
+      db.client,
+      bookParams({ time: "09:31", email: "pad-test@x.com" }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("P0001");
+  });
+
+  test("booking after padding zone succeeds", async () => {
+    await clearOfficeDay(db.client);
+    await db.client.query(
+      "UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'",
+    );
+    // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
+    await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
+    await db.client.query(
+      BOOK_SQL,
+      bookParams({ time: "09:00", email: "pad2@x.com" }),
+    );
+
+    // Book at 09:35 — after the padded zone — should succeed
+    const result = await tryBook(
+      db.client,
+      bookParams({ time: "09:35", email: "pad-ok@x.com" }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  test("zero padding allows back-to-back booking", async () => {
+    await clearOfficeDay(db.client);
+    await db.client.query(
+      "UPDATE counties SET scheduling_block_padding = 0 WHERE id = 'stlucie'",
+    );
+    await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
+    await db.client.query(
+      BOOK_SQL,
+      bookParams({ time: "09:00", email: "pad2@x.com" }),
+    );
+
+    // Book at 09:30 — immediately after 30-min appt ends — should work
+    const result = await tryBook(
+      db.client,
+      bookParams({ time: "09:30", email: "nopad@x.com" }),
+    );
+    expect(result.ok).toBe(true);
   });
 });
 
