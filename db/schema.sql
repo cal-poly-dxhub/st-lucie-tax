@@ -129,6 +129,7 @@ CREATE TABLE appointments (
     can_send_sms    BOOLEAN NOT NULL DEFAULT FALSE,
     requested_clerk_id INT REFERENCES clerks(id),
     txn_type_ids    INT[] NOT NULL,
+    required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
     qr_code         TEXT,
@@ -509,6 +510,7 @@ CREATE OR REPLACE FUNCTION book_appointment(
   p_date             DATE,
   p_time             TIME,
   p_txn_type_ids     INT[],
+  p_required_doc_ids TEXT[],
   p_first_name       TEXT,
   p_last_name        TEXT,
   p_contact_email    TEXT,
@@ -516,6 +518,8 @@ CREATE OR REPLACE FUNCTION book_appointment(
   p_qr_code          TEXT DEFAULT NULL,
   p_is_walk_in       BOOLEAN DEFAULT FALSE,
   p_is_priority      BOOLEAN DEFAULT FALSE,
+  p_prescreen_completed BOOLEAN DEFAULT FALSE,
+  p_prescreen_responses JSONB DEFAULT '{}',
   p_now_ts           TIMESTAMP DEFAULT NOW()
 ) RETURNS INT
 LANGUAGE plpgsql
@@ -604,12 +608,14 @@ BEGIN
   INSERT INTO appointments (
     county_id, office_id,
     first_name, last_name, contact_email, contact_phone,
-    txn_type_ids, appointment_date, appointment_time,
+    txn_type_ids, required_doc_ids, prescreen_completed, prescreen_responses,
+    appointment_date, appointment_time,
     qr_code, status, is_walk_in, is_priority
   ) VALUES (
     p_county_id, p_office_id,
     p_first_name, p_last_name, p_contact_email, p_contact_phone,
-    p_txn_type_ids, p_date, p_time,
+    p_txn_type_ids, p_required_doc_ids, p_prescreen_completed, p_prescreen_responses,
+    p_date, p_time,
     p_qr_code, 'scheduled', p_is_walk_in, p_is_priority
   )
   RETURNING id INTO v_appt_id;
