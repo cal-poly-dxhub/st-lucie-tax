@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json());
 
 const COUNTY_ID = "stlucie";
-const DEMO_DATE = "2026-05-12";
+const DEMO_DATE = "2026-05-13";
 
 app.get("/schedule", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "check-in-schedule.html"));
@@ -170,8 +170,245 @@ app.post("/api/schedule/reschedule", async (req, res) => {
   }
 });
 
+// ─── Queue Demo ─────────────────────────────────────────────────────────────
+
+app.get("/queue-demo", (_req, res) => {
+  res.sendFile(path.resolve(__dirname, "queue-demo.html"));
+});
+
+// Reset queue state for demo: clear queue + clerk_sessions, set up fresh clerk logins
+app.post("/api/queue/reset", async (req, res) => {
+  try {
+    const officeId = parseInt(req.body.officeId as string) || 1;
+    await withTenant(async (client) => {
+      await client.query(
+        `DELETE FROM queue WHERE county_id = $1 AND office_id = $2`,
+        [COUNTY_ID, officeId],
+      );
+      await client.query(
+        `DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`,
+        [COUNTY_ID, officeId],
+      );
+      // Log in clerks at desks 1-3
+      const clerks = await client.query(
+        `SELECT id FROM clerks WHERE county_id = $1 AND $2 = ANY(office_ids) AND status = 'active' ORDER BY id LIMIT 3`,
+        [COUNTY_ID, officeId],
+      );
+      for (let i = 0; i < clerks.rows.length; i++) {
+        await client.query(
+          `INSERT INTO clerk_sessions (county_id, clerk_id, office_id, desk_number, is_available)
+           VALUES ($1, $2, $3, $4, TRUE)`,
+          [COUNTY_ID, clerks.rows[i].id, officeId, i + 1],
+        );
+      }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get today's scheduled appointments for the office
+app.get("/api/queue/appointments", async (req, res) => {
+  try {
+    const officeId = parseInt(req.query.officeId as string) || 1;
+    const rows = await withTenant(async (client) => {
+      const result = await client.query(
+        `SELECT a.id, a.first_name, a.last_name, a.appointment_time::text AS time,
+                a.txn_type_ids, a.qr_code, a.is_priority, a.status,
+                a.identity_verified, a.prescreen_completed
+         FROM appointments a
+         WHERE a.county_id = $1 AND a.office_id = $2
+           AND a.appointment_date = $3::date
+           AND a.status = 'scheduled'
+         ORDER BY a.appointment_time, a.id`,
+        [COUNTY_ID, officeId, DEMO_DATE],
+      );
+      return result.rows;
+    });
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Simulate document upload for an appointment
+app.post("/api/queue/upload-doc", async (req, res) => {
+  try {
+    const { appointmentId, docName, status } = req.body;
+    await withTenant(async (client) => {
+      await client.query(
+        `INSERT INTO documents (county_id, appointment_id, name, ai_review_status)
+         VALUES ($1, $2, $3, $4)`,
+        [COUNTY_ID, appointmentId, docName, status || "accept"],
+      );
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get documents for an appointment
+app.get("/api/queue/documents", async (req, res) => {
+  try {
+    const appointmentId = parseInt(req.query.appointmentId as string);
+    const rows = await withTenant(async (client) => {
+      const result = await client.query(
+        `SELECT id, name, ai_review_status FROM documents
+         WHERE county_id = $1 AND appointment_id = $2
+         ORDER BY created_at`,
+        [COUNTY_ID, appointmentId],
+      );
+      return result.rows;
+    });
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check in: scan QR code → add to queue
+app.post("/api/queue/check-in", async (req, res) => {
+  try {
+    const { appointmentId, officeId, makePriority } = req.body;
+    const oid = parseInt(officeId) || 1;
+    const result = await withTenant(async (client) => {
+      if (makePriority) {
+        await client.query(
+          `UPDATE appointments SET is_priority = TRUE WHERE id = $1`,
+          [appointmentId],
+        );
+      }
+      const { rows } = await client.query(
+        `SELECT check_in_to_queue($1, $2, $3) AS id`,
+        [COUNTY_ID, oid, appointmentId],
+      );
+      const queueId = rows[0].id;
+      const qRow = await client.query(
+        `SELECT queue_number FROM queue WHERE id = $1`,
+        [queueId],
+      );
+      const apptRow = await client.query(
+        `SELECT is_priority FROM appointments WHERE id = $1`,
+        [appointmentId],
+      );
+      return {
+        queueId,
+        queueNumber: qRow.rows[0].queue_number,
+        isPriority: apptRow.rows[0]?.is_priority || false,
+      };
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get current queue state
+app.get("/api/queue/state", async (req, res) => {
+  try {
+    const officeId = parseInt(req.query.officeId as string) || 1;
+    const data = await withTenant(async (client) => {
+      const queue = await client.query(
+        `SELECT q.id, q.queue_number, q.status, q.assigned_desk, q.assigned_clerk_id,
+                a.first_name, a.last_name, a.is_priority, a.txn_type_ids
+         FROM queue q
+         JOIN appointments a ON a.id = q.appointment_id
+         WHERE q.county_id = $1 AND q.office_id = $2
+         ORDER BY q.checked_in_at`,
+        [COUNTY_ID, officeId],
+      );
+      const clerks = await client.query(
+        `SELECT cs.clerk_id, cs.desk_number, cs.is_available,
+                c.first_name || ' ' || LEFT(c.last_name, 1) || '.' AS name,
+                c.skill_ids
+         FROM clerk_sessions cs
+         JOIN clerks c ON c.id = cs.clerk_id
+         WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.logged_out_at IS NULL
+         ORDER BY cs.desk_number`,
+        [COUNTY_ID, officeId],
+      );
+      return { queue: queue.rows, clerks: clerks.rows };
+    });
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Assign next customer to a clerk (clerk calls for next)
+app.post("/api/queue/assign", async (req, res) => {
+  try {
+    const { clerkId, officeId } = req.body;
+    const oid = parseInt(officeId) || 1;
+    const result = await withTenant(async (client) => {
+      const { rows } = await client.query(
+        `SELECT assign_next_customer($1, $2, $3) AS queue_id`,
+        [COUNTY_ID, oid, clerkId],
+      );
+      const queueId = rows[0].queue_id;
+      if (queueId === null) return null;
+      const qRow = await client.query(
+        `SELECT q.assigned_desk, q.assigned_clerk_id, q.queue_number,
+                a.first_name, a.last_name
+         FROM queue q JOIN appointments a ON a.id = q.appointment_id
+         WHERE q.id = $1`,
+        [queueId],
+      );
+      return { queueId, ...qRow.rows[0] };
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete service — mark queue entry done, free clerk
+app.post("/api/queue/complete", async (req, res) => {
+  try {
+    const { queueId, officeId } = req.body;
+    const oid = parseInt(officeId) || 1;
+    await withTenant(async (client) => {
+      const qRow = await client.query(
+        `SELECT assigned_clerk_id FROM queue WHERE id = $1`,
+        [queueId],
+      );
+      const clerkId = qRow.rows[0]?.assigned_clerk_id;
+      await client.query(`UPDATE queue SET status = 'done' WHERE id = $1`, [queueId]);
+      if (clerkId) {
+        await client.query(
+          `UPDATE clerk_sessions SET is_available = TRUE
+           WHERE clerk_id = $1 AND office_id = $2 AND logged_out_at IS NULL`,
+          [clerkId, oid],
+        );
+      }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get txn type names for display
+app.get("/api/queue/txn-types", async (_req, res) => {
+  try {
+    const rows = await withTenant(async (client) => {
+      const result = await client.query(
+        `SELECT id, name FROM transaction_types WHERE county_id = $1 AND office_id IS NULL ORDER BY id`,
+        [COUNTY_ID],
+      );
+      return result.rows;
+    });
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start ──────────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT ?? 3000);
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}/schedule`);
+  console.log(`Queue demo at http://localhost:${PORT}/queue-demo`);
 });
