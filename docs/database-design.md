@@ -2,7 +2,7 @@
 
 ## Overview
 
-All data lives in a single RDS Postgres instance.
+All data lives in a single RDS Postgres instance. Table definitions are in [`db/schema.sql`](../db/schema.sql).
 
 Multi-tenancy is handled by `county_id` on every table. Each county's data is logically isolated via Row-Level Security. This scales from 1 county (St. Lucie) to 67 (all of Florida) without re-architecting.
 
@@ -12,118 +12,16 @@ Multi-tenancy is handled by `county_id` on every table. Each county's data is lo
 
 Admin-managed configuration. Low volume, read-heavy, rarely written.
 
-```sql
--- Offices
-CREATE TABLE offices (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,          -- e.g. 'stlucie'
-    office_name            TEXT NOT NULL,          -- e.g. 'ftpierce', 'slwest'
-    name            TEXT NOT NULL,
-    address         TEXT,
-    total_desks     INT NOT NULL,
-    run_rate_pct    INT NOT NULL DEFAULT 100, -- e.g. 90 or 110
-    UNIQUE (county_id, office_name)
-);
-
--- Office operating hours (one row per office per day)
-CREATE TABLE office_hours (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    office_id       INT NOT NULL REFERENCES offices(id),
-    day_of_week     INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6), -- 0=Sun
-    open_time       TIME NOT NULL,
-    close_time      TIME NOT NULL
-);
-CREATE UNIQUE INDEX idx_office_hours_unique ON office_hours (county_id, office_id, day_of_week); -- Enforce only one hour entry per office per day
-
--- Office lunch shifts (overlapping shifts reduce capacity)
-CREATE TABLE office_lunch_shifts (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    office_id       INT NOT NULL REFERENCES offices(id),
-    shift_num       INT NOT NULL,
-    start_time      TIME NOT NULL,
-    end_time        TIME NOT NULL
-);
-
--- Transaction types
--- office_id NULL = available at all offices (global default)
--- office_id set  = override for that specific office
-CREATE TABLE transaction_types (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    txn_type_id     TEXT NOT NULL,          -- e.g. 'license_renewal', 'road_test'
-    office_id       INT REFERENCES offices(id), -- NULL = global
-    name            TEXT NOT NULL,
-    description     TEXT,
-    avg_duration_min INT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active', 'internal', 'hidden')),
-    available_from  TIME,                   -- optional time window
-    available_until TIME,                   -- optional time window
-    is_online_eligible BOOLEAN NOT NULL DEFAULT FALSE, -- can be completed online (e.g. simple renewal)
-    online_redirect_url TEXT,               -- e.g. MyEasyGov payment page
-    UNIQUE NULLS NOT DISTINCT (county_id, txn_type_id, office_id) -- Enforces one row per office_id = NULL for global constraint
-);
-
--- Clerks
-CREATE TABLE clerks (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    first_name      TEXT NOT NULL,
-    last_name       TEXT NOT NULL,
-    email           TEXT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active', 'in_training', 'inactive')),
-    skill_ids       INT[] NOT NULL DEFAULT '{}',  -- list of transaction_types.id
-    office_ids      INT[] NOT NULL DEFAULT '{}',  -- list of offices.id that a clerk can be assigned to
-    UNIQUE (email)
-);
-
--- Chatbot hot buttons (ordered quick-action prompts)
-CREATE TABLE hotbuttons (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    sort_order      INT NOT NULL,
-    label           TEXT NOT NULL,
-    prompt          TEXT NOT NULL
-);
-
--- Pre-screen questions (per transaction type, all yes/no)
--- If a txn type has no rows here, pre-screening is skipped.
-CREATE TABLE prescreen_questions (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    txn_type_id     INT NOT NULL REFERENCES transaction_types(id),
-    sort_order      INT NOT NULL,
-    question_text   TEXT NOT NULL
-);
-CREATE UNIQUE INDEX idx_prescreen_unique ON prescreen_questions (county_id, txn_type_id, sort_order); -- Enforces unique sort order per question
-
--- Document registry (shared definitions, referenced by doc_id from transaction flows)
-CREATE TABLE document_registry (
-    county_id       TEXT NOT NULL,
-    doc_id          TEXT NOT NULL, -- e.g. 'drivers_license', 'hsmv_82040'
-    name            TEXT NOT NULL,
-    description     TEXT,
-    alternatives    TEXT[] NOT NULL DEFAULT '{}',  -- e.g. '{"passport","state_id"}'
-    PRIMARY KEY (county_id, doc_id)
-);
-
--- Transaction flows (deterministic decision trees for chatbot pre-screening)
--- Each flow is a self-contained JSON document walked client-side.
--- doc_id strings appearing in steps.require_docs resolve against
--- document_registry using this row's county_id — i.e., (county_id, doc_id).
--- Postgres can't enforce FKs from values inside JSONB, so this linkage is
--- maintained at the application layer when flows are authored.
-CREATE TABLE transaction_flows (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    txn_type_id     INT NOT NULL REFERENCES transaction_types(id),
-    steps           JSONB NOT NULL,
-    UNIQUE (county_id, txn_type_id)
-);
-```
+- **counties** — Per-tenant scheduling defaults (timezone, block padding, lookahead days). The `id` column is the same value used as `county_id` everywhere else.
+- **offices** — Office locations with desk count and run rate percentage.
+- **office_hours** — One row per office per day-of-week. Enforces one entry per office per day.
+- **office_lunch_shifts** — Overlapping lunch shift windows that reduce capacity.
+- **transaction_types** — Services offered. `office_id = NULL` means global default; a row with `office_id` set is a per-office override (status, available_from/until).
+- **clerks** — Clerk profiles with skill_ids (transaction_types they can handle) and office_ids (offices they can be assigned to).
+- **hotbuttons** — Ordered quick-action prompts for the chatbot.
+- **prescreen_questions** — Per-transaction-type yes/no pre-screening questions. If a txn type has no rows here, pre-screening is skipped.
+- **document_registry** — Shared document definitions referenced by `doc_id` from transaction flows. Includes alternative document options.
+- **transaction_flows** — Deterministic decision trees (JSONB) for chatbot pre-screening. `doc_id` strings in steps resolve against `document_registry` using the same `county_id`.
 
 ### Transaction Flow JSON Structure
 
@@ -175,143 +73,33 @@ Example: `txn_type_id = 'oos_title_transfer'`
 
 Chatbot flow: walk all `transaction_flows` for selected txn types, then get all docs and prescreen Qs and then dedupe by doc_id and question text.
 
-### Capacity Model
+---
+
+## Capacity Model
 
 Slot availability is governed by two independent constraints — both must pass:
 
-1. **Per-skill supply** — Each clerk's `clerk_schedules.lunch_shift_id` ties them to a specific lunch shift window. To compute per-skill capacity at a given time, count clerks on overlapping shifts filtered by skill. Lunch reduces per-skill supply because clerks on lunch are subtracted from the available pool for each of their skills. A slot is rejected if demand for any required skill would exceed its supply.
+1. **Per-skill supply** — Each clerk's `clerk_schedules.lunch_shift_id` ties them to a specific lunch shift window. To compute per-skill capacity at a given time, count clerks on overlapping shifts filtered by skill. Lunch reduces per-skill supply because clerks on lunch are subtracted from the available pool for each of their skills. A slot is rejected if demand for any required skill would exceed its supply. Clerk absences (`clerk_absences` table) also subtract from supply.
 
 2. **Total desk cap** — `LEAST(effective_desks, clerks_on_floor)` minus total concurrent appointments at that time. `effective_desks` is `floor(total_desks * run_rate_pct / 100)`. This ensures you can never book more concurrent appointments than clerks physically on the floor, regardless of skill distribution. The remaining capacity (when `run_rate_pct < 100`) is reserved for walk-ins.
 
 Both constraints are checked independently. A slot can fail on per-skill supply even when desk capacity is available, or vice versa.
 
+The `validate_slot` function in `schema.sql` implements this as a change-point sweep — it evaluates capacity at every moment where supply or demand shifts within the appointment window.
+
 ---
 
 ## Transactional Tables
 
-```sql
--- Appointments (write-once booking data)
--- Customer contact info is inlined here rather than in a separate customers table.
--- This keeps PII scoped to a single appointment's lifecycle so it can be purged
--- on a fixed schedule without cross-visit linkage.
-CREATE TABLE appointments (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    office_id       INT NOT NULL REFERENCES offices(id),
-    first_name      TEXT NOT NULL,
-    last_name       TEXT NOT NULL,
-    contact_email   TEXT NOT NULL,
-    contact_phone   TEXT NOT NULL,
-    can_send_sms BOOLEAN NOT NULL DEFAULT FALSE,
-    requested_clerk_id INT REFERENCES clerks(id), -- Used for check-in clerk to send to specific clerk
-    txn_type_ids    INT[] NOT NULL,
-    required_doc_ids TEXT[] NOT NULL DEFAULT '{}', -- doc_id values from transaction_flows, resolved at booking time
-    appointment_date DATE NOT NULL,
-    appointment_time TIME NOT NULL,
-    qr_code         TEXT, -- Unique code to generate qr code from ()
-    identity_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    prescreen_completed BOOLEAN NOT NULL DEFAULT FALSE,
-    prescreen_responses JSONB DEFAULT '{}', -- keys are prescreen_questions.id, values are boolean e.g. {"12": true, "15": false}
-    status          TEXT NOT NULL DEFAULT 'scheduled'
-                    CHECK (status IN ('scheduled', 'completed', 'no_show', 'cancelled', 'diverted_online')),
-    is_walk_in     BOOLEAN NOT NULL DEFAULT FALSE,
-    is_priority     BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_appointments_qr ON appointments (qr_code) WHERE qr_code IS NOT NULL;
-CREATE INDEX idx_appointments_schedule ON appointments (county_id, office_id, appointment_date, appointment_time);
-
--- Documents (per-appointment, not persistent across visits)
-CREATE TABLE documents (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    appointment_id  INT NOT NULL REFERENCES appointments(id),
-    doc_id          TEXT, -- NULL for walk-in uploads not tied to a required doc
-    name            TEXT NOT NULL,
-    s3_key          TEXT,
-    ai_review_status TEXT CHECK (ai_review_status IN ('accept', 'reject')),
-    ai_review_notes  TEXT,               -- AI-generated reasoning, e.g. "Valid FL utility bill, issued 2026-03-15"
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    FOREIGN KEY (county_id, doc_id) REFERENCES document_registry(county_id, doc_id)
-);
-
--- Queue (ephemeral, high-write state for today's active customers)
-CREATE TABLE queue (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    office_id       INT NOT NULL REFERENCES offices(id),
-    appointment_id  INT REFERENCES appointments(id),
-    queue_number    INT NOT NULL,  -- Customer-facing ticket number, assigned at check-in, unique per office+day
-    status          TEXT NOT NULL DEFAULT 'waiting'
-                    CHECK (status IN ('waiting', 'serving', 'testing', 'done')),
-    checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    assigned_clerk_id INT REFERENCES clerks(id),
-    assigned_desk   INT,
-    notes           TEXT  -- check-in clerk notes for service clerk
-);
-CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (county_id, office_id, (checked_in_at::date), queue_number);
-
--- Service history (for duration analytics)
--- Intentionally carries no customer or clerk linkage. The only analytics use
--- case is per-txn-type average duration to power duration_recommendations.
--- Keeping this table PII-free lets it be retained indefinitely.
-CREATE TABLE service_history (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    office_id       INT NOT NULL REFERENCES offices(id),
-    duration_min    INT NOT NULL,
-    served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Junction table for the many-to-many between service_history and
--- transaction_types. Postgres can't enforce FKs on array elements, so the
--- txn_type list is normalized into its own table to keep referential
--- integrity with transaction_types.
-CREATE TABLE service_history_txn_types (
-    service_history_id INT NOT NULL REFERENCES service_history(id) ON DELETE CASCADE,
-    txn_type_id        INT NOT NULL REFERENCES transaction_types(id),
-    PRIMARY KEY (service_history_id, txn_type_id)
-);
-
--- Duration recommendations (admin approval workflow)
-CREATE TABLE duration_recommendations (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    txn_type_id     INT NOT NULL REFERENCES transaction_types(id),
-    current_avg_min INT NOT NULL,
-    recommended_avg_min INT NOT NULL,
-    sample_size     INT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending','approved','rejected')),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Clerk sessions (who's logged in where)
-CREATE TABLE clerk_sessions (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    clerk_id        INT NOT NULL REFERENCES clerks(id),
-    office_id       INT NOT NULL REFERENCES offices(id),
-    desk_number     INT NOT NULL,
-    is_available    BOOLEAN NOT NULL DEFAULT TRUE, -- Tracks to see if clerk is available (clerks can set if they are available manually)
-    logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    logged_out_at   TIMESTAMPTZ
-);
-
--- Clerk schedules (which clerk is assigned to which office on what day)
--- Used for capacity planning and scheduling. clerks.office_ids tracks which
--- offices a clerk *can* work at; this table tracks where they *will* work.
-CREATE TABLE clerk_schedules (
-    id              SERIAL PRIMARY KEY,
-    county_id       TEXT NOT NULL,
-    clerk_id        INT NOT NULL REFERENCES clerks(id),
-    office_id       INT NOT NULL REFERENCES offices(id),
-    schedule_date   DATE NOT NULL,
-    lunch_shift_id  INT REFERENCES office_lunch_shifts(id) -- which lunch shift this clerk is assigned to
-);
-CREATE UNIQUE INDEX idx_clerk_schedule_unique ON clerk_schedules (county_id, clerk_id, schedule_date); -- One office per clerk per day
-CREATE INDEX idx_clerk_schedule_office_date ON clerk_schedules (county_id, office_id, schedule_date);
-```
+- **appointments** — Write-once booking data with inlined customer contact info (no separate customers table). PII is scoped to a single appointment lifecycle for easy purging.
+- **documents** — Per-appointment uploaded documents with optional AI review status.
+- **queue** — Ephemeral high-write state for today's active customers. Customer-facing ticket number assigned at check-in, unique per office+day.
+- **service_history** — PII-free per-service duration log for analytics. No customer or clerk linkage.
+- **service_history_txn_types** — Junction table linking service_history rows to their transaction types (normalized from array for FK integrity).
+- **duration_recommendations** — Admin approval workflow for updating avg_duration_min based on observed actuals.
+- **clerk_sessions** — Who's logged in at which desk, with availability tracking.
+- **clerk_schedules** — Which clerk is assigned to which office on what day, with lunch shift assignment. One office per clerk per day.
+- **clerk_absences** — Date ranges when clerks are unavailable (vacation, sick, etc.). Used by capacity planning.
 
 ---
 
@@ -387,27 +175,3 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Pending recommendations | `SELECT * FROM duration_recommendations WHERE county_id = $1 AND status = 'pending'` |
 | Estimate vs actual per service | `SELECT sh.id, ARRAY_AGG(sht.txn_type_id) AS txn_type_ids, sh.duration_min AS actual_min, SUM(tt.avg_duration_min) AS estimated_min FROM service_history sh JOIN service_history_txn_types sht ON sht.service_history_id = sh.id JOIN transaction_types tt ON tt.id = sht.txn_type_id WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY sh.id, sh.duration_min` |
 | Average drift per txn type at office | `SELECT tt.id, tt.name, tt.avg_duration_min AS estimated_min, AVG(sh.duration_min) AS avg_actual_min, AVG(sh.duration_min) - tt.avg_duration_min AS avg_drift_min, COUNT(*) AS sample_size FROM service_history sh JOIN service_history_txn_types sht ON sht.service_history_id = sh.id JOIN transaction_types tt ON tt.id = sht.txn_type_id WHERE sh.county_id = $1 AND sh.office_id = $2 AND sh.served_at > NOW() - INTERVAL '30 days' GROUP BY tt.id, tt.name, tt.avg_duration_min` |
-
----
-
-## Summary
-
-| Table | Purpose |
-|-------|---------|
-| `offices` | Office locations, capacity, run rate |
-| `office_hours` | Per-day operating hours |
-| `office_lunch_shifts` | Lunch shift time windows (clerks assigned via clerk_schedules.lunch_shift_id) |
-| `transaction_types` | Services offered (global or office-scoped, online-eligible flag) |
-| `clerks` | Clerk profiles, skills, office assignments |
-| `hotbuttons` | Chatbot quick-action buttons |
-| `prescreen_questions` | Per-txn-type yes/no pre-screening questions |
-| `document_registry` | Document definitions with alternatives |
-| `transaction_flows` | Chatbot decision trees (JSONB) |
-| `appointments` | Booking data + inlined customer contact (date, time, office, transactions, prescreen) |
-| `documents` | Per-appointment uploaded documents |
-| `queue` | Ephemeral queue state with customer-facing ticket number (today's active customers, includes testing status) |
-| `service_history` | PII-free per-service duration log for analytics |
-| `service_history_txn_types` | Junction table linking service_history rows to their transaction types |
-| `duration_recommendations` | Admin approval workflow for duration updates |
-| `clerk_sessions` | Who's logged in at which desk, availability tracking |
-| `clerk_schedules` | Which clerk is assigned to which office on what day, lunch shift assignment |
