@@ -113,6 +113,64 @@ export async function getRequiredDocsStatus(
   return camelRows<DocStatus>(rows);
 }
 
+export interface WalkInInput {
+  countyId: string;
+  officeId: number;
+  txnTypeIds: number[];
+  firstName: string;
+  lastName: string;
+  contactEmail: string;
+  contactPhone: string;
+  isPriority?: boolean;
+  nowTs?: string;
+}
+
+export interface WalkInResult {
+  appointmentId: number;
+}
+
+export type WalkInError = "office_closed" | "txn_unavailable";
+
+export type WalkInOutcome =
+  | { ok: true; appointmentId: number }
+  | { ok: false; error: WalkInError };
+
+const WALK_IN_ERROR_MAP: Record<string, WalkInError> = {
+  P0002: "office_closed",
+  P0003: "txn_unavailable",
+};
+
+export async function registerWalkIn(
+  db: Pool | PoolClient,
+  input: WalkInInput,
+): Promise<WalkInOutcome> {
+  try {
+    const res = await db.query<{ register_walk_in: number }>(
+      `SELECT register_walk_in($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        input.countyId,
+        input.officeId,
+        input.txnTypeIds,
+        input.firstName,
+        input.lastName,
+        input.contactEmail,
+        input.contactPhone,
+        input.isPriority ?? false,
+        input.nowTs ?? null,
+      ],
+    );
+    return { ok: true, appointmentId: res.rows[0].register_walk_in };
+  } catch (err: unknown) {
+    const code =
+      err instanceof Error && "code" in err
+        ? (err as { code: string }).code
+        : null;
+    const mapped = code ? WALK_IN_ERROR_MAP[code] : undefined;
+    if (mapped) return { ok: false, error: mapped };
+    throw err;
+  }
+}
+
 export async function updateQueueNotes(
   db: Pool | PoolClient,
   countyId: string,
