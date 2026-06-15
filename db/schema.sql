@@ -1,10 +1,8 @@
 -- St. Lucie Tax System — Schema
--- Source: docs/database-design.md
 
 -- =============================================================================
 -- Config Tables
 -- =============================================================================
-
 -- counties: per-tenant scheduling defaults. id is the same value used as
 -- county_id everywhere else (RLS predicate, app.current_tenant GUC).
 CREATE TABLE counties (
@@ -303,14 +301,9 @@ FROM appointments a;
 -- =============================================================================
 -- Row-Level Security
 -- =============================================================================
--- All tenant-scoped tables enforce isolation via the `app.current_tenant`
--- session GUC. The application sets this at the start of each request:
+-- Scope all tables to ensure that tenants can view only their data.
+-- The application sets this at the start of each request:
 --   SET LOCAL app.current_tenant = 'stlucie';
--- The policies below filter every read and write to that county. Combined
--- with FORCE ROW LEVEL SECURITY, even table owners cannot bypass.
---
--- service_history_txn_types has no county_id column — its rows inherit
--- isolation through the FK to service_history, which is RLS-protected.
 
 CREATE OR REPLACE FUNCTION current_tenant() RETURNS TEXT
 LANGUAGE SQL STABLE
@@ -339,8 +332,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- service_history_txn_types: no county_id column. Policy enforces tenant
--- scope by checking the parent service_history row.
+
 ALTER TABLE service_history_txn_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_history_txn_types FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON service_history_txn_types
@@ -503,30 +495,7 @@ $$;
 -- book_appointment: atomic capacity check + insert.
 --
 -- Locks the (office, date) clerk_schedules rows FOR UPDATE so that two
--- concurrent bookings against the same supply pool serialize. Rechecks
--- capacity using the same change-point sweep as find_appointment, then
--- INSERTs and returns the new appointment id.
---
--- Raises 'capacity_exceeded' (SQLSTATE P0001) if any requested skill is full.
--- Raises 'office_closed'      (SQLSTATE P0002) if the slot falls outside the
---                                              office's open/close window for
---                                              that day.
--- Raises 'txn_unavailable'    (SQLSTATE P0003) if any requested skill isn't
---                                              effectively active at the
---                                              office, or the slot is outside
---                                              its available_from / until.
--- Raises 'slot_in_past'       (SQLSTATE P0004) if the requested slot start is
---                                              at or before p_now_ts (defaults
---                                              to NOW(); tests inject a frozen
---                                              clock so seeded dates remain in
---                                              the future).
---
--- Capacity recheck delegates to validate_slot, which enforces two constraints
--- at every change-point in the slot window:
---   1. Skill supply: clerks with ALL required skills (not on lunch/absent)
---      minus skill-overlapping demand >= 1
---   2. Desk cap: LEAST(effective_desks, clerks_on_floor) minus total
---      concurrent appointments >= 1
+-- concurrent bookings happen in order and do not break capacity.
 -- =============================================================================
 CREATE OR REPLACE FUNCTION book_appointment(
   p_county_id        TEXT,
@@ -553,15 +522,12 @@ DECLARE
   v_open_time   TIME;
   v_appt_id     INT;
 BEGIN
-  -- 1. Past-slot gate. Reject before taking row locks — a slot whose start
-  --    is already at/past now_ts can never become bookable. Strict <= so
-  --    "right now" also fails (no zero-lead-time bookings).
+  -- Enfore slots must occur in the future
   IF v_slot_start <= p_now_ts THEN
     RAISE EXCEPTION 'slot_in_past' USING ERRCODE = 'P0004';
   END IF;
 
-  -- 2. Lock the supply pool for this (office, date). Anyone else trying to
-  --    book the same office/day will block on this until we COMMIT.
+  -- 2. Lock the supply pool for this (office, date) until txn commits.
   PERFORM 1
   FROM clerk_schedules
   WHERE county_id     = p_county_id
@@ -569,7 +535,7 @@ BEGIN
     AND schedule_date = p_date
   FOR UPDATE;
 
-  -- 3. Office hours gate: the requested time must be inside the day's window.
+  -- 3. Ensure requested time falls within office hrs
   SELECT oh.open_time, oh.close_time
     INTO v_open_time, v_close_time
   FROM office_hours oh
@@ -581,8 +547,7 @@ BEGIN
     RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
   END IF;
 
-  -- 4. Compute total duration from effective txn rows. Also asserts every
-  --    requested skill is effectively active at this office.
+  -- 4. Compute total duration from effective txn rows across active txns.
   SELECT SUM(ett.avg_duration_min)::int
     INTO v_duration
   FROM effective_transaction_types ett
@@ -626,12 +591,10 @@ BEGIN
     RAISE EXCEPTION 'txn_unavailable' USING ERRCODE = 'P0003';
   END IF;
 
-  -- 7. Capacity recheck via validate_slot (same logic find_appointment uses).
   IF validate_slot(p_county_id, p_office_id, p_date, p_time, p_txn_type_ids, v_duration) <= 0 THEN
     RAISE EXCEPTION 'capacity_exceeded' USING ERRCODE = 'P0001';
   END IF;
 
-  -- 8. Insert.
   INSERT INTO appointments (
     county_id, office_id,
     first_name, last_name, contact_email, contact_phone,
