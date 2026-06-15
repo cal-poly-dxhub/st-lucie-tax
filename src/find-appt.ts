@@ -1,17 +1,3 @@
-// Scheduling Engine — find one appointment (application-layer search).
-//
-// Generates candidate (office, date, time) cells in preference order using
-// a packing model: candidate start times are (1) office open, (2) end of
-// each lunch shift, (3) end of each existing skill-overlapping appointment.
-// Each candidate is validated against the DB using the same change-point
-// capacity sweep as validate_slot (db/schema.sql), stopping at the first
-// hit.
-//
-// The returned slot is a candidate, not a reservation. The caller (the
-// book_appointment PL/pgSQL function in db/schema.sql) takes a FOR UPDATE
-// lock on clerk_schedules, rechecks capacity for that one cell, and
-// inserts. Race losses surface as a recheck failure, not as oversells.
-
 import type { Pool, PoolClient } from "pg";
 
 export interface FindApptInput {
@@ -69,25 +55,13 @@ export async function findAppointment(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Candidate generation — packing model
-// ---------------------------------------------------------------------------
-
 interface Candidate {
   officeId: number;
   slotDate: string; // 'YYYY-MM-DD'
   slotTime: string; // 'HH:MM:SS'
 }
 
-/**
- * Build candidate start times using the packing model:
- *   1. Office open time (first-of-day)
- *   2. Transaction available_from time (earliest the skill set allows)
- *   3. End of each lunch shift (capacity returns post-lunch)
- *   4. End time of every existing skill-overlapping appointment (pack tightly)
- *
- * Candidates are then sorted by the preference ranking and returned.
- */
+/* Build candidate start times (times when the next appt could start) using the packing model */
 async function buildCandidates(
   db: Pool | PoolClient,
   input: FindApptInput,
@@ -485,10 +459,6 @@ WHERE oh.county_id   = $1
   AND ($4::date + $5::time)::timestamp + ($6 * interval '1 minute')
        <= ($4::date + oh.close_time)::timestamp
 `;
-
-// ---------------------------------------------------------------------------
-// Date / time helpers
-// ---------------------------------------------------------------------------
 
 function addDays(d: Date, n: number): Date {
   const out = new Date(d);
