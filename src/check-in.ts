@@ -145,3 +145,87 @@ export async function setAppointmentPriority(
     throw new Error(`Appointment ${appointmentId} not found`);
   }
 }
+
+export interface CheckInSummary {
+  appointmentId: number;
+  firstName: string;
+  lastName: string;
+  identityVerified: boolean;
+  prescreenCompleted: boolean;
+  docsReady: boolean;
+  missingDocs: string[];
+  rejectedDocs: string[];
+  readyForQueue: boolean;
+}
+
+export async function getCheckInSummary(
+  db: Pool | PoolClient,
+  countyId: string,
+  appointmentId: number,
+): Promise<CheckInSummary> {
+  const apptRes = await db.query<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    identity_verified: boolean;
+    prescreen_completed: boolean;
+    required_doc_ids: string[];
+  }>(
+    `SELECT id, first_name, last_name, identity_verified, prescreen_completed, required_doc_ids
+     FROM appointments
+     WHERE county_id = $1 AND id = $2`,
+    [countyId, appointmentId],
+  );
+  if (apptRes.rows.length === 0)
+    throw new Error(`Appointment ${appointmentId} not found`);
+
+  const appt = apptRes.rows[0];
+
+  let missingDocs: string[] = [];
+  let rejectedDocs: string[] = [];
+
+  if (appt.required_doc_ids.length > 0) {
+    const docRes = await db.query<{
+      doc_id: string;
+      uploaded: boolean;
+      ai_review_status: string | null;
+    }>(
+      `SELECT dr.doc_id,
+              (d.id IS NOT NULL) AS uploaded,
+              d.ai_review_status
+       FROM unnest($3::text[]) AS req(doc_id)
+       JOIN document_registry dr
+         ON dr.county_id = $1 AND dr.doc_id = req.doc_id
+       LEFT JOIN documents d
+         ON d.county_id = $1
+        AND d.appointment_id = $2
+        AND d.doc_id = req.doc_id
+       ORDER BY dr.doc_id`,
+      [countyId, appointmentId, appt.required_doc_ids],
+    );
+
+    for (const row of docRes.rows) {
+      if (!row.uploaded) {
+        missingDocs.push(row.doc_id);
+      } else if (row.ai_review_status === "reject") {
+        rejectedDocs.push(row.doc_id);
+      }
+    }
+  }
+
+  const docsReady = missingDocs.length === 0 && rejectedDocs.length === 0;
+  const readyForQueue =
+    appt.identity_verified && appt.prescreen_completed && docsReady;
+
+  return {
+    appointmentId: appt.id,
+    firstName: appt.first_name,
+    lastName: appt.last_name,
+    identityVerified: appt.identity_verified,
+    prescreenCompleted: appt.prescreen_completed,
+    docsReady,
+    missingDocs,
+    rejectedDocs,
+    readyForQueue,
+  };
+}
