@@ -32,14 +32,14 @@ export async function findAppointment(
   const offices = await getEligibleOffices(db, targetSkills);
   if (offices === null) return null;
 
-  const candidates = await buildCandidates(db, input, offices, totalDurationMin, paddingMin);
+  const startTimes = await buildStartTimes(db, input, offices, totalDurationMin, paddingMin);
 
-  for (const cell of candidates) {
+  for (const time of startTimes) {
     const hit = await checkCell(db, {
       targetSkills,
-      officeId: cell.officeId,
-      slotDate: cell.slotDate,
-      slotTime: cell.slotTime,
+      officeId: time.officeId,
+      slotDate: time.slotDate,
+      slotTime: time.slotTime,
       totalDurationMin,
       nowTs: input.nowTs,
     });
@@ -48,20 +48,20 @@ export async function findAppointment(
   return null;
 }
 
-interface Candidate {
+interface AppointmentStart {
   officeId: number;
   slotDate: string; // 'YYYY-MM-DD'
   slotTime: string; // 'HH:MM:SS'
 }
 
-/* Build candidate start times (times when the next appt could start) using the packing model */
-async function buildCandidates(
+/* Build possible appointment start times using the packing model */
+async function buildStartTimes(
   db: Queryable,
   input: FindApptInput,
   offices: EligibleOffices[],
   totalDurationMin: number,
   paddingMin: number,
-): Promise<Candidate[]> {
+): Promise<AppointmentStart[]> {
   const { targetSkills, startDate, days } = input;
   const officeIds = offices.map((o) => o.id);
 
@@ -148,7 +148,7 @@ async function buildCandidates(
     effectiveDesksByOffice.set(o.id, Math.floor((o.totalDesks * o.runRatePct) / 100));
   }
 
-  const cells: Array<Candidate & { rank: number[] }> = [];
+  const cells: Array<AppointmentStart & { rank: number[] }> = [];
 
   for (let dayOffset = 0; dayOffset < days; dayOffset++) {
     const date = addDays(startDate, dayOffset);
