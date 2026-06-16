@@ -11,9 +11,7 @@ export const pool = new Pool({
   ssl: false,
 });
 
-export async function withTenant<T>(
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withTenant<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

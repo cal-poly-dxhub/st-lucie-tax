@@ -33,13 +33,7 @@ export async function findAppointment(
   if (meta === null) return null;
   const { offices, totalDurationMin, paddingMin } = meta;
 
-  const candidates = await buildCandidates(
-    db,
-    input,
-    offices,
-    totalDurationMin,
-    paddingMin,
-  );
+  const candidates = await buildCandidates(db, input, offices, totalDurationMin, paddingMin);
 
   for (const cell of candidates) {
     const hit = await checkCell(db, {
@@ -92,8 +86,7 @@ async function buildCandidates(
   );
   const earliestStartByOffice = new Map<number, string>();
   for (const r of txnWindowRes.rows) {
-    if (r.earliest_start)
-      earliestStartByOffice.set(r.office_id, r.earliest_start);
+    if (r.earliest_start) earliestStartByOffice.set(r.office_id, r.earliest_start);
   }
 
   // Fetch lunch shift end times for all qualifying offices.
@@ -150,10 +143,7 @@ async function buildCandidates(
   }
 
   // Index ALL appointment intervals by (office, date) for desk-occupancy check.
-  const intervalsByKey = new Map<
-    string,
-    Array<{ startMin: number; endMin: number }>
-  >();
+  const intervalsByKey = new Map<string, Array<{ startMin: number; endMin: number }>>();
   for (const r of allApptsRes.rows) {
     const key = `${r.office_id}:${r.appointment_date}`;
     if (!intervalsByKey.has(key)) {
@@ -169,10 +159,7 @@ async function buildCandidates(
   // This reserves remaining desks for walk-ins.
   const effectiveDesksByOffice = new Map<number, number>();
   for (const o of offices) {
-    effectiveDesksByOffice.set(
-      o.id,
-      Math.floor((o.totalDesks * o.runRatePct) / 100),
-    );
+    effectiveDesksByOffice.set(o.id, Math.floor((o.totalDesks * o.runRatePct) / 100));
   }
 
   const cells: Array<Candidate & { rank: number[] }> = [];
@@ -182,12 +169,10 @@ async function buildCandidates(
     const dayOfWeek = dow(date);
     const dateStr = isoDate(date);
 
-    if (input.preferredDow !== null && dayOfWeek !== input.preferredDow)
-      continue;
+    if (input.preferredDow !== null && dayOfWeek !== input.preferredDow) continue;
 
     for (const office of offices) {
-      if (input.preferredOffice !== null && office.id !== input.preferredOffice)
-        continue;
+      if (input.preferredOffice !== null && office.id !== input.preferredOffice) continue;
       const hours = office.hoursByDow.get(dayOfWeek);
       if (!hours) continue;
 
@@ -262,18 +247,10 @@ function computeRank(
   const { asap, preferredOffice, preferredDow, preferredTime } = input;
 
   if (asap) {
-    return [
-      0,
-      0,
-      0,
-      dateToOrdinal(cell.dateStr),
-      toMinutes(cell.slotTime),
-      cell.officeId,
-    ];
+    return [0, 0, 0, dateToOrdinal(cell.dateStr), toMinutes(cell.slotTime), cell.officeId];
   }
 
-  const officeRank =
-    preferredOffice === null || cell.officeId === preferredOffice ? 0 : 1;
+  const officeRank = preferredOffice === null || cell.officeId === preferredOffice ? 0 : 1;
 
   const dowRank = preferredDow === null || cell.dow === preferredDow ? 0 : 1;
 
@@ -411,10 +388,7 @@ interface CellInput {
   nowTs: string;
 }
 
-async function checkCell(
-  db: Pool | PoolClient,
-  c: CellInput,
-): Promise<FindApptResult | null> {
+async function checkCell(db: Pool | PoolClient, c: CellInput): Promise<FindApptResult | null> {
   const res = await db.query<{
     office_id: number;
     slot_date: string;

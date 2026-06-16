@@ -53,6 +53,14 @@ export function bookParams(
 
 export async function clearOfficeDay(client: Client, office = 1) {
   await client.query(
+    `DELETE FROM documents
+      WHERE county_id='stlucie' AND appointment_id IN (
+        SELECT id FROM appointments
+        WHERE county_id='stlucie' AND office_id=$1 AND appointment_date=$2
+      )`,
+    [office, DATE],
+  );
+  await client.query(
     `DELETE FROM appointments
       WHERE county_id='stlucie' AND office_id=$1 AND appointment_date=$2`,
     [office, DATE],
@@ -97,6 +105,14 @@ export async function raceTest(opts: {
     await b.query(`SET app.current_tenant = 'stlucie'`);
 
     await setup.query(
+      `DELETE FROM documents
+        WHERE county_id='stlucie' AND appointment_id IN (
+          SELECT id FROM appointments
+          WHERE county_id='stlucie' AND office_id=1 AND appointment_date=$1
+        )`,
+      [DATE],
+    );
+    await setup.query(
       `DELETE FROM appointments
         WHERE county_id='stlucie' AND office_id=1
           AND appointment_date=$1`,
@@ -120,6 +136,14 @@ export async function raceTest(opts: {
     );
     await b.query("ROLLBACK");
 
+    await setup.query(
+      `DELETE FROM documents
+        WHERE county_id='stlucie' AND appointment_id IN (
+          SELECT id FROM appointments
+          WHERE county_id='stlucie' AND office_id=1 AND appointment_date=$1
+        )`,
+      [DATE],
+    );
     await setup.query(
       `DELETE FROM appointments
         WHERE county_id='stlucie' AND office_id=1

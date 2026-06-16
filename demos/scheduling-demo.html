@@ -1,442 +1,927 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>St. Lucie Tax — Appointment Scheduling Demo</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #0f1419;
-  color: #e7e9ea;
-  min-height: 100vh;
-  padding: 24px;
-}
-h1 { font-size: 1.6rem; margin-bottom: 4px; color: #fff; }
-.subtitle { color: #71767b; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>St. Lucie Tax — Appointment Scheduling Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0f1419;
+        color: #e7e9ea;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin-bottom: 4px;
+        color: #fff;
+      }
+      .subtitle {
+        color: #71767b;
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
 
-.controls {
-  display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;
-}
-button {
-  background: #1d9bf0; color: #fff; border: none; border-radius: 8px;
-  padding: 10px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
-  transition: background 0.15s;
-}
-button:hover { background: #1a8cd8; }
-button:disabled { background: #38444d; color: #71767b; cursor: not-allowed; }
-button.secondary { background: #2f3336; }
-button.secondary:hover { background: #3a3f42; }
-.speed-control { display: flex; align-items: center; gap: 8px; color: #71767b; font-size: 0.85rem; }
-.speed-control input[type="range"] { width: 80px; }
+      .controls {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      button {
+        background: #1d9bf0;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover {
+        background: #1a8cd8;
+      }
+      button:disabled {
+        background: #38444d;
+        color: #71767b;
+        cursor: not-allowed;
+      }
+      button.secondary {
+        background: #2f3336;
+      }
+      button.secondary:hover {
+        background: #3a3f42;
+      }
+      .speed-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #71767b;
+        font-size: 0.85rem;
+      }
+      .speed-control input[type="range"] {
+        width: 80px;
+      }
 
-.layout {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 24px;
-  align-items: start;
-}
+      .layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 24px;
+        align-items: start;
+      }
 
-.queue-panel {
-  background: #16202a; border: 1px solid #2f3336; border-radius: 12px;
-  padding: 16px; max-height: calc(100vh - 240px); overflow-y: auto;
-}
-.queue-panel h2 { font-size: 1rem; margin-bottom: 12px; color: #71767b; }
-.queue-item {
-  background: #1e2732; border: 1px solid #2f3336; border-radius: 8px;
-  padding: 12px; margin-bottom: 8px; transition: all 0.4s ease;
-}
-.queue-item.processing { border-color: #1d9bf0; background: #1a2c3f; box-shadow: 0 0 12px rgba(29, 155, 240, 0.2); }
-.queue-item.assigned { border-color: #00ba7c; background: #0d2d22; opacity: 0.7; }
-.queue-item.failed { border-color: #f4212e; background: #2d1418; opacity: 0.7; }
-.queue-item .name { font-weight: 600; font-size: 0.95rem; }
-.queue-item .txn { color: #1d9bf0; font-size: 0.8rem; margin-top: 4px; }
-.queue-item .prefs { color: #71767b; font-size: 0.78rem; margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
-.queue-item .prefs span { background: #2f3336; padding: 2px 6px; border-radius: 4px; }
-.queue-item .result { font-size: 0.8rem; margin-top: 6px; font-weight: 500; }
-.queue-item .result.success { color: #00ba7c; }
-.queue-item .result.fail { color: #f4212e; }
+      .queue-panel {
+        background: #16202a;
+        border: 1px solid #2f3336;
+        border-radius: 12px;
+        padding: 16px;
+        max-height: calc(100vh - 240px);
+        overflow-y: auto;
+      }
+      .queue-panel h2 {
+        font-size: 1rem;
+        margin-bottom: 12px;
+        color: #71767b;
+      }
+      .queue-item {
+        background: #1e2732;
+        border: 1px solid #2f3336;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        transition: all 0.4s ease;
+      }
+      .queue-item.processing {
+        border-color: #1d9bf0;
+        background: #1a2c3f;
+        box-shadow: 0 0 12px rgba(29, 155, 240, 0.2);
+      }
+      .queue-item.assigned {
+        border-color: #00ba7c;
+        background: #0d2d22;
+        opacity: 0.7;
+      }
+      .queue-item.failed {
+        border-color: #f4212e;
+        background: #2d1418;
+        opacity: 0.7;
+      }
+      .queue-item .name {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .queue-item .txn {
+        color: #1d9bf0;
+        font-size: 0.8rem;
+        margin-top: 4px;
+      }
+      .queue-item .prefs {
+        color: #71767b;
+        font-size: 0.78rem;
+        margin-top: 4px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .queue-item .prefs span {
+        background: #2f3336;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .queue-item .result {
+        font-size: 0.8rem;
+        margin-top: 6px;
+        font-weight: 500;
+      }
+      .queue-item .result.success {
+        color: #00ba7c;
+      }
+      .queue-item .result.fail {
+        color: #f4212e;
+      }
 
-.timeline-panel { display: flex; flex-direction: column; gap: 20px; }
-.office-block { background: #16202a; border: 1px solid #2f3336; border-radius: 12px; padding: 16px; }
-.office-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.office-header h3 { font-size: 0.95rem; }
-.office-header .meta { font-size: 0.75rem; color: #71767b; }
+      .timeline-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .office-block {
+        background: #16202a;
+        border: 1px solid #2f3336;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .office-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .office-header h3 {
+        font-size: 0.95rem;
+      }
+      .office-header .meta {
+        font-size: 0.75rem;
+        color: #71767b;
+      }
 
-.timeline-container { position: relative; }
-.timeline-hours { display: flex; position: relative; height: 20px; margin-bottom: 4px; border-bottom: 1px solid #2f3336; }
-.hour-mark { position: absolute; font-size: 0.7rem; color: #71767b; transform: translateX(-50%); top: 2px; }
-.timeline-track { position: relative; height: 120px; background: #1a2332; border-radius: 6px; overflow: hidden; }
-.lane-divider { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.04); }
-.lunch-overlay {
-  position: absolute; top: 0; bottom: 0;
-  background: repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(255,255,255,0.02) 3px, rgba(255,255,255,0.02) 6px);
-  border-left: 1px dashed #3a3f42; border-right: 1px dashed #3a3f42;
-}
-.lunch-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.6rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+      .timeline-container {
+        position: relative;
+      }
+      .timeline-hours {
+        display: flex;
+        position: relative;
+        height: 20px;
+        margin-bottom: 4px;
+        border-bottom: 1px solid #2f3336;
+      }
+      .hour-mark {
+        position: absolute;
+        font-size: 0.7rem;
+        color: #71767b;
+        transform: translateX(-50%);
+        top: 2px;
+      }
+      .timeline-track {
+        position: relative;
+        height: 120px;
+        background: #1a2332;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .lane-divider {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .lunch-overlay {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 3px,
+          rgba(255, 255, 255, 0.02) 3px,
+          rgba(255, 255, 255, 0.02) 6px
+        );
+        border-left: 1px dashed #3a3f42;
+        border-right: 1px dashed #3a3f42;
+      }
+      .lunch-label {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.6rem;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
 
-.appt-block {
-  position: absolute; border-radius: 4px; display: flex; align-items: center; justify-content: center;
-  font-size: 0.65rem; font-weight: 500; color: rgba(255,255,255,0.9);
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px;
-  border: 1px solid rgba(255,255,255,0.15); cursor: default; transition: opacity 0.3s;
-}
-.appt-block.existing { opacity: 0.5; }
-.appt-block.new { opacity: 1; animation: fadeSlotIn 0.4s ease; }
-.appt-block.multi {
-  background: none; border: 2px solid #fff; overflow: hidden; display: flex; align-items: stretch; padding: 0;
-}
-.appt-seg {
-  position: absolute; top: 0; height: 100%;
-}
-.appt-label {
-  position: relative; z-index: 1; width: 100%; text-align: center;
-  font-size: 0.65rem; font-weight: 500; color: rgba(255,255,255,0.9);
-  display: flex; align-items: center; justify-content: center;
-}
-@keyframes fadeSlotIn { from { opacity: 0; transform: scaleX(0.3); } to { opacity: 1; transform: scaleX(1); } }
+      .appt-block {
+        position: absolute;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.9);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        padding: 0 4px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        cursor: default;
+        transition: opacity 0.3s;
+      }
+      .appt-block.existing {
+        opacity: 0.5;
+      }
+      .appt-block.new {
+        opacity: 1;
+        animation: fadeSlotIn 0.4s ease;
+      }
+      .appt-block.multi {
+        background: none;
+        border: 2px solid #fff;
+        overflow: hidden;
+        display: flex;
+        align-items: stretch;
+        padding: 0;
+      }
+      .appt-seg {
+        position: absolute;
+        top: 0;
+        height: 100%;
+      }
+      .appt-label {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        text-align: center;
+        font-size: 0.65rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      @keyframes fadeSlotIn {
+        from {
+          opacity: 0;
+          transform: scaleX(0.3);
+        }
+        to {
+          opacity: 1;
+          transform: scaleX(1);
+        }
+      }
 
-.flying-pill {
-  position: fixed; z-index: 9999; padding: 6px 12px; border-radius: 6px;
-  font-size: 0.75rem; font-weight: 600; color: #fff; pointer-events: none;
-  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.5); opacity: 1;
-}
-.flying-pill.land { transform: scale(0.4); opacity: 0; }
+      .flying-pill {
+        position: fixed;
+        z-index: 9999;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        pointer-events: none;
+        white-space: nowrap;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        opacity: 1;
+      }
+      .flying-pill.land {
+        transform: scale(0.4);
+        opacity: 0;
+      }
 
-.timeline-tooltip {
-  position: fixed; z-index: 9000; background: #1e2732; border: 1px solid #3a3f42;
-  border-radius: 8px; padding: 10px 14px; pointer-events: none; font-size: 0.75rem;
-  line-height: 1.6; color: #e7e9ea; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-  max-width: 380px; display: none;
-}
-.timeline-tooltip .tt-time { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: #1d9bf0; }
-.timeline-tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; }
-.timeline-tooltip .tt-label { color: #71767b; }
-.timeline-tooltip .tt-val { font-weight: 600; }
-.timeline-tooltip .tt-section { margin-top: 6px; padding-top: 6px; border-top: 1px solid #2f3336; }
-.timeline-tooltip .tt-clerk-row { color: #e7e9ea; font-size: 0.72rem; margin-bottom: 3px; line-height: 1.4; }
+      .timeline-tooltip {
+        position: fixed;
+        z-index: 9000;
+        background: #1e2732;
+        border: 1px solid #3a3f42;
+        border-radius: 8px;
+        padding: 10px 14px;
+        pointer-events: none;
+        font-size: 0.75rem;
+        line-height: 1.6;
+        color: #e7e9ea;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        max-width: 380px;
+        display: none;
+      }
+      .timeline-tooltip .tt-time {
+        font-weight: 700;
+        font-size: 0.85rem;
+        margin-bottom: 6px;
+        color: #1d9bf0;
+      }
+      .timeline-tooltip .tt-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .timeline-tooltip .tt-label {
+        color: #71767b;
+      }
+      .timeline-tooltip .tt-val {
+        font-weight: 600;
+      }
+      .timeline-tooltip .tt-section {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid #2f3336;
+      }
+      .timeline-tooltip .tt-clerk-row {
+        color: #e7e9ea;
+        font-size: 0.72rem;
+        margin-bottom: 3px;
+        line-height: 1.4;
+      }
 
-.stats-bar { display: flex; gap: 24px; margin-bottom: 20px; padding: 12px 16px; background: #16202a; border: 1px solid #2f3336; border-radius: 8px; }
-.stat { text-align: center; }
-.stat .value { font-size: 1.4rem; font-weight: 700; color: #fff; }
-.stat .label { font-size: 0.75rem; color: #71767b; margin-top: 2px; }
+      .stats-bar {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 20px;
+        padding: 12px 16px;
+        background: #16202a;
+        border: 1px solid #2f3336;
+        border-radius: 8px;
+      }
+      .stat {
+        text-align: center;
+      }
+      .stat .value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .stat .label {
+        font-size: 0.75rem;
+        color: #71767b;
+        margin-top: 2px;
+      }
 
-.legend { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; font-size: 0.8rem; color: #71767b; }
-.legend-item { display: flex; align-items: center; gap: 6px; }
-.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+      .legend {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        font-size: 0.8rem;
+        color: #71767b;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+      }
 
-.capacity-bar { margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 0.72rem; color: #71767b; }
-.capacity-bar .bar { flex: 1; height: 4px; background: #2f3336; border-radius: 2px; overflow: hidden; }
-.capacity-bar .bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease, background 0.4s ease; }
-</style>
-</head>
-<body>
+      .capacity-bar {
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.72rem;
+        color: #71767b;
+      }
+      .capacity-bar .bar {
+        flex: 1;
+        height: 4px;
+        background: #2f3336;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .capacity-bar .bar-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition:
+          width 0.4s ease,
+          background 0.4s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Appointment Scheduling — Packing Demo</h1>
+    <p class="subtitle">
+      Appointments pack tightly against each other using the real scheduling engine (DB-backed).
+      Watch random requests get routed in real time.
+    </p>
 
-<h1>Appointment Scheduling — Packing Demo</h1>
-<p class="subtitle">Appointments pack tightly against each other using the real scheduling engine (DB-backed). Watch random requests get routed in real time.</p>
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="value" id="stat-processed">0</div>
+        <div class="label">Processed</div>
+      </div>
+      <div class="stat">
+        <div class="value" id="stat-assigned">0</div>
+        <div class="label">Assigned</div>
+      </div>
+      <div class="stat">
+        <div class="value" id="stat-preferred">0</div>
+        <div class="label">Preferred</div>
+      </div>
+      <div class="stat">
+        <div class="value" id="stat-alternative">0</div>
+        <div class="label">Alternative</div>
+      </div>
+      <div class="stat">
+        <div class="value" id="stat-failed">0</div>
+        <div class="label">No Capacity</div>
+      </div>
+    </div>
 
-<div class="stats-bar">
-  <div class="stat"><div class="value" id="stat-processed">0</div><div class="label">Processed</div></div>
-  <div class="stat"><div class="value" id="stat-assigned">0</div><div class="label">Assigned</div></div>
-  <div class="stat"><div class="value" id="stat-preferred">0</div><div class="label">Preferred</div></div>
-  <div class="stat"><div class="value" id="stat-alternative">0</div><div class="label">Alternative</div></div>
-  <div class="stat"><div class="value" id="stat-failed">0</div><div class="label">No Capacity</div></div>
-</div>
+    <div class="controls">
+      <button id="btn-start">Start Demo</button>
+      <button id="btn-step" class="secondary">Step</button>
+      <button id="btn-reset" class="secondary">Reset</button>
+      <button id="btn-generate" class="secondary">New Appointments</button>
+      <div class="speed-control">
+        <label>Appts:</label>
+        <input
+          type="number"
+          id="appt-count"
+          min="1"
+          max="999"
+          value="20"
+          style="
+            width: 56px;
+            background: #1e2732;
+            border: 1px solid #2f3336;
+            border-radius: 4px;
+            color: #e7e9ea;
+            padding: 4px 6px;
+            font-size: 0.85rem;
+          "
+        />
+      </div>
+      <div class="speed-control">
+        <label>Clerks:</label>
+        <input
+          type="number"
+          id="clerk-count"
+          min="1"
+          max="999"
+          value="3"
+          style="
+            width: 48px;
+            background: #1e2732;
+            border: 1px solid #2f3336;
+            border-radius: 4px;
+            color: #e7e9ea;
+            padding: 4px 6px;
+            font-size: 0.85rem;
+          "
+        />
+      </div>
+      <div class="speed-control">
+        <label>Run Rate:</label>
+        <input
+          type="number"
+          id="run-rate"
+          min="10"
+          max="100"
+          value="100"
+          step="10"
+          style="
+            width: 52px;
+            background: #1e2732;
+            border: 1px solid #2f3336;
+            border-radius: 4px;
+            color: #e7e9ea;
+            padding: 4px 6px;
+            font-size: 0.85rem;
+          "
+        /><span style="color: #71767b">%</span>
+      </div>
+      <div class="speed-control">
+        <label>Cross-train:</label>
+        <input type="range" id="cross-train" min="10" max="100" value="100" step="5" />
+        <span id="cross-train-label" style="color: #71767b">100%</span>
+      </div>
+      <div class="speed-control">
+        <label>All ASAP:</label>
+        <input type="checkbox" id="all-asap" style="width: 16px; height: 16px; cursor: pointer" />
+      </div>
+      <div class="speed-control">
+        <label>Speed:</label>
+        <input type="range" id="speed-slider" min="1" max="100" value="50" step="1" />
+        <span id="speed-label">1.0x</span>
+      </div>
+    </div>
 
-<div class="controls">
-  <button id="btn-start">Start Demo</button>
-  <button id="btn-step" class="secondary">Step</button>
-  <button id="btn-reset" class="secondary">Reset</button>
-  <button id="btn-generate" class="secondary">New Appointments</button>
-  <div class="speed-control">
-    <label>Appts:</label>
-    <input type="number" id="appt-count" min="1" max="999" value="20" style="width:56px;background:#1e2732;border:1px solid #2f3336;border-radius:4px;color:#e7e9ea;padding:4px 6px;font-size:0.85rem;">
-  </div>
-  <div class="speed-control">
-    <label>Clerks:</label>
-    <input type="number" id="clerk-count" min="1" max="999" value="3" style="width:48px;background:#1e2732;border:1px solid #2f3336;border-radius:4px;color:#e7e9ea;padding:4px 6px;font-size:0.85rem;">
-  </div>
-  <div class="speed-control">
-    <label>Run Rate:</label>
-    <input type="number" id="run-rate" min="10" max="100" value="100" step="10" style="width:52px;background:#1e2732;border:1px solid #2f3336;border-radius:4px;color:#e7e9ea;padding:4px 6px;font-size:0.85rem;"><span style="color:#71767b">%</span>
-  </div>
-  <div class="speed-control">
-    <label>Cross-train:</label>
-    <input type="range" id="cross-train" min="10" max="100" value="100" step="5">
-    <span id="cross-train-label" style="color:#71767b">100%</span>
-  </div>
-  <div class="speed-control">
-    <label>All ASAP:</label>
-    <input type="checkbox" id="all-asap" style="width:16px;height:16px;cursor:pointer;">
-  </div>
-  <div class="speed-control">
-    <label>Speed:</label>
-    <input type="range" id="speed-slider" min="1" max="100" value="50" step="1">
-    <span id="speed-label">1.0x</span>
-  </div>
-</div>
+    <div class="legend" id="legend-container"></div>
+    <div class="controls" id="txn-checkboxes" style="margin-top: -8px; margin-bottom: 12px"></div>
 
-<div class="legend" id="legend-container"></div>
-<div class="controls" id="txn-checkboxes" style="margin-top:-8px;margin-bottom:12px;"></div>
+    <div class="layout">
+      <div class="queue-panel">
+        <h2 id="queue-title">Incoming Appointments (0/20)</h2>
+        <div id="queue-list"></div>
+      </div>
+      <div class="timeline-panel" id="timeline-panel"></div>
+    </div>
 
-<div class="layout">
-  <div class="queue-panel">
-    <h2 id="queue-title">Incoming Appointments (0/20)</h2>
-    <div id="queue-list"></div>
-  </div>
-  <div class="timeline-panel" id="timeline-panel"></div>
-</div>
+    <div class="timeline-tooltip" id="timeline-tooltip"></div>
 
-<div class="timeline-tooltip" id="timeline-tooltip"></div>
+    <script>
+      // ============================================================
+      // STATE — loaded from API
+      // ============================================================
+      const CONFIG = {
+        offices: [],
+        txnTypes: [],
+        allTxnTypes: [],
+        clerks: [],
+        lunchShifts: [],
+        clerkSchedules: [],
+        openMin: 480,
+        closeMin: 1020,
+      };
+      const TXN_COLORS = [
+        "#22c55e",
+        "#c2410c",
+        "#16a34a",
+        "#7c3aed",
+        "#a855f7",
+        "#0891b2",
+        "#dc2626",
+        "#e11d48",
+        "#0284c7",
+        "#d97706",
+        "#2563eb",
+        "#db2777",
+      ];
+      let enabledTxnIds = new Set();
 
-<script>
-// ============================================================
-// STATE — loaded from API
-// ============================================================
-const CONFIG = { offices: [], txnTypes: [], allTxnTypes: [], clerks: [], lunchShifts: [], clerkSchedules: [], openMin: 480, closeMin: 1020 };
-const TXN_COLORS = ['#22c55e','#c2410c','#16a34a','#7c3aed','#a855f7','#0891b2','#dc2626','#e11d48','#0284c7','#d97706','#2563eb','#db2777'];
-let enabledTxnIds = new Set();
+      let bookedAppointments = []; // [{officeId, startMin, duration, skills, queueId?, isExisting}]
+      let appointments = [];
+      let currentIndex = 0;
+      let isRunning = false;
+      let animationTimer = null;
+      let stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
 
-let bookedAppointments = []; // [{officeId, startMin, duration, skills, queueId?, isExisting}]
-let appointments = [];
-let currentIndex = 0;
-let isRunning = false;
-let animationTimer = null;
-let stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
+      const FIRST_NAMES = [
+        "James",
+        "Mary",
+        "Robert",
+        "Patricia",
+        "John",
+        "Jennifer",
+        "Michael",
+        "Linda",
+        "David",
+        "Elizabeth",
+        "William",
+        "Barbara",
+        "Richard",
+        "Susan",
+        "Joseph",
+        "Jessica",
+        "Thomas",
+        "Sarah",
+        "Christopher",
+        "Karen",
+      ];
+      const LAST_NAMES = [
+        "Smith",
+        "Johnson",
+        "Williams",
+        "Brown",
+        "Jones",
+        "Garcia",
+        "Miller",
+        "Davis",
+        "Rodriguez",
+        "Martinez",
+        "Hernandez",
+        "Lopez",
+        "Gonzalez",
+        "Wilson",
+        "Anderson",
+        "Thomas",
+        "Taylor",
+        "Moore",
+        "Jackson",
+        "Martin",
+      ];
 
-const FIRST_NAMES = ['James','Mary','Robert','Patricia','John','Jennifer','Michael','Linda','David','Elizabeth','William','Barbara','Richard','Susan','Joseph','Jessica','Thomas','Sarah','Christopher','Karen'];
-const LAST_NAMES = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Hernandez','Lopez','Gonzalez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson','Martin'];
+      // ============================================================
+      // API
+      // ============================================================
+      async function apiLoadConfig() {
+        const resp = await fetch("/api/config");
+        return resp.json();
+      }
 
-// ============================================================
-// API
-// ============================================================
-async function apiLoadConfig() {
-  const resp = await fetch('/api/config');
-  return resp.json();
-}
+      async function apiFindAppointment(targetSkills, asap, preferredOffice, preferredTime) {
+        const resp = await fetch("/api/find-appointment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetSkills,
+            asap,
+            preferredOffice,
+            preferredDow: null,
+            preferredTime,
+          }),
+        });
+        return resp.json();
+      }
 
-async function apiFindAppointment(targetSkills, asap, preferredOffice, preferredTime) {
-  const resp = await fetch('/api/find-appointment', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ targetSkills, asap, preferredOffice, preferredDow: null, preferredTime }),
-  });
-  return resp.json();
-}
+      async function apiBookAppointment(officeId, date, time, txnTypeIds, firstName, lastName) {
+        const resp = await fetch("/api/book-appointment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ officeId, date, time, txnTypeIds, firstName, lastName }),
+        });
+        return resp.json();
+      }
 
-async function apiBookAppointment(officeId, date, time, txnTypeIds, firstName, lastName) {
-  const resp = await fetch('/api/book-appointment', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ officeId, date, time, txnTypeIds, firstName, lastName }),
-  });
-  return resp.json();
-}
+      async function apiGetAppointments(officeId) {
+        const resp = await fetch(`/api/appointments/${officeId}`);
+        return resp.json();
+      }
 
-async function apiGetAppointments(officeId) {
-  const resp = await fetch(`/api/appointments/${officeId}`);
-  return resp.json();
-}
+      async function apiReset(clerkCount, runRatePct, crossTrain, activeTxnIds) {
+        const resp = await fetch("/api/demo/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerkCount, runRatePct, crossTrain, activeTxnIds }),
+        });
+        return resp.json();
+      }
 
-async function apiReset(clerkCount, runRatePct, crossTrain, activeTxnIds) {
-  const resp = await fetch('/api/demo/reset', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clerkCount, runRatePct, crossTrain, activeTxnIds }),
-  });
-  return resp.json();
-}
+      // ============================================================
+      // UTILITIES
+      // ============================================================
+      function minToTime(m) {
+        return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      }
+      function timeToMin(t) {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      }
+      function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+      function pick(arr) {
+        return arr[randInt(0, arr.length - 1)];
+      }
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
+      function pct(min) {
+        return ((min - CONFIG.openMin) / (CONFIG.closeMin - CONFIG.openMin)) * 100;
+      }
+      function pctWidth(dur) {
+        return (dur / (CONFIG.closeMin - CONFIG.openMin)) * 100;
+      }
 
-// ============================================================
-// UTILITIES
-// ============================================================
-function minToTime(m) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
-function timeToMin(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function pct(min) { return ((min - CONFIG.openMin) / (CONFIG.closeMin - CONFIG.openMin)) * 100; }
-function pctWidth(dur) { return (dur / (CONFIG.closeMin - CONFIG.openMin)) * 100; }
+      function getSpeedMs() {
+        const val = parseInt(document.getElementById("speed-slider").value);
+        return Math.max(10, Math.round(6000 * Math.exp((-(val - 1) / 99) * 6.4)));
+      }
+      function getApptCount() {
+        return Math.max(1, parseInt(document.getElementById("appt-count").value) || 20);
+      }
+      function getClerkCount() {
+        return Math.max(1, parseInt(document.getElementById("clerk-count").value) || 3);
+      }
+      function getRunRate() {
+        return Math.max(
+          10,
+          Math.min(100, parseInt(document.getElementById("run-rate").value) || 100),
+        );
+      }
+      function getCrossTrain() {
+        return Math.max(
+          10,
+          Math.min(100, parseInt(document.getElementById("cross-train").value) || 100),
+        );
+      }
 
-function getSpeedMs() {
-  const val = parseInt(document.getElementById('speed-slider').value);
-  return Math.max(10, Math.round(6000 * Math.exp(-(val - 1) / 99 * 6.4)));
-}
-function getApptCount() { return Math.max(1, parseInt(document.getElementById('appt-count').value) || 20); }
-function getClerkCount() { return Math.max(1, parseInt(document.getElementById('clerk-count').value) || 3); }
-function getRunRate() { return Math.max(10, Math.min(100, parseInt(document.getElementById('run-rate').value) || 100)); }
-function getCrossTrain() { return Math.max(10, Math.min(100, parseInt(document.getElementById('cross-train').value) || 100)); }
+      function txnColor(txnId) {
+        const idx = CONFIG.txnTypes.findIndex((t) => t.id === txnId);
+        return TXN_COLORS[idx % TXN_COLORS.length] || "#666";
+      }
 
-function txnColor(txnId) {
-  const idx = CONFIG.txnTypes.findIndex(t => t.id === txnId);
-  return TXN_COLORS[idx % TXN_COLORS.length] || '#666';
-}
+      // ============================================================
+      // LOAD CONFIG FROM API
+      // ============================================================
+      async function loadConfig() {
+        const data = await apiLoadConfig();
+        CONFIG.offices = data.offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          desks: o.total_desks,
+          runRate: o.run_rate_pct,
+        }));
 
-// ============================================================
-// LOAD CONFIG FROM API
-// ============================================================
-async function loadConfig() {
-  const data = await apiLoadConfig();
-  CONFIG.offices = data.offices.map(o => ({
-    id: o.id, name: o.name, desks: o.total_desks, runRate: o.run_rate_pct,
-  }));
+        // All txn types (including hidden) for checkbox UI
+        CONFIG.allTxnTypes = data.txnTypes.map((t) => ({
+          id: t.id,
+          slug: t.slug,
+          name: t.name,
+          duration: t.duration,
+          availFrom: t.available_from,
+          availUntil: t.available_until,
+          status: t.status,
+        }));
+        // Active ones only for scheduling
+        CONFIG.txnTypes = CONFIG.allTxnTypes.filter((t) => t.status === "active");
+        enabledTxnIds = new Set(CONFIG.txnTypes.map((t) => t.id));
 
-  // All txn types (including hidden) for checkbox UI
-  CONFIG.allTxnTypes = data.txnTypes.map(t => ({
-    id: t.id, slug: t.slug, name: t.name, duration: t.duration,
-    availFrom: t.available_from, availUntil: t.available_until, status: t.status,
-  }));
-  // Active ones only for scheduling
-  CONFIG.txnTypes = CONFIG.allTxnTypes.filter(t => t.status === 'active');
-  enabledTxnIds = new Set(CONFIG.txnTypes.map(t => t.id));
+        CONFIG.clerks = data.clerks.map((c) => ({
+          id: c.id,
+          name: c.name,
+          skills: c.skill_ids,
+          officeId: c.office_ids[0],
+        }));
+        CONFIG.lunchShifts = data.lunchShifts.map((ls) => ({
+          id: ls.id,
+          officeId: ls.office_id,
+          start: timeToMin(ls.start_time),
+          end: timeToMin(ls.end_time),
+        }));
+        CONFIG.clerkSchedules = data.clerkSchedules;
 
-  CONFIG.clerks = data.clerks.map(c => ({
-    id: c.id, name: c.name, skills: c.skill_ids, officeId: c.office_ids[0],
-  }));
-  CONFIG.lunchShifts = data.lunchShifts.map(ls => ({
-    id: ls.id, officeId: ls.office_id, start: timeToMin(ls.start_time), end: timeToMin(ls.end_time),
-  }));
-  CONFIG.clerkSchedules = data.clerkSchedules;
+        const weekdayHours = data.officeHours.find((h) => h.day_of_week >= 1 && h.day_of_week <= 5);
+        if (weekdayHours) {
+          CONFIG.openMin = timeToMin(weekdayHours.open_time);
+          CONFIG.closeMin = timeToMin(weekdayHours.close_time);
+        }
 
-  const weekdayHours = data.officeHours.find(h => h.day_of_week >= 1 && h.day_of_week <= 5);
-  if (weekdayHours) {
-    CONFIG.openMin = timeToMin(weekdayHours.open_time);
-    CONFIG.closeMin = timeToMin(weekdayHours.close_time);
-  }
+        renderLegend();
+        renderTxnCheckboxes();
+      }
 
-  renderLegend();
-  renderTxnCheckboxes();
-}
-
-function renderTxnCheckboxes() {
-  const container = document.getElementById('txn-checkboxes');
-  container.innerHTML = CONFIG.allTxnTypes.map((t, i) => {
-    const checked = enabledTxnIds.has(t.id) ? 'checked' : '';
-    const color = TXN_COLORS[i % TXN_COLORS.length];
-    return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.8rem;color:#e7e9ea">
+      function renderTxnCheckboxes() {
+        const container = document.getElementById("txn-checkboxes");
+        container.innerHTML = CONFIG.allTxnTypes
+          .map((t, i) => {
+            const checked = enabledTxnIds.has(t.id) ? "checked" : "";
+            const color = TXN_COLORS[i % TXN_COLORS.length];
+            return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.8rem;color:#e7e9ea">
       <input type="checkbox" class="txn-toggle" data-id="${t.id}" ${checked} style="width:14px;height:14px;cursor:pointer;">
       <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color}"></span>
       ${t.name} (${t.duration}m)
     </label>`;
-  }).join('');
+          })
+          .join("");
 
-  container.querySelectorAll('.txn-toggle').forEach(cb => {
-    cb.addEventListener('change', (e) => {
-      const id = parseInt(e.target.dataset.id);
-      if (e.target.checked) enabledTxnIds.add(id);
-      else enabledTxnIds.delete(id);
-      regenerate();
-    });
-  });
-}
+        container.querySelectorAll(".txn-toggle").forEach((cb) => {
+          cb.addEventListener("change", (e) => {
+            const id = parseInt(e.target.dataset.id);
+            if (e.target.checked) enabledTxnIds.add(id);
+            else enabledTxnIds.delete(id);
+            regenerate();
+          });
+        });
+      }
 
-async function loadAppointments() {
-  bookedAppointments = [];
-  for (const office of CONFIG.offices) {
-    const rows = await apiGetAppointments(office.id);
-    for (const r of rows) {
-      bookedAppointments.push({
-        officeId: office.id,
-        startMin: timeToMin(r.start_time),
-        duration: Number(r.duration_min),
-        skills: r.txn_type_ids,
-        isExisting: true,
-        queueId: null,
-      });
-    }
-  }
-}
+      async function loadAppointments() {
+        bookedAppointments = [];
+        for (const office of CONFIG.offices) {
+          const rows = await apiGetAppointments(office.id);
+          for (const r of rows) {
+            bookedAppointments.push({
+              officeId: office.id,
+              startMin: timeToMin(r.start_time),
+              duration: Number(r.duration_min),
+              skills: r.txn_type_ids,
+              isExisting: true,
+              queueId: null,
+            });
+          }
+        }
+      }
 
-// ============================================================
-// RANDOM APPOINTMENT GENERATION (client-side, preferences only)
-// ============================================================
-function generateRandomAppointments(n) {
-  const appts = [];
-  const allAsap = document.getElementById('all-asap').checked;
-  for (let i = 0; i < n; i++) {
-    let skills;
-    const r = Math.random();
-    if (r < 0.05 && CONFIG.txnTypes.length >= 3) {
-      const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
-      skills = shuffled.slice(0, 3).map(t => t.id);
-    } else if (r < 0.30 && CONFIG.txnTypes.length >= 2) {
-      const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
-      skills = shuffled.slice(0, 2).map(t => t.id);
-    } else {
-      skills = [pick(CONFIG.txnTypes).id];
-    }
-    const isAsap = allAsap || Math.random() < 0.25;
-    appts.push({
-      id: i + 1,
-      firstName: pick(FIRST_NAMES),
-      lastName: pick(LAST_NAMES),
-      skills,
-      preferredOffice: isAsap ? null : pick(CONFIG.offices).id,
-      preferredTime: isAsap ? null : pick(['morning', 'afternoon']),
-      asap: isAsap,
-      status: null, result: null,
-    });
-  }
-  return appts;
-}
+      // ============================================================
+      // RANDOM APPOINTMENT GENERATION (client-side, preferences only)
+      // ============================================================
+      function generateRandomAppointments(n) {
+        const appts = [];
+        const allAsap = document.getElementById("all-asap").checked;
+        for (let i = 0; i < n; i++) {
+          let skills;
+          const r = Math.random();
+          if (r < 0.05 && CONFIG.txnTypes.length >= 3) {
+            const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
+            skills = shuffled.slice(0, 3).map((t) => t.id);
+          } else if (r < 0.3 && CONFIG.txnTypes.length >= 2) {
+            const shuffled = [...CONFIG.txnTypes].sort(() => Math.random() - 0.5);
+            skills = shuffled.slice(0, 2).map((t) => t.id);
+          } else {
+            skills = [pick(CONFIG.txnTypes).id];
+          }
+          const isAsap = allAsap || Math.random() < 0.25;
+          appts.push({
+            id: i + 1,
+            firstName: pick(FIRST_NAMES),
+            lastName: pick(LAST_NAMES),
+            skills,
+            preferredOffice: isAsap ? null : pick(CONFIG.offices).id,
+            preferredTime: isAsap ? null : pick(["morning", "afternoon"]),
+            asap: isAsap,
+            status: null,
+            result: null,
+          });
+        }
+        return appts;
+      }
 
-// ============================================================
-// LANE ASSIGNMENT — optimal interval coloring
-// ============================================================
-const laneAssignments = {};
+      // ============================================================
+      // LANE ASSIGNMENT — optimal interval coloring
+      // ============================================================
+      const laneAssignments = {};
 
-function rebuildLanes(officeId) {
-  const office = CONFIG.offices.find(o => o.id === officeId);
-  const lanes = office.desks;
-  const appts = bookedAppointments
-    .map((a, idx) => ({ start: a.startMin, end: a.startMin + a.duration, officeId: a.officeId, idx }))
-    .filter(a => a.officeId === officeId)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
+      function rebuildLanes(officeId) {
+        const office = CONFIG.offices.find((o) => o.id === officeId);
+        const lanes = office.desks;
+        const appts = bookedAppointments
+          .map((a, idx) => ({
+            start: a.startMin,
+            end: a.startMin + a.duration,
+            officeId: a.officeId,
+            idx,
+          }))
+          .filter((a) => a.officeId === officeId)
+          .sort((a, b) => a.start - b.start || a.end - b.end);
 
-  const laneEnds = Array(lanes).fill(0);
-  const assignments = new Map();
-  for (const appt of appts) {
-    let assigned = -1;
-    for (let l = 0; l < lanes; l++) {
-      if (laneEnds[l] <= appt.start) { assigned = l; laneEnds[l] = appt.end; break; }
-    }
-    if (assigned === -1) {
-      let minEnd = Infinity, minL = 0;
-      for (let l = 0; l < lanes; l++) { if (laneEnds[l] < minEnd) { minEnd = laneEnds[l]; minL = l; } }
-      assigned = minL; laneEnds[assigned] = appt.end;
-    }
-    assignments.set(appt.idx, assigned);
-  }
-  laneAssignments[officeId] = assignments;
-}
+        const laneEnds = Array(lanes).fill(0);
+        const assignments = new Map();
+        for (const appt of appts) {
+          let assigned = -1;
+          for (let l = 0; l < lanes; l++) {
+            if (laneEnds[l] <= appt.start) {
+              assigned = l;
+              laneEnds[l] = appt.end;
+              break;
+            }
+          }
+          if (assigned === -1) {
+            let minEnd = Infinity,
+              minL = 0;
+            for (let l = 0; l < lanes; l++) {
+              if (laneEnds[l] < minEnd) {
+                minEnd = laneEnds[l];
+                minL = l;
+              }
+            }
+            assigned = minL;
+            laneEnds[assigned] = appt.end;
+          }
+          assignments.set(appt.idx, assigned);
+        }
+        laneAssignments[officeId] = assignments;
+      }
 
-function getLane(officeId, apptIdx) {
-  const a = laneAssignments[officeId];
-  return a && a.has(apptIdx) ? a.get(apptIdx) : 0;
-}
+      function getLane(officeId, apptIdx) {
+        const a = laneAssignments[officeId];
+        return a && a.has(apptIdx) ? a.get(apptIdx) : 0;
+      }
 
-// ============================================================
-// RENDERING
-// ============================================================
-function renderLegend() {
-  const container = document.getElementById('legend-container');
-  container.innerHTML = CONFIG.txnTypes.map((t, i) =>
-    `<div class="legend-item"><div class="legend-swatch" style="background:${TXN_COLORS[i % TXN_COLORS.length]}"></div>${t.name} (${t.duration} min${t.availFrom ? ', ' + t.availFrom + '–' + t.availUntil : ''})</div>`
-  ).join('');
-}
+      // ============================================================
+      // RENDERING
+      // ============================================================
+      function renderLegend() {
+        const container = document.getElementById("legend-container");
+        container.innerHTML = CONFIG.txnTypes
+          .map(
+            (t, i) =>
+              `<div class="legend-item"><div class="legend-swatch" style="background:${TXN_COLORS[i % TXN_COLORS.length]}"></div>${t.name} (${t.duration} min${t.availFrom ? ", " + t.availFrom + "–" + t.availUntil : ""})</div>`,
+          )
+          .join("");
+      }
 
-function renderTimeline() {
-  const panel = document.getElementById('timeline-panel');
-  panel.innerHTML = '';
-  for (const office of CONFIG.offices) rebuildLanes(office.id);
+      function renderTimeline() {
+        const panel = document.getElementById("timeline-panel");
+        panel.innerHTML = "";
+        for (const office of CONFIG.offices) rebuildLanes(office.id);
 
-  for (const office of CONFIG.offices) {
-    const block = document.createElement('div');
-    block.className = 'office-block';
-    block.id = `office-block-${office.id}`;
-    const bookings = bookedAppointments.filter(a => a.officeId === office.id);
-    block.innerHTML = `
+        for (const office of CONFIG.offices) {
+          const block = document.createElement("div");
+          block.className = "office-block";
+          block.id = `office-block-${office.id}`;
+          const bookings = bookedAppointments.filter((a) => a.officeId === office.id);
+          block.innerHTML = `
       <div class="office-header">
         <h3>${office.name}</h3>
         <span class="meta" id="meta-${office.id}">${office.desks} clerks · run rate ${office.runRate}% · ${bookings.length} appts</span>
@@ -450,460 +935,542 @@ function renderTimeline() {
         <div class="bar"><div class="bar-fill" id="cap-fill-${office.id}" style="width:0%;background:#0d4429"></div></div>
       </div>
     `;
-    panel.appendChild(block);
+          panel.appendChild(block);
 
-    const hoursDiv = block.querySelector(`#hours-${office.id}`);
-    for (let h = Math.floor(CONFIG.openMin/60); h <= Math.floor(CONFIG.closeMin/60); h++) {
-      const mark = document.createElement('div');
-      mark.className = 'hour-mark';
-      mark.style.left = `${pct(h * 60)}%`;
-      mark.textContent = h <= 12 ? `${h}am` : `${h-12}pm`;
-      if (h === 12) mark.textContent = '12pm';
-      hoursDiv.appendChild(mark);
-    }
+          const hoursDiv = block.querySelector(`#hours-${office.id}`);
+          for (
+            let h = Math.floor(CONFIG.openMin / 60);
+            h <= Math.floor(CONFIG.closeMin / 60);
+            h++
+          ) {
+            const mark = document.createElement("div");
+            mark.className = "hour-mark";
+            mark.style.left = `${pct(h * 60)}%`;
+            mark.textContent = h <= 12 ? `${h}am` : `${h - 12}pm`;
+            if (h === 12) mark.textContent = "12pm";
+            hoursDiv.appendChild(mark);
+          }
 
-    const track = block.querySelector(`#track-${office.id}`);
-    const LANES = office.desks;
-    const trackH = LANES * 40;
-    track.style.height = `${trackH}px`;
-    const LANE_H = trackH / LANES;
-    for (let l = 1; l < LANES; l++) {
-      const div = document.createElement('div');
-      div.className = 'lane-divider';
-      div.style.top = `${l * LANE_H}px`;
-      track.appendChild(div);
-    }
-    for (const ls of CONFIG.lunchShifts.filter(l => l.officeId === office.id)) {
-      const overlay = document.createElement('div');
-      overlay.className = 'lunch-overlay';
-      overlay.style.left = `${pct(ls.start)}%`;
-      overlay.style.width = `${pctWidth(ls.end - ls.start)}%`;
-      overlay.innerHTML = `<span class="lunch-label">lunch</span>`;
-      track.appendChild(overlay);
-    }
+          const track = block.querySelector(`#track-${office.id}`);
+          const LANES = office.desks;
+          const trackH = LANES * 40;
+          track.style.height = `${trackH}px`;
+          const LANE_H = trackH / LANES;
+          for (let l = 1; l < LANES; l++) {
+            const div = document.createElement("div");
+            div.className = "lane-divider";
+            div.style.top = `${l * LANE_H}px`;
+            track.appendChild(div);
+          }
+          for (const ls of CONFIG.lunchShifts.filter((l) => l.officeId === office.id)) {
+            const overlay = document.createElement("div");
+            overlay.className = "lunch-overlay";
+            overlay.style.left = `${pct(ls.start)}%`;
+            overlay.style.width = `${pctWidth(ls.end - ls.start)}%`;
+            overlay.innerHTML = `<span class="lunch-label">lunch</span>`;
+            track.appendChild(overlay);
+          }
 
-    for (const appt of bookings) addApptBlock(office.id, appt, false);
-    updateCapacityBar(office.id);
-  }
-}
-
-function addApptBlock(officeId, appt, isNew) {
-  const track = document.getElementById(`track-${officeId}`);
-  if (!track) return;
-  const office = CONFIG.offices.find(o => o.id === officeId);
-  const LANES = office.desks;
-  const trackH = LANES * 40;
-  const LANE_H = trackH / LANES;
-  const apptIdx = bookedAppointments.indexOf(appt);
-  const lane = getLane(officeId, apptIdx);
-
-  const isPreExisting = appt.isExisting;
-  if (appt.skills.length > 1) {
-    const wrapper = document.createElement('div');
-    wrapper.className = `appt-block multi${isNew ? ' new' : ''}${isPreExisting ? ' existing' : ''}`;
-    wrapper.style.left = `${pct(appt.startMin)}%`;
-    wrapper.style.width = `${pctWidth(appt.duration)}%`;
-    wrapper.style.top = `${lane * LANE_H + 2}px`;
-    wrapper.style.height = `${LANE_H - 4}px`;
-    wrapper.title = `${minToTime(appt.startMin)} (${appt.duration}min) — ${appt.skills.map(s => CONFIG.txnTypes.find(t => t.id === s)?.name || '#'+s).join(' + ')}`;
-    let offset = 0;
-    for (const skillId of appt.skills) {
-      const dur = CONFIG.txnTypes.find(t => t.id === skillId)?.duration || 0;
-      const seg = document.createElement('div');
-      seg.className = 'appt-seg';
-      seg.style.left = `${(offset / appt.duration) * 100}%`;
-      seg.style.width = `${(dur / appt.duration) * 100}%`;
-      seg.style.background = txnColor(skillId);
-      wrapper.appendChild(seg);
-      offset += dur;
-    }
-    const label = document.createElement('span');
-    label.className = 'appt-label';
-    label.textContent = appt.queueId ? `#${appt.queueId}` : '';
-    wrapper.appendChild(label);
-    track.appendChild(wrapper);
-  } else {
-    const block = document.createElement('div');
-    block.className = `appt-block${isNew ? ' new' : ''}${isPreExisting ? ' existing' : ''}`;
-    block.style.left = `${pct(appt.startMin)}%`;
-    block.style.width = `${pctWidth(appt.duration)}%`;
-    block.style.top = `${lane * LANE_H + 2}px`;
-    block.style.height = `${LANE_H - 4}px`;
-    block.style.background = txnColor(appt.skills[0]);
-    block.textContent = appt.queueId ? `#${appt.queueId}` : '';
-    block.title = `${minToTime(appt.startMin)} (${appt.duration}min)`;
-    track.appendChild(block);
-  }
-}
-
-function rerenderOfficeBlocks(officeId, newAppt) {
-  const track = document.getElementById(`track-${officeId}`);
-  if (!track) return;
-  track.querySelectorAll('.appt-block').forEach(el => el.remove());
-  const bookings = bookedAppointments.filter(a => a.officeId === officeId);
-  for (const appt of bookings) {
-    const isTheNewOne = newAppt && appt === newAppt;
-    addApptBlock(officeId, appt, isTheNewOne);
-  }
-}
-
-function updateCapacityBar(officeId) {
-  const bookings = bookedAppointments.filter(a => a.officeId === officeId);
-  const totalMinBooked = bookings.reduce((s, a) => s + a.duration, 0);
-  const totalCapacityMin = (CONFIG.closeMin - CONFIG.openMin) * CONFIG.offices.find(o => o.id === officeId).desks;
-  const utilPct = Math.min(100, Math.round((totalMinBooked / totalCapacityMin) * 100));
-  const fill = document.getElementById(`cap-fill-${officeId}`);
-  const label = document.getElementById(`cap-label-${officeId}`);
-  const meta = document.getElementById(`meta-${officeId}`);
-  if (fill) { fill.style.width = `${utilPct}%`; fill.style.background = utilPct < 50 ? '#0d4429' : utilPct < 75 ? '#854d0e' : '#7f1d1d'; }
-  if (label) label.textContent = `${utilPct}% utilized`;
-  if (meta) { const o = CONFIG.offices.find(x=>x.id===officeId); meta.textContent = `${o.desks} clerks · run rate ${o.runRate}% · ${bookings.length} appts`; }
-}
-
-function renderQueue() {
-  const list = document.getElementById('queue-list');
-  list.innerHTML = '';
-  document.getElementById('queue-title').textContent = `Incoming Appointments (${currentIndex}/${appointments.length})`;
-  for (const appt of appointments) {
-    const item = document.createElement('div');
-    item.className = `queue-item${appt.status ? ' ' + appt.status : ''}`;
-    item.id = `queue-${appt.id}`;
-    const txnNames = appt.skills.map(s => CONFIG.txnTypes.find(t => t.id === s)?.name || `#${s}`).join(' + ');
-    const duration = appt.skills.reduce((sum, s) => sum + (CONFIG.txnTypes.find(t => t.id === s)?.duration || 0), 0);
-    const prefs = [];
-    if (appt.asap) prefs.push('ASAP');
-    if (appt.preferredOffice) prefs.push(CONFIG.offices.find(o => o.id === appt.preferredOffice)?.name || '');
-    if (appt.preferredTime) prefs.push(appt.preferredTime);
-    let resultHtml = '';
-    if (appt.result) {
-      if (appt.result.success) {
-        const oName = CONFIG.offices.find(o => o.id === appt.result.officeId)?.name || '';
-        resultHtml = `<div class="result success">→ ${oName} @ ${appt.result.slotTime}</div>`;
-      } else {
-        resultHtml = `<div class="result fail">✗ No capacity</div>`;
+          for (const appt of bookings) addApptBlock(office.id, appt, false);
+          updateCapacityBar(office.id);
+        }
       }
-    }
-    item.innerHTML = `
+
+      function addApptBlock(officeId, appt, isNew) {
+        const track = document.getElementById(`track-${officeId}`);
+        if (!track) return;
+        const office = CONFIG.offices.find((o) => o.id === officeId);
+        const LANES = office.desks;
+        const trackH = LANES * 40;
+        const LANE_H = trackH / LANES;
+        const apptIdx = bookedAppointments.indexOf(appt);
+        const lane = getLane(officeId, apptIdx);
+
+        const isPreExisting = appt.isExisting;
+        if (appt.skills.length > 1) {
+          const wrapper = document.createElement("div");
+          wrapper.className = `appt-block multi${isNew ? " new" : ""}${isPreExisting ? " existing" : ""}`;
+          wrapper.style.left = `${pct(appt.startMin)}%`;
+          wrapper.style.width = `${pctWidth(appt.duration)}%`;
+          wrapper.style.top = `${lane * LANE_H + 2}px`;
+          wrapper.style.height = `${LANE_H - 4}px`;
+          wrapper.title = `${minToTime(appt.startMin)} (${appt.duration}min) — ${appt.skills.map((s) => CONFIG.txnTypes.find((t) => t.id === s)?.name || "#" + s).join(" + ")}`;
+          let offset = 0;
+          for (const skillId of appt.skills) {
+            const dur = CONFIG.txnTypes.find((t) => t.id === skillId)?.duration || 0;
+            const seg = document.createElement("div");
+            seg.className = "appt-seg";
+            seg.style.left = `${(offset / appt.duration) * 100}%`;
+            seg.style.width = `${(dur / appt.duration) * 100}%`;
+            seg.style.background = txnColor(skillId);
+            wrapper.appendChild(seg);
+            offset += dur;
+          }
+          const label = document.createElement("span");
+          label.className = "appt-label";
+          label.textContent = appt.queueId ? `#${appt.queueId}` : "";
+          wrapper.appendChild(label);
+          track.appendChild(wrapper);
+        } else {
+          const block = document.createElement("div");
+          block.className = `appt-block${isNew ? " new" : ""}${isPreExisting ? " existing" : ""}`;
+          block.style.left = `${pct(appt.startMin)}%`;
+          block.style.width = `${pctWidth(appt.duration)}%`;
+          block.style.top = `${lane * LANE_H + 2}px`;
+          block.style.height = `${LANE_H - 4}px`;
+          block.style.background = txnColor(appt.skills[0]);
+          block.textContent = appt.queueId ? `#${appt.queueId}` : "";
+          block.title = `${minToTime(appt.startMin)} (${appt.duration}min)`;
+          track.appendChild(block);
+        }
+      }
+
+      function rerenderOfficeBlocks(officeId, newAppt) {
+        const track = document.getElementById(`track-${officeId}`);
+        if (!track) return;
+        track.querySelectorAll(".appt-block").forEach((el) => el.remove());
+        const bookings = bookedAppointments.filter((a) => a.officeId === officeId);
+        for (const appt of bookings) {
+          const isTheNewOne = newAppt && appt === newAppt;
+          addApptBlock(officeId, appt, isTheNewOne);
+        }
+      }
+
+      function updateCapacityBar(officeId) {
+        const bookings = bookedAppointments.filter((a) => a.officeId === officeId);
+        const totalMinBooked = bookings.reduce((s, a) => s + a.duration, 0);
+        const totalCapacityMin =
+          (CONFIG.closeMin - CONFIG.openMin) * CONFIG.offices.find((o) => o.id === officeId).desks;
+        const utilPct = Math.min(100, Math.round((totalMinBooked / totalCapacityMin) * 100));
+        const fill = document.getElementById(`cap-fill-${officeId}`);
+        const label = document.getElementById(`cap-label-${officeId}`);
+        const meta = document.getElementById(`meta-${officeId}`);
+        if (fill) {
+          fill.style.width = `${utilPct}%`;
+          fill.style.background = utilPct < 50 ? "#0d4429" : utilPct < 75 ? "#854d0e" : "#7f1d1d";
+        }
+        if (label) label.textContent = `${utilPct}% utilized`;
+        if (meta) {
+          const o = CONFIG.offices.find((x) => x.id === officeId);
+          meta.textContent = `${o.desks} clerks · run rate ${o.runRate}% · ${bookings.length} appts`;
+        }
+      }
+
+      function renderQueue() {
+        const list = document.getElementById("queue-list");
+        list.innerHTML = "";
+        document.getElementById("queue-title").textContent =
+          `Incoming Appointments (${currentIndex}/${appointments.length})`;
+        for (const appt of appointments) {
+          const item = document.createElement("div");
+          item.className = `queue-item${appt.status ? " " + appt.status : ""}`;
+          item.id = `queue-${appt.id}`;
+          const txnNames = appt.skills
+            .map((s) => CONFIG.txnTypes.find((t) => t.id === s)?.name || `#${s}`)
+            .join(" + ");
+          const duration = appt.skills.reduce(
+            (sum, s) => sum + (CONFIG.txnTypes.find((t) => t.id === s)?.duration || 0),
+            0,
+          );
+          const prefs = [];
+          if (appt.asap) prefs.push("ASAP");
+          if (appt.preferredOffice)
+            prefs.push(CONFIG.offices.find((o) => o.id === appt.preferredOffice)?.name || "");
+          if (appt.preferredTime) prefs.push(appt.preferredTime);
+          let resultHtml = "";
+          if (appt.result) {
+            if (appt.result.success) {
+              const oName = CONFIG.offices.find((o) => o.id === appt.result.officeId)?.name || "";
+              resultHtml = `<div class="result success">→ ${oName} @ ${appt.result.slotTime}</div>`;
+            } else {
+              resultHtml = `<div class="result fail">✗ No capacity</div>`;
+            }
+          }
+          item.innerHTML = `
       <div class="name">#${appt.id} ${appt.firstName} ${appt.lastName}</div>
       <div class="txn">${txnNames} (${duration} min)</div>
-      <div class="prefs">${prefs.length ? prefs.map(p => `<span>${p}</span>`).join('') : '<span>no preference</span>'}</div>
+      <div class="prefs">${prefs.length ? prefs.map((p) => `<span>${p}</span>`).join("") : "<span>no preference</span>"}</div>
       ${resultHtml}
     `;
-    list.appendChild(item);
-  }
-}
-
-function updateStats() {
-  document.getElementById('stat-processed').textContent = stats.processed;
-  document.getElementById('stat-assigned').textContent = stats.assigned;
-  document.getElementById('stat-preferred').textContent = stats.preferred;
-  document.getElementById('stat-alternative').textContent = stats.alternative;
-  document.getElementById('stat-failed').textContent = stats.failed;
-}
-
-// ============================================================
-// FLYING ANIMATION
-// ============================================================
-function flyToSlot(appt, result) {
-  return new Promise(resolve => {
-    const queueItem = document.getElementById(`queue-${appt.id}`);
-    const track = document.getElementById(`track-${result.officeId}`);
-    if (!queueItem || !track) { resolve(); return; }
-
-    const speedMs = getSpeedMs();
-    const flyDur = Math.max(50, speedMs * 0.4);
-    const landDur = Math.max(30, speedMs * 0.15);
-
-    const office = CONFIG.offices.find(o => o.id === result.officeId);
-    const trackH = office.desks * 40;
-    const LANE_H = trackH / office.desks;
-    const lane = getLane(result.officeId, bookedAppointments.length - 1);
-
-    const sourceRect = queueItem.getBoundingClientRect();
-    const trackRect = track.getBoundingClientRect();
-    const slotMin = timeToMin(result.slotTime);
-    const targetX = trackRect.left + (pct(slotMin) / 100) * trackRect.width;
-    const targetY = trackRect.top + lane * LANE_H + LANE_H / 2 - 10;
-
-    const pill = document.createElement('div');
-    pill.className = 'flying-pill';
-    pill.style.transition = `all ${flyDur}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-    pill.style.background = appt.skills.length > 1
-      ? `linear-gradient(135deg, ${appt.skills.map(s => txnColor(s)).join(', ')})`
-      : txnColor(appt.skills[0]);
-    pill.textContent = `#${appt.id} ${appt.firstName}`;
-    pill.style.left = `${sourceRect.left}px`;
-    pill.style.top = `${sourceRect.top + sourceRect.height / 2 - 14}px`;
-    document.body.appendChild(pill);
-
-    requestAnimationFrame(() => { pill.style.left = `${targetX}px`; pill.style.top = `${targetY}px`; });
-    setTimeout(() => {
-      pill.style.transition = `all ${landDur}ms ease`;
-      pill.classList.add('land');
-      setTimeout(() => { pill.remove(); resolve(); }, landDur);
-    }, flyDur);
-  });
-}
-
-// ============================================================
-// ANIMATION LOOP
-// ============================================================
-async function processNext() {
-  if (currentIndex >= appointments.length) { stop(); return; }
-
-  const appt = appointments[currentIndex];
-  appt.status = 'processing';
-  renderQueue();
-  const queueItem = document.getElementById(`queue-${appt.id}`);
-  if (queueItem) queueItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  await sleep(getSpeedMs() * 0.3);
-
-  // Call real scheduling engine via API
-  const result = await apiFindAppointment(appt.skills, appt.asap, appt.preferredOffice, appt.preferredTime);
-  appt.result = result;
-  stats.processed++;
-
-  if (result.success) {
-    // Book it atomically in the DB
-    const bookResult = await apiBookAppointment(result.officeId, result.slotDate, result.slotTime, appt.skills, appt.firstName, appt.lastName);
-
-    if (bookResult.success) {
-      appt.status = 'assigned';
-      stats.assigned++;
-      const matchedPreferred = (!appt.preferredOffice || result.officeId === appt.preferredOffice) &&
-        (!appt.preferredTime || (appt.preferredTime === 'morning' && timeToMin(result.slotTime) < 720) || (appt.preferredTime === 'afternoon' && timeToMin(result.slotTime) >= 720));
-      if (matchedPreferred) stats.preferred++; else stats.alternative++;
-
-      const duration = appt.skills.reduce((sum, s) => sum + (CONFIG.txnTypes.find(t => t.id === s)?.duration || 0), 0);
-      const booking = {
-        officeId: result.officeId, startMin: timeToMin(result.slotTime), duration,
-        skills: appt.skills, isExisting: false, queueId: appt.id,
-      };
-      bookedAppointments.push(booking);
-      rebuildLanes(result.officeId);
-
-      renderQueue();
-      await flyToSlot(appt, result);
-      rerenderOfficeBlocks(result.officeId, booking);
-      updateCapacityBar(result.officeId);
-    } else {
-      appt.status = 'failed';
-      stats.failed++;
-      renderQueue();
-    }
-  } else {
-    appt.status = 'failed';
-    stats.failed++;
-    renderQueue();
-  }
-
-  updateStats();
-  currentIndex++;
-
-  if (isRunning && currentIndex < appointments.length) {
-    animationTimer = setTimeout(processNext, getSpeedMs() * 0.6);
-  } else if (currentIndex >= appointments.length) {
-    stop();
-  }
-}
-
-// ============================================================
-// CONTROLS
-// ============================================================
-function start() {
-  if (currentIndex >= appointments.length) return;
-  isRunning = true;
-  document.getElementById('btn-start').textContent = 'Pause';
-  document.getElementById('btn-start').onclick = pause;
-  processNext();
-}
-
-function pause() {
-  isRunning = false;
-  clearTimeout(animationTimer);
-  document.getElementById('btn-start').textContent = 'Resume';
-  document.getElementById('btn-start').onclick = start;
-}
-
-function stop() {
-  isRunning = false;
-  clearTimeout(animationTimer);
-  const btn = document.getElementById('btn-start');
-  if (currentIndex >= appointments.length) { btn.textContent = 'Done'; btn.disabled = true; }
-  else { btn.textContent = 'Resume'; btn.onclick = start; }
-}
-
-function stepOne() {
-  if (currentIndex >= appointments.length) return;
-  isRunning = false;
-  clearTimeout(animationTimer);
-  document.getElementById('btn-start').textContent = 'Resume';
-  document.getElementById('btn-start').onclick = start;
-  document.getElementById('btn-start').disabled = false;
-  processNext();
-}
-
-async function reset() {
-  isRunning = false;
-  clearTimeout(animationTimer);
-  currentIndex = 0;
-  stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
-  appointments.forEach(a => { a.status = null; a.result = null; });
-
-  // Reset DB state
-  await apiReset(getClerkCount(), getRunRate(), getCrossTrain(), [...enabledTxnIds]);
-  await loadConfig();
-  bookedAppointments = [];
-  updateStats();
-  renderTimeline();
-  renderQueue();
-  const btn = document.getElementById('btn-start');
-  btn.textContent = 'Start Demo'; btn.disabled = false; btn.onclick = start;
-}
-
-async function regenerate() {
-  isRunning = false;
-  clearTimeout(animationTimer);
-  currentIndex = 0;
-  stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
-
-  await apiReset(getClerkCount(), getRunRate(), getCrossTrain(), [...enabledTxnIds]);
-  await loadConfig();
-  bookedAppointments = [];
-  appointments = generateRandomAppointments(getApptCount());
-  updateStats();
-  renderTimeline();
-  renderQueue();
-  const btn = document.getElementById('btn-start');
-  btn.textContent = 'Start Demo'; btn.disabled = false; btn.onclick = start;
-}
-
-// ============================================================
-// TOOLTIP
-// ============================================================
-const tooltip = document.getElementById('timeline-tooltip');
-
-function buildTooltipHtml(officeId, minute) {
-  const office = CONFIG.offices.find(o => o.id === officeId);
-  const effectiveDesks = Math.floor(office.desks * office.runRate / 100);
-
-  let totalConcurrent = 0;
-  for (const appt of bookedAppointments) {
-    if (appt.officeId !== officeId) continue;
-    if (minute >= appt.startMin && minute < appt.startMin + appt.duration) totalConcurrent++;
-  }
-
-  // Per-skill breakdown
-  let skillRows = '';
-  for (let i = 0; i < CONFIG.txnTypes.length; i++) {
-    const txn = CONFIG.txnTypes[i];
-    // Count clerks with this skill, not on lunch
-    const officeClerks = CONFIG.clerks.filter(c => c.officeId === officeId);
-    let supply = 0;
-    for (const clerk of officeClerks) {
-      if (!clerk.skills.includes(txn.id)) continue;
-      const schedule = CONFIG.clerkSchedules.find(s => s.clerk_id === clerk.id);
-      if (schedule && schedule.lunch_shift_id) {
-        const ls = CONFIG.lunchShifts.find(l => l.id === schedule.lunch_shift_id);
-        if (ls && minute >= ls.start && minute < ls.end) continue;
+          list.appendChild(item);
+        }
       }
-      supply++;
-    }
-    let demand = 0;
-    for (const appt of bookedAppointments) {
-      if (appt.officeId !== officeId) continue;
-      if (minute >= appt.startMin && minute < appt.startMin + appt.duration) {
-        if (appt.skills.includes(txn.id)) demand++;
+
+      function updateStats() {
+        document.getElementById("stat-processed").textContent = stats.processed;
+        document.getElementById("stat-assigned").textContent = stats.assigned;
+        document.getElementById("stat-preferred").textContent = stats.preferred;
+        document.getElementById("stat-alternative").textContent = stats.alternative;
+        document.getElementById("stat-failed").textContent = stats.failed;
       }
-    }
-    const avail = Math.max(supply - demand, 0);
-    const color = avail === 0 ? '#f4212e' : avail === 1 ? '#d97706' : '#00ba7c';
-    skillRows += `<div class="tt-row"><span class="tt-label"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${TXN_COLORS[i]};margin-right:4px"></span>${txn.name}</span><span class="tt-val" style="color:${color}">${avail} avail</span><span class="tt-label">(${supply}s / ${demand}d)</span></div>`;
-  }
 
-  // Clerks
-  const officeClerks = CONFIG.clerks.filter(c => c.officeId === officeId);
-  let clerkRows = '';
-  for (const clerk of officeClerks) {
-    const schedule = CONFIG.clerkSchedules.find(s => s.clerk_id === clerk.id);
-    let onLunch = false;
-    if (schedule && schedule.lunch_shift_id) {
-      const ls = CONFIG.lunchShifts.find(l => l.id === schedule.lunch_shift_id);
-      if (ls && minute >= ls.start && minute < ls.end) onLunch = true;
-    }
-    const skillNames = clerk.skills.map(sid => { const t = CONFIG.txnTypes.find(tx => tx.id === sid); return t ? `<span style="color:${txnColor(sid)}">${t.name}</span>` : `#${sid}`; }).join(', ');
-    const status = onLunch ? '<span style="color:#d97706"> (lunch)</span>' : '';
-    clerkRows += `<div class="tt-clerk-row">${clerk.name}${status}: ${skillNames}</div>`;
-  }
+      // ============================================================
+      // FLYING ANIMATION
+      // ============================================================
+      function flyToSlot(appt, result) {
+        return new Promise((resolve) => {
+          const queueItem = document.getElementById(`queue-${appt.id}`);
+          const track = document.getElementById(`track-${result.officeId}`);
+          if (!queueItem || !track) {
+            resolve();
+            return;
+          }
 
-  // Count on-floor clerks
-  let clerksOnFloor = 0;
-  for (const clerk of officeClerks) {
-    const schedule = CONFIG.clerkSchedules.find(s => s.clerk_id === clerk.id);
-    if (schedule && schedule.lunch_shift_id) {
-      const ls = CONFIG.lunchShifts.find(l => l.id === schedule.lunch_shift_id);
-      if (ls && minute >= ls.start && minute < ls.end) continue;
-    }
-    clerksOnFloor++;
-  }
-  const cap = Math.min(effectiveDesks, clerksOnFloor);
-  const deskAvail = Math.max(0, cap - totalConcurrent);
-  const deskColor = deskAvail <= 0 ? '#f4212e' : '#00ba7c';
+          const speedMs = getSpeedMs();
+          const flyDur = Math.max(50, speedMs * 0.4);
+          const landDur = Math.max(30, speedMs * 0.15);
 
-  return `
+          const office = CONFIG.offices.find((o) => o.id === result.officeId);
+          const trackH = office.desks * 40;
+          const LANE_H = trackH / office.desks;
+          const lane = getLane(result.officeId, bookedAppointments.length - 1);
+
+          const sourceRect = queueItem.getBoundingClientRect();
+          const trackRect = track.getBoundingClientRect();
+          const slotMin = timeToMin(result.slotTime);
+          const targetX = trackRect.left + (pct(slotMin) / 100) * trackRect.width;
+          const targetY = trackRect.top + lane * LANE_H + LANE_H / 2 - 10;
+
+          const pill = document.createElement("div");
+          pill.className = "flying-pill";
+          pill.style.transition = `all ${flyDur}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+          pill.style.background =
+            appt.skills.length > 1
+              ? `linear-gradient(135deg, ${appt.skills.map((s) => txnColor(s)).join(", ")})`
+              : txnColor(appt.skills[0]);
+          pill.textContent = `#${appt.id} ${appt.firstName}`;
+          pill.style.left = `${sourceRect.left}px`;
+          pill.style.top = `${sourceRect.top + sourceRect.height / 2 - 14}px`;
+          document.body.appendChild(pill);
+
+          requestAnimationFrame(() => {
+            pill.style.left = `${targetX}px`;
+            pill.style.top = `${targetY}px`;
+          });
+          setTimeout(() => {
+            pill.style.transition = `all ${landDur}ms ease`;
+            pill.classList.add("land");
+            setTimeout(() => {
+              pill.remove();
+              resolve();
+            }, landDur);
+          }, flyDur);
+        });
+      }
+
+      // ============================================================
+      // ANIMATION LOOP
+      // ============================================================
+      async function processNext() {
+        if (currentIndex >= appointments.length) {
+          stop();
+          return;
+        }
+
+        const appt = appointments[currentIndex];
+        appt.status = "processing";
+        renderQueue();
+        const queueItem = document.getElementById(`queue-${appt.id}`);
+        if (queueItem) queueItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+        await sleep(getSpeedMs() * 0.3);
+
+        // Call real scheduling engine via API
+        const result = await apiFindAppointment(
+          appt.skills,
+          appt.asap,
+          appt.preferredOffice,
+          appt.preferredTime,
+        );
+        appt.result = result;
+        stats.processed++;
+
+        if (result.success) {
+          // Book it atomically in the DB
+          const bookResult = await apiBookAppointment(
+            result.officeId,
+            result.slotDate,
+            result.slotTime,
+            appt.skills,
+            appt.firstName,
+            appt.lastName,
+          );
+
+          if (bookResult.success) {
+            appt.status = "assigned";
+            stats.assigned++;
+            const matchedPreferred =
+              (!appt.preferredOffice || result.officeId === appt.preferredOffice) &&
+              (!appt.preferredTime ||
+                (appt.preferredTime === "morning" && timeToMin(result.slotTime) < 720) ||
+                (appt.preferredTime === "afternoon" && timeToMin(result.slotTime) >= 720));
+            if (matchedPreferred) stats.preferred++;
+            else stats.alternative++;
+
+            const duration = appt.skills.reduce(
+              (sum, s) => sum + (CONFIG.txnTypes.find((t) => t.id === s)?.duration || 0),
+              0,
+            );
+            const booking = {
+              officeId: result.officeId,
+              startMin: timeToMin(result.slotTime),
+              duration,
+              skills: appt.skills,
+              isExisting: false,
+              queueId: appt.id,
+            };
+            bookedAppointments.push(booking);
+            rebuildLanes(result.officeId);
+
+            renderQueue();
+            await flyToSlot(appt, result);
+            rerenderOfficeBlocks(result.officeId, booking);
+            updateCapacityBar(result.officeId);
+          } else {
+            appt.status = "failed";
+            stats.failed++;
+            renderQueue();
+          }
+        } else {
+          appt.status = "failed";
+          stats.failed++;
+          renderQueue();
+        }
+
+        updateStats();
+        currentIndex++;
+
+        if (isRunning && currentIndex < appointments.length) {
+          animationTimer = setTimeout(processNext, getSpeedMs() * 0.6);
+        } else if (currentIndex >= appointments.length) {
+          stop();
+        }
+      }
+
+      // ============================================================
+      // CONTROLS
+      // ============================================================
+      function start() {
+        if (currentIndex >= appointments.length) return;
+        isRunning = true;
+        document.getElementById("btn-start").textContent = "Pause";
+        document.getElementById("btn-start").onclick = pause;
+        processNext();
+      }
+
+      function pause() {
+        isRunning = false;
+        clearTimeout(animationTimer);
+        document.getElementById("btn-start").textContent = "Resume";
+        document.getElementById("btn-start").onclick = start;
+      }
+
+      function stop() {
+        isRunning = false;
+        clearTimeout(animationTimer);
+        const btn = document.getElementById("btn-start");
+        if (currentIndex >= appointments.length) {
+          btn.textContent = "Done";
+          btn.disabled = true;
+        } else {
+          btn.textContent = "Resume";
+          btn.onclick = start;
+        }
+      }
+
+      function stepOne() {
+        if (currentIndex >= appointments.length) return;
+        isRunning = false;
+        clearTimeout(animationTimer);
+        document.getElementById("btn-start").textContent = "Resume";
+        document.getElementById("btn-start").onclick = start;
+        document.getElementById("btn-start").disabled = false;
+        processNext();
+      }
+
+      async function reset() {
+        isRunning = false;
+        clearTimeout(animationTimer);
+        currentIndex = 0;
+        stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
+        appointments.forEach((a) => {
+          a.status = null;
+          a.result = null;
+        });
+
+        // Reset DB state
+        await apiReset(getClerkCount(), getRunRate(), getCrossTrain(), [...enabledTxnIds]);
+        await loadConfig();
+        bookedAppointments = [];
+        updateStats();
+        renderTimeline();
+        renderQueue();
+        const btn = document.getElementById("btn-start");
+        btn.textContent = "Start Demo";
+        btn.disabled = false;
+        btn.onclick = start;
+      }
+
+      async function regenerate() {
+        isRunning = false;
+        clearTimeout(animationTimer);
+        currentIndex = 0;
+        stats = { processed: 0, assigned: 0, preferred: 0, alternative: 0, failed: 0 };
+
+        await apiReset(getClerkCount(), getRunRate(), getCrossTrain(), [...enabledTxnIds]);
+        await loadConfig();
+        bookedAppointments = [];
+        appointments = generateRandomAppointments(getApptCount());
+        updateStats();
+        renderTimeline();
+        renderQueue();
+        const btn = document.getElementById("btn-start");
+        btn.textContent = "Start Demo";
+        btn.disabled = false;
+        btn.onclick = start;
+      }
+
+      // ============================================================
+      // TOOLTIP
+      // ============================================================
+      const tooltip = document.getElementById("timeline-tooltip");
+
+      function buildTooltipHtml(officeId, minute) {
+        const office = CONFIG.offices.find((o) => o.id === officeId);
+        const effectiveDesks = Math.floor((office.desks * office.runRate) / 100);
+
+        let totalConcurrent = 0;
+        for (const appt of bookedAppointments) {
+          if (appt.officeId !== officeId) continue;
+          if (minute >= appt.startMin && minute < appt.startMin + appt.duration) totalConcurrent++;
+        }
+
+        // Per-skill breakdown
+        let skillRows = "";
+        for (let i = 0; i < CONFIG.txnTypes.length; i++) {
+          const txn = CONFIG.txnTypes[i];
+          // Count clerks with this skill, not on lunch
+          const officeClerks = CONFIG.clerks.filter((c) => c.officeId === officeId);
+          let supply = 0;
+          for (const clerk of officeClerks) {
+            if (!clerk.skills.includes(txn.id)) continue;
+            const schedule = CONFIG.clerkSchedules.find((s) => s.clerk_id === clerk.id);
+            if (schedule && schedule.lunch_shift_id) {
+              const ls = CONFIG.lunchShifts.find((l) => l.id === schedule.lunch_shift_id);
+              if (ls && minute >= ls.start && minute < ls.end) continue;
+            }
+            supply++;
+          }
+          let demand = 0;
+          for (const appt of bookedAppointments) {
+            if (appt.officeId !== officeId) continue;
+            if (minute >= appt.startMin && minute < appt.startMin + appt.duration) {
+              if (appt.skills.includes(txn.id)) demand++;
+            }
+          }
+          const avail = Math.max(supply - demand, 0);
+          const color = avail === 0 ? "#f4212e" : avail === 1 ? "#d97706" : "#00ba7c";
+          skillRows += `<div class="tt-row"><span class="tt-label"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${TXN_COLORS[i]};margin-right:4px"></span>${txn.name}</span><span class="tt-val" style="color:${color}">${avail} avail</span><span class="tt-label">(${supply}s / ${demand}d)</span></div>`;
+        }
+
+        // Clerks
+        const officeClerks = CONFIG.clerks.filter((c) => c.officeId === officeId);
+        let clerkRows = "";
+        for (const clerk of officeClerks) {
+          const schedule = CONFIG.clerkSchedules.find((s) => s.clerk_id === clerk.id);
+          let onLunch = false;
+          if (schedule && schedule.lunch_shift_id) {
+            const ls = CONFIG.lunchShifts.find((l) => l.id === schedule.lunch_shift_id);
+            if (ls && minute >= ls.start && minute < ls.end) onLunch = true;
+          }
+          const skillNames = clerk.skills
+            .map((sid) => {
+              const t = CONFIG.txnTypes.find((tx) => tx.id === sid);
+              return t ? `<span style="color:${txnColor(sid)}">${t.name}</span>` : `#${sid}`;
+            })
+            .join(", ");
+          const status = onLunch ? '<span style="color:#d97706"> (lunch)</span>' : "";
+          clerkRows += `<div class="tt-clerk-row">${clerk.name}${status}: ${skillNames}</div>`;
+        }
+
+        // Count on-floor clerks
+        let clerksOnFloor = 0;
+        for (const clerk of officeClerks) {
+          const schedule = CONFIG.clerkSchedules.find((s) => s.clerk_id === clerk.id);
+          if (schedule && schedule.lunch_shift_id) {
+            const ls = CONFIG.lunchShifts.find((l) => l.id === schedule.lunch_shift_id);
+            if (ls && minute >= ls.start && minute < ls.end) continue;
+          }
+          clerksOnFloor++;
+        }
+        const cap = Math.min(effectiveDesks, clerksOnFloor);
+        const deskAvail = Math.max(0, cap - totalConcurrent);
+        const deskColor = deskAvail <= 0 ? "#f4212e" : "#00ba7c";
+
+        return `
     <div class="tt-time">${minToTime(minute)}</div>
     <div class="tt-row"><span class="tt-label">Desk cap (min of ${effectiveDesks} eff, ${clerksOnFloor} on-floor)</span><span class="tt-val" style="color:${deskColor}">${deskAvail} avail</span><span class="tt-label">(${cap} cap / ${totalConcurrent} used)</span></div>
     <div class="tt-section"><div style="margin-bottom:4px;color:#71767b;font-size:0.7rem">Skill capacity:</div>${skillRows}</div>
     <div class="tt-section"><div style="margin-bottom:4px;color:#71767b;font-size:0.7rem">Clerks (${officeClerks.length}):</div>${clerkRows}</div>
   `;
-}
+      }
 
-document.getElementById('timeline-panel').addEventListener('mousemove', (e) => {
-  const track = e.target.closest('.timeline-track');
-  if (!track) { tooltip.style.display = 'none'; return; }
-  const officeBlock = track.closest('.office-block');
-  const officeId = parseInt(officeBlock.id.replace('office-block-', ''));
-  const rect = track.getBoundingClientRect();
-  const minute = Math.round(CONFIG.openMin + ((e.clientX - rect.left) / rect.width) * (CONFIG.closeMin - CONFIG.openMin));
-  if (minute < CONFIG.openMin || minute >= CONFIG.closeMin) { tooltip.style.display = 'none'; return; }
-  tooltip.innerHTML = buildTooltipHtml(officeId, minute);
-  tooltip.style.display = 'block';
-  tooltip.style.left = `${e.clientX + 16}px`;
-  tooltip.style.top = `${Math.max(4, e.clientY - tooltip.offsetHeight - 8)}px`;
-});
-document.getElementById('timeline-panel').addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+      document.getElementById("timeline-panel").addEventListener("mousemove", (e) => {
+        const track = e.target.closest(".timeline-track");
+        if (!track) {
+          tooltip.style.display = "none";
+          return;
+        }
+        const officeBlock = track.closest(".office-block");
+        const officeId = parseInt(officeBlock.id.replace("office-block-", ""));
+        const rect = track.getBoundingClientRect();
+        const minute = Math.round(
+          CONFIG.openMin +
+            ((e.clientX - rect.left) / rect.width) * (CONFIG.closeMin - CONFIG.openMin),
+        );
+        if (minute < CONFIG.openMin || minute >= CONFIG.closeMin) {
+          tooltip.style.display = "none";
+          return;
+        }
+        tooltip.innerHTML = buildTooltipHtml(officeId, minute);
+        tooltip.style.display = "block";
+        tooltip.style.left = `${e.clientX + 16}px`;
+        tooltip.style.top = `${Math.max(4, e.clientY - tooltip.offsetHeight - 8)}px`;
+      });
+      document.getElementById("timeline-panel").addEventListener("mouseleave", () => {
+        tooltip.style.display = "none";
+      });
 
-// ============================================================
-// EVENT LISTENERS
-// ============================================================
-document.getElementById('btn-start').onclick = start;
-document.getElementById('btn-step').addEventListener('click', stepOne);
-document.getElementById('btn-reset').addEventListener('click', reset);
-document.getElementById('btn-generate').addEventListener('click', regenerate);
-document.getElementById('appt-count').addEventListener('change', regenerate);
-document.getElementById('clerk-count').addEventListener('change', regenerate);
-document.getElementById('run-rate').addEventListener('change', regenerate);
-document.getElementById('cross-train').addEventListener('input', () => {
-  document.getElementById('cross-train-label').textContent = `${getCrossTrain()}%`;
-  regenerate();
-});
-document.getElementById('all-asap').addEventListener('change', regenerate);
-document.getElementById('speed-slider').addEventListener('input', () => {
-  document.getElementById('speed-label').textContent = `${(600 / getSpeedMs()).toFixed(1)}x`;
-});
+      // ============================================================
+      // EVENT LISTENERS
+      // ============================================================
+      document.getElementById("btn-start").onclick = start;
+      document.getElementById("btn-step").addEventListener("click", stepOne);
+      document.getElementById("btn-reset").addEventListener("click", reset);
+      document.getElementById("btn-generate").addEventListener("click", regenerate);
+      document.getElementById("appt-count").addEventListener("change", regenerate);
+      document.getElementById("clerk-count").addEventListener("change", regenerate);
+      document.getElementById("run-rate").addEventListener("change", regenerate);
+      document.getElementById("cross-train").addEventListener("input", () => {
+        document.getElementById("cross-train-label").textContent = `${getCrossTrain()}%`;
+        regenerate();
+      });
+      document.getElementById("all-asap").addEventListener("change", regenerate);
+      document.getElementById("speed-slider").addEventListener("input", () => {
+        document.getElementById("speed-label").textContent = `${(600 / getSpeedMs()).toFixed(1)}x`;
+      });
 
-// ============================================================
-// INIT
-// ============================================================
-(async function init() {
-  await loadConfig();
-  await loadAppointments();
-  appointments = generateRandomAppointments(getApptCount());
-  renderTimeline();
-  renderQueue();
-  updateStats();
-})();
-</script>
-</body>
+      // ============================================================
+      // INIT
+      // ============================================================
+      (async function init() {
+        await loadConfig();
+        await loadAppointments();
+        appointments = generateRandomAppointments(getApptCount());
+        renderTimeline();
+        renderQueue();
+        updateStats();
+      })();
+    </script>
+  </body>
 </html>

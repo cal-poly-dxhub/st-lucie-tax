@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>St. Lucie Tax Collector - Appointment Flow Demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #1a365d;
+      }
+      .steps {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+      .steps button {
+        padding: 8px 14px;
+        border: 2px solid #cbd5e0;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .steps button.active {
+        border-color: #2b6cb0;
+        background: #ebf8ff;
+        font-weight: 600;
+      }
+      .steps button.done {
+        border-color: #38a169;
+        background: #f0fff4;
+      }
+      .panel {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        display: none;
+      }
+      .panel.visible {
+        display: block;
+      }
+      .panel h2 {
+        margin-bottom: 16px;
+        color: #2d3748;
+      }
+      .panel p {
+        margin-bottom: 12px;
+        color: #4a5568;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: #4a5568;
+      }
+      select,
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        font-size: 14px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #2b6cb0;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+      .btn:hover {
+        background: #2c5282;
+      }
+      .btn-green {
+        background: #38a169;
+      }
+      .btn-green:hover {
+        background: #2f855a;
+      }
+      .result-box {
+        background: #f7fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 12px 0;
+      }
+      .qr-box {
+        text-align: center;
+        padding: 20px;
+        border: 2px dashed #cbd5e0;
+        border-radius: 8px;
+        margin: 12px 0;
+      }
+      .qr-box .qr-placeholder {
+        width: 150px;
+        height: 150px;
+        background: #edf2f7;
+        margin: 0 auto 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 60px;
+        border-radius: 8px;
+      }
+      .qr-code-text {
+        font-family: monospace;
+        font-size: 12px;
+        color: #718096;
+        word-break: break-all;
+      }
+      .checklist label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+      }
+      .checklist input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+      .queue-display {
+        text-align: center;
+        font-size: 48px;
+        font-weight: 700;
+        color: #2b6cb0;
+        padding: 20px;
+      }
+      .queue-list {
+        list-style: none;
+      }
+      .queue-list li {
+        padding: 12px;
+        border-bottom: 1px solid #edf2f7;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .badge-waiting {
+        background: #fefcbf;
+        color: #975a16;
+      }
+      .badge-serving {
+        background: #c6f6d5;
+        color: #276749;
+      }
+      .status-note {
+        font-size: 13px;
+        color: #718096;
+        font-style: italic;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>St. Lucie Tax Collector - Appointment Flow</h1>
+
+    <div class="steps">
+      <button id="step-btn-0" class="active" onclick="goToStep(0)">1. Find Appt</button>
+      <button id="step-btn-1" onclick="goToStep(1)">2. Book Appt</button>
+      <button id="step-btn-2" onclick="goToStep(2)">3. QR Code</button>
+      <button id="step-btn-3" onclick="goToStep(3)">4. Front Desk Scan</button>
+      <button id="step-btn-4" onclick="goToStep(4)">5. Check-In</button>
+      <button id="step-btn-5" onclick="goToStep(5)">6. Clerk Queue</button>
+    </div>
+
+    <!-- Step 0: Find Appointment -->
+    <div class="panel visible" id="step-0">
+      <h2>Find an Appointment</h2>
+      <p>Customer selects transaction types and preferences to find available slots.</p>
+      <p class="status-note">Uses: <code>findAppointment()</code> from find-appt.ts</p>
+
+      <label>Transaction Types</label>
+      <select id="txn-select" multiple size="3">
+        <option value="1" selected>Title Transfer</option>
+        <option value="2">Registration Renewal</option>
+        <option value="3">Property Tax Payment</option>
+      </select>
+
+      <label>Preferred Office</label>
+      <select id="office-select">
+        <option value="">Any</option>
+        <option value="1">Main Office - Fort Pierce</option>
+        <option value="2">Port St. Lucie Branch</option>
+      </select>
+
+      <label>Preferred Time</label>
+      <select id="time-pref">
+        <option value="">Any</option>
+        <option value="morning">Morning</option>
+        <option value="afternoon">Afternoon</option>
+      </select>
+
+      <button class="btn" onclick="doFindAppt()">Search Available Slots</button>
+
+      <div id="find-result" class="result-box" style="display: none">
+        <strong>Available Slot Found:</strong><br />
+        <span id="find-result-text"></span>
+      </div>
+    </div>
+
+    <!-- Step 1: Book Appointment -->
+    <div class="panel" id="step-1">
+      <h2>Book Appointment</h2>
+      <p>Customer provides contact info to confirm the booking.</p>
+      <p class="status-note">Uses: <code>bookAppointment()</code> from book-appt.ts</p>
+
+      <div class="result-box">
+        <strong>Selected Slot:</strong>
+        <span id="selected-slot">Main Office - Jun 16, 2025 at 9:00 AM</span>
+      </div>
+
+      <label>First Name</label>
+      <input type="text" id="first-name" value="Jane" />
+
+      <label>Last Name</label>
+      <input type="text" id="last-name" value="Smith" />
+
+      <label>Email</label>
+      <input type="email" id="email" value="jane.smith@example.com" />
+
+      <label>Phone</label>
+      <input type="tel" id="phone" value="772-555-0123" />
+
+      <button class="btn" onclick="doBookAppt()">Confirm Booking</button>
+
+      <div id="book-result" class="result-box" style="display: none">
+        <strong>Booked!</strong> Appointment #<span id="appt-id"></span> confirmed.
+      </div>
+    </div>
+
+    <!-- Step 2: QR Code -->
+    <div class="panel" id="step-2">
+      <h2>Your QR Code</h2>
+      <p>Customer receives a QR code to present at the office on appointment day.</p>
+      <p class="status-note">Uses: <code>generateQrCode()</code> from queue.ts</p>
+
+      <div class="qr-box">
+        <canvas id="qr-canvas"></canvas>
+        <p>
+          <strong>Appointment #<span id="qr-appt-id">1042</span></strong>
+        </p>
+        <p>Main Office - Fort Pierce<br />Jun 16, 2025 at 9:00 AM</p>
+        <p class="qr-code-text" id="qr-code-value"></p>
+      </div>
+
+      <p>Save this QR code — show it at the front desk when you arrive.</p>
+      <button class="btn" onclick="goToStep(3)">Simulate Arrival at Office &rarr;</button>
+    </div>
+
+    <!-- Step 3: Front Desk Scan -->
+    <div class="panel" id="step-3">
+      <h2>Front Desk: Scan QR Code</h2>
+      <p>Staff scans the customer's QR code to pull up appointment details.</p>
+      <p class="status-note">Uses: <code>lookupByQrCode()</code> from queue.ts</p>
+
+      <label>QR Code (scanned)</label>
+      <input type="text" id="scan-input" readonly />
+
+      <button class="btn" onclick="doScanQr()">Scan / Lookup</button>
+
+      <div id="scan-result" class="result-box" style="display: none">
+        <strong>Appointment Found:</strong><br />
+        <span id="scan-result-text"></span>
+      </div>
+    </div>
+
+    <!-- Step 4: Check-In (pre-screen + docs) -->
+    <div class="panel" id="step-4">
+      <h2>Check-In: Documents &amp; Pre-Screen</h2>
+      <p>
+        Staff verifies documents and completes pre-screen questions before placing customer in
+        queue.
+      </p>
+      <p class="status-note">Uses: <code>checkInToQueue()</code> from queue.ts</p>
+
+      <h3 style="margin: 12px 0 8px; font-size: 14px; color: #718096">Required Documents</h3>
+      <div class="checklist" id="doc-checklist"></div>
+
+      <h3 style="margin: 12px 0 8px; font-size: 14px; color: #718096">Pre-Screen Questions</h3>
+      <div class="checklist">
+        <label
+          ><input type="checkbox" class="check-item" /> Is the vehicle currently registered in
+          Florida?</label
+        >
+        <label
+          ><input type="checkbox" class="check-item" /> Are all parties to the title present or have
+          power of attorney?</label
+        >
+        <label
+          ><input type="checkbox" class="check-item" /> Does the customer have acceptable payment
+          method?</label
+        >
+      </div>
+
+      <button class="btn btn-green" id="checkin-btn" onclick="doCheckIn()" disabled>
+        Place in Queue
+      </button>
+      <p class="status-note">All items must be checked to proceed.</p>
+
+      <div id="checkin-result" class="result-box" style="display: none">
+        <strong>Checked In!</strong><br />
+        Queue Number:
+        <span
+          id="queue-number"
+          class="queue-display"
+          style="display: inline; font-size: 24px"
+        ></span>
+      </div>
+    </div>
+
+    <!-- Step 5: Clerk Queue -->
+    <div class="panel" id="step-5">
+      <h2>Clerk View: Service Queue</h2>
+      <p>Clerk calls the next customer from the queue.</p>
+      <p class="status-note">Uses: <code>assignNextCustomer()</code> from queue.ts</p>
+
+      <div class="result-box">
+        <strong>Current Queue</strong>
+        <ul class="queue-list" id="queue-list">
+          <li>
+            <span>Q-001 — Jane Smith (Title Transfer)</span>
+            <span class="badge badge-waiting">Waiting</span>
+          </li>
+          <li>
+            <span>Q-002 — Bob Jones (Registration)</span>
+            <span class="badge badge-waiting">Waiting</span>
+          </li>
+          <li>
+            <span>Q-003 — Maria Garcia (Property Tax)</span>
+            <span class="badge badge-waiting">Waiting</span>
+          </li>
+        </ul>
+      </div>
+
+      <label>Clerk</label>
+      <select id="clerk-select">
+        <option value="10">Clerk A - Desk 1</option>
+        <option value="11">Clerk B - Desk 2</option>
+        <option value="12">Clerk C - Desk 3</option>
+      </select>
+
+      <button class="btn btn-green" onclick="doSummonNext()">Summon Next Customer</button>
+
+      <div id="summon-result" class="result-box" style="display: none">
+        <strong>Now Serving:</strong><br />
+        <span id="summon-result-text"></span>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script>
+      let currentStep = 0;
+      let state = {
+        slot: { office: "Main Office - Fort Pierce", date: "2025-06-16", time: "09:00:00" },
+        appointmentId: 1042,
+        qrCode: crypto.randomUUID(),
+        queueNumber: null,
+        requiredDocIds: ["original_title", "hsmv_82040", "proof_of_insurance", "photo_id"],
+        uploadedDocIds: [],
+      };
+
+      function goToStep(n) {
+        document.querySelectorAll(".panel").forEach((p, i) => {
+          p.classList.toggle("visible", i === n);
+        });
+        document.querySelectorAll(".steps button").forEach((b, i) => {
+          b.classList.remove("active");
+          if (i < n) b.classList.add("done");
+          if (i === n) b.classList.add("active");
+        });
+        currentStep = n;
+      }
+
+      function doFindAppt() {
+        const result = document.getElementById("find-result");
+        document.getElementById("find-result-text").textContent =
+          `${state.slot.office} — ${state.slot.date} at ${state.slot.time} (1 desk available)`;
+        result.style.display = "block";
+        setTimeout(() => goToStep(1), 1000);
+      }
+
+      function doBookAppt() {
+        document.getElementById("selected-slot").textContent =
+          `${state.slot.office} — ${state.slot.date} at ${state.slot.time}`;
+        document.getElementById("appt-id").textContent = state.appointmentId;
+        document.getElementById("book-result").style.display = "block";
+        setTimeout(() => {
+          document.getElementById("qr-appt-id").textContent = state.appointmentId;
+          document.getElementById("qr-code-value").textContent = state.qrCode;
+          QRCode.toCanvas(document.getElementById("qr-canvas"), state.qrCode, {
+            errorCorrectionLevel: "M",
+            width: 200,
+          });
+          goToStep(2);
+        }, 1000);
+      }
+
+      function doScanQr() {
+        document.getElementById("scan-input").value = state.qrCode;
+        const result = document.getElementById("scan-result");
+        document.getElementById("scan-result-text").innerHTML =
+          `Appt #${state.appointmentId}<br>` +
+          `Customer: Jane Smith<br>` +
+          `Office: ${state.slot.office}<br>` +
+          `Date/Time: ${state.slot.date} ${state.slot.time}<br>` +
+          `Transaction: Title Transfer<br>` +
+          `Status: <strong>scheduled</strong>`;
+        result.style.display = "block";
+        setTimeout(() => {
+          renderDocChecklist();
+          goToStep(4);
+        }, 1500);
+      }
+
+      function renderDocChecklist() {
+        const el = document.getElementById("doc-checklist");
+        el.innerHTML = state.requiredDocIds
+          .map(
+            (id) =>
+              `<label><input type="checkbox" class="check-item"> ${id.replace(/_/g, " ")}</label>`,
+          )
+          .join("");
+      }
+
+      // Enable check-in button only when all checkboxes are checked
+      document.addEventListener("change", function (e) {
+        if (e.target.classList.contains("check-item")) {
+          const all = document.querySelectorAll(".check-item");
+          const allChecked = Array.from(all).every((cb) => cb.checked);
+          document.getElementById("checkin-btn").disabled = !allChecked;
+        }
+      });
+
+      function doCheckIn() {
+        state.queueNumber = 1;
+        document.getElementById("queue-number").textContent = `Q-001`;
+        document.getElementById("checkin-result").style.display = "block";
+        setTimeout(() => goToStep(5), 1500);
+      }
+
+      function doSummonNext() {
+        const list = document.getElementById("queue-list");
+        const first = list.querySelector("li");
+        if (first) {
+          first.querySelector(".badge").textContent = "Serving";
+          first.querySelector(".badge").className = "badge badge-serving";
+        }
+        const clerk = document.getElementById("clerk-select");
+        const clerkName = clerk.options[clerk.selectedIndex].text;
+        document.getElementById("summon-result-text").innerHTML =
+          `<strong>Q-001 — Jane Smith</strong><br>` +
+          `Assigned to: ${clerkName}<br>` +
+          `Transaction: Title Transfer`;
+        document.getElementById("summon-result").style.display = "block";
+      }
+
+      // Pre-fill scan input
+      document.getElementById("scan-input").value = state.qrCode;
+    </script>
+  </body>
+</html>

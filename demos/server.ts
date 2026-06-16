@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { pool, withTenant } from "./db.js";
+import { withTenant } from "./db.js";
 import { findAppointment } from "../src/find-appt.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,8 +68,8 @@ app.get("/api/config", async (_req, res) => {
       };
     });
     res.json(data);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -81,9 +81,7 @@ app.get("/api/schedule/appointments", async (req, res) => {
     const endDate = req.query.endDate as string;
 
     if (isNaN(officeId) || !startDate || !endDate) {
-      return res
-        .status(400)
-        .json({ error: "officeId, startDate, endDate required" });
+      return res.status(400).json({ error: "officeId, startDate, endDate required" });
     }
 
     const rows = await withTenant(async (client) => {
@@ -104,8 +102,8 @@ app.get("/api/schedule/appointments", async (req, res) => {
       return result.rows;
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -115,9 +113,7 @@ app.post("/api/schedule/reschedule", async (req, res) => {
     const { appointmentId, newDate, newTime, force } = req.body;
 
     if (!appointmentId || !newDate || !newTime) {
-      return res
-        .status(400)
-        .json({ error: "appointmentId, newDate, newTime required" });
+      return res.status(400).json({ error: "appointmentId, newDate, newTime required" });
     }
 
     const result = await withTenant(async (client) => {
@@ -140,10 +136,9 @@ app.post("/api/schedule/reschedule", async (req, res) => {
       const duration = durRes.rows[0]?.duration || 0;
 
       // Temporarily hide this appointment to check capacity at new slot
-      await client.query(
-        `UPDATE appointments SET status = 'cancelled' WHERE id = $1`,
-        [appointmentId],
-      );
+      await client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
+        appointmentId,
+      ]);
 
       if (!force) {
         const capRes = await client.query(
@@ -153,10 +148,9 @@ app.post("/api/schedule/reschedule", async (req, res) => {
         const available = capRes.rows[0]?.available || 0;
 
         if (available <= 0) {
-          await client.query(
-            `UPDATE appointments SET status = 'scheduled' WHERE id = $1`,
-            [appointmentId],
-          );
+          await client.query(`UPDATE appointments SET status = 'scheduled' WHERE id = $1`, [
+            appointmentId,
+          ]);
           return { success: false, error: "capacity_exceeded" };
         }
       }
@@ -171,8 +165,8 @@ app.post("/api/schedule/reschedule", async (req, res) => {
     });
 
     res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -180,8 +174,7 @@ app.post("/api/schedule/reschedule", async (req, res) => {
 app.get("/api/appointments/:officeId", async (req, res) => {
   try {
     const officeId = parseInt(req.params.officeId);
-    if (isNaN(officeId))
-      return res.status(400).json({ error: "Invalid officeId" });
+    if (isNaN(officeId)) return res.status(400).json({ error: "Invalid officeId" });
     const rows = await withTenant(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.appointment_time::text AS start_time, a.txn_type_ids,
@@ -200,25 +193,22 @@ app.get("/api/appointments/:officeId", async (req, res) => {
       return result.rows;
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
 // ─── POST /api/find-appointment ─────────────────────────────────────────────
 app.post("/api/find-appointment", async (req, res) => {
   try {
-    const { targetSkills, asap, preferredOffice, preferredDow, preferredTime } =
-      req.body;
+    const { targetSkills, asap, preferredOffice, preferredDow, preferredTime } = req.body;
 
     if (
       !Array.isArray(targetSkills) ||
       targetSkills.length === 0 ||
       !targetSkills.every((s: unknown) => Number.isInteger(s))
     ) {
-      return res
-        .status(400)
-        .json({ error: "targetSkills must be a non-empty array of integers" });
+      return res.status(400).json({ error: "targetSkills must be a non-empty array of integers" });
     }
 
     const result = await withTenant(async (client) => {
@@ -240,8 +230,8 @@ app.post("/api/find-appointment", async (req, res) => {
     } else {
       res.json({ success: false });
     }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -293,13 +283,14 @@ app.post("/api/book-appointment", async (req, res) => {
     });
 
     res.json({ success: true, appointmentId: result });
-  } catch (err: any) {
-    if (err.message?.includes("capacity_exceeded")) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("capacity_exceeded")) {
       res.json({ success: false, error: "capacity_exceeded" });
-    } else if (err.message?.includes("office_closed")) {
+    } else if (msg.includes("office_closed")) {
       res.json({ success: false, error: "office_closed" });
     } else {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: msg });
     }
   }
 });
@@ -324,20 +315,16 @@ app.post("/api/demo/reset", async (req, res) => {
       }
 
       if (runRatePct != null) {
-        await client.query(
-          `UPDATE offices SET run_rate_pct = $1 WHERE county_id = 'stlucie'`,
-          [runRatePct],
-        );
+        await client.query(`UPDATE offices SET run_rate_pct = $1 WHERE county_id = 'stlucie'`, [
+          runRatePct,
+        ]);
       }
 
       if (clerkCount != null) {
-        await client.query(
-          `UPDATE offices SET total_desks = $1 WHERE county_id = 'stlucie'`,
-          [clerkCount],
-        );
-        await client.query(
-          `UPDATE clerks SET status = 'inactive' WHERE county_id = 'stlucie'`,
-        );
+        await client.query(`UPDATE offices SET total_desks = $1 WHERE county_id = 'stlucie'`, [
+          clerkCount,
+        ]);
+        await client.query(`UPDATE clerks SET status = 'inactive' WHERE county_id = 'stlucie'`);
         await client.query(
           `DELETE FROM clerk_schedules WHERE county_id = 'stlucie' AND schedule_date = $1`,
           [DEMO_DATE],
@@ -349,7 +336,7 @@ app.post("/api/demo/reset", async (req, res) => {
         const txnRes = await client.query(
           `SELECT id FROM transaction_types WHERE county_id = 'stlucie' AND office_id IS NULL AND status = 'active' ORDER BY id`,
         );
-        const txnIds = txnRes.rows.map((r: any) => r.id);
+        const txnIds = txnRes.rows.map((r: { id: number }) => r.id);
         const crossTrainPct = (crossTrain ?? 100) / 100;
 
         const lunchRes = await client.query(
@@ -369,10 +356,7 @@ app.post("/api/demo/reset", async (req, res) => {
             if (crossTrainPct >= 1 || txnIds.length <= 1) {
               skills = [...txnIds];
             } else {
-              const numSkills = Math.max(
-                1,
-                Math.round(txnIds.length * crossTrainPct),
-              );
+              const numSkills = Math.max(1, Math.round(txnIds.length * crossTrainPct));
               const shuffled = [...txnIds];
               for (let j = shuffled.length - 1; j > 0; j--) {
                 const k = (i * 7 + j * 13 + office.id * 3) % (j + 1);
@@ -382,9 +366,7 @@ app.post("/api/demo/reset", async (req, res) => {
             }
 
             const lunchShiftId =
-              officeLunches.length > 0
-                ? officeLunches[i % officeLunches.length]
-                : null;
+              officeLunches.length > 0 ? officeLunches[i % officeLunches.length] : null;
 
             await client.query(
               `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
@@ -417,8 +399,8 @@ app.post("/api/demo/reset", async (req, res) => {
     });
 
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -433,14 +415,14 @@ app.post("/api/queue/reset", async (req, res) => {
   try {
     const officeId = parseInt(req.body.officeId as string) || 1;
     await withTenant(async (client) => {
-      await client.query(
-        `DELETE FROM queue WHERE county_id = $1 AND office_id = $2`,
-        [COUNTY_ID, officeId],
-      );
-      await client.query(
-        `DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`,
-        [COUNTY_ID, officeId],
-      );
+      await client.query(`DELETE FROM queue WHERE county_id = $1 AND office_id = $2`, [
+        COUNTY_ID,
+        officeId,
+      ]);
+      await client.query(`DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`, [
+        COUNTY_ID,
+        officeId,
+      ]);
       // Log in clerks at desks 1-3
       const clerks = await client.query(
         `SELECT id FROM clerks WHERE county_id = $1 AND $2 = ANY(office_ids) AND status = 'active' ORDER BY id LIMIT 3`,
@@ -455,8 +437,8 @@ app.post("/api/queue/reset", async (req, res) => {
       }
     });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -477,8 +459,8 @@ app.get("/api/queue/appointments", async (req, res) => {
         [COUNTY_ID, officeId, DEMO_DATE],
       );
 
-      const apptIds = result.rows.map((r: any) => r.id);
-      let docsByAppt: Record<number, any[]> = {};
+      const apptIds = result.rows.map((r: { id: number }) => r.id);
+      const docsByAppt: Record<number, Record<string, unknown>[]> = {};
       if (apptIds.length > 0) {
         const docsResult = await client.query(
           `SELECT appointment_id, doc_id, name, ai_review_status
@@ -488,18 +470,18 @@ app.get("/api/queue/appointments", async (req, res) => {
           [COUNTY_ID, apptIds],
         );
         for (const doc of docsResult.rows) {
-          (docsByAppt[doc.appointment_id] ??= []).push(doc);
+          (docsByAppt[doc.appointment_id as number] ??= []).push(doc);
         }
       }
 
-      return result.rows.map((a: any) => ({
+      return result.rows.map((a: { id: number } & Record<string, unknown>) => ({
         ...a,
         uploaded_docs: docsByAppt[a.id] || [],
       }));
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -514,8 +496,8 @@ app.get("/api/queue/doc-registry", async (_req, res) => {
       return result.rows;
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -531,8 +513,8 @@ app.post("/api/queue/upload-doc", async (req, res) => {
       );
     });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -550,8 +532,8 @@ app.get("/api/queue/documents", async (req, res) => {
       return result.rows;
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -566,8 +548,8 @@ app.post("/api/queue/mark-prescreen", async (req, res) => {
       );
     });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -578,24 +560,20 @@ app.post("/api/queue/check-in", async (req, res) => {
     const oid = parseInt(officeId) || 1;
     const result = await withTenant(async (client) => {
       if (makePriority) {
-        await client.query(
-          `UPDATE appointments SET is_priority = TRUE WHERE id = $1`,
-          [appointmentId],
-        );
+        await client.query(`UPDATE appointments SET is_priority = TRUE WHERE id = $1`, [
+          appointmentId,
+        ]);
       }
-      const { rows } = await client.query(
-        `SELECT check_in_to_queue($1, $2, $3) AS id`,
-        [COUNTY_ID, oid, appointmentId],
-      );
+      const { rows } = await client.query(`SELECT check_in_to_queue($1, $2, $3) AS id`, [
+        COUNTY_ID,
+        oid,
+        appointmentId,
+      ]);
       const queueId = rows[0].id;
-      const qRow = await client.query(
-        `SELECT queue_number FROM queue WHERE id = $1`,
-        [queueId],
-      );
-      const apptRow = await client.query(
-        `SELECT is_priority FROM appointments WHERE id = $1`,
-        [appointmentId],
-      );
+      const qRow = await client.query(`SELECT queue_number FROM queue WHERE id = $1`, [queueId]);
+      const apptRow = await client.query(`SELECT is_priority FROM appointments WHERE id = $1`, [
+        appointmentId,
+      ]);
       return {
         queueId,
         queueNumber: qRow.rows[0].queue_number,
@@ -603,8 +581,8 @@ app.post("/api/queue/check-in", async (req, res) => {
       };
     });
     res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -635,8 +613,8 @@ app.get("/api/queue/state", async (req, res) => {
       return { queue: queue.rows, clerks: clerks.rows };
     });
     res.json(data);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -646,10 +624,11 @@ app.post("/api/queue/assign", async (req, res) => {
     const { clerkId, officeId } = req.body;
     const oid = parseInt(officeId) || 1;
     const result = await withTenant(async (client) => {
-      const { rows } = await client.query(
-        `SELECT assign_next_customer($1, $2, $3) AS queue_id`,
-        [COUNTY_ID, oid, clerkId],
-      );
+      const { rows } = await client.query(`SELECT assign_next_customer($1, $2, $3) AS queue_id`, [
+        COUNTY_ID,
+        oid,
+        clerkId,
+      ]);
       const queueId = rows[0].queue_id;
       if (queueId === null) return null;
       const qRow = await client.query(
@@ -662,8 +641,8 @@ app.post("/api/queue/assign", async (req, res) => {
       return { queueId, ...qRow.rows[0] };
     });
     res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -673,10 +652,9 @@ app.post("/api/queue/complete", async (req, res) => {
     const { queueId, officeId } = req.body;
     const oid = parseInt(officeId) || 1;
     await withTenant(async (client) => {
-      const qRow = await client.query(
-        `SELECT assigned_clerk_id FROM queue WHERE id = $1`,
-        [queueId],
-      );
+      const qRow = await client.query(`SELECT assigned_clerk_id FROM queue WHERE id = $1`, [
+        queueId,
+      ]);
       const clerkId = qRow.rows[0]?.assigned_clerk_id;
       await client.query(`UPDATE queue SET status = 'done' WHERE id = $1`, [queueId]);
       if (clerkId) {
@@ -688,8 +666,8 @@ app.post("/api/queue/complete", async (req, res) => {
       }
     });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -704,8 +682,8 @@ app.get("/api/queue/txn-types", async (_req, res) => {
       return result.rows;
     });
     res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
