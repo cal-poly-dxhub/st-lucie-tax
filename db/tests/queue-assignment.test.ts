@@ -1,5 +1,7 @@
-import { describe, expect, test, beforeEach } from "vitest";
+import { describe, expect, test, beforeEach, afterAll, beforeAll } from "vitest";
 import { useDb } from "./helpers/fixture.js";
+import { connect } from "./helpers/client.js";
+import { Client } from "pg";
 
 const db = useDb();
 
@@ -185,5 +187,55 @@ describe("assign_next_customer — skill-matched FIFO", () => {
 
     const jamesResult = await summonNext(db.client, JAMES);
     expect(jamesResult).not.toBeNull();
+  });
+});
+
+describe("check_in_to_queue — concurrent queue numbers", () => {
+  const clients: Client[] = [];
+
+  beforeAll(async () => {
+    for (let i = 0; i < 10; i++) {
+      clients.push(await connect());
+    }
+  });
+
+  afterAll(async () => {
+    await Promise.all(clients.map((c) => c.end()));
+  });
+
+  test("10 concurrent check-ins produce unique numbers 1–10", async () => {
+    const setup = clients[0];
+
+    const appointmentIds: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const { rows } = await setup.query(
+        `INSERT INTO appointments (
+          office_id, first_name, last_name,
+          contact_email, contact_phone, txn_type_ids,
+          appointment_date, appointment_time, status, is_walk_in, is_priority
+        ) VALUES ($1, 'Concurrent', 'User', 'c@test.com', '555-0000', $2,
+                  CURRENT_DATE, '09:00', 'scheduled', FALSE, FALSE)
+        RETURNING id`,
+        [OFFICE, [ID_CARD]],
+      );
+      appointmentIds.push(rows[0].id);
+    }
+
+    const results = await Promise.all(
+      appointmentIds.map((apptId, i) =>
+        clients[i].query(`SELECT check_in_to_queue($1, $2) AS id`, [OFFICE, apptId]),
+      ),
+    );
+
+    const queueIds = results.map((r) => r.rows[0].id as number);
+
+    const { rows } = await setup.query(
+      `SELECT queue_number FROM queue WHERE id = ANY($1) ORDER BY queue_number`,
+      [queueIds],
+    );
+
+    const numbers = rows.map((r) => r.queue_number as number);
+    expect(numbers).toHaveLength(10);
+    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 });
