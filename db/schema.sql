@@ -113,7 +113,6 @@ CREATE TABLE appointments (
     contact_email   TEXT NOT NULL,
     contact_phone   TEXT NOT NULL,
     can_send_sms    BOOLEAN NOT NULL DEFAULT FALSE,
-    requested_clerk_id INT REFERENCES clerks(id),
     txn_type_ids    INT[] NOT NULL,
     required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
@@ -166,6 +165,7 @@ CREATE TABLE queue (
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
+    appointment_id  INT REFERENCES appointments(id),
     duration_min    INT NOT NULL CHECK (duration_min >= 0),
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -397,19 +397,25 @@ CREATE OR REPLACE FUNCTION book_appointment(
   p_is_priority      BOOLEAN DEFAULT FALSE,
   p_prescreen_completed BOOLEAN DEFAULT FALSE,
   p_prescreen_responses JSONB DEFAULT '{}',
-  p_now_ts           TIMESTAMP DEFAULT NOW()
+  p_now_ts           TIMESTAMP DEFAULT NULL
 ) RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
   v_slot_start  TIMESTAMP := (p_date + p_time)::timestamp;
+  v_now_local   TIMESTAMP;
   v_duration    INT;
   v_slot_end    TIMESTAMP;
   v_close_time  TIME;
   v_open_time   TIME;
   v_appt_id     INT;
 BEGIN
-  IF v_slot_start <= p_now_ts THEN
+  -- "Now" in the office's local zone, so it compares against naive local slot times.
+  -- Callers may pass p_now_ts (already local) for deterministic tests.
+  v_now_local := COALESCE(p_now_ts,
+    (now() AT TIME ZONE (SELECT timezone FROM config)));
+
+  IF v_slot_start <= v_now_local THEN
     RAISE EXCEPTION 'slot_in_past' USING ERRCODE = 'P0004';
   END IF;
 
@@ -499,13 +505,15 @@ CREATE OR REPLACE FUNCTION register_walk_in(
   p_contact_email    TEXT,
   p_contact_phone    TEXT,
   p_is_priority      BOOLEAN DEFAULT FALSE,
-  p_now_ts           TIMESTAMP DEFAULT NOW()
+  p_now_ts           TIMESTAMP DEFAULT NULL
 ) RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_date        DATE := p_now_ts::date;
-  v_time        TIME := p_now_ts::time;
+  v_now_local   TIMESTAMP := COALESCE(p_now_ts,
+                  (now() AT TIME ZONE (SELECT timezone FROM config)));
+  v_date        DATE := v_now_local::date;
+  v_time        TIME := v_now_local::time;
   v_duration    INT;
   v_slot_end    TIMESTAMP;
   v_close_time  TIME;
