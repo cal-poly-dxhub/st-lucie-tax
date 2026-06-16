@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 
 export interface BookApptInput {
   countyId: string;
@@ -37,7 +37,7 @@ const PG_ERROR_MAP: Record<string, BookApptError> = {
 };
 
 export async function bookAppointment(
-  db: Pool | PoolClient,
+  db: Queryable,
   input: BookApptInput,
 ): Promise<BookApptResult> {
   try {

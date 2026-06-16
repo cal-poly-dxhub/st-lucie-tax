@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 
 export interface CompleteAppointmentInput {
   countyId: string;
@@ -9,7 +9,7 @@ export interface CompleteAppointmentInput {
 }
 
 export async function completeAppointment(
-  db: Pool | PoolClient,
+  db: Queryable,
   input: CompleteAppointmentInput,
 ): Promise<void> {
   const { countyId, officeId, queueId, clerkId, durationMin } = input;

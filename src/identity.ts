@@ -1,7 +1,7 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 
 export async function setIdentityVerified(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   appointmentId: number,
 ): Promise<void> {

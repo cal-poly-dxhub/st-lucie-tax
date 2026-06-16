@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 
 export interface UploadDocInput {
@@ -18,7 +18,7 @@ export interface UploadDocResult {
 }
 
 export async function uploadDocument(
-  db: Pool | PoolClient,
+  db: Queryable,
   input: UploadDocInput,
 ): Promise<UploadDocResult> {
   const s3Key = await uploadToS3(
@@ -67,7 +67,7 @@ export interface DocStatus {
 }
 
 export async function getRequiredDocsStatus(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   appointmentId: number,
 ): Promise<DocStatus[]> {

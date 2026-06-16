@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import type { Client } from "pg";
-import { connect } from "./client.ts";
+import { connect } from "./client.js";
 
 const TENANT = "stlucie";
 
