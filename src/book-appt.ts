@@ -64,10 +64,7 @@ export async function bookAppointment(
     );
     return { ok: true, appointmentId: res.rows[0].book_appointment };
   } catch (err: unknown) {
-    const code =
-      err instanceof Error && "code" in err
-        ? (err as { code: string }).code
-        : null;
+    const code = err instanceof Error && "code" in err ? (err as { code: string }).code : null;
     const mapped = code ? PG_ERROR_MAP[code] : undefined;
     if (mapped) return { ok: false, error: mapped };
     throw err;

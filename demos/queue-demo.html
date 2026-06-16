@@ -1,678 +1,856 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>St. Lucie Tax — Queue Simulation</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: #ffffff;
-    color: #383838;
-    line-height: 1.4;
-  }
-  header {
-    background: #12639d;
-    color: #ffffff;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  header h1 { font-size: 20px; font-weight: 700; }
-  header .subtitle { font-size: 14px; opacity: 0.85; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>St. Lucie Tax — Queue Simulation</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: #ffffff;
+        color: #383838;
+        line-height: 1.4;
+      }
+      header {
+        background: #12639d;
+        color: #ffffff;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header h1 {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      header .subtitle {
+        font-size: 14px;
+        opacity: 0.85;
+      }
 
-  .layout {
-    display: grid;
-    grid-template-columns: 320px 1fr 320px;
-    gap: 0;
-    min-height: calc(100vh - 56px);
-  }
+      .layout {
+        display: grid;
+        grid-template-columns: 320px 1fr 320px;
+        gap: 0;
+        min-height: calc(100vh - 56px);
+      }
 
-  .panel {
-    border-right: 1px solid #e0e0e0;
-    padding: 16px;
-    overflow-y: auto;
-    max-height: calc(100vh - 56px);
-  }
-  .panel:last-child { border-right: none; }
-  .panel-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #12639d;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #12639d;
-  }
+      .panel {
+        border-right: 1px solid #e0e0e0;
+        padding: 16px;
+        overflow-y: auto;
+        max-height: calc(100vh - 56px);
+      }
+      .panel:last-child {
+        border-right: none;
+      }
+      .panel-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #12639d;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #12639d;
+      }
 
-  /* Appointments list */
-  .appt-card {
-    background: #f6f6f3;
-    border: 1px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .appt-card:hover { border-color: #12639d; }
-  .appt-card.checked-in { opacity: 0.5; pointer-events: none; }
-  .appt-card .name { font-weight: 700; font-size: 14px; }
-  .appt-card .meta { font-size: 12px; color: #434343; margin-top: 4px; }
-  .appt-card .qr { font-size: 11px; color: #999999; font-family: monospace; }
-  .appt-card .priority-badge {
-    display: inline-block;
-    background: #f6d146;
-    color: #222222;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 2px;
-    margin-left: 6px;
-  }
-  .appt-card .docs-status {
-    margin-top: 6px;
-    font-size: 11px;
-  }
-  .appt-card .docs-status .doc-ok { color: #409d39; }
-  .appt-card .docs-status .doc-missing { color: #cc6600; }
-  .appt-card .docs-status .doc-pending { color: #999999; }
-  .appt-card .prescreen-status { font-size: 11px; margin-top: 2px; }
-  .appt-card .prescreen-status .ps-done { color: #409d39; }
-  .appt-card .prescreen-status .ps-pending { color: #cc6600; }
-  .appt-card .qr-img { margin-top: 6px; }
-  .appt-card .qr-img canvas { border: 1px solid #e0e0e0; }
+      /* Appointments list */
+      .appt-card {
+        background: #f6f6f3;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      .appt-card:hover {
+        border-color: #12639d;
+      }
+      .appt-card.checked-in {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .appt-card .name {
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .appt-card .meta {
+        font-size: 12px;
+        color: #434343;
+        margin-top: 4px;
+      }
+      .appt-card .qr {
+        font-size: 11px;
+        color: #999999;
+        font-family: monospace;
+      }
+      .appt-card .priority-badge {
+        display: inline-block;
+        background: #f6d146;
+        color: #222222;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 2px;
+        margin-left: 6px;
+      }
+      .appt-card .docs-status {
+        margin-top: 6px;
+        font-size: 11px;
+      }
+      .appt-card .docs-status .doc-ok {
+        color: #409d39;
+      }
+      .appt-card .docs-status .doc-missing {
+        color: #cc6600;
+      }
+      .appt-card .docs-status .doc-pending {
+        color: #999999;
+      }
+      .appt-card .prescreen-status {
+        font-size: 11px;
+        margin-top: 2px;
+      }
+      .appt-card .prescreen-status .ps-done {
+        color: #409d39;
+      }
+      .appt-card .prescreen-status .ps-pending {
+        color: #cc6600;
+      }
+      .appt-card .qr-img {
+        margin-top: 6px;
+      }
+      .appt-card .qr-img canvas {
+        border: 1px solid #e0e0e0;
+      }
 
-  /* Middle panel: Queue + Desks */
-  .middle { padding: 16px 24px; }
+      /* Middle panel: Queue + Desks */
+      .middle {
+        padding: 16px 24px;
+      }
 
-  /* Clerk desks */
-  .desks-area {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .desk {
-    background: #ffffff;
-    border: 2px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 16px;
-    text-align: center;
-    min-height: 140px;
-    position: relative;
-    transition: border-color 0.3s, background 0.3s;
-  }
-  .desk.available { border-color: #009235; background: #f0fdf4; }
-  .desk.busy { border-color: #12639d; background: #dae4f0; }
-  .desk .desk-num {
-    font-size: 24px;
-    font-weight: 700;
-    color: #12639d;
-  }
-  .desk .clerk-name {
-    font-size: 13px;
-    color: #434343;
-    margin-top: 4px;
-  }
-  .desk .serving-info {
-    margin-top: 10px;
-    font-size: 13px;
-    font-weight: 700;
-  }
-  .desk .skills {
-    font-size: 11px;
-    color: #999999;
-    margin-top: 4px;
-  }
-  .desk .action-btn {
-    margin-top: 10px;
-  }
+      /* Clerk desks */
+      .desks-area {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .desk {
+        background: #ffffff;
+        border: 2px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 16px;
+        text-align: center;
+        min-height: 140px;
+        position: relative;
+        transition:
+          border-color 0.3s,
+          background 0.3s;
+      }
+      .desk.available {
+        border-color: #009235;
+        background: #f0fdf4;
+      }
+      .desk.busy {
+        border-color: #12639d;
+        background: #dae4f0;
+      }
+      .desk .desk-num {
+        font-size: 24px;
+        font-weight: 700;
+        color: #12639d;
+      }
+      .desk .clerk-name {
+        font-size: 13px;
+        color: #434343;
+        margin-top: 4px;
+      }
+      .desk .serving-info {
+        margin-top: 10px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .desk .skills {
+        font-size: 11px;
+        color: #999999;
+        margin-top: 4px;
+      }
+      .desk .action-btn {
+        margin-top: 10px;
+      }
 
-  /* Queue display */
-  .queue-section { margin-top: 16px; }
-  .queue-header {
-    font-size: 14px;
-    font-weight: 700;
-    color: #222222;
-    margin-bottom: 8px;
-  }
-  .queue-lanes {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  .queue-lane {
-    border: 1px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 12px;
-    min-height: 100px;
-  }
-  .queue-lane.priority { border-color: #f6d146; background: #fffde6; }
-  .queue-lane.normal { border-color: #e0e0e0; background: #f6f6f3; }
-  .queue-lane-title {
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-  .queue-lane.priority .queue-lane-title { color: #b8860b; }
-  .queue-lane.normal .queue-lane-title { color: #434343; }
+      /* Queue display */
+      .queue-section {
+        margin-top: 16px;
+      }
+      .queue-header {
+        font-size: 14px;
+        font-weight: 700;
+        color: #222222;
+        margin-bottom: 8px;
+      }
+      .queue-lanes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .queue-lane {
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 12px;
+        min-height: 100px;
+      }
+      .queue-lane.priority {
+        border-color: #f6d146;
+        background: #fffde6;
+      }
+      .queue-lane.normal {
+        border-color: #e0e0e0;
+        background: #f6f6f3;
+      }
+      .queue-lane-title {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .queue-lane.priority .queue-lane-title {
+        color: #b8860b;
+      }
+      .queue-lane.normal .queue-lane-title {
+        color: #434343;
+      }
 
-  .queue-entry {
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    animation: slideIn 0.3s ease;
-  }
-  .queue-entry .q-num {
-    background: #12639d;
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 12px;
-    width: 28px;
-    height: 28px;
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .queue-entry.serving { border-color: #009235; background: #f0fdf4; }
-  .queue-entry.done { opacity: 0.4; text-decoration: line-through; }
+      .queue-entry {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: slideIn 0.3s ease;
+      }
+      .queue-entry .q-num {
+        background: #12639d;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 12px;
+        width: 28px;
+        height: 28px;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .queue-entry.serving {
+        border-color: #009235;
+        background: #f0fdf4;
+      }
+      .queue-entry.done {
+        opacity: 0.4;
+        text-decoration: line-through;
+      }
 
-  /* Check-in panel (right) */
-  .checkin-panel { background: #f6f6f3; }
-  .scan-area {
-    background: #ffffff;
-    border: 2px dashed #12639d;
-    border-radius: 2px;
-    padding: 24px;
-    text-align: center;
-    margin-bottom: 16px;
-  }
-  .scan-area .icon {
-    font-size: 48px;
-    margin-bottom: 8px;
-  }
-  .scan-area p { font-size: 13px; color: #434343; }
-  .scan-result {
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 12px;
-    margin-top: 12px;
-    display: none;
-  }
-  .scan-result.visible { display: block; }
-  .scan-result .sr-name { font-weight: 700; font-size: 14px; }
-  .scan-result .sr-meta { font-size: 12px; color: #434343; margin-top: 4px; }
-  .scan-result .sr-docs { margin-top: 8px; }
+      /* Check-in panel (right) */
+      .checkin-panel {
+        background: #f6f6f3;
+      }
+      .scan-area {
+        background: #ffffff;
+        border: 2px dashed #12639d;
+        border-radius: 2px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+      .scan-area .icon {
+        font-size: 48px;
+        margin-bottom: 8px;
+      }
+      .scan-area p {
+        font-size: 13px;
+        color: #434343;
+      }
+      .scan-result {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 12px;
+        margin-top: 12px;
+        display: none;
+      }
+      .scan-result.visible {
+        display: block;
+      }
+      .scan-result .sr-name {
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .scan-result .sr-meta {
+        font-size: 12px;
+        color: #434343;
+        margin-top: 4px;
+      }
+      .scan-result .sr-docs {
+        margin-top: 8px;
+      }
 
-  .doc-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    padding: 4px 0;
-  }
-  .doc-item .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .doc-item .dot.ok { background: #409d39; }
-  .doc-item .dot.pending { background: #999999; }
-  .doc-item .dot.reject { background: #f00000; }
+      .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 4px 0;
+      }
+      .doc-item .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .doc-item .dot.ok {
+        background: #409d39;
+      }
+      .doc-item .dot.pending {
+        background: #999999;
+      }
+      .doc-item .dot.reject {
+        background: #f00000;
+      }
 
-  /* Buttons */
-  .btn {
-    display: inline-block;
-    background: #009235;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 400;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 0 24px;
-    line-height: 36px;
-    border: none;
-    border-radius: 2px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn:hover { background: #00b140; }
-  .btn:disabled { background: #999999; cursor: not-allowed; }
-  .btn-sm {
-    font-size: 11px;
-    padding: 0 12px;
-    line-height: 28px;
-  }
-  .btn-blue {
-    background: #12639d;
-  }
-  .btn-blue:hover { background: #004a93; }
+      /* Buttons */
+      .btn {
+        display: inline-block;
+        background: #009235;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 0 24px;
+        line-height: 36px;
+        border: none;
+        border-radius: 2px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .btn:hover {
+        background: #00b140;
+      }
+      .btn:disabled {
+        background: #999999;
+        cursor: not-allowed;
+      }
+      .btn-sm {
+        font-size: 11px;
+        padding: 0 12px;
+        line-height: 28px;
+      }
+      .btn-blue {
+        background: #12639d;
+      }
+      .btn-blue:hover {
+        background: #004a93;
+      }
 
-  .btn-upload {
-    background: #12639d;
-    margin-top: 8px;
-  }
+      .btn-upload {
+        background: #12639d;
+        margin-top: 8px;
+      }
 
-  /* Activity log */
-  .log {
-    margin-top: 16px;
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1px solid #e0e0e0;
-    border-radius: 2px;
-    padding: 8px;
-    background: #ffffff;
-  }
-  .log-entry {
-    font-size: 11px;
-    color: #434343;
-    padding: 3px 0;
-    border-bottom: 1px solid #efefef;
-  }
-  .log-entry:last-child { border-bottom: none; }
-  .log-entry .ts { color: #999999; margin-right: 6px; }
+      /* Activity log */
+      .log {
+        margin-top: 16px;
+        max-height: 180px;
+        overflow-y: auto;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 8px;
+        background: #ffffff;
+      }
+      .log-entry {
+        font-size: 11px;
+        color: #434343;
+        padding: 3px 0;
+        border-bottom: 1px solid #efefef;
+      }
+      .log-entry:last-child {
+        border-bottom: none;
+      }
+      .log-entry .ts {
+        color: #999999;
+        margin-right: 6px;
+      }
 
-  /* Reset button */
-  .toolbar {
-    padding: 8px 24px;
-    background: #e9eef3;
-    border-top: 3px solid #12639d;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-  .toolbar label { font-size: 13px; }
+      /* Reset button */
+      .toolbar {
+        padding: 8px 24px;
+        background: #e9eef3;
+        border-top: 3px solid #12639d;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .toolbar label {
+        font-size: 13px;
+      }
 
-  @keyframes slideIn {
-    from { transform: translateX(-10px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(0,146,53,0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(0,146,53,0); }
-  }
-  .desk.available { animation: pulse 2s infinite; }
-</style>
-</head>
-<body>
+      @keyframes slideIn {
+        from {
+          transform: translateX(-10px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(0, 146, 53, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(0, 146, 53, 0);
+        }
+      }
+      .desk.available {
+        animation: pulse 2s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Queue Management Simulation</h1>
+        <div class="subtitle">St. Lucie County Tax Collector — Fort Pierce Office</div>
+      </div>
+    </header>
 
-<header>
-  <div>
-    <h1>Queue Management Simulation</h1>
-    <div class="subtitle">St. Lucie County Tax Collector — Fort Pierce Office</div>
-  </div>
-</header>
+    <div class="toolbar">
+      <button class="btn btn-sm btn-blue" onclick="resetDemo()">RESET DEMO</button>
+      <label
+        >Office:
+        <select id="officeSelect" onchange="resetDemo()">
+          <option value="1">Fort Pierce</option>
+          <option value="2">St. Lucie West</option>
+        </select>
+      </label>
+      <span style="font-size: 12px; color: #434343"
+        >Click an appointment to simulate QR scan → Check In → Queue → Assign to Desk</span
+      >
+    </div>
 
-<div class="toolbar">
-  <button class="btn btn-sm btn-blue" onclick="resetDemo()">RESET DEMO</button>
-  <label>Office:
-    <select id="officeSelect" onchange="resetDemo()">
-      <option value="1">Fort Pierce</option>
-      <option value="2">St. Lucie West</option>
-    </select>
-  </label>
-  <span style="font-size:12px;color:#434343;">Click an appointment to simulate QR scan → Check In → Queue → Assign to Desk</span>
-</div>
+    <div class="layout">
+      <!-- LEFT: Scheduled Appointments -->
+      <div class="panel">
+        <div class="panel-title">Scheduled Appointments</div>
+        <div id="apptList"></div>
+      </div>
 
-<div class="layout">
-  <!-- LEFT: Scheduled Appointments -->
-  <div class="panel">
-    <div class="panel-title">Scheduled Appointments</div>
-    <div id="apptList"></div>
-  </div>
+      <!-- MIDDLE: Desks + Queue -->
+      <div class="panel middle">
+        <div class="panel-title">Clerk Desks</div>
+        <div class="desks-area" id="desksArea"></div>
 
-  <!-- MIDDLE: Desks + Queue -->
-  <div class="panel middle">
-    <div class="panel-title">Clerk Desks</div>
-    <div class="desks-area" id="desksArea"></div>
-
-    <div class="queue-section">
-      <div class="queue-header">Queue</div>
-      <div class="queue-lanes">
-        <div class="queue-lane priority">
-          <div class="queue-lane-title">Priority</div>
-          <div id="priorityQueue"></div>
+        <div class="queue-section">
+          <div class="queue-header">Queue</div>
+          <div class="queue-lanes">
+            <div class="queue-lane priority">
+              <div class="queue-lane-title">Priority</div>
+              <div id="priorityQueue"></div>
+            </div>
+            <div class="queue-lane normal">
+              <div class="queue-lane-title">Normal</div>
+              <div id="normalQueue"></div>
+            </div>
+          </div>
         </div>
-        <div class="queue-lane normal">
-          <div class="queue-lane-title">Normal</div>
-          <div id="normalQueue"></div>
+
+        <div class="log">
+          <div id="activityLog"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Check-in / QR Scan -->
+      <div class="panel checkin-panel">
+        <div class="panel-title">QR Check-In Kiosk</div>
+        <div class="scan-area">
+          <div class="icon">&#x1F4F1;</div>
+          <p>Click an appointment on the left to simulate scanning their QR code</p>
+        </div>
+        <div class="scan-result" id="scanResult">
+          <div class="sr-name" id="srName"></div>
+          <div class="sr-meta" id="srMeta"></div>
+          <div class="sr-docs" id="srDocs"></div>
+          <button class="btn btn-upload btn-sm" id="btnUploadDoc" style="display: none">
+            UPLOAD DOC
+          </button>
+          <div style="margin-top: 10px; display: none" id="prescreenToggle">
+            <label style="font-size: 12px; cursor: pointer">
+              <input type="checkbox" id="chkPrescreen" onchange="markPrescreen(this)" /> Prescreen
+              questions completed
+            </label>
+          </div>
+          <div style="margin-top: 6px; display: none" id="priorityToggle">
+            <label style="font-size: 12px; cursor: pointer">
+              <input type="checkbox" id="chkPriority" /> Mark as Priority (e.g. veteran, disability)
+            </label>
+          </div>
+          <button
+            class="btn btn-sm"
+            id="btnCheckIn"
+            style="margin-top: 10px; display: none"
+            onclick="doCheckIn()"
+            disabled
+          >
+            CHECK IN TO QUEUE
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="log">
-      <div id="activityLog"></div>
-    </div>
-  </div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+      const API = "";
+      let officeId = 1;
+      let txnTypes = {};
+      let docRegistry = {};
+      let selectedAppt = null;
+      let checkedInIds = new Set();
 
-  <!-- RIGHT: Check-in / QR Scan -->
-  <div class="panel checkin-panel">
-    <div class="panel-title">QR Check-In Kiosk</div>
-    <div class="scan-area">
-      <div class="icon">&#x1F4F1;</div>
-      <p>Click an appointment on the left to simulate scanning their QR code</p>
-    </div>
-    <div class="scan-result" id="scanResult">
-      <div class="sr-name" id="srName"></div>
-      <div class="sr-meta" id="srMeta"></div>
-      <div class="sr-docs" id="srDocs"></div>
-      <button class="btn btn-upload btn-sm" id="btnUploadDoc" style="display:none">UPLOAD DOC</button>
-      <div style="margin-top:10px;display:none" id="prescreenToggle">
-        <label style="font-size:12px;cursor:pointer">
-          <input type="checkbox" id="chkPrescreen" onchange="markPrescreen(this)"> Prescreen questions completed
-        </label>
-      </div>
-      <div style="margin-top:6px;display:none" id="priorityToggle">
-        <label style="font-size:12px;cursor:pointer">
-          <input type="checkbox" id="chkPriority"> Mark as Priority (e.g. veteran, disability)
-        </label>
-      </div>
-      <button class="btn btn-sm" id="btnCheckIn" style="margin-top:10px;display:none" onclick="doCheckIn()" disabled>CHECK IN TO QUEUE</button>
-    </div>
-  </div>
-</div>
+      async function fetchJson(url, opts) {
+        const res = await fetch(url, opts);
+        return res.json();
+      }
 
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script>
-const API = '';
-let officeId = 1;
-let txnTypes = {};
-let docRegistry = {};
-let selectedAppt = null;
-let checkedInIds = new Set();
+      async function resetDemo() {
+        officeId = parseInt(document.getElementById("officeSelect").value);
+        checkedInIds.clear();
+        selectedAppt = null;
+        document.getElementById("scanResult").classList.remove("visible");
+        document.getElementById("prescreenToggle").style.display = "none";
+        document.getElementById("activityLog").innerHTML = "";
+        await fetchJson("/api/queue/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ officeId: String(officeId) }),
+        });
+        await loadAll();
+        logEvent("Demo reset — clerks logged in at desks 1-3");
+      }
 
-async function fetchJson(url, opts) {
-  const res = await fetch(url, opts);
-  return res.json();
-}
+      async function loadAll() {
+        await Promise.all([
+          loadTxnTypes(),
+          loadDocRegistry(),
+          loadAppointments(),
+          loadQueueState(),
+        ]);
+      }
 
-async function resetDemo() {
-  officeId = parseInt(document.getElementById('officeSelect').value);
-  checkedInIds.clear();
-  selectedAppt = null;
-  document.getElementById('scanResult').classList.remove('visible');
-  document.getElementById('prescreenToggle').style.display = 'none';
-  document.getElementById('activityLog').innerHTML = '';
-  await fetchJson('/api/queue/reset', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ officeId: String(officeId) })
-  });
-  await loadAll();
-  logEvent('Demo reset — clerks logged in at desks 1-3');
-}
+      async function loadTxnTypes() {
+        const data = await fetchJson("/api/queue/txn-types");
+        txnTypes = {};
+        for (const t of data) txnTypes[t.id] = t.name;
+      }
 
-async function loadAll() {
-  await Promise.all([loadTxnTypes(), loadDocRegistry(), loadAppointments(), loadQueueState()]);
-}
+      async function loadDocRegistry() {
+        const data = await fetchJson("/api/queue/doc-registry");
+        docRegistry = {};
+        for (const d of data) docRegistry[d.doc_id] = d.name;
+      }
 
-async function loadTxnTypes() {
-  const data = await fetchJson('/api/queue/txn-types');
-  txnTypes = {};
-  for (const t of data) txnTypes[t.id] = t.name;
-}
+      async function loadAppointments() {
+        const data = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
+        const el = document.getElementById("apptList");
+        el.innerHTML = "";
+        for (const a of data.slice(0, 20)) {
+          const isCheckedIn = checkedInIds.has(a.id);
+          const card = document.createElement("div");
+          card.className = "appt-card" + (isCheckedIn ? " checked-in" : "");
+          const txnNames = a.txn_type_ids.map((id) => txnTypes[id] || `#${id}`).join(", ");
 
-async function loadDocRegistry() {
-  const data = await fetchJson('/api/queue/doc-registry');
-  docRegistry = {};
-  for (const d of data) docRegistry[d.doc_id] = d.name;
-}
+          const requiredDocs = a.required_doc_ids || [];
+          const uploadedDocIds = (a.uploaded_docs || []).map((d) => d.doc_id);
+          const allUploaded =
+            requiredDocs.length > 0 && requiredDocs.every((id) => uploadedDocIds.includes(id));
+          const uploadedCount = requiredDocs.filter((id) => uploadedDocIds.includes(id)).length;
 
-async function loadAppointments() {
-  const data = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
-  const el = document.getElementById('apptList');
-  el.innerHTML = '';
-  for (const a of data.slice(0, 20)) {
-    const isCheckedIn = checkedInIds.has(a.id);
-    const card = document.createElement('div');
-    card.className = 'appt-card' + (isCheckedIn ? ' checked-in' : '');
-    const txnNames = a.txn_type_ids.map(id => txnTypes[id] || `#${id}`).join(', ');
+          let docsHtml = "";
+          if (requiredDocs.length > 0) {
+            const statusClass = allUploaded ? "doc-ok" : "doc-missing";
+            docsHtml = `<div class="docs-status"><span class="${statusClass}">${uploadedCount}/${requiredDocs.length} docs uploaded</span></div>`;
+          }
+          const prescreenHtml = `<div class="prescreen-status"><span class="${a.prescreen_completed ? "ps-done" : "ps-pending"}">${a.prescreen_completed ? "✓ Prescreen complete" : "○ Prescreen incomplete"}</span></div>`;
 
-    const requiredDocs = a.required_doc_ids || [];
-    const uploadedDocIds = (a.uploaded_docs || []).map(d => d.doc_id);
-    const allUploaded = requiredDocs.length > 0 && requiredDocs.every(id => uploadedDocIds.includes(id));
-    const uploadedCount = requiredDocs.filter(id => uploadedDocIds.includes(id)).length;
-
-    let docsHtml = '';
-    if (requiredDocs.length > 0) {
-      const statusClass = allUploaded ? 'doc-ok' : 'doc-missing';
-      docsHtml = `<div class="docs-status"><span class="${statusClass}">${uploadedCount}/${requiredDocs.length} docs uploaded</span></div>`;
-    }
-    const prescreenHtml = `<div class="prescreen-status"><span class="${a.prescreen_completed ? 'ps-done' : 'ps-pending'}">${a.prescreen_completed ? '✓ Prescreen complete' : '○ Prescreen incomplete'}</span></div>`;
-
-    card.innerHTML = `
-      <div class="name">${a.first_name} ${a.last_name}${a.is_priority ? '<span class="priority-badge">PRIORITY</span>' : ''}</div>
-      <div class="meta">${a.time.slice(0,5)} — ${txnNames}</div>
+          card.innerHTML = `
+      <div class="name">${a.first_name} ${a.last_name}${a.is_priority ? '<span class="priority-badge">PRIORITY</span>' : ""}</div>
+      <div class="meta">${a.time.slice(0, 5)} — ${txnNames}</div>
       ${docsHtml}
       ${prescreenHtml}
-      <div class="qr-img" data-qr="${a.qr_code || ''}"></div>
+      <div class="qr-img" data-qr="${a.qr_code || ""}"></div>
     `;
-    if (!isCheckedIn) {
-      card.onclick = () => simulateScan(a);
-    }
-    el.appendChild(card);
+          if (!isCheckedIn) {
+            card.onclick = () => simulateScan(a);
+          }
+          el.appendChild(card);
 
-    if (a.qr_code) {
-      const qrContainer = card.querySelector('.qr-img');
-      new QRCode(qrContainer, { text: a.qr_code, width: 64, height: 64, correctLevel: QRCode.CorrectLevel.L });
-    }
-  }
-}
+          if (a.qr_code) {
+            const qrContainer = card.querySelector(".qr-img");
+            new QRCode(qrContainer, {
+              text: a.qr_code,
+              width: 64,
+              height: 64,
+              correctLevel: QRCode.CorrectLevel.L,
+            });
+          }
+        }
+      }
 
-async function loadQueueState() {
-  const data = await fetchJson(`/api/queue/state?officeId=${officeId}`);
-  renderDesks(data.clerks, data.queue);
-  renderQueue(data.queue);
-}
+      async function loadQueueState() {
+        const data = await fetchJson(`/api/queue/state?officeId=${officeId}`);
+        renderDesks(data.clerks, data.queue);
+        renderQueue(data.queue);
+      }
 
-function renderDesks(clerks, queue) {
-  const el = document.getElementById('desksArea');
-  el.innerHTML = '';
-  for (const c of clerks) {
-    const serving = queue.find(q => q.assigned_clerk_id === c.clerk_id && q.status === 'serving');
-    const isAvail = c.is_available && !serving;
-    const desk = document.createElement('div');
-    desk.className = 'desk ' + (serving ? 'busy' : isAvail ? 'available' : '');
-    const skillNames = c.skill_ids.map(id => txnTypes[id] || `#${id}`).join(', ');
-    desk.innerHTML = `
+      function renderDesks(clerks, queue) {
+        const el = document.getElementById("desksArea");
+        el.innerHTML = "";
+        for (const c of clerks) {
+          const serving = queue.find(
+            (q) => q.assigned_clerk_id === c.clerk_id && q.status === "serving",
+          );
+          const isAvail = c.is_available && !serving;
+          const desk = document.createElement("div");
+          desk.className = "desk " + (serving ? "busy" : isAvail ? "available" : "");
+          const skillNames = c.skill_ids.map((id) => txnTypes[id] || `#${id}`).join(", ");
+          desk.innerHTML = `
       <div class="desk-num">Desk ${c.desk_number}</div>
       <div class="clerk-name">${c.name}</div>
       <div class="skills">${skillNames}</div>
-      ${serving ? `
+      ${
+        serving
+          ? `
         <div class="serving-info">Serving: ${serving.first_name} ${serving.last_name}</div>
         <button class="btn btn-sm action-btn" onclick="completeService(${serving.id})">COMPLETE</button>
-      ` : isAvail ? `
+      `
+          : isAvail
+            ? `
         <div class="serving-info" style="color:#009235;">Available</div>
         <button class="btn btn-sm action-btn" onclick="callNext(${c.clerk_id})">CALL NEXT</button>
-      ` : `<div class="serving-info" style="color:#999;">—</div>`}
+      `
+            : `<div class="serving-info" style="color:#999;">—</div>`
+      }
     `;
-    el.appendChild(desk);
-  }
-}
+          el.appendChild(desk);
+        }
+      }
 
-function renderQueue(queue) {
-  const prioEl = document.getElementById('priorityQueue');
-  const normEl = document.getElementById('normalQueue');
-  prioEl.innerHTML = '';
-  normEl.innerHTML = '';
+      function renderQueue(queue) {
+        const prioEl = document.getElementById("priorityQueue");
+        const normEl = document.getElementById("normalQueue");
+        prioEl.innerHTML = "";
+        normEl.innerHTML = "";
 
-  const waiting = queue.filter(q => q.status === 'waiting');
-  for (const q of waiting) {
-    const entry = document.createElement('div');
-    entry.className = 'queue-entry';
-    const txnNames = q.txn_type_ids.map(id => txnTypes[id] || `#${id}`).join(', ');
-    entry.innerHTML = `
+        const waiting = queue.filter((q) => q.status === "waiting");
+        for (const q of waiting) {
+          const entry = document.createElement("div");
+          entry.className = "queue-entry";
+          const txnNames = q.txn_type_ids.map((id) => txnTypes[id] || `#${id}`).join(", ");
+          entry.innerHTML = `
       <div class="q-num">${q.queue_number}</div>
       <div>
         <div style="font-weight:700">${q.first_name} ${q.last_name}</div>
         <div style="font-size:11px;color:#434343">${txnNames}</div>
       </div>
     `;
-    if (q.is_priority) {
-      prioEl.appendChild(entry);
-    } else {
-      normEl.appendChild(entry);
-    }
-  }
+          if (q.is_priority) {
+            prioEl.appendChild(entry);
+          } else {
+            normEl.appendChild(entry);
+          }
+        }
 
-  if (!prioEl.children.length) prioEl.innerHTML = '<div style="font-size:12px;color:#999">Empty</div>';
-  if (!normEl.children.length) normEl.innerHTML = '<div style="font-size:12px;color:#999">Empty</div>';
-}
+        if (!prioEl.children.length)
+          prioEl.innerHTML = '<div style="font-size:12px;color:#999">Empty</div>';
+        if (!normEl.children.length)
+          normEl.innerHTML = '<div style="font-size:12px;color:#999">Empty</div>';
+      }
 
-async function simulateScan(appt) {
-  selectedAppt = appt;
-  const panel = document.getElementById('scanResult');
-  panel.classList.add('visible');
+      async function simulateScan(appt) {
+        selectedAppt = appt;
+        const panel = document.getElementById("scanResult");
+        panel.classList.add("visible");
 
-  const txnNames = appt.txn_type_ids.map(id => txnTypes[id] || `#${id}`).join(', ');
-  document.getElementById('srName').textContent = `${appt.first_name} ${appt.last_name}`;
-  document.getElementById('srMeta').innerHTML = `
+        const txnNames = appt.txn_type_ids.map((id) => txnTypes[id] || `#${id}`).join(", ");
+        document.getElementById("srName").textContent = `${appt.first_name} ${appt.last_name}`;
+        document.getElementById("srMeta").innerHTML = `
     QR: <strong>${appt.qr_code}</strong><br>
-    Time: ${appt.time.slice(0,5)}<br>
-    Service: ${txnNames}${appt.is_priority ? '<br><span style="color:#b8860b;font-weight:700">PRIORITY</span>' : ''}
+    Time: ${appt.time.slice(0, 5)}<br>
+    Service: ${txnNames}${appt.is_priority ? '<br><span style="color:#b8860b;font-weight:700">PRIORITY</span>' : ""}
   `;
 
-  // Show required docs with upload status
-  const requiredDocs = appt.required_doc_ids || [];
-  const uploadedDocs = appt.uploaded_docs || [];
-  const uploadedDocIds = uploadedDocs.map(d => d.doc_id);
-  const docsEl = document.getElementById('srDocs');
+        // Show required docs with upload status
+        const requiredDocs = appt.required_doc_ids || [];
+        const uploadedDocs = appt.uploaded_docs || [];
+        const uploadedDocIds = uploadedDocs.map((d) => d.doc_id);
+        const docsEl = document.getElementById("srDocs");
 
-  if (requiredDocs.length === 0) {
-    docsEl.innerHTML = '<div style="font-size:12px;color:#999;margin-bottom:4px">No documents required</div>';
-  } else {
-    docsEl.innerHTML = '<div style="font-size:12px;font-weight:700;margin-bottom:4px;">Required Documents:</div>' +
-      requiredDocs.map(docId => {
-        const uploaded = uploadedDocs.find(d => d.doc_id === docId);
-        const docName = docRegistry[docId] || docId;
-        if (uploaded) {
-          const statusClass = uploaded.ai_review_status === 'accept' ? 'ok' : uploaded.ai_review_status === 'reject' ? 'reject' : 'pending';
-          return `<div class="doc-item">
-            <div class="dot ${statusClass}"></div>
-            <span>${docName} — ${uploaded.ai_review_status || 'pending'}</span>
-          </div>`;
+        if (requiredDocs.length === 0) {
+          docsEl.innerHTML =
+            '<div style="font-size:12px;color:#999;margin-bottom:4px">No documents required</div>';
         } else {
-          return `<div class="doc-item">
+          docsEl.innerHTML =
+            '<div style="font-size:12px;font-weight:700;margin-bottom:4px;">Required Documents:</div>' +
+            requiredDocs
+              .map((docId) => {
+                const uploaded = uploadedDocs.find((d) => d.doc_id === docId);
+                const docName = docRegistry[docId] || docId;
+                if (uploaded) {
+                  const statusClass =
+                    uploaded.ai_review_status === "accept"
+                      ? "ok"
+                      : uploaded.ai_review_status === "reject"
+                        ? "reject"
+                        : "pending";
+                  return `<div class="doc-item">
+            <div class="dot ${statusClass}"></div>
+            <span>${docName} — ${uploaded.ai_review_status || "pending"}</span>
+          </div>`;
+                } else {
+                  return `<div class="doc-item">
             <div class="dot pending"></div>
             <span>${docName} — <em>not uploaded</em></span>
             <button class="btn btn-sm btn-blue" style="font-size:10px;line-height:20px;padding:0 8px;margin-left:6px;" onclick="uploadDoc(${appt.id}, '${docId}', '${docName.replace(/'/g, "\\'")}')">UPLOAD</button>
           </div>`;
+                }
+              })
+              .join("");
         }
-      }).join('');
-  }
 
-  // Prescreen toggle
-  document.getElementById('prescreenToggle').style.display = 'block';
-  const chkPrescreen = document.getElementById('chkPrescreen');
-  chkPrescreen.checked = appt.prescreen_completed;
-  chkPrescreen.disabled = appt.prescreen_completed;
+        // Prescreen toggle
+        document.getElementById("prescreenToggle").style.display = "block";
+        const chkPrescreen = document.getElementById("chkPrescreen");
+        chkPrescreen.checked = appt.prescreen_completed;
+        chkPrescreen.disabled = appt.prescreen_completed;
 
-  document.getElementById('btnUploadDoc').style.display = 'none';
-  document.getElementById('priorityToggle').style.display = 'block';
-  document.getElementById('chkPriority').checked = appt.is_priority;
-  document.getElementById('btnCheckIn').style.display = 'inline-block';
-  updateCheckInButton();
-  logEvent(`QR scanned: ${appt.qr_code} — ${appt.first_name} ${appt.last_name}`);
-}
+        document.getElementById("btnUploadDoc").style.display = "none";
+        document.getElementById("priorityToggle").style.display = "block";
+        document.getElementById("chkPriority").checked = appt.is_priority;
+        document.getElementById("btnCheckIn").style.display = "inline-block";
+        updateCheckInButton();
+        logEvent(`QR scanned: ${appt.qr_code} — ${appt.first_name} ${appt.last_name}`);
+      }
 
-function updateCheckInButton() {
-  const btn = document.getElementById('btnCheckIn');
-  const prescreenDone = document.getElementById('chkPrescreen').checked;
-  btn.disabled = !prescreenDone;
-  btn.title = prescreenDone ? '' : 'Prescreen must be completed before check-in';
-}
+      function updateCheckInButton() {
+        const btn = document.getElementById("btnCheckIn");
+        const prescreenDone = document.getElementById("chkPrescreen").checked;
+        btn.disabled = !prescreenDone;
+        btn.title = prescreenDone ? "" : "Prescreen must be completed before check-in";
+      }
 
-async function markPrescreen(checkbox) {
-  if (!selectedAppt || !checkbox.checked) return;
-  await fetchJson('/api/queue/mark-prescreen', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId: selectedAppt.id })
-  });
-  selectedAppt.prescreen_completed = true;
-  checkbox.disabled = true;
-  logEvent(`Prescreen completed: ${selectedAppt.first_name} ${selectedAppt.last_name}`);
-  updateCheckInButton();
-  await loadAppointments();
-}
+      async function markPrescreen(checkbox) {
+        if (!selectedAppt || !checkbox.checked) return;
+        await fetchJson("/api/queue/mark-prescreen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointmentId: selectedAppt.id }),
+        });
+        selectedAppt.prescreen_completed = true;
+        checkbox.disabled = true;
+        logEvent(`Prescreen completed: ${selectedAppt.first_name} ${selectedAppt.last_name}`);
+        updateCheckInButton();
+        await loadAppointments();
+      }
 
-async function uploadDoc(appointmentId, docId, docName) {
-  await fetchJson('/api/queue/upload-doc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId, docId, docName, status: 'accept' })
-  });
-  logEvent(`Doc uploaded: "${docName}" — accepted`);
-  const appts = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
-  const updated = appts.find(a => a.id === appointmentId);
-  if (updated) {
-    selectedAppt = updated;
-    simulateScan(updated);
-  }
-  await loadAppointments();
-}
+      async function uploadDoc(appointmentId, docId, docName) {
+        await fetchJson("/api/queue/upload-doc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointmentId, docId, docName, status: "accept" }),
+        });
+        logEvent(`Doc uploaded: "${docName}" — accepted`);
+        const appts = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
+        const updated = appts.find((a) => a.id === appointmentId);
+        if (updated) {
+          selectedAppt = updated;
+          simulateScan(updated);
+        }
+        await loadAppointments();
+      }
 
-async function doCheckIn() {
-  if (!selectedAppt) return;
-  const makePriority = document.getElementById('chkPriority').checked;
-  const result = await fetchJson('/api/queue/check-in', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId: selectedAppt.id, officeId: String(officeId), makePriority })
-  });
-  checkedInIds.add(selectedAppt.id);
-  logEvent(`Checked in: ${selectedAppt.first_name} ${selectedAppt.last_name} → Queue #${result.queueNumber}${result.isPriority ? ' (PRIORITY)' : ''}`);
-  document.getElementById('scanResult').classList.remove('visible');
-  selectedAppt = null;
-  await Promise.all([loadAppointments(), loadQueueState()]);
-}
+      async function doCheckIn() {
+        if (!selectedAppt) return;
+        const makePriority = document.getElementById("chkPriority").checked;
+        const result = await fetchJson("/api/queue/check-in", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appointmentId: selectedAppt.id,
+            officeId: String(officeId),
+            makePriority,
+          }),
+        });
+        checkedInIds.add(selectedAppt.id);
+        logEvent(
+          `Checked in: ${selectedAppt.first_name} ${selectedAppt.last_name} → Queue #${result.queueNumber}${result.isPriority ? " (PRIORITY)" : ""}`,
+        );
+        document.getElementById("scanResult").classList.remove("visible");
+        selectedAppt = null;
+        await Promise.all([loadAppointments(), loadQueueState()]);
+      }
 
-async function callNext(clerkId) {
-  const result = await fetchJson('/api/queue/assign', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clerkId, officeId: String(officeId) })
-  });
-  if (result && result.queueId) {
-    logEvent(`Assigned: ${result.first_name} ${result.last_name} → Desk ${result.assigned_desk}`);
-  } else {
-    logEvent(`No matching customers in queue for clerk #${clerkId}`);
-  }
-  await loadQueueState();
-}
+      async function callNext(clerkId) {
+        const result = await fetchJson("/api/queue/assign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerkId, officeId: String(officeId) }),
+        });
+        if (result && result.queueId) {
+          logEvent(
+            `Assigned: ${result.first_name} ${result.last_name} → Desk ${result.assigned_desk}`,
+          );
+        } else {
+          logEvent(`No matching customers in queue for clerk #${clerkId}`);
+        }
+        await loadQueueState();
+      }
 
-async function completeService(queueId) {
-  await fetchJson('/api/queue/complete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ queueId, officeId: String(officeId) })
-  });
-  logEvent(`Service completed — queue entry #${queueId}`);
-  await loadQueueState();
-}
+      async function completeService(queueId) {
+        await fetchJson("/api/queue/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queueId, officeId: String(officeId) }),
+        });
+        logEvent(`Service completed — queue entry #${queueId}`);
+        await loadQueueState();
+      }
 
-function logEvent(msg) {
-  const el = document.getElementById('activityLog');
-  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  el.innerHTML = `<div class="log-entry"><span class="ts">${now}</span>${msg}</div>` + el.innerHTML;
-}
+      function logEvent(msg) {
+        const el = document.getElementById("activityLog");
+        const now = new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        el.innerHTML =
+          `<div class="log-entry"><span class="ts">${now}</span>${msg}</div>` + el.innerHTML;
+      }
 
-// Init
-resetDemo();
-</script>
-</body>
+      // Init
+      resetDemo();
+    </script>
+  </body>
 </html>

@@ -13,7 +13,6 @@ const JAMES = 2; // 2 skills: id_card, license_original
 const ANGELA = 3; // 2 skills: road_test, id_card
 
 // Transaction type IDs from seed
-const ROAD_TEST = 1;
 const ID_CARD = 2;
 const LICENSE_ORIGINAL = 3;
 
@@ -35,18 +34,15 @@ async function createAppointment(
 }
 
 async function checkIn(client: typeof db.client, appointmentId: number) {
-  const { rows } = await client.query(
-    `SELECT check_in_to_queue($1, $2, $3) AS id`,
-    [COUNTY, OFFICE, appointmentId],
-  );
+  const { rows } = await client.query(`SELECT check_in_to_queue($1, $2, $3) AS id`, [
+    COUNTY,
+    OFFICE,
+    appointmentId,
+  ]);
   return rows[0].id as number;
 }
 
-async function loginClerk(
-  client: typeof db.client,
-  clerkId: number,
-  desk: number,
-) {
+async function loginClerk(client: typeof db.client, clerkId: number, desk: number) {
   await client.query(
     `INSERT INTO clerk_sessions (county_id, clerk_id, office_id, desk_number, is_available)
      VALUES ($1, $2, $3, $4, TRUE)`,
@@ -55,10 +51,11 @@ async function loginClerk(
 }
 
 async function summonNext(client: typeof db.client, clerkId: number) {
-  const { rows } = await client.query(
-    `SELECT assign_next_customer($1, $2, $3) AS queue_id`,
-    [COUNTY, OFFICE, clerkId],
-  );
+  const { rows } = await client.query(`SELECT assign_next_customer($1, $2, $3) AS queue_id`, [
+    COUNTY,
+    OFFICE,
+    clerkId,
+  ]);
   return rows[0].queue_id as number | null;
 }
 
@@ -81,14 +78,14 @@ describe("check_in_to_queue", () => {
 
 describe("assign_next_customer — skill-matched FIFO", () => {
   beforeEach(async () => {
-    await db.client.query(
-      `DELETE FROM queue WHERE county_id = $1 AND office_id = $2`,
-      [COUNTY, OFFICE],
-    );
-    await db.client.query(
-      `DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`,
-      [COUNTY, OFFICE],
-    );
+    await db.client.query(`DELETE FROM queue WHERE county_id = $1 AND office_id = $2`, [
+      COUNTY,
+      OFFICE,
+    ]);
+    await db.client.query(`DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`, [
+      COUNTY,
+      OFFICE,
+    ]);
   });
 
   test("any qualified clerk can pull — first come first served", async () => {
@@ -154,10 +151,9 @@ describe("assign_next_customer — skill-matched FIFO", () => {
 
     const result = await summonNext(db.client, JAMES);
     // Should get the priority customer's queue entry
-    const { rows } = await db.client.query(
-      `SELECT appointment_id FROM queue WHERE id = $1`,
-      [result],
-    );
+    const { rows } = await db.client.query(`SELECT appointment_id FROM queue WHERE id = $1`, [
+      result,
+    ]);
     expect(rows[0].appointment_id).toBe(priority);
   });
 

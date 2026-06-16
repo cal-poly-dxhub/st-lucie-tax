@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.ts";
-import { BOOK_SQL, bookParams, clearOfficeDay, DATE, FROZEN_NOW } from "./helpers/booking.ts";
+import { BOOK_SQL, bookParams, clearOfficeDay, DATE } from "./helpers/booking.ts";
 
 const db = useDb();
 
@@ -69,10 +69,9 @@ describe("register_walk_in", () => {
       walkInParams({ priority: true, email: "vip@x.com" }),
     );
 
-    const check = await db.client.query(
-      `SELECT is_priority FROM appointments WHERE id = $1`,
-      [rows[0].id],
-    );
+    const check = await db.client.query(`SELECT is_priority FROM appointments WHERE id = $1`, [
+      rows[0].id,
+    ]);
     expect(check.rows[0].is_priority).toBe(true);
   });
 
@@ -103,9 +102,9 @@ describe("register_walk_in", () => {
        VALUES ('stlucie', 'id_card', 1, 'ID Card', 15, 'hidden')`,
     );
 
-    await expect(
-      db.client.query(WALK_IN_SQL, walkInParams()),
-    ).rejects.toMatchObject({ code: "P0003" });
+    await expect(db.client.query(WALK_IN_SQL, walkInParams())).rejects.toMatchObject({
+      code: "P0003",
+    });
   });
 
   test("bypasses capacity validation — succeeds even when slot is full", async () => {
@@ -125,15 +124,11 @@ describe("register_walk_in", () => {
   });
 
   test("does not auto-enqueue — no queue entry created", async () => {
-    const { rows } = await db.client.query(
-      WALK_IN_SQL,
-      walkInParams({ email: "noqueue@x.com" }),
-    );
+    const { rows } = await db.client.query(WALK_IN_SQL, walkInParams({ email: "noqueue@x.com" }));
 
-    const queueCheck = await db.client.query(
-      `SELECT id FROM queue WHERE appointment_id = $1`,
-      [rows[0].id],
-    );
+    const queueCheck = await db.client.query(`SELECT id FROM queue WHERE appointment_id = $1`, [
+      rows[0].id,
+    ]);
     expect(queueCheck.rows).toHaveLength(0);
   });
 });

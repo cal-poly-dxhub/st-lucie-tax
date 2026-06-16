@@ -57,7 +57,6 @@ export async function checkInToQueue(
   return { queueId, queueNumber: qRow.rows[0].queue_number };
 }
 
-
 export interface WalkInInput {
   countyId: string;
   officeId: number;
@@ -76,9 +75,7 @@ export interface WalkInResult {
 
 export type WalkInError = "office_closed" | "txn_unavailable";
 
-export type WalkInOutcome =
-  | { ok: true; appointmentId: number }
-  | { ok: false; error: WalkInError };
+export type WalkInOutcome = { ok: true; appointmentId: number } | { ok: false; error: WalkInError };
 
 const WALK_IN_ERROR_MAP: Record<string, WalkInError> = {
   P0002: "office_closed",
@@ -106,10 +103,7 @@ export async function registerWalkIn(
     );
     return { ok: true, appointmentId: res.rows[0].register_walk_in };
   } catch (err: unknown) {
-    const code =
-      err instanceof Error && "code" in err
-        ? (err as { code: string }).code
-        : null;
+    const code = err instanceof Error && "code" in err ? (err as { code: string }).code : null;
     const mapped = code ? WALK_IN_ERROR_MAP[code] : undefined;
     if (mapped) return { ok: false, error: mapped };
     throw err;
@@ -176,13 +170,12 @@ export async function getCheckInSummary(
      WHERE county_id = $1 AND id = $2`,
     [countyId, appointmentId],
   );
-  if (apptRes.rows.length === 0)
-    throw new Error(`Appointment ${appointmentId} not found`);
+  if (apptRes.rows.length === 0) throw new Error(`Appointment ${appointmentId} not found`);
 
   const appt = apptRes.rows[0];
 
-  let missingDocs: string[] = [];
-  let rejectedDocs: string[] = [];
+  const missingDocs: string[] = [];
+  const rejectedDocs: string[] = [];
 
   if (appt.required_doc_ids.length > 0) {
     const docRes = await db.query<{
@@ -214,8 +207,7 @@ export async function getCheckInSummary(
   }
 
   const docsReady = missingDocs.length === 0 && rejectedDocs.length === 0;
-  const readyForQueue =
-    appt.identity_verified && appt.prescreen_completed && docsReady;
+  const readyForQueue = appt.identity_verified && appt.prescreen_completed && docsReady;
 
   return {
     appointmentId: appt.id,

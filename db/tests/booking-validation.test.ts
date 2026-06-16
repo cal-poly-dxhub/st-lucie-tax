@@ -6,7 +6,6 @@ import {
   clearOfficeDay,
   tryBook,
   raceTest,
-  DATE,
   ROAD_TEST,
 } from "./helpers/booking.ts";
 
@@ -72,11 +71,7 @@ describe("query 4: effective transaction types", () => {
         WHERE county_id = 'stlucie' AND office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
-    expect(rows.map((r) => r.txn_type_id)).toEqual([
-      "road_test",
-      "id_card",
-      "license_original",
-    ]);
+    expect(rows.map((r) => r.txn_type_id)).toEqual(["road_test", "id_card", "license_original"]);
   });
 
   test("hidden override at office 1 drops road_test there but not at office 2", async () => {
@@ -92,10 +87,7 @@ describe("query 4: effective transaction types", () => {
         WHERE county_id = 'stlucie' AND office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
-    expect(office1.rows.map((r) => r.txn_type_id)).toEqual([
-      "id_card",
-      "license_original",
-    ]);
+    expect(office1.rows.map((r) => r.txn_type_id)).toEqual(["id_card", "license_original"]);
 
     const office2 = await db.client.query(
       `SELECT txn_type_id
@@ -162,9 +154,7 @@ describe("office_txn_window: per-office intersected availability", () => {
     );
 
     const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[1, 3]]);
-    expect(
-      rows.map((r) => ({ office: r.office_id, end: r.latest_end })),
-    ).toEqual([
+    expect(rows.map((r) => ({ office: r.office_id, end: r.latest_end }))).toEqual([
       { office: 1, end: "13:00:00" },
       { office: 2, end: "13:00:00" },
     ]);
@@ -221,18 +211,18 @@ describe("book_appointment: lock + recheck + insert", () => {
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
-    await expect(
-      db.client.query(BOOK_SQL, bookParams({ email: "c@x.com" })),
-    ).rejects.toMatchObject({ code: "P0001" });
+    await expect(db.client.query(BOOK_SQL, bookParams({ email: "c@x.com" }))).rejects.toMatchObject(
+      { code: "P0001" },
+    );
   });
 
   test("office_closed when slot is outside open/close window", async () => {
     await clearOfficeDay(db.client);
 
     // Office hours are 08:00-17:00. 07:30 is before open.
-    await expect(
-      db.client.query(BOOK_SQL, bookParams({ time: "07:30" })),
-    ).rejects.toMatchObject({ code: "P0002" });
+    await expect(db.client.query(BOOK_SQL, bookParams({ time: "07:30" }))).rejects.toMatchObject({
+      code: "P0002",
+    });
   });
 
   test("slot_in_past when slot start is before now_ts", async () => {
@@ -287,9 +277,9 @@ describe("book_appointment: lock + recheck + insert", () => {
     await clearOfficeDay(db.client);
 
     // road_test seed window is 09:00-15:00. 08:30 is before available_from.
-    await expect(
-      db.client.query(BOOK_SQL, bookParams({ time: "08:30" })),
-    ).rejects.toMatchObject({ code: "P0003" });
+    await expect(db.client.query(BOOK_SQL, bookParams({ time: "08:30" }))).rejects.toMatchObject({
+      code: "P0003",
+    });
   });
 
   test("txn_unavailable when an office override hides the txn", async () => {
@@ -301,9 +291,7 @@ describe("book_appointment: lock + recheck + insert", () => {
        VALUES ('stlucie', 'road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
-    await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject(
-      { code: "P0003" },
-    );
+    await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject({ code: "P0003" });
   });
 
   // ---------------------------------------------------------------------------
@@ -319,18 +307,12 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     // Both 09:00 appts run until 09:30 (avg_duration=30). At 09:15 they are
     // still in progress, so demand at 09:15 = 2 = supply. Booking must fail.
-    const blocked = await tryBook(
-      db.client,
-      bookParams({ time: "09:15", email: "c@x.com" }),
-    );
+    const blocked = await tryBook(db.client, bookParams({ time: "09:15", email: "c@x.com" }));
     expect(blocked).toEqual({ ok: false, code: "P0001" });
 
     // At 09:30 the earlier appts have ended (end_at > slot uses strict >),
     // so the slot is open again.
-    const ok = await tryBook(
-      db.client,
-      bookParams({ time: "09:30", email: "d@x.com" }),
-    );
+    const ok = await tryBook(db.client, bookParams({ time: "09:30", email: "d@x.com" }));
     expect(ok.ok).toBe(true);
   });
 
@@ -377,16 +359,12 @@ describe("book_appointment: lock + recheck + insert", () => {
     const b = await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
     // Slot is now full (supply=2, demand=2). Cancel one and re-book.
-    await db.client.query(
-      `UPDATE appointments SET status='cancelled' WHERE id = $1`,
-      [a.rows[0].id],
-    );
+    await db.client.query(`UPDATE appointments SET status='cancelled' WHERE id = $1`, [
+      a.rows[0].id,
+    ]);
     void b;
 
-    const replay = await db.client.query(
-      BOOK_SQL,
-      bookParams({ email: "replay@x.com" }),
-    );
+    const replay = await db.client.query(BOOK_SQL, bookParams({ email: "replay@x.com" }));
     expect(replay.rows[0].id).toBeTypeOf("number");
   });
 
@@ -397,9 +375,9 @@ describe("book_appointment: lock + recheck + insert", () => {
     await db.client.query(`UPDATE clerks SET status='inactive' WHERE id = 1`);
 
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
-    await expect(
-      db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" })),
-    ).rejects.toMatchObject({ code: "P0001" });
+    await expect(db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }))).rejects.toMatchObject(
+      { code: "P0001" },
+    );
   });
 
   test("appt straddling a lunch window is rejected (multi-block recheck)", async () => {
@@ -411,10 +389,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     // Maria's lunch is shift 1 (11:30-12:15). A 30-min road_test at 11:15
     // runs 11:15-11:45, crossing the 11:30 lunch boundary. At 11:30 Maria
     // is on lunch → supply = 0 — multi-block recheck rejects the booking.
-    const result = await tryBook(
-      db.client,
-      bookParams({ time: "11:15", email: "straddle@x.com" }),
-    );
+    const result = await tryBook(db.client, bookParams({ time: "11:15", email: "straddle@x.com" }));
     expect(result).toEqual({ ok: false, code: "P0001" });
   });
 
@@ -428,10 +403,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     // road_test available_until = 15:00, duration = 30. Start at 14:30 ends
     // at 15:00 exactly. The gate is `slot_end > available_until` (strict >),
     // so equality must be allowed.
-    const ok = await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "14:30", email: "edge@x.com" }),
-    );
+    const ok = await db.client.query(BOOK_SQL, bookParams({ time: "14:30", email: "edge@x.com" }));
     expect(ok.rows[0].id).toBeTypeOf("number");
   });
 
@@ -440,10 +412,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     // 14:31 + 30 = 15:01 > available_until 15:00 → reject.
     await expect(
-      db.client.query(
-        BOOK_SQL,
-        bookParams({ time: "14:31", email: "over@x.com" }),
-      ),
+      db.client.query(BOOK_SQL, bookParams({ time: "14:31", email: "over@x.com" })),
     ).rejects.toMatchObject({ code: "P0003" });
   });
 
@@ -451,10 +420,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     await clearOfficeDay(db.client);
 
     // 09:00 == available_from. The gate is `time < available_from` (strict <).
-    const ok = await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "09:00", email: "open@x.com" }),
-    );
+    const ok = await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "open@x.com" }));
     expect(ok.rows[0].id).toBeTypeOf("number");
   });
 
@@ -574,16 +540,10 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     );
 
     // Book 1 appointment (any skill) — fills the effective desk cap.
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({ skills: [2], email: "cap1@x.com" }),
-    );
+    await db.client.query(BOOK_SQL, bookParams({ skills: [2], email: "cap1@x.com" }));
 
     // Second booking with a DIFFERENT skill should be rejected (desk cap hit).
-    const result = await tryBook(
-      db.client,
-      bookParams({ skills: [1], email: "cap2@x.com" }),
-    );
+    const result = await tryBook(db.client, bookParams({ skills: [1], email: "cap2@x.com" }));
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe("P0001");
 

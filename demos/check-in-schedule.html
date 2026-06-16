@@ -1,754 +1,932 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>St. Lucie Tax — Check-In Schedule</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: Arial, Helvetica, sans-serif;
-  background: #ffffff;
-  color: #383838;
-  min-height: 100vh;
-}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>St. Lucie Tax — Check-In Schedule</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: #ffffff;
+        color: #383838;
+        min-height: 100vh;
+      }
 
-/* Header */
-.header {
-  background: #12639d;
-  color: #ffffff;
-  padding: 12px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.header h1 { font-size: 1.2rem; font-weight: 700; }
-.header .office-select {
-  background: #ffffff;
-  color: #383838;
-  border: none;
-  border-radius: 2px;
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  font-family: inherit;
-}
+      /* Header */
+      .header {
+        background: #12639d;
+        color: #ffffff;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .header h1 {
+        font-size: 1.2rem;
+        font-weight: 700;
+      }
+      .header .office-select {
+        background: #ffffff;
+        color: #383838;
+        border: none;
+        border-radius: 2px;
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        font-family: inherit;
+      }
 
-/* Controls bar */
-.controls-bar {
-  background: #f6f6f3;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 10px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.controls-bar label { font-size: 0.8rem; color: #434343; font-weight: 700; }
-.controls-bar select, .controls-bar input {
-  font-family: inherit;
-  font-size: 0.8rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 2px;
-  padding: 4px 8px;
-  background: #ffffff;
-}
-.week-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.week-nav button {
-  background: #12639d;
-  color: #ffffff;
-  border: none;
-  border-radius: 2px;
-  padding: 4px 10px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.week-nav button:hover { background: #004a93; }
-.week-nav .week-label { font-size: 0.85rem; font-weight: 700; color: #222222; min-width: 180px; text-align: center; }
+      /* Controls bar */
+      .controls-bar {
+        background: #f6f6f3;
+        border-bottom: 1px solid #e0e0e0;
+        padding: 10px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .controls-bar label {
+        font-size: 0.8rem;
+        color: #434343;
+        font-weight: 700;
+      }
+      .controls-bar select,
+      .controls-bar input {
+        font-family: inherit;
+        font-size: 0.8rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 4px 8px;
+        background: #ffffff;
+      }
+      .week-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .week-nav button {
+        background: #12639d;
+        color: #ffffff;
+        border: none;
+        border-radius: 2px;
+        padding: 4px 10px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .week-nav button:hover {
+        background: #004a93;
+      }
+      .week-nav .week-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #222222;
+        min-width: 180px;
+        text-align: center;
+      }
 
-/* Legend */
-.legend {
-  padding: 8px 24px;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 0.75rem;
-  color: #434343;
-  border-bottom: 1px solid #e0e0e0;
-}
-.legend-item { display: flex; align-items: center; gap: 5px; }
-.legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+      /* Legend */
+      .legend {
+        padding: 8px 24px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 0.75rem;
+        color: #434343;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+      }
 
-/* Schedule grid */
-.schedule-container {
-  padding: 16px 24px;
-  overflow-x: auto;
-}
+      /* Schedule grid */
+      .schedule-container {
+        padding: 16px 24px;
+        overflow-x: auto;
+      }
 
-.day-row {
-  margin-bottom: 16px;
-}
-.day-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-.day-header .day-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #222222;
-  min-width: 120px;
-}
-.day-header .day-meta {
-  font-size: 0.72rem;
-  color: #999999;
-}
+      .day-row {
+        margin-bottom: 16px;
+      }
+      .day-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 6px;
+      }
+      .day-header .day-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #222222;
+        min-width: 120px;
+      }
+      .day-header .day-meta {
+        font-size: 0.72rem;
+        color: #999999;
+      }
 
-.timeline-wrapper { position: relative; }
+      .timeline-wrapper {
+        position: relative;
+      }
 
-.timeline-hours {
-  display: flex;
-  position: relative;
-  height: 18px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid #e0e0e0;
-}
-.hour-mark {
-  position: absolute;
-  font-size: 0.65rem;
-  color: #999999;
-  transform: translateX(-50%);
-  top: 2px;
-}
+      .timeline-hours {
+        display: flex;
+        position: relative;
+        height: 18px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .hour-mark {
+        position: absolute;
+        font-size: 0.65rem;
+        color: #999999;
+        transform: translateX(-50%);
+        top: 2px;
+      }
 
-.timeline-track {
-  position: relative;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 2px;
-  min-height: 40px;
-  overflow: visible;
-}
-.timeline-track.drag-over {
-  background: #dae4f0;
-  border-color: #12639d;
-}
+      .timeline-track {
+        position: relative;
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        min-height: 40px;
+        overflow: visible;
+      }
+      .timeline-track.drag-over {
+        background: #dae4f0;
+        border-color: #12639d;
+      }
 
-.lane-divider {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #efefef;
-}
+      .lane-divider {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: #efefef;
+      }
 
-.lunch-overlay {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 6px);
-  border-left: 1px dashed #e0e0e0;
-  border-right: 1px dashed #e0e0e0;
-}
-.lunch-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 0.6rem;
-  color: #999999;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+      .lunch-overlay {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 3px,
+          rgba(0, 0, 0, 0.03) 3px,
+          rgba(0, 0, 0, 0.03) 6px
+        );
+        border-left: 1px dashed #e0e0e0;
+        border-right: 1px dashed #e0e0e0;
+      }
+      .lunch-label {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.6rem;
+        color: #999999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
 
-/* Appointment blocks */
-.appt-block {
-  position: absolute;
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  font-size: 0.65rem;
-  font-weight: 400;
-  color: #ffffff;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding: 0 5px;
-  cursor: grab;
-  user-select: none;
-  transition: box-shadow 0.15s, opacity 0.15s;
-}
-.appt-block:hover {
-  box-shadow: 0 0 0 2px #12639d;
-  z-index: 10;
-}
-.appt-block.dragging {
-  opacity: 0.4;
-  cursor: grabbing;
-}
-.appt-block.multi {
-  background: none;
-  border: 2px solid #383838;
-  display: flex;
-  align-items: stretch;
-  padding: 0;
-}
-.appt-seg {
-  position: absolute;
-  top: 0;
-  height: 100%;
-}
-.appt-label {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  text-align: center;
-  font-size: 0.65rem;
-  font-weight: 400;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+      /* Appointment blocks */
+      .appt-block {
+        position: absolute;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        font-size: 0.65rem;
+        font-weight: 400;
+        color: #ffffff;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        padding: 0 5px;
+        cursor: grab;
+        user-select: none;
+        transition:
+          box-shadow 0.15s,
+          opacity 0.15s;
+      }
+      .appt-block:hover {
+        box-shadow: 0 0 0 2px #12639d;
+        z-index: 10;
+      }
+      .appt-block.dragging {
+        opacity: 0.4;
+        cursor: grabbing;
+      }
+      .appt-block.multi {
+        background: none;
+        border: 2px solid #383838;
+        display: flex;
+        align-items: stretch;
+        padding: 0;
+      }
+      .appt-seg {
+        position: absolute;
+        top: 0;
+        height: 100%;
+      }
+      .appt-label {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        text-align: center;
+        font-size: 0.65rem;
+        font-weight: 400;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
 
-/* Drag ghost */
-.drag-ghost {
-  position: fixed;
-  z-index: 9999;
-  padding: 6px 12px;
-  border-radius: 2px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #ffffff;
-  pointer-events: none;
-  white-space: nowrap;
-  opacity: 0.9;
-}
+      /* Drag ghost */
+      .drag-ghost {
+        position: fixed;
+        z-index: 9999;
+        padding: 6px 12px;
+        border-radius: 2px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #ffffff;
+        pointer-events: none;
+        white-space: nowrap;
+        opacity: 0.9;
+      }
 
-/* Drop indicator */
-.drop-indicator {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #009235;
-  z-index: 100;
-  pointer-events: none;
-}
-.drop-indicator::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #009235;
-}
+      /* Drop indicator */
+      .drop-indicator {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #009235;
+        z-index: 100;
+        pointer-events: none;
+      }
+      .drop-indicator::after {
+        content: "";
+        position: absolute;
+        top: -4px;
+        left: -4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #009235;
+      }
 
-/* Tooltip */
-.tooltip {
-  position: fixed;
-  z-index: 9000;
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 2px;
-  padding: 10px 14px;
-  pointer-events: none;
-  font-size: 0.75rem;
-  line-height: 1.6;
-  color: #383838;
-  max-width: 300px;
-  display: none;
-}
-.tooltip .tt-name { font-weight: 700; font-size: 0.85rem; color: #222222; margin-bottom: 4px; }
-.tooltip .tt-time { color: #12639d; font-weight: 700; }
-.tooltip .tt-txn { color: #434343; margin-top: 4px; }
+      /* Tooltip */
+      .tooltip {
+        position: fixed;
+        z-index: 9000;
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 2px;
+        padding: 10px 14px;
+        pointer-events: none;
+        font-size: 0.75rem;
+        line-height: 1.6;
+        color: #383838;
+        max-width: 300px;
+        display: none;
+      }
+      .tooltip .tt-name {
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #222222;
+        margin-bottom: 4px;
+      }
+      .tooltip .tt-time {
+        color: #12639d;
+        font-weight: 700;
+      }
+      .tooltip .tt-txn {
+        color: #434343;
+        margin-top: 4px;
+      }
 
-/* Status message */
-.status-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #12639d;
-  color: #ffffff;
-  padding: 8px 24px;
-  font-size: 0.8rem;
-  transform: translateY(100%);
-  transition: transform 0.3s;
-  z-index: 9999;
-}
-.status-bar.visible { transform: translateY(0); }
-.status-bar.error { background: #f00000; }
-.status-bar.success { background: #009235; }
-</style>
-</head>
-<body>
+      /* Status message */
+      .status-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #12639d;
+        color: #ffffff;
+        padding: 8px 24px;
+        font-size: 0.8rem;
+        transform: translateY(100%);
+        transition: transform 0.3s;
+        z-index: 9999;
+      }
+      .status-bar.visible {
+        transform: translateY(0);
+      }
+      .status-bar.error {
+        background: #f00000;
+      }
+      .status-bar.success {
+        background: #009235;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Check-In Schedule</h1>
+      <select class="office-select" id="office-select"></select>
+    </div>
 
-<div class="header">
-  <h1>Check-In Schedule</h1>
-  <select class="office-select" id="office-select"></select>
-</div>
+    <div class="controls-bar">
+      <div class="week-nav">
+        <button id="btn-prev">&larr; Prev</button>
+        <span class="week-label" id="week-label"></span>
+        <button id="btn-next">Next &rarr;</button>
+      </div>
+      <div>
+        <label>Today</label>
+        <button
+          id="btn-today"
+          style="
+            background: #009235;
+            color: #fff;
+            border: none;
+            border-radius: 2px;
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: inherit;
+          "
+        >
+          Today
+        </button>
+      </div>
+    </div>
 
-<div class="controls-bar">
-  <div class="week-nav">
-    <button id="btn-prev">&larr; Prev</button>
-    <span class="week-label" id="week-label"></span>
-    <button id="btn-next">Next &rarr;</button>
-  </div>
-  <div>
-    <label>Today</label>
-    <button id="btn-today" style="background:#009235;color:#fff;border:none;border-radius:2px;padding:4px 10px;font-size:0.8rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;font-family:inherit;">Today</button>
-  </div>
-</div>
+    <div class="legend" id="legend-container"></div>
 
-<div class="legend" id="legend-container"></div>
+    <div class="schedule-container" id="schedule-container"></div>
 
-<div class="schedule-container" id="schedule-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+    <div class="status-bar" id="status-bar"></div>
 
-<div class="tooltip" id="tooltip"></div>
-<div class="status-bar" id="status-bar"></div>
+    <script>
+      const CONFIG = { offices: [], txnTypes: [], lunchShifts: [], openMin: 480, closeMin: 1020 };
+      const TXN_COLORS = [
+        "#22c55e",
+        "#c2410c",
+        "#16a34a",
+        "#7c3aed",
+        "#a855f7",
+        "#0891b2",
+        "#dc2626",
+        "#e11d48",
+        "#0284c7",
+        "#d97706",
+        "#2563eb",
+        "#db2777",
+      ];
 
-<script>
-const CONFIG = { offices: [], txnTypes: [], lunchShifts: [], openMin: 480, closeMin: 1020 };
-const TXN_COLORS = ['#22c55e','#c2410c','#16a34a','#7c3aed','#a855f7','#0891b2','#dc2626','#e11d48','#0284c7','#d97706','#2563eb','#db2777'];
+      let currentOfficeId = null;
+      let weekStartDate = null; // Monday of current week
+      let appointments = []; // flat list for the week
+      let dragState = null;
 
-let currentOfficeId = null;
-let weekStartDate = null; // Monday of current week
-let appointments = []; // flat list for the week
-let dragState = null;
+      // ─── API ───────────────────────────────────────────────────────────────────
+      async function apiLoadConfig() {
+        const resp = await fetch("/api/config");
+        return resp.json();
+      }
 
-// ─── API ───────────────────────────────────────────────────────────────────
-async function apiLoadConfig() {
-  const resp = await fetch('/api/config');
-  return resp.json();
-}
+      async function apiGetWeekAppointments(officeId, startDate, endDate) {
+        const resp = await fetch(
+          `/api/schedule/appointments?officeId=${officeId}&startDate=${startDate}&endDate=${endDate}`,
+        );
+        return resp.json();
+      }
 
-async function apiGetWeekAppointments(officeId, startDate, endDate) {
-  const resp = await fetch(`/api/schedule/appointments?officeId=${officeId}&startDate=${startDate}&endDate=${endDate}`);
-  return resp.json();
-}
+      async function apiReschedule(appointmentId, newDate, newTime, force) {
+        const resp = await fetch("/api/schedule/reschedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointmentId, newDate, newTime, force: !!force }),
+        });
+        return resp.json();
+      }
 
-async function apiReschedule(appointmentId, newDate, newTime, force) {
-  const resp = await fetch('/api/schedule/reschedule', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId, newDate, newTime, force: !!force }),
-  });
-  return resp.json();
-}
+      // ─── Utilities ─────────────────────────────────────────────────────────────
+      function minToTime(m) {
+        return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      }
+      function timeToMin(t) {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      }
+      function pct(min) {
+        return ((min - CONFIG.openMin) / (CONFIG.closeMin - CONFIG.openMin)) * 100;
+      }
+      function pctWidth(dur) {
+        return (dur / (CONFIG.closeMin - CONFIG.openMin)) * 100;
+      }
+      function txnColor(txnId) {
+        const idx = CONFIG.txnTypes.findIndex((t) => t.id === txnId);
+        return TXN_COLORS[idx % TXN_COLORS.length] || "#666";
+      }
+      function formatDate(d) {
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+      }
+      function isoDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      }
+      function addDays(d, n) {
+        const o = new Date(d);
+        o.setDate(o.getDate() + n);
+        return o;
+      }
+      function getMondayOfWeek(d) {
+        const dt = new Date(d);
+        const day = dt.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        dt.setDate(dt.getDate() + diff);
+        return dt;
+      }
 
-// ─── Utilities ─────────────────────────────────────────────────────────────
-function minToTime(m) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
-function timeToMin(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-function pct(min) { return ((min - CONFIG.openMin) / (CONFIG.closeMin - CONFIG.openMin)) * 100; }
-function pctWidth(dur) { return (dur / (CONFIG.closeMin - CONFIG.openMin)) * 100; }
-function txnColor(txnId) {
-  const idx = CONFIG.txnTypes.findIndex(t => t.id === txnId);
-  return TXN_COLORS[idx % TXN_COLORS.length] || '#666';
-}
-function formatDate(d) {
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-}
-function isoDate(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function addDays(d, n) { const o = new Date(d); o.setDate(o.getDate() + n); return o; }
-function getMondayOfWeek(d) {
-  const dt = new Date(d);
-  const day = dt.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  dt.setDate(dt.getDate() + diff);
-  return dt;
-}
+      function showStatus(msg, type, duration) {
+        const bar = document.getElementById("status-bar");
+        bar.textContent = msg;
+        bar.className = `status-bar visible ${type || ""}`;
+        setTimeout(() => {
+          bar.className = "status-bar";
+        }, duration || 3000);
+      }
 
-function showStatus(msg, type, duration) {
-  const bar = document.getElementById('status-bar');
-  bar.textContent = msg;
-  bar.className = `status-bar visible ${type || ''}`;
-  setTimeout(() => { bar.className = 'status-bar'; }, duration || 3000);
-}
+      // ─── Load config ───────────────────────────────────────────────────────────
+      async function loadConfig() {
+        const data = await apiLoadConfig();
+        CONFIG.offices = data.offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          desks: o.total_desks,
+          runRate: o.run_rate_pct,
+        }));
+        CONFIG.txnTypes = data.txnTypes
+          .filter((t) => t.status === "active")
+          .map((t) => ({
+            id: t.id,
+            slug: t.slug,
+            name: t.name,
+            duration: t.duration,
+          }));
+        CONFIG.lunchShifts = data.lunchShifts.map((ls) => ({
+          id: ls.id,
+          officeId: ls.office_id,
+          start: timeToMin(ls.start_time),
+          end: timeToMin(ls.end_time),
+        }));
+        const weekdayHours = data.officeHours.find((h) => h.day_of_week >= 1 && h.day_of_week <= 5);
+        if (weekdayHours) {
+          CONFIG.openMin = timeToMin(weekdayHours.open_time);
+          CONFIG.closeMin = timeToMin(weekdayHours.close_time);
+        }
 
-// ─── Load config ───────────────────────────────────────────────────────────
-async function loadConfig() {
-  const data = await apiLoadConfig();
-  CONFIG.offices = data.offices.map(o => ({ id: o.id, name: o.name, desks: o.total_desks, runRate: o.run_rate_pct }));
-  CONFIG.txnTypes = data.txnTypes.filter(t => t.status === 'active').map(t => ({
-    id: t.id, slug: t.slug, name: t.name, duration: t.duration,
-  }));
-  CONFIG.lunchShifts = data.lunchShifts.map(ls => ({
-    id: ls.id, officeId: ls.office_id, start: timeToMin(ls.start_time), end: timeToMin(ls.end_time),
-  }));
-  const weekdayHours = data.officeHours.find(h => h.day_of_week >= 1 && h.day_of_week <= 5);
-  if (weekdayHours) {
-    CONFIG.openMin = timeToMin(weekdayHours.open_time);
-    CONFIG.closeMin = timeToMin(weekdayHours.close_time);
-  }
+        // Populate office selector
+        const sel = document.getElementById("office-select");
+        sel.innerHTML = CONFIG.offices
+          .map((o) => `<option value="${o.id}">${o.name}</option>`)
+          .join("");
+        if (!currentOfficeId && CONFIG.offices.length > 0) {
+          currentOfficeId = CONFIG.offices[0].id;
+        }
+        sel.value = currentOfficeId;
 
-  // Populate office selector
-  const sel = document.getElementById('office-select');
-  sel.innerHTML = CONFIG.offices.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
-  if (!currentOfficeId && CONFIG.offices.length > 0) {
-    currentOfficeId = CONFIG.offices[0].id;
-  }
-  sel.value = currentOfficeId;
+        renderLegend();
+      }
 
-  renderLegend();
-}
+      function renderLegend() {
+        const container = document.getElementById("legend-container");
+        container.innerHTML = CONFIG.txnTypes
+          .map(
+            (t, i) =>
+              `<div class="legend-item"><div class="legend-swatch" style="background:${TXN_COLORS[i % TXN_COLORS.length]}"></div>${t.name} (${t.duration}m)</div>`,
+          )
+          .join("");
+      }
 
-function renderLegend() {
-  const container = document.getElementById('legend-container');
-  container.innerHTML = CONFIG.txnTypes.map((t, i) =>
-    `<div class="legend-item"><div class="legend-swatch" style="background:${TXN_COLORS[i % TXN_COLORS.length]}"></div>${t.name} (${t.duration}m)</div>`
-  ).join('');
-}
+      // ─── Load appointments ─────────────────────────────────────────────────────
+      async function loadAppointments() {
+        const endDate = addDays(weekStartDate, 4); // Mon-Fri
+        const data = await apiGetWeekAppointments(
+          currentOfficeId,
+          isoDate(weekStartDate),
+          isoDate(endDate),
+        );
+        appointments = data.map((a) => ({
+          id: a.id,
+          officeId: a.office_id,
+          date: a.appointment_date,
+          startMin: timeToMin(a.start_time),
+          duration: Number(a.duration_min),
+          skills: a.txn_type_ids,
+          firstName: a.first_name,
+          lastName: a.last_name,
+          status: a.status,
+        }));
+      }
 
-// ─── Load appointments ─────────────────────────────────────────────────────
-async function loadAppointments() {
-  const endDate = addDays(weekStartDate, 4); // Mon-Fri
-  const data = await apiGetWeekAppointments(currentOfficeId, isoDate(weekStartDate), isoDate(endDate));
-  appointments = data.map(a => ({
-    id: a.id,
-    officeId: a.office_id,
-    date: a.appointment_date,
-    startMin: timeToMin(a.start_time),
-    duration: Number(a.duration_min),
-    skills: a.txn_type_ids,
-    firstName: a.first_name,
-    lastName: a.last_name,
-    status: a.status,
-  }));
-}
+      // ─── Lane assignment ───────────────────────────────────────────────────────
+      function assignLanes(dayAppts) {
+        const sorted = [...dayAppts].sort(
+          (a, b) => a.startMin - b.startMin || a.startMin + a.duration - (b.startMin + b.duration),
+        );
+        const laneEnds = [];
+        const assignments = new Map();
+        for (const appt of sorted) {
+          let assigned = -1;
+          for (let l = 0; l < laneEnds.length; l++) {
+            if (laneEnds[l] <= appt.startMin) {
+              assigned = l;
+              laneEnds[l] = appt.startMin + appt.duration;
+              break;
+            }
+          }
+          if (assigned === -1) {
+            assigned = laneEnds.length;
+            laneEnds.push(appt.startMin + appt.duration);
+          }
+          assignments.set(appt.id, assigned);
+        }
+        return { assignments, laneCount: Math.max(laneEnds.length, 1) };
+      }
 
-// ─── Lane assignment ───────────────────────────────────────────────────────
-function assignLanes(dayAppts) {
-  const sorted = [...dayAppts].sort((a, b) => a.startMin - b.startMin || (a.startMin + a.duration) - (b.startMin + b.duration));
-  const laneEnds = [];
-  const assignments = new Map();
-  for (const appt of sorted) {
-    let assigned = -1;
-    for (let l = 0; l < laneEnds.length; l++) {
-      if (laneEnds[l] <= appt.startMin) { assigned = l; laneEnds[l] = appt.startMin + appt.duration; break; }
-    }
-    if (assigned === -1) { assigned = laneEnds.length; laneEnds.push(appt.startMin + appt.duration); }
-    assignments.set(appt.id, assigned);
-  }
-  return { assignments, laneCount: Math.max(laneEnds.length, 1) };
-}
+      // ─── Render ────────────────────────────────────────────────────────────────
+      function render() {
+        const container = document.getElementById("schedule-container");
+        container.innerHTML = "";
 
-// ─── Render ────────────────────────────────────────────────────────────────
-function render() {
-  const container = document.getElementById('schedule-container');
-  container.innerHTML = '';
+        // Update week label
+        const endDate = addDays(weekStartDate, 4);
+        document.getElementById("week-label").textContent =
+          `${formatDate(weekStartDate)} — ${formatDate(endDate)}`;
 
-  // Update week label
-  const endDate = addDays(weekStartDate, 4);
-  document.getElementById('week-label').textContent =
-    `${formatDate(weekStartDate)} — ${formatDate(endDate)}`;
+        for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
+          const date = addDays(weekStartDate, dayOffset);
+          const dateStr = isoDate(date);
+          const dayAppts = appointments.filter((a) => a.date === dateStr);
+          const { assignments, laneCount } = assignLanes(dayAppts);
 
-  for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
-    const date = addDays(weekStartDate, dayOffset);
-    const dateStr = isoDate(date);
-    const dayAppts = appointments.filter(a => a.date === dateStr);
-    const { assignments, laneCount } = assignLanes(dayAppts);
+          const row = document.createElement("div");
+          row.className = "day-row";
 
-    const row = document.createElement('div');
-    row.className = 'day-row';
-
-    const header = document.createElement('div');
-    header.className = 'day-header';
-    header.innerHTML = `
+          const header = document.createElement("div");
+          header.className = "day-header";
+          header.innerHTML = `
       <span class="day-label">${formatDate(date)}</span>
-      <span class="day-meta">${dayAppts.length} appointment${dayAppts.length !== 1 ? 's' : ''}</span>
+      <span class="day-meta">${dayAppts.length} appointment${dayAppts.length !== 1 ? "s" : ""}</span>
     `;
-    row.appendChild(header);
+          row.appendChild(header);
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'timeline-wrapper';
+          const wrapper = document.createElement("div");
+          wrapper.className = "timeline-wrapper";
 
-    // Hour marks
-    const hoursDiv = document.createElement('div');
-    hoursDiv.className = 'timeline-hours';
-    for (let h = Math.floor(CONFIG.openMin/60); h <= Math.floor(CONFIG.closeMin/60); h++) {
-      const mark = document.createElement('div');
-      mark.className = 'hour-mark';
-      mark.style.left = `${pct(h * 60)}%`;
-      mark.textContent = h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`;
-      hoursDiv.appendChild(mark);
-    }
-    wrapper.appendChild(hoursDiv);
+          // Hour marks
+          const hoursDiv = document.createElement("div");
+          hoursDiv.className = "timeline-hours";
+          for (
+            let h = Math.floor(CONFIG.openMin / 60);
+            h <= Math.floor(CONFIG.closeMin / 60);
+            h++
+          ) {
+            const mark = document.createElement("div");
+            mark.className = "hour-mark";
+            mark.style.left = `${pct(h * 60)}%`;
+            mark.textContent =
+              h === 0 ? "12am" : h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`;
+            hoursDiv.appendChild(mark);
+          }
+          wrapper.appendChild(hoursDiv);
 
-    // Track
-    const LANE_H = 36;
-    const trackH = laneCount * LANE_H;
-    const track = document.createElement('div');
-    track.className = 'timeline-track';
-    track.style.height = `${trackH}px`;
-    track.dataset.date = dateStr;
-    track.dataset.officeId = currentOfficeId;
+          // Track
+          const LANE_H = 36;
+          const trackH = laneCount * LANE_H;
+          const track = document.createElement("div");
+          track.className = "timeline-track";
+          track.style.height = `${trackH}px`;
+          track.dataset.date = dateStr;
+          track.dataset.officeId = currentOfficeId;
 
-    // Lane dividers
-    for (let l = 1; l < laneCount; l++) {
-      const div = document.createElement('div');
-      div.className = 'lane-divider';
-      div.style.top = `${l * LANE_H}px`;
-      track.appendChild(div);
-    }
+          // Lane dividers
+          for (let l = 1; l < laneCount; l++) {
+            const div = document.createElement("div");
+            div.className = "lane-divider";
+            div.style.top = `${l * LANE_H}px`;
+            track.appendChild(div);
+          }
 
-    // Lunch overlays
-    for (const ls of CONFIG.lunchShifts.filter(l => l.officeId === currentOfficeId)) {
-      const overlay = document.createElement('div');
-      overlay.className = 'lunch-overlay';
-      overlay.style.left = `${pct(ls.start)}%`;
-      overlay.style.width = `${pctWidth(ls.end - ls.start)}%`;
-      overlay.innerHTML = `<span class="lunch-label">lunch</span>`;
-      track.appendChild(overlay);
-    }
+          // Lunch overlays
+          for (const ls of CONFIG.lunchShifts.filter((l) => l.officeId === currentOfficeId)) {
+            const overlay = document.createElement("div");
+            overlay.className = "lunch-overlay";
+            overlay.style.left = `${pct(ls.start)}%`;
+            overlay.style.width = `${pctWidth(ls.end - ls.start)}%`;
+            overlay.innerHTML = `<span class="lunch-label">lunch</span>`;
+            track.appendChild(overlay);
+          }
 
-    // Appointment blocks
-    for (const appt of dayAppts) {
-      const lane = assignments.get(appt.id) || 0;
-      const block = createApptBlock(appt, lane, LANE_H);
-      track.appendChild(block);
-    }
+          // Appointment blocks
+          for (const appt of dayAppts) {
+            const lane = assignments.get(appt.id) || 0;
+            const block = createApptBlock(appt, lane, LANE_H);
+            track.appendChild(block);
+          }
 
-    wrapper.appendChild(track);
-    row.appendChild(wrapper);
-    container.appendChild(row);
-  }
+          wrapper.appendChild(track);
+          row.appendChild(wrapper);
+          container.appendChild(row);
+        }
 
-  setupDragAndDrop();
-}
+        setupDragAndDrop();
+      }
 
-function createApptBlock(appt, lane, LANE_H) {
-  const displayName = `${appt.firstName} ${appt.lastName.charAt(0)}.`;
+      function createApptBlock(appt, lane, LANE_H) {
+        const displayName = `${appt.firstName} ${appt.lastName.charAt(0)}.`;
 
-  if (appt.skills.length > 1) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'appt-block multi';
-    wrapper.style.left = `${pct(appt.startMin)}%`;
-    wrapper.style.width = `${pctWidth(appt.duration)}%`;
-    wrapper.style.top = `${lane * LANE_H + 2}px`;
-    wrapper.style.height = `${LANE_H - 4}px`;
-    wrapper.dataset.apptId = appt.id;
-    wrapper.dataset.date = appt.date;
+        if (appt.skills.length > 1) {
+          const wrapper = document.createElement("div");
+          wrapper.className = "appt-block multi";
+          wrapper.style.left = `${pct(appt.startMin)}%`;
+          wrapper.style.width = `${pctWidth(appt.duration)}%`;
+          wrapper.style.top = `${lane * LANE_H + 2}px`;
+          wrapper.style.height = `${LANE_H - 4}px`;
+          wrapper.dataset.apptId = appt.id;
+          wrapper.dataset.date = appt.date;
 
-    let offset = 0;
-    for (const skillId of appt.skills) {
-      const dur = CONFIG.txnTypes.find(t => t.id === skillId)?.duration || 0;
-      const seg = document.createElement('div');
-      seg.className = 'appt-seg';
-      seg.style.left = `${(offset / appt.duration) * 100}%`;
-      seg.style.width = `${(dur / appt.duration) * 100}%`;
-      seg.style.background = txnColor(skillId);
-      wrapper.appendChild(seg);
-      offset += dur;
-    }
-    const label = document.createElement('span');
-    label.className = 'appt-label';
-    label.textContent = displayName;
-    wrapper.appendChild(label);
-    return wrapper;
-  }
+          let offset = 0;
+          for (const skillId of appt.skills) {
+            const dur = CONFIG.txnTypes.find((t) => t.id === skillId)?.duration || 0;
+            const seg = document.createElement("div");
+            seg.className = "appt-seg";
+            seg.style.left = `${(offset / appt.duration) * 100}%`;
+            seg.style.width = `${(dur / appt.duration) * 100}%`;
+            seg.style.background = txnColor(skillId);
+            wrapper.appendChild(seg);
+            offset += dur;
+          }
+          const label = document.createElement("span");
+          label.className = "appt-label";
+          label.textContent = displayName;
+          wrapper.appendChild(label);
+          return wrapper;
+        }
 
-  const block = document.createElement('div');
-  block.className = 'appt-block';
-  block.style.left = `${pct(appt.startMin)}%`;
-  block.style.width = `${pctWidth(appt.duration)}%`;
-  block.style.top = `${lane * LANE_H + 2}px`;
-  block.style.height = `${LANE_H - 4}px`;
-  block.style.background = txnColor(appt.skills[0]);
-  block.textContent = displayName;
-  block.dataset.apptId = appt.id;
-  block.dataset.date = appt.date;
-  return block;
-}
+        const block = document.createElement("div");
+        block.className = "appt-block";
+        block.style.left = `${pct(appt.startMin)}%`;
+        block.style.width = `${pctWidth(appt.duration)}%`;
+        block.style.top = `${lane * LANE_H + 2}px`;
+        block.style.height = `${LANE_H - 4}px`;
+        block.style.background = txnColor(appt.skills[0]);
+        block.textContent = displayName;
+        block.dataset.apptId = appt.id;
+        block.dataset.date = appt.date;
+        return block;
+      }
 
-// ─── Drag and Drop ─────────────────────────────────────────────────────────
-function setupDragAndDrop() {
-  const blocks = document.querySelectorAll('.appt-block');
-  blocks.forEach(block => {
-    block.addEventListener('mousedown', onDragStart);
-  });
+      // ─── Drag and Drop ─────────────────────────────────────────────────────────
+      function setupDragAndDrop() {
+        const blocks = document.querySelectorAll(".appt-block");
+        blocks.forEach((block) => {
+          block.addEventListener("mousedown", onDragStart);
+        });
 
-  document.querySelectorAll('.timeline-track').forEach(track => {
-    track.addEventListener('mousemove', onTrackMouseMove);
-    track.addEventListener('mouseleave', onTrackMouseLeave);
-  });
-}
+        document.querySelectorAll(".timeline-track").forEach((track) => {
+          track.addEventListener("mousemove", onTrackMouseMove);
+          track.addEventListener("mouseleave", onTrackMouseLeave);
+        });
+      }
 
-function onDragStart(e) {
-  if (e.button !== 0) return;
-  e.preventDefault();
+      function onDragStart(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
 
-  const block = e.target.closest('.appt-block');
-  if (!block) return;
+        const block = e.target.closest(".appt-block");
+        if (!block) return;
 
-  const apptId = parseInt(block.dataset.apptId);
-  const appt = appointments.find(a => a.id === apptId);
-  if (!appt) return;
+        const apptId = parseInt(block.dataset.apptId);
+        const appt = appointments.find((a) => a.id === apptId);
+        if (!appt) return;
 
-  block.classList.add('dragging');
+        block.classList.add("dragging");
 
-  const ghost = document.createElement('div');
-  ghost.className = 'drag-ghost';
-  ghost.style.background = appt.skills.length > 1
-    ? `linear-gradient(135deg, ${appt.skills.map(s => txnColor(s)).join(', ')})`
-    : txnColor(appt.skills[0]);
-  ghost.textContent = `${appt.firstName} ${appt.lastName.charAt(0)}.`;
-  ghost.style.left = `${e.clientX + 12}px`;
-  ghost.style.top = `${e.clientY - 12}px`;
-  document.body.appendChild(ghost);
+        const ghost = document.createElement("div");
+        ghost.className = "drag-ghost";
+        ghost.style.background =
+          appt.skills.length > 1
+            ? `linear-gradient(135deg, ${appt.skills.map((s) => txnColor(s)).join(", ")})`
+            : txnColor(appt.skills[0]);
+        ghost.textContent = `${appt.firstName} ${appt.lastName.charAt(0)}.`;
+        ghost.style.left = `${e.clientX + 12}px`;
+        ghost.style.top = `${e.clientY - 12}px`;
+        document.body.appendChild(ghost);
 
-  dragState = { appt, block, ghost, indicator: null };
+        dragState = { appt, block, ghost, indicator: null };
 
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onDragEnd);
-}
+        document.addEventListener("mousemove", onDragMove);
+        document.addEventListener("mouseup", onDragEnd);
+      }
 
-function onDragMove(e) {
-  if (!dragState) return;
-  dragState.ghost.style.left = `${e.clientX + 12}px`;
-  dragState.ghost.style.top = `${e.clientY - 12}px`;
+      function onDragMove(e) {
+        if (!dragState) return;
+        dragState.ghost.style.left = `${e.clientX + 12}px`;
+        dragState.ghost.style.top = `${e.clientY - 12}px`;
 
-  // Find track under cursor
-  const track = document.elementFromPoint(e.clientX, e.clientY)?.closest('.timeline-track');
+        // Find track under cursor
+        const track = document.elementFromPoint(e.clientX, e.clientY)?.closest(".timeline-track");
 
-  // Remove old indicator
-  if (dragState.indicator) { dragState.indicator.remove(); dragState.indicator = null; }
-  document.querySelectorAll('.timeline-track.drag-over').forEach(t => t.classList.remove('drag-over'));
+        // Remove old indicator
+        if (dragState.indicator) {
+          dragState.indicator.remove();
+          dragState.indicator = null;
+        }
+        document
+          .querySelectorAll(".timeline-track.drag-over")
+          .forEach((t) => t.classList.remove("drag-over"));
 
-  if (track) {
-    track.classList.add('drag-over');
-    const rect = track.getBoundingClientRect();
-    const xPct = (e.clientX - rect.left) / rect.width;
-    const minute = Math.round(CONFIG.openMin + xPct * (CONFIG.closeMin - CONFIG.openMin));
-    const snapped = Math.round(minute / 5) * 5;
+        if (track) {
+          track.classList.add("drag-over");
+          const rect = track.getBoundingClientRect();
+          const xPct = (e.clientX - rect.left) / rect.width;
+          const minute = Math.round(CONFIG.openMin + xPct * (CONFIG.closeMin - CONFIG.openMin));
+          const snapped = Math.round(minute / 5) * 5;
 
-    const indicator = document.createElement('div');
-    indicator.className = 'drop-indicator';
-    indicator.style.left = `${pct(snapped)}%`;
-    track.appendChild(indicator);
-    dragState.indicator = indicator;
-    dragState.targetDate = track.dataset.date;
-    dragState.targetMin = snapped;
-  } else {
-    dragState.targetDate = null;
-    dragState.targetMin = null;
-  }
-}
-
-async function onDragEnd(e) {
-  if (!dragState) return;
-
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
-
-  dragState.block.classList.remove('dragging');
-  dragState.ghost.remove();
-  if (dragState.indicator) dragState.indicator.remove();
-  document.querySelectorAll('.timeline-track.drag-over').forEach(t => t.classList.remove('drag-over'));
-
-  if (dragState.targetDate && dragState.targetMin != null) {
-    const { appt, targetDate, targetMin } = dragState;
-    const newTime = minToTime(targetMin) + ':00';
-
-    if (targetDate !== appt.date || targetMin !== appt.startMin) {
-      showStatus(`Moving ${appt.firstName} ${appt.lastName.charAt(0)}. to ${formatDate(new Date(targetDate + 'T00:00:00'))} @ ${minToTime(targetMin)}...`, '', 5000);
-
-      let result = await apiReschedule(appt.id, targetDate, newTime, false);
-      if (!result.success && result.error === 'capacity_exceeded') {
-        const confirmed = confirm(`This slot exceeds estimated capacity. Move ${appt.firstName} ${appt.lastName.charAt(0)}. anyway?`);
-        if (confirmed) {
-          result = await apiReschedule(appt.id, targetDate, newTime, true);
+          const indicator = document.createElement("div");
+          indicator.className = "drop-indicator";
+          indicator.style.left = `${pct(snapped)}%`;
+          track.appendChild(indicator);
+          dragState.indicator = indicator;
+          dragState.targetDate = track.dataset.date;
+          dragState.targetMin = snapped;
+        } else {
+          dragState.targetDate = null;
+          dragState.targetMin = null;
         }
       }
-      if (result.success) {
-        showStatus(`Moved ${appt.firstName} ${appt.lastName.charAt(0)}. to ${minToTime(targetMin)}`, 'success', 3000);
-        await loadAppointments();
-        render();
-      } else if (result.error !== 'capacity_exceeded') {
-        showStatus(`Cannot move: ${result.error || 'unknown error'}`, 'error', 4000);
+
+      async function onDragEnd(e) {
+        if (!dragState) return;
+
+        document.removeEventListener("mousemove", onDragMove);
+        document.removeEventListener("mouseup", onDragEnd);
+
+        dragState.block.classList.remove("dragging");
+        dragState.ghost.remove();
+        if (dragState.indicator) dragState.indicator.remove();
+        document
+          .querySelectorAll(".timeline-track.drag-over")
+          .forEach((t) => t.classList.remove("drag-over"));
+
+        if (dragState.targetDate && dragState.targetMin != null) {
+          const { appt, targetDate, targetMin } = dragState;
+          const newTime = minToTime(targetMin) + ":00";
+
+          if (targetDate !== appt.date || targetMin !== appt.startMin) {
+            showStatus(
+              `Moving ${appt.firstName} ${appt.lastName.charAt(0)}. to ${formatDate(new Date(targetDate + "T00:00:00"))} @ ${minToTime(targetMin)}...`,
+              "",
+              5000,
+            );
+
+            let result = await apiReschedule(appt.id, targetDate, newTime, false);
+            if (!result.success && result.error === "capacity_exceeded") {
+              const confirmed = confirm(
+                `This slot exceeds estimated capacity. Move ${appt.firstName} ${appt.lastName.charAt(0)}. anyway?`,
+              );
+              if (confirmed) {
+                result = await apiReschedule(appt.id, targetDate, newTime, true);
+              }
+            }
+            if (result.success) {
+              showStatus(
+                `Moved ${appt.firstName} ${appt.lastName.charAt(0)}. to ${minToTime(targetMin)}`,
+                "success",
+                3000,
+              );
+              await loadAppointments();
+              render();
+            } else if (result.error !== "capacity_exceeded") {
+              showStatus(`Cannot move: ${result.error || "unknown error"}`, "error", 4000);
+            }
+          }
+        }
+
+        dragState = null;
       }
-    }
-  }
 
-  dragState = null;
-}
+      // ─── Tooltip on hover ──────────────────────────────────────────────────────
+      function onTrackMouseMove(e) {
+        if (dragState) return;
+        const block = e.target.closest(".appt-block");
+        const tooltip = document.getElementById("tooltip");
+        if (!block) {
+          tooltip.style.display = "none";
+          return;
+        }
 
-// ─── Tooltip on hover ──────────────────────────────────────────────────────
-function onTrackMouseMove(e) {
-  if (dragState) return;
-  const block = e.target.closest('.appt-block');
-  const tooltip = document.getElementById('tooltip');
-  if (!block) { tooltip.style.display = 'none'; return; }
+        const apptId = parseInt(block.dataset.apptId);
+        const appt = appointments.find((a) => a.id === apptId);
+        if (!appt) {
+          tooltip.style.display = "none";
+          return;
+        }
 
-  const apptId = parseInt(block.dataset.apptId);
-  const appt = appointments.find(a => a.id === apptId);
-  if (!appt) { tooltip.style.display = 'none'; return; }
-
-  const txnNames = appt.skills.map(s => CONFIG.txnTypes.find(t => t.id === s)?.name || `#${s}`).join(' + ');
-  tooltip.innerHTML = `
+        const txnNames = appt.skills
+          .map((s) => CONFIG.txnTypes.find((t) => t.id === s)?.name || `#${s}`)
+          .join(" + ");
+        tooltip.innerHTML = `
     <div class="tt-name">${appt.firstName} ${appt.lastName}</div>
     <div class="tt-time">${minToTime(appt.startMin)} – ${minToTime(appt.startMin + appt.duration)}</div>
     <div class="tt-txn">${txnNames} (${appt.duration} min)</div>
   `;
-  tooltip.style.display = 'block';
-  tooltip.style.left = `${e.clientX + 16}px`;
-  tooltip.style.top = `${e.clientY - tooltip.offsetHeight - 8}px`;
-}
+        tooltip.style.display = "block";
+        tooltip.style.left = `${e.clientX + 16}px`;
+        tooltip.style.top = `${e.clientY - tooltip.offsetHeight - 8}px`;
+      }
 
-function onTrackMouseLeave() {
-  if (!dragState) document.getElementById('tooltip').style.display = 'none';
-}
+      function onTrackMouseLeave() {
+        if (!dragState) document.getElementById("tooltip").style.display = "none";
+      }
 
-// ─── Event listeners ───────────────────────────────────────────────────────
-document.getElementById('office-select').addEventListener('change', async (e) => {
-  currentOfficeId = parseInt(e.target.value);
-  await loadAppointments();
-  render();
-});
+      // ─── Event listeners ───────────────────────────────────────────────────────
+      document.getElementById("office-select").addEventListener("change", async (e) => {
+        currentOfficeId = parseInt(e.target.value);
+        await loadAppointments();
+        render();
+      });
 
-document.getElementById('btn-prev').addEventListener('click', async () => {
-  weekStartDate = addDays(weekStartDate, -7);
-  await loadAppointments();
-  render();
-});
+      document.getElementById("btn-prev").addEventListener("click", async () => {
+        weekStartDate = addDays(weekStartDate, -7);
+        await loadAppointments();
+        render();
+      });
 
-document.getElementById('btn-next').addEventListener('click', async () => {
-  weekStartDate = addDays(weekStartDate, 7);
-  await loadAppointments();
-  render();
-});
+      document.getElementById("btn-next").addEventListener("click", async () => {
+        weekStartDate = addDays(weekStartDate, 7);
+        await loadAppointments();
+        render();
+      });
 
-document.getElementById('btn-today').addEventListener('click', async () => {
-  weekStartDate = getMondayOfWeek(new Date());
-  await loadAppointments();
-  render();
-});
+      document.getElementById("btn-today").addEventListener("click", async () => {
+        weekStartDate = getMondayOfWeek(new Date());
+        await loadAppointments();
+        render();
+      });
 
-// ─── Init ──────────────────────────────────────────────────────────────────
-(async function init() {
-  await loadConfig();
-  // Start on the demo week (Mon of DEMO_DATE from config)
-  const configResp = await fetch('/api/config');
-  const configData = await configResp.json();
-  const demoDate = configData.demoDate ? new Date(configData.demoDate + 'T00:00:00') : new Date();
-  weekStartDate = getMondayOfWeek(demoDate);
-  await loadAppointments();
-  render();
-})();
-</script>
-</body>
+      // ─── Init ──────────────────────────────────────────────────────────────────
+      (async function init() {
+        await loadConfig();
+        // Start on the demo week (Mon of DEMO_DATE from config)
+        const configResp = await fetch("/api/config");
+        const configData = await configResp.json();
+        const demoDate = configData.demoDate
+          ? new Date(configData.demoDate + "T00:00:00")
+          : new Date();
+        weekStartDate = getMondayOfWeek(demoDate);
+        await loadAppointments();
+        render();
+      })();
+    </script>
+  </body>
 </html>
