@@ -16,7 +16,6 @@ const db = useDb();
 
 function baseInput(overrides: Partial<FindApptInput> = {}): FindApptInput {
   return {
-    countyId: "stlucie",
     targetSkills: [ROAD_TEST],
     asap: true,
     preferredOffice: null,
@@ -279,8 +278,8 @@ describe("findAppointment: absence handling", () => {
 
     // Put Maria on vacation. Road test supply drops 2 → 1 (Angela only).
     await db.client.query(
-      `INSERT INTO clerk_absences (county_id, clerk_id, start_date, end_date, reason)
-       VALUES ('stlucie', 1, $1, $1, 'vacation')`,
+      `INSERT INTO clerk_absences (clerk_id, start_date, end_date, reason)
+       VALUES (1, $1, $1, 'vacation')`,
       [DATE],
     );
 
@@ -303,11 +302,11 @@ describe("findAppointment: absence handling", () => {
 
     // All road_test clerks absent: Maria(1), Angela(3), Jennifer(4), Nancy(6).
     await db.client.query(
-      `INSERT INTO clerk_absences (county_id, clerk_id, start_date, end_date, reason)
-       VALUES ('stlucie', 1, $1, $1, 'vacation'),
-              ('stlucie', 3, $1, $1, 'vacation'),
-              ('stlucie', 4, $1, $1, 'vacation'),
-              ('stlucie', 6, $1, $1, 'vacation')`,
+      `INSERT INTO clerk_absences (clerk_id, start_date, end_date, reason)
+       VALUES (1, $1, $1, 'vacation'),
+              (3, $1, $1, 'vacation'),
+              (4, $1, $1, 'vacation'),
+              (6, $1, $1, 'vacation')`,
       [DATE],
     );
 
@@ -478,15 +477,15 @@ describe("findAppointment: preferredDow across multiple days", () => {
     for (const office of [1, 2]) {
       await db.client.query(
         `DELETE FROM documents
-          WHERE county_id='stlucie' AND appointment_id IN (
+          WHERE appointment_id IN (
             SELECT id FROM appointments
-            WHERE county_id='stlucie' AND office_id=$1 AND appointment_date='2026-05-13'
+            WHERE office_id=$1 AND appointment_date='2026-05-13'
           )`,
         [office],
       );
       await db.client.query(
         `DELETE FROM appointments
-          WHERE county_id='stlucie' AND office_id=$1 AND appointment_date='2026-05-13'`,
+          WHERE office_id=$1 AND appointment_date='2026-05-13'`,
         [office],
       );
       for (let i = 0; i < 12; i++) {
@@ -542,15 +541,15 @@ describe("findAppointment: preferredDow across multiple days", () => {
     for (const office of [1, 2]) {
       await db.client.query(
         `DELETE FROM documents
-          WHERE county_id='stlucie' AND appointment_id IN (
+          WHERE appointment_id IN (
             SELECT id FROM appointments
-            WHERE county_id='stlucie' AND office_id=$1 AND appointment_date='2026-05-13'
+            WHERE office_id=$1 AND appointment_date='2026-05-13'
           )`,
         [office],
       );
       await db.client.query(
         `DELETE FROM appointments
-          WHERE county_id='stlucie' AND office_id=$1 AND appointment_date='2026-05-13'`,
+          WHERE office_id=$1 AND appointment_date='2026-05-13'`,
         [office],
       );
       for (let i = 0; i < 12; i++) {
@@ -690,14 +689,14 @@ describe("findAppointment: multi-day search", () => {
     // Clear May 13.
     await db.client.query(
       `DELETE FROM documents
-        WHERE county_id='stlucie' AND appointment_id IN (
+        WHERE appointment_id IN (
           SELECT id FROM appointments
-          WHERE county_id='stlucie' AND appointment_date='2026-05-13'
+          WHERE appointment_date='2026-05-13'
         )`,
     );
     await db.client.query(
       `DELETE FROM appointments
-        WHERE county_id='stlucie' AND appointment_date='2026-05-13'`,
+        WHERE appointment_date='2026-05-13'`,
     );
 
     const result = await findAppointment(db.client, baseInput({ days: 2 }));
@@ -809,10 +808,8 @@ describe("findAppointment: combined preferences — full scenario", () => {
     await clearOfficeDay(db.client);
 
     // Reduce to 1 desk and 1 road_test clerk at office 1.
-    await db.client.query(
-      `UPDATE offices SET total_desks = 1 WHERE county_id = 'stlucie' AND id = 1`,
-    );
-    await db.client.query(`UPDATE clerks SET status = 'inactive' WHERE county_id = 'stlucie'`);
+    await db.client.query(`UPDATE offices SET total_desks = 1 WHERE id = 1`);
+    await db.client.query(`UPDATE clerks SET status = 'inactive'`);
     await db.client.query(`UPDATE clerks SET status = 'active' WHERE id = 1`); // Maria only
 
     // Road test: 09:00-15:00, 30 min, 1 desk, 1 clerk.
@@ -957,7 +954,7 @@ describe("findAppointment: scheduling_block_padding", () => {
   test("next slot respects padding gap", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
-    await db.client.query("UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'");
+    await db.client.query("UPDATE config SET scheduling_block_padding = 5");
     // Fill both road_test clerk slots at 09:00 (30-min → raw end 09:30)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
@@ -970,7 +967,7 @@ describe("findAppointment: scheduling_block_padding", () => {
 
   test("booking inside padding zone is rejected", async () => {
     await clearOfficeDay(db.client);
-    await db.client.query("UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'");
+    await db.client.query("UPDATE config SET scheduling_block_padding = 5");
     // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
@@ -983,7 +980,7 @@ describe("findAppointment: scheduling_block_padding", () => {
 
   test("booking after padding zone succeeds", async () => {
     await clearOfficeDay(db.client);
-    await db.client.query("UPDATE counties SET scheduling_block_padding = 5 WHERE id = 'stlucie'");
+    await db.client.query("UPDATE config SET scheduling_block_padding = 5");
     // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
@@ -995,7 +992,7 @@ describe("findAppointment: scheduling_block_padding", () => {
 
   test("zero padding allows back-to-back booking", async () => {
     await clearOfficeDay(db.client);
-    await db.client.query("UPDATE counties SET scheduling_block_padding = 0 WHERE id = 'stlucie'");
+    await db.client.query("UPDATE config SET scheduling_block_padding = 0");
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
 

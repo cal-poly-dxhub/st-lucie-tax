@@ -16,7 +16,7 @@ describe("query 1: get office config", () => {
     const { rows } = await db.client.query(
       `SELECT id, office_name, name, total_desks, run_rate_pct
          FROM offices
-        WHERE county_id = 'stlucie' AND id = 1`,
+        WHERE id = 1`,
     );
     expect(rows).toEqual([
       {
@@ -35,7 +35,7 @@ describe("query 2: get office hours", () => {
     const { rows } = await db.client.query(
       `SELECT day_of_week, open_time::text AS open, close_time::text AS close
          FROM office_hours
-        WHERE county_id = 'stlucie' AND office_id = 1
+        WHERE office_id = 1
         ORDER BY day_of_week`,
     );
     expect(rows).toEqual([
@@ -53,7 +53,7 @@ describe("query 3: get lunch shifts", () => {
     const { rows } = await db.client.query(
       `SELECT shift_num, start_time::text AS start, end_time::text AS finish
          FROM office_lunch_shifts
-        WHERE county_id = 'stlucie' AND office_id = 1
+        WHERE office_id = 1
         ORDER BY start_time`,
     );
     expect(rows).toEqual([
@@ -68,7 +68,7 @@ describe("query 4: effective transaction types", () => {
     const { rows } = await db.client.query(
       `SELECT txn_type_id
          FROM effective_transaction_types
-        WHERE county_id = 'stlucie' AND office_id = 1 AND status = 'active'
+        WHERE office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
     expect(rows.map((r) => r.txn_type_id)).toEqual(["road_test", "id_card", "license_original"]);
@@ -77,14 +77,14 @@ describe("query 4: effective transaction types", () => {
   test("hidden override at office 1 drops road_test there but not at office 2", async () => {
     await db.client.query(
       `INSERT INTO transaction_types
-         (county_id, txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('stlucie', 'road_test', 1, 'Road Test', 30, 'hidden')`,
+         (txn_type_id, office_id, name, avg_duration_min, status)
+       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     const office1 = await db.client.query(
       `SELECT txn_type_id
          FROM effective_transaction_types
-        WHERE county_id = 'stlucie' AND office_id = 1 AND status = 'active'
+        WHERE office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
     expect(office1.rows.map((r) => r.txn_type_id)).toEqual(["id_card", "license_original"]);
@@ -92,7 +92,7 @@ describe("query 4: effective transaction types", () => {
     const office2 = await db.client.query(
       `SELECT txn_type_id
          FROM effective_transaction_types
-        WHERE county_id = 'stlucie' AND office_id = 2 AND status = 'active'
+        WHERE office_id = 2 AND status = 'active'
         ORDER BY global_id`,
     );
     expect(office2.rows.map((r) => r.txn_type_id)).toEqual([
@@ -115,8 +115,7 @@ const OFFICE_TXN_WINDOW_SQL = `
          MAX(ett.available_from)  AS earliest_start,
          MIN(ett.available_until) AS latest_end
     FROM effective_transaction_types ett
-   WHERE ett.county_id = 'stlucie'
-     AND ett.global_id = ANY($1::int[])
+   WHERE ett.global_id = ANY($1::int[])
      AND ett.status    = 'active'
    GROUP BY ett.office_id
   HAVING COUNT(*) = cardinality($1::int[])
@@ -131,8 +130,7 @@ describe("office_txn_window: per-office intersected availability", () => {
     await db.client.query(
       `UPDATE transaction_types
           SET available_from = '09:30'
-        WHERE county_id = 'stlucie'
-          AND txn_type_id = 'road_test'
+        WHERE txn_type_id = 'road_test'
           AND office_id IS NULL`,
     );
 
@@ -148,8 +146,7 @@ describe("office_txn_window: per-office intersected availability", () => {
     await db.client.query(
       `UPDATE transaction_types
           SET available_until = '13:00'
-        WHERE county_id = 'stlucie'
-          AND txn_type_id = 'license_original'
+        WHERE txn_type_id = 'license_original'
           AND office_id IS NULL`,
     );
 
@@ -175,8 +172,8 @@ describe("office_txn_window: per-office intersected availability", () => {
     // because COUNT(*) for [1,3] = 1 ≠ 2 = cardinality.
     await db.client.query(
       `INSERT INTO transaction_types
-         (county_id, txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('stlucie', 'road_test', 1, 'Road Test', 30, 'hidden')`,
+         (txn_type_id, office_id, name, avg_duration_min, status)
+       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[1, 3]]);
@@ -287,8 +284,8 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     await db.client.query(
       `INSERT INTO transaction_types
-         (county_id, txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('stlucie', 'road_test', 1, 'Road Test', 30, 'hidden')`,
+         (txn_type_id, office_id, name, avg_duration_min, status)
+       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject({ code: "P0003" });
@@ -535,9 +532,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await clearOfficeDay(db.client);
 
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
-    await db.client.query(
-      `UPDATE offices SET run_rate_pct = 50 WHERE county_id='stlucie' AND id=1`,
-    );
+    await db.client.query(`UPDATE offices SET run_rate_pct = 50 WHERE id=1`);
 
     // Book 1 appointment (any skill) — fills the effective desk cap.
     await db.client.query(BOOK_SQL, bookParams({ skills: [2], email: "cap1@x.com" }));
@@ -548,9 +543,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
 
     // Restore run_rate_pct.
-    await db.client.query(
-      `UPDATE offices SET run_rate_pct = 100 WHERE county_id='stlucie' AND id=1`,
-    );
+    await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
   test("Case 17: lunch reduces effective cap below effective_desks", async () => {
@@ -668,9 +661,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await clearOfficeDay(db.client);
 
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
-    await db.client.query(
-      `UPDATE offices SET run_rate_pct = 50 WHERE county_id='stlucie' AND id=1`,
-    );
+    await db.client.query(`UPDATE offices SET run_rate_pct = 50 WHERE id=1`);
 
     // At 12:20 during shift 2: James+Angela on lunch, only Maria on floor.
     // Cap = min(effective_desks=1, clerks_on_floor=1) = 1.
@@ -703,9 +694,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((fourth as { code: string }).code).toBe("P0001");
 
     // Restore.
-    await db.client.query(
-      `UPDATE offices SET run_rate_pct = 100 WHERE county_id='stlucie' AND id=1`,
-    );
+    await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
   test("Case 21: multi-skill appointment spanning lunch — duration summed correctly", async () => {

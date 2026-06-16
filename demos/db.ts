@@ -11,11 +11,10 @@ export const pool = new Pool({
   ssl: false,
 });
 
-export async function withTenant<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("SET LOCAL app.current_tenant = 'stlucie'");
     const result = await fn(client);
     await client.query("COMMIT");
     return result;

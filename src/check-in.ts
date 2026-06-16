@@ -19,14 +19,13 @@ export interface QrLookupResult {
 
 export async function lookupByQrCode(
   db: Queryable,
-  countyId: string,
   qrCode: string,
 ): Promise<QrLookupResult | null> {
   const { rows } = await db.query(
     `SELECT id AS appointment_id, office_id, status
      FROM appointments
-     WHERE county_id = $1 AND qr_code = $2`,
-    [countyId, qrCode],
+     WHERE qr_code = $1`,
+    [qrCode],
   );
   if (rows.length === 0) return null;
   return camelRows<QrLookupResult>(rows)[0];
@@ -39,15 +38,15 @@ export interface CheckInResult {
 
 export async function checkInToQueue(
   db: Queryable,
-  countyId: string,
   officeId: number,
   appointmentId: number,
   notes?: string,
 ): Promise<CheckInResult> {
-  const { rows } = await db.query<{ id: number }>(
-    `SELECT check_in_to_queue($1, $2, $3, $4) AS id`,
-    [countyId, officeId, appointmentId, notes ?? null],
-  );
+  const { rows } = await db.query<{ id: number }>(`SELECT check_in_to_queue($1, $2, $3) AS id`, [
+    officeId,
+    appointmentId,
+    notes ?? null,
+  ]);
   const queueId = rows[0].id;
 
   const qRow = await db.query<{ queue_number: number }>(
@@ -58,7 +57,6 @@ export async function checkInToQueue(
 }
 
 export interface WalkInInput {
-  countyId: string;
   officeId: number;
   txnTypeIds: number[];
   firstName: string;
@@ -85,9 +83,8 @@ const WALK_IN_ERROR_MAP: Record<string, WalkInError> = {
 export async function registerWalkIn(db: Queryable, input: WalkInInput): Promise<WalkInOutcome> {
   try {
     const res = await db.query<{ register_walk_in: number }>(
-      `SELECT register_walk_in($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `SELECT register_walk_in($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
-        input.countyId,
         input.officeId,
         input.txnTypeIds,
         input.firstName,
@@ -109,14 +106,13 @@ export async function registerWalkIn(db: Queryable, input: WalkInInput): Promise
 
 export async function updateQueueNotes(
   db: Queryable,
-  countyId: string,
   queueId: number,
   notes: string,
 ): Promise<void> {
-  const { rowCount } = await db.query(
-    `UPDATE queue SET notes = $3 WHERE county_id = $1 AND id = $2`,
-    [countyId, queueId, notes],
-  );
+  const { rowCount } = await db.query(`UPDATE queue SET notes = $2 WHERE id = $1`, [
+    queueId,
+    notes,
+  ]);
   if (rowCount === 0) {
     throw new Error(`Queue entry ${queueId} not found`);
   }
@@ -124,14 +120,13 @@ export async function updateQueueNotes(
 
 export async function setAppointmentPriority(
   db: Queryable,
-  countyId: string,
   appointmentId: number,
   isPriority: boolean,
 ): Promise<void> {
-  const { rowCount } = await db.query(
-    `UPDATE appointments SET is_priority = $3 WHERE county_id = $1 AND id = $2`,
-    [countyId, appointmentId, isPriority],
-  );
+  const { rowCount } = await db.query(`UPDATE appointments SET is_priority = $2 WHERE id = $1`, [
+    appointmentId,
+    isPriority,
+  ]);
   if (rowCount === 0) {
     throw new Error(`Appointment ${appointmentId} not found`);
   }
@@ -151,7 +146,6 @@ export interface CheckInSummary {
 
 export async function getCheckInSummary(
   db: Queryable,
-  countyId: string,
   appointmentId: number,
 ): Promise<CheckInSummary> {
   const apptRes = await db.query<{
@@ -164,8 +158,8 @@ export async function getCheckInSummary(
   }>(
     `SELECT id, first_name, last_name, identity_verified, prescreen_completed, required_doc_ids
      FROM appointments
-     WHERE county_id = $1 AND id = $2`,
-    [countyId, appointmentId],
+     WHERE id = $1`,
+    [appointmentId],
   );
   if (apptRes.rows.length === 0) throw new Error(`Appointment ${appointmentId} not found`);
 
@@ -183,15 +177,14 @@ export async function getCheckInSummary(
       `SELECT dr.doc_id,
               (d.id IS NOT NULL) AS uploaded,
               d.ai_review_status
-       FROM unnest($3::text[]) AS req(doc_id)
+       FROM unnest($2::text[]) AS req(doc_id)
        JOIN document_registry dr
-         ON dr.county_id = $1 AND dr.doc_id = req.doc_id
+         ON dr.doc_id = req.doc_id
        LEFT JOIN documents d
-         ON d.county_id = $1
-        AND d.appointment_id = $2
+         ON d.appointment_id = $1
         AND d.doc_id = req.doc_id
        ORDER BY dr.doc_id`,
-      [countyId, appointmentId, appt.required_doc_ids],
+      [appointmentId, appt.required_doc_ids],
     );
 
     for (const row of docRes.rows) {

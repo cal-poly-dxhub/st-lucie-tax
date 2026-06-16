@@ -6,15 +6,14 @@ const db = useDb();
 
 const WALK_IN_SQL = `
   SELECT register_walk_in(
-    p_county_id    := $1,
-    p_office_id    := $2,
-    p_txn_type_ids := $3,
-    p_first_name   := $4,
-    p_last_name    := $5,
-    p_contact_email := $6,
-    p_contact_phone := $7,
-    p_is_priority  := $8,
-    p_now_ts       := $9::timestamp
+    p_office_id    := $1,
+    p_txn_type_ids := $2,
+    p_first_name   := $3,
+    p_last_name    := $4,
+    p_contact_email := $5,
+    p_contact_phone := $6,
+    p_is_priority  := $7,
+    p_now_ts       := $8::timestamp
   ) AS id
 `;
 
@@ -31,7 +30,6 @@ function walkInParams(
   }> = {},
 ) {
   return [
-    "stlucie",
     overrides.office ?? 1,
     overrides.skills ?? [2], // id_card
     overrides.first ?? "Walk",
@@ -98,8 +96,8 @@ describe("register_walk_in", () => {
   test("txn_unavailable when transaction type is hidden at office", async () => {
     await db.client.query(
       `INSERT INTO transaction_types
-         (county_id, txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('stlucie', 'id_card', 1, 'ID Card', 15, 'hidden')`,
+         (txn_type_id, office_id, name, avg_duration_min, status)
+       VALUES ('id_card', 1, 'ID Card', 15, 'hidden')`,
     );
 
     await expect(db.client.query(WALK_IN_SQL, walkInParams())).rejects.toMatchObject({

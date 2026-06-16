@@ -1,7 +1,6 @@
 import { type Queryable } from "./utils.js";
 
 export interface FindApptInput {
-  countyId: string;
   targetSkills: number[];
   asap: boolean;
   preferredOffice: number | null; // office_id, or null = any
@@ -27,9 +26,9 @@ export async function findAppointment(
   db: Queryable,
   input: FindApptInput,
 ): Promise<FindApptResult | null> {
-  const { countyId, targetSkills } = input;
+  const { targetSkills } = input;
 
-  const meta = await loadSearchMeta(db, countyId, targetSkills);
+  const meta = await loadSearchMeta(db, targetSkills);
   if (meta === null) return null;
   const { offices, totalDurationMin, paddingMin } = meta;
 
@@ -37,7 +36,6 @@ export async function findAppointment(
 
   for (const cell of candidates) {
     const hit = await checkCell(db, {
-      countyId,
       targetSkills,
       officeId: cell.officeId,
       slotDate: cell.slotDate,
@@ -64,11 +62,9 @@ async function buildCandidates(
   totalDurationMin: number,
   paddingMin: number,
 ): Promise<Candidate[]> {
-  const { countyId, targetSkills, startDate, days } = input;
+  const { targetSkills, startDate, days } = input;
   const officeIds = offices.map((o) => o.id);
 
-  // Fetch the intersected txn availability window per office (earliest_start
-  // = MAX(available_from) across skills). This is the earliest valid start.
   const txnWindowRes = await db.query<{
     office_id: number;
     earliest_start: string | null;
@@ -76,31 +72,28 @@ async function buildCandidates(
     `SELECT ett.office_id,
             MAX(ett.available_from)::text AS earliest_start
      FROM effective_transaction_types ett
-     WHERE ett.county_id = $1
-       AND ett.office_id = ANY($2::int[])
-       AND ett.global_id = ANY($3::int[])
+     WHERE ett.office_id = ANY($1::int[])
+       AND ett.global_id = ANY($2::int[])
        AND ett.status    = 'active'
      GROUP BY ett.office_id
-     HAVING COUNT(*) = $4`,
-    [countyId, officeIds, targetSkills, targetSkills.length],
+     HAVING COUNT(*) = $3`,
+    [officeIds, targetSkills, targetSkills.length],
   );
   const earliestStartByOffice = new Map<number, string>();
   for (const r of txnWindowRes.rows) {
     if (r.earliest_start) earliestStartByOffice.set(r.office_id, r.earliest_start);
   }
 
-  // Fetch lunch shift end times for all qualifying offices.
   const lunchRes = await db.query<{
     office_id: number;
     end_time: string;
   }>(
     `SELECT office_id, end_time::text
      FROM office_lunch_shifts
-     WHERE county_id = $1 AND office_id = ANY($2::int[])`,
-    [countyId, officeIds],
+     WHERE office_id = ANY($1::int[])`,
+    [officeIds],
   );
 
-  // Fetch ALL appointment intervals in the window (for desk-occupancy filter).
   const endDate = addDays(startDate, days - 1);
   const allApptsRes = await db.query<{
     office_id: number;
@@ -113,16 +106,14 @@ async function buildCandidates(
             ad.appointment_date::text,
             ad.appointment_time::text AS start_time,
             (ad.appointment_time + (ad.total_duration_min * interval '1 minute'))::time::text AS end_time,
-            (ad.txn_type_ids && $5::int[]) AS skill_overlap
+            (ad.txn_type_ids && $4::int[]) AS skill_overlap
      FROM appointment_durations ad
-     WHERE ad.county_id = $1
-       AND ad.office_id = ANY($2::int[])
-       AND ad.appointment_date BETWEEN $3 AND $4
+     WHERE ad.office_id = ANY($1::int[])
+       AND ad.appointment_date BETWEEN $2 AND $3
        AND ad.status NOT IN ('cancelled', 'no_show')`,
-    [countyId, officeIds, isoDate(startDate), isoDate(endDate), targetSkills],
+    [officeIds, isoDate(startDate), isoDate(endDate), targetSkills],
   );
 
-  // Index lunch ends by office.
   const lunchEndsByOffice = new Map<number, Set<string>>();
   for (const r of lunchRes.rows) {
     if (!lunchEndsByOffice.has(r.office_id)) {
@@ -131,8 +122,6 @@ async function buildCandidates(
     lunchEndsByOffice.get(r.office_id)!.add(r.end_time);
   }
 
-  // Index ALL appointment ends by (office, date) — not just skill-overlapping.
-  // A desk frees up when ANY appointment ends, regardless of skill.
   const apptEndsByKey = new Map<string, Set<string>>();
   for (const r of allApptsRes.rows) {
     const key = `${r.office_id}:${r.appointment_date}`;
@@ -142,7 +131,6 @@ async function buildCandidates(
     apptEndsByKey.get(key)!.add(r.end_time);
   }
 
-  // Index ALL appointment intervals by (office, date) for desk-occupancy check.
   const intervalsByKey = new Map<string, Array<{ startMin: number; endMin: number }>>();
   for (const r of allApptsRes.rows) {
     const key = `${r.office_id}:${r.appointment_date}`;
@@ -155,8 +143,6 @@ async function buildCandidates(
     });
   }
 
-  // Effective scheduled-appointment cap per office: total_desks * run_rate_pct / 100.
-  // This reserves remaining desks for walk-ins.
   const effectiveDesksByOffice = new Map<number, number>();
   for (const o of offices) {
     effectiveDesksByOffice.set(o.id, Math.floor((o.totalDesks * o.runRatePct) / 100));
@@ -179,29 +165,23 @@ async function buildCandidates(
       const openMin = toMinutes(hours.openTime);
       const closeMin = toMinutes(hours.closeTime);
 
-      // Collect unique candidate start times for this (office, date).
       const startTimes = new Set<string>();
 
-      // 1. Office open time.
       startTimes.add(hours.openTime);
 
-      // 2. Transaction available_from (intersected across skills).
       const earliestStart = earliestStartByOffice.get(office.id);
       if (earliestStart) startTimes.add(earliestStart);
 
-      // 3. End of each lunch shift at this office.
       const lunchEnds = lunchEndsByOffice.get(office.id);
       if (lunchEnds) {
         for (const t of lunchEnds) startTimes.add(t);
       }
 
-      // 4. End of each existing appointment on this day + padding.
       const apptEnds = apptEndsByKey.get(`${office.id}:${dateStr}`);
       if (apptEnds) {
         for (const t of apptEnds) startTimes.add(addMinutes(t, paddingMin));
       }
 
-      // Filter candidates: must fit within office hours AND have a free desk.
       const intervals = intervalsByKey.get(`${office.id}:${dateStr}`) || [];
       const desks = effectiveDesksByOffice.get(office.id) || 1;
 
@@ -213,8 +193,6 @@ async function buildCandidates(
         if (input.preferredTime === "morning" && startMin >= 12 * 60) continue;
         if (input.preferredTime === "afternoon" && startMin < 12 * 60) continue;
 
-        // Pre-filter A: skip if all desks are occupied at this start time.
-        // Count appointments overlapping [startMin, startMin+1).
         let concurrent = 0;
         for (const iv of intervals) {
           if (startMin >= iv.startMin && startMin < iv.endMin) concurrent++;
@@ -236,10 +214,6 @@ async function buildCandidates(
   return cells;
 }
 
-/**
- * Compose a sortable tuple matching the preference priority.
- * Lower components win.
- */
 function computeRank(
   input: FindApptInput,
   cell: { officeId: number; dateStr: string; dow: number; slotTime: string },
@@ -298,11 +272,7 @@ interface SearchMeta {
   paddingMin: number;
 }
 
-async function loadSearchMeta(
-  db: Queryable,
-  countyId: string,
-  targetSkills: number[],
-): Promise<SearchMeta | null> {
+async function loadSearchMeta(db: Queryable, targetSkills: number[]): Promise<SearchMeta | null> {
   const durRes = await db.query<{
     total_duration_min: number;
     n: number;
@@ -312,14 +282,13 @@ async function loadSearchMeta(
     SELECT
       COALESCE(SUM(g.avg_duration_min), 0)::int AS total_duration_min,
       COUNT(*)::int AS n,
-      (SELECT c.scheduling_block_padding FROM counties c WHERE c.id = $1) AS padding
+      (SELECT c.scheduling_block_padding FROM config c) AS padding
     FROM transaction_types g
-    WHERE g.county_id  = $1
-      AND g.office_id IS NULL
-      AND g.id        = ANY($2::int[])
+    WHERE g.office_id IS NULL
+      AND g.id        = ANY($1::int[])
       AND g.status    = 'active'
     `,
-    [countyId, targetSkills],
+    [targetSkills],
   );
   if (durRes.rows[0].n !== targetSkills.length) return null;
   const totalDurationMin = durRes.rows[0].total_duration_min;
@@ -333,17 +302,15 @@ async function loadSearchMeta(
     `
     SELECT o.id, o.run_rate_pct, o.total_desks
     FROM offices o
-    WHERE o.county_id = $1
-      AND (
+    WHERE (
         SELECT COUNT(*) FROM effective_transaction_types ett
-        WHERE ett.county_id = o.county_id
-          AND ett.office_id = o.id
-          AND ett.global_id = ANY($2::int[])
+        WHERE ett.office_id = o.id
+          AND ett.global_id = ANY($1::int[])
           AND ett.status    = 'active'
-      ) = $3
+      ) = $2
     ORDER BY o.id
     `,
-    [countyId, targetSkills, targetSkills.length],
+    [targetSkills, targetSkills.length],
   );
   if (officesRes.rows.length === 0) return null;
 
@@ -357,9 +324,9 @@ async function loadSearchMeta(
     `
     SELECT office_id, day_of_week, open_time::text, close_time::text
     FROM office_hours
-    WHERE county_id = $1 AND office_id = ANY($2::int[])
+    WHERE office_id = ANY($1::int[])
     `,
-    [countyId, officeIds],
+    [officeIds],
   );
 
   const offices: OfficeMeta[] = officesRes.rows.map((r) => ({
@@ -379,7 +346,6 @@ async function loadSearchMeta(
 }
 
 interface CellInput {
-  countyId: string;
   targetSkills: number[];
   officeId: number;
   slotDate: string;
@@ -394,15 +360,7 @@ async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | 
     slot_date: string;
     slot_time: string;
     available: number;
-  }>(CELL_QUERY, [
-    c.countyId,
-    c.targetSkills,
-    c.officeId,
-    c.slotDate,
-    c.slotTime,
-    c.totalDurationMin,
-    c.nowTs,
-  ]);
+  }>(CELL_QUERY, [c.targetSkills, c.officeId, c.slotDate, c.slotTime, c.totalDurationMin, c.nowTs]);
 
   if (res.rows.length === 0) return null;
   const r = res.rows[0];
@@ -420,27 +378,25 @@ WITH txn_window AS (
   SELECT MAX(ett.available_from)  AS earliest_start,
          MIN(ett.available_until) AS latest_end
   FROM effective_transaction_types ett
-  WHERE ett.county_id = $1
-    AND ett.office_id = $3
-    AND ett.global_id = ANY($2::int[])
+  WHERE ett.office_id = $2
+    AND ett.global_id = ANY($1::int[])
     AND ett.status    = 'active'
-  HAVING COUNT(*) = cardinality($2::int[])
+  HAVING COUNT(*) = cardinality($1::int[])
 )
-SELECT $3::int  AS office_id,
-       $4::text AS slot_date,
-       $5::text AS slot_time,
-       validate_slot($1, $3, $4::date, $5::time, $2, $6::int) AS available
+SELECT $2::int  AS office_id,
+       $3::text AS slot_date,
+       $4::text AS slot_time,
+       validate_slot($2, $3::date, $4::time, $1, $5::int) AS available
 FROM txn_window tw
 CROSS JOIN office_hours oh
-WHERE oh.county_id   = $1
-  AND oh.office_id   = $3
-  AND oh.day_of_week = EXTRACT(DOW FROM $4::date)::int
-  AND ($4::date + $5::time)::timestamp > $7::timestamp
-  AND ($5::time >= tw.earliest_start OR tw.earliest_start IS NULL)
-  AND (($4::date + $5::time)::timestamp + ($6 * interval '1 minute')
-       <= ($4::date + tw.latest_end)::timestamp OR tw.latest_end IS NULL)
-  AND ($4::date + $5::time)::timestamp + ($6 * interval '1 minute')
-       <= ($4::date + oh.close_time)::timestamp
+WHERE oh.office_id   = $2
+  AND oh.day_of_week = EXTRACT(DOW FROM $3::date)::int
+  AND ($3::date + $4::time)::timestamp > $6::timestamp
+  AND ($4::time >= tw.earliest_start OR tw.earliest_start IS NULL)
+  AND (($3::date + $4::time)::timestamp + ($5 * interval '1 minute')
+       <= ($3::date + tw.latest_end)::timestamp OR tw.latest_end IS NULL)
+  AND ($3::date + $4::time)::timestamp + ($5 * interval '1 minute')
+       <= ($3::date + oh.close_time)::timestamp
 `;
 
 function addDays(d: Date, n: number): Date {
