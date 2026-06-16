@@ -8,17 +8,16 @@ export const ID_CARD = 2;
 
 export const BOOK_SQL = `
   SELECT book_appointment(
-    p_county_id        := $1,
-    p_office_id        := $2,
-    p_date             := $3,
-    p_time             := $4,
-    p_txn_type_ids     := $5,
-    p_required_doc_ids := $6,
-    p_first_name       := $7,
-    p_last_name        := $8,
-    p_contact_email    := $9,
-    p_contact_phone    := $10,
-    p_now_ts           := $11::timestamp
+    p_office_id        := $1,
+    p_date             := $2,
+    p_time             := $3,
+    p_txn_type_ids     := $4,
+    p_required_doc_ids := $5,
+    p_first_name       := $6,
+    p_last_name        := $7,
+    p_contact_email    := $8,
+    p_contact_phone    := $9,
+    p_now_ts           := $10::timestamp
   ) AS id
 `;
 
@@ -37,7 +36,6 @@ export function bookParams(
   }> = {},
 ) {
   return [
-    "stlucie",
     overrides.office ?? 1,
     overrides.date ?? DATE,
     overrides.time ?? "09:00",
@@ -54,15 +52,15 @@ export function bookParams(
 export async function clearOfficeDay(client: Client, office = 1) {
   await client.query(
     `DELETE FROM documents
-      WHERE county_id='stlucie' AND appointment_id IN (
+      WHERE appointment_id IN (
         SELECT id FROM appointments
-        WHERE county_id='stlucie' AND office_id=$1 AND appointment_date=$2
+        WHERE office_id=$1 AND appointment_date=$2
       )`,
     [office, DATE],
   );
   await client.query(
     `DELETE FROM appointments
-      WHERE county_id='stlucie' AND office_id=$1 AND appointment_date=$2`,
+      WHERE office_id=$1 AND appointment_date=$2`,
     [office, DATE],
   );
 }
@@ -100,21 +98,17 @@ export async function raceTest(opts: {
   const a = await connect();
   const b = await connect();
   try {
-    await setup.query(`SET app.current_tenant = 'stlucie'`);
-    await a.query(`SET app.current_tenant = 'stlucie'`);
-    await b.query(`SET app.current_tenant = 'stlucie'`);
-
     await setup.query(
       `DELETE FROM documents
-        WHERE county_id='stlucie' AND appointment_id IN (
+        WHERE appointment_id IN (
           SELECT id FROM appointments
-          WHERE county_id='stlucie' AND office_id=1 AND appointment_date=$1
+          WHERE office_id=1 AND appointment_date=$1
         )`,
       [DATE],
     );
     await setup.query(
       `DELETE FROM appointments
-        WHERE county_id='stlucie' AND office_id=1
+        WHERE office_id=1
           AND appointment_date=$1`,
       [DATE],
     );
@@ -138,15 +132,15 @@ export async function raceTest(opts: {
 
     await setup.query(
       `DELETE FROM documents
-        WHERE county_id='stlucie' AND appointment_id IN (
+        WHERE appointment_id IN (
           SELECT id FROM appointments
-          WHERE county_id='stlucie' AND office_id=1 AND appointment_date=$1
+          WHERE office_id=1 AND appointment_date=$1
         )`,
       [DATE],
     );
     await setup.query(
       `DELETE FROM appointments
-        WHERE county_id='stlucie' AND office_id=1
+        WHERE office_id=1
           AND appointment_date=$1`,
       [DATE],
     );

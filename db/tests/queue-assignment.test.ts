@@ -3,7 +3,6 @@ import { useDb } from "./helpers/fixture.js";
 
 const db = useDb();
 
-const COUNTY = "stlucie";
 const OFFICE = 1;
 const DATE = "2026-05-12";
 
@@ -22,20 +21,19 @@ async function createAppointment(
 ) {
   const { rows } = await client.query(
     `INSERT INTO appointments (
-      county_id, office_id, first_name, last_name,
+      office_id, first_name, last_name,
       contact_email, contact_phone, txn_type_ids,
       appointment_date, appointment_time, status, is_walk_in, is_priority
-    ) VALUES ($1, $2, 'Test', 'User', 'test@test.com', '555-0000', $3,
-              $4, '09:00', 'scheduled', FALSE, $5)
+    ) VALUES ($1, 'Test', 'User', 'test@test.com', '555-0000', $2,
+              $3, '09:00', 'scheduled', FALSE, $4)
     RETURNING id`,
-    [COUNTY, OFFICE, opts.txnTypes, DATE, opts.priority ?? false],
+    [OFFICE, opts.txnTypes, DATE, opts.priority ?? false],
   );
   return rows[0].id as number;
 }
 
 async function checkIn(client: typeof db.client, appointmentId: number) {
-  const { rows } = await client.query(`SELECT check_in_to_queue($1, $2, $3) AS id`, [
-    COUNTY,
+  const { rows } = await client.query(`SELECT check_in_to_queue($1, $2) AS id`, [
     OFFICE,
     appointmentId,
   ]);
@@ -44,15 +42,14 @@ async function checkIn(client: typeof db.client, appointmentId: number) {
 
 async function loginClerk(client: typeof db.client, clerkId: number, desk: number) {
   await client.query(
-    `INSERT INTO clerk_sessions (county_id, clerk_id, office_id, desk_number, is_available)
-     VALUES ($1, $2, $3, $4, TRUE)`,
-    [COUNTY, clerkId, OFFICE, desk],
+    `INSERT INTO clerk_sessions (clerk_id, office_id, desk_number, is_available)
+     VALUES ($1, $2, $3, TRUE)`,
+    [clerkId, OFFICE, desk],
   );
 }
 
 async function summonNext(client: typeof db.client, clerkId: number) {
-  const { rows } = await client.query(`SELECT assign_next_customer($1, $2, $3) AS queue_id`, [
-    COUNTY,
+  const { rows } = await client.query(`SELECT assign_next_customer($1, $2) AS queue_id`, [
     OFFICE,
     clerkId,
   ]);
@@ -78,14 +75,8 @@ describe("check_in_to_queue", () => {
 
 describe("assign_next_customer — skill-matched FIFO", () => {
   beforeEach(async () => {
-    await db.client.query(`DELETE FROM queue WHERE county_id = $1 AND office_id = $2`, [
-      COUNTY,
-      OFFICE,
-    ]);
-    await db.client.query(`DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`, [
-      COUNTY,
-      OFFICE,
-    ]);
+    await db.client.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
+    await db.client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
   });
 
   test("any qualified clerk can pull — first come first served", async () => {

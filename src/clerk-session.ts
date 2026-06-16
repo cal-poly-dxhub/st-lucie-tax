@@ -15,14 +15,13 @@ export type ClerkLoginOutcome =
 
 export async function clerkLogin(
   db: Queryable,
-  countyId: string,
   clerkId: number,
   officeId: number,
   deskNumber: number,
 ): Promise<ClerkLoginOutcome> {
   const clerkRes = await db.query<{ id: number }>(
-    `SELECT id FROM clerks WHERE county_id = $1 AND id = $2 AND status = 'active'`,
-    [countyId, clerkId],
+    `SELECT id FROM clerks WHERE id = $1 AND status = 'active'`,
+    [clerkId],
   );
   if (clerkRes.rows.length === 0) {
     return { ok: false, error: "clerk_not_found" };
@@ -44,10 +43,10 @@ export async function clerkLogin(
     desk_number: number;
     is_available: boolean;
   }>(
-    `INSERT INTO clerk_sessions (county_id, clerk_id, office_id, desk_number, is_available)
-     VALUES ($1, $2, $3, $4, TRUE)
+    `INSERT INTO clerk_sessions (clerk_id, office_id, desk_number, is_available)
+     VALUES ($1, $2, $3, TRUE)
      RETURNING id, clerk_id, office_id, desk_number, is_available`,
-    [countyId, clerkId, officeId, deskNumber],
+    [clerkId, officeId, deskNumber],
   );
 
   const row = rows[0];

@@ -9,13 +9,12 @@ export interface AssignResult {
 
 export async function assignNextCustomer(
   db: Queryable,
-  countyId: string,
   officeId: number,
   clerkId: number,
 ): Promise<AssignResult | null> {
   const { rows } = await db.query<{ queue_id: number | null }>(
-    `SELECT assign_next_customer($1, $2, $3) AS queue_id`,
-    [countyId, officeId, clerkId],
+    `SELECT assign_next_customer($1, $2) AS queue_id`,
+    [officeId, clerkId],
   );
   const queueId = rows[0].queue_id;
   if (queueId === null) return null;

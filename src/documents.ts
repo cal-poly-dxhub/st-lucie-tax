@@ -2,7 +2,6 @@ import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 
 export interface UploadDocInput {
-  countyId: string;
   appointmentId: number;
   docId: string | null;
   name: string;
@@ -22,7 +21,6 @@ export async function uploadDocument(
   input: UploadDocInput,
 ): Promise<UploadDocResult> {
   const s3Key = await uploadToS3(
-    input.countyId,
     input.appointmentId,
     input.name,
     input.fileBuffer,
@@ -30,11 +28,10 @@ export async function uploadDocument(
   );
 
   const { rows } = await db.query<{ id: number }>(
-    `INSERT INTO documents (county_id, appointment_id, doc_id, name, s3_key, ai_review_status, ai_review_notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO documents (appointment_id, doc_id, name, s3_key, ai_review_status, ai_review_notes)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
     [
-      input.countyId,
       input.appointmentId,
       input.docId,
       input.name,
@@ -49,14 +46,13 @@ export async function uploadDocument(
 
 // Stub — replace with real S3 PutObject call
 async function uploadToS3(
-  countyId: string,
   appointmentId: number,
   fileName: string,
   _buffer: Buffer,
   _contentType: string,
 ): Promise<string> {
   const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return `${countyId}/appointments/${appointmentId}/${Date.now()}_${sanitized}`;
+  return `appointments/${appointmentId}/${Date.now()}_${sanitized}`;
 }
 
 export interface DocStatus {
@@ -68,7 +64,6 @@ export interface DocStatus {
 
 export async function getRequiredDocsStatus(
   db: Queryable,
-  countyId: string,
   appointmentId: number,
 ): Promise<DocStatus[]> {
   const { rows } = await db.query(
@@ -78,14 +73,13 @@ export async function getRequiredDocsStatus(
      FROM appointments a
      CROSS JOIN LATERAL unnest(a.required_doc_ids) AS req(doc_id)
      JOIN document_registry dr
-       ON dr.county_id = a.county_id AND dr.doc_id = req.doc_id
+       ON dr.doc_id = req.doc_id
      LEFT JOIN documents d
-       ON d.county_id = a.county_id
-      AND d.appointment_id = a.id
+       ON d.appointment_id = a.id
       AND d.doc_id = req.doc_id
-     WHERE a.county_id = $1 AND a.id = $2
+     WHERE a.id = $1
      ORDER BY dr.doc_id`,
-    [countyId, appointmentId],
+    [appointmentId],
   );
   return camelRows<DocStatus>(rows);
 }

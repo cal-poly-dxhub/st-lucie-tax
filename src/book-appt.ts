@@ -1,7 +1,6 @@
 import { type Queryable } from "./utils.js";
 
 export interface BookApptInput {
-  countyId: string;
   officeId: number;
   date: string; // 'YYYY-MM-DD'
   time: string; // 'HH:MM:SS'
@@ -42,9 +41,8 @@ export async function bookAppointment(
 ): Promise<BookApptResult> {
   try {
     const res = await db.query<{ book_appointment: number }>(
-      `SELECT book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      `SELECT book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
-        input.countyId,
         input.officeId,
         input.date,
         input.time,

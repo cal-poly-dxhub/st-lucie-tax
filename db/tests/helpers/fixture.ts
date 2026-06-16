@@ -2,8 +2,6 @@ import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import type { Client } from "pg";
 import { connect } from "./client.js";
 
-const TENANT = "stlucie";
-
 export interface DbContext {
   /** Transactional client for the current test. Rolled back in afterEach. */
   client: Client;
@@ -11,8 +9,7 @@ export interface DbContext {
 
 /**
  * Wires up a per-test transaction-rollback fixture. Each test gets a fresh
- * BEGIN; the tenant GUC is set inside the transaction so RLS works; the
- * transaction is ROLLBACK'd in afterEach so seed data is never mutated.
+ * BEGIN; the transaction is ROLLBACK'd in afterEach so seed data is never mutated.
  *
  * Usage:
  *   const db = useDb();
@@ -33,7 +30,6 @@ export function useDb(): DbContext {
   beforeEach(async () => {
     if (!connection) throw new Error("connection not initialised");
     await connection.query("BEGIN");
-    await connection.query(`SET LOCAL app.current_tenant = '${TENANT}'`);
     ctx.client = connection;
   });
 

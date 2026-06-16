@@ -1,14 +1,13 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { withTenant } from "./db.js";
+import { withTransaction, pool } from "./db.js";
 import { findAppointment } from "../src/find-appt.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
 
-const COUNTY_ID = "stlucie";
 const DEMO_DATE = "2026-05-13";
 const NOW_TS = "2026-05-13 06:00";
 
@@ -23,39 +22,38 @@ app.get("/schedule", (_req, res) => {
 // ─── GET /api/config ────────────────────────────────────────────────────────
 app.get("/api/config", async (_req, res) => {
   try {
-    const data = await withTenant(async (client) => {
+    const data = await withTransaction(async (client) => {
       const offices = await client.query(
-        `SELECT id, name, total_desks, run_rate_pct FROM offices WHERE county_id = 'stlucie' ORDER BY id`,
+        `SELECT id, name, total_desks, run_rate_pct FROM offices ORDER BY id`,
       );
       const txnTypes = await client.query(
         `SELECT id, txn_type_id AS slug, name, avg_duration_min AS duration,
                 available_from::text, available_until::text, status
          FROM transaction_types
-         WHERE county_id = 'stlucie' AND office_id IS NULL
+         WHERE office_id IS NULL
          ORDER BY id`,
       );
       const clerks = await client.query(
         `SELECT c.id, c.first_name || ' ' || LEFT(c.last_name, 1) || '.' AS name,
                 c.skill_ids, c.office_ids
          FROM clerks c
-         WHERE c.county_id = 'stlucie' AND c.status = 'active'
+         WHERE c.status = 'active'
          ORDER BY c.id`,
       );
       const lunchShifts = await client.query(
         `SELECT id, office_id, shift_num, start_time::text, end_time::text
          FROM office_lunch_shifts
-         WHERE county_id = 'stlucie'
          ORDER BY office_id, start_time`,
       );
       const clerkSchedules = await client.query(
         `SELECT clerk_id, office_id, lunch_shift_id
          FROM clerk_schedules
-         WHERE county_id = 'stlucie' AND schedule_date = $1`,
+         WHERE schedule_date = $1`,
         [DEMO_DATE],
       );
       const officeHours = await client.query(
         `SELECT office_id, day_of_week, open_time::text, close_time::text
-         FROM office_hours WHERE county_id = 'stlucie'`,
+         FROM office_hours`,
       );
       return {
         offices: offices.rows,
@@ -84,7 +82,7 @@ app.get("/api/schedule/appointments", async (req, res) => {
       return res.status(400).json({ error: "officeId, startDate, endDate required" });
     }
 
-    const rows = await withTenant(async (client) => {
+    const rows = await withTransaction(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.office_id, a.appointment_date::text, a.appointment_time::text AS start_time,
                 a.txn_type_ids, a.first_name, a.last_name, a.status,
@@ -92,8 +90,7 @@ app.get("/api/schedule/appointments", async (req, res) => {
                  FROM unnest(a.txn_type_ids) AS tid
                  JOIN transaction_types tt ON tt.id = tid AND tt.office_id IS NULL) AS duration_min
          FROM appointments a
-         WHERE a.county_id = 'stlucie'
-           AND a.office_id = $1
+         WHERE a.office_id = $1
            AND a.appointment_date BETWEEN $2 AND $3
            AND a.status NOT IN ('cancelled', 'no_show')
          ORDER BY a.appointment_date, a.appointment_time`,
@@ -116,10 +113,10 @@ app.post("/api/schedule/reschedule", async (req, res) => {
       return res.status(400).json({ error: "appointmentId, newDate, newTime required" });
     }
 
-    const result = await withTenant(async (client) => {
+    const result = await withTransaction(async (client) => {
       const apptRes = await client.query(
         `SELECT id, office_id, txn_type_ids FROM appointments
-         WHERE county_id = 'stlucie' AND id = $1 AND status NOT IN ('cancelled', 'no_show')`,
+         WHERE id = $1 AND status NOT IN ('cancelled', 'no_show')`,
         [appointmentId],
       );
       if (apptRes.rows.length === 0) {
@@ -135,14 +132,13 @@ app.post("/api/schedule/reschedule", async (req, res) => {
       );
       const duration = durRes.rows[0]?.duration || 0;
 
-      // Temporarily hide this appointment to check capacity at new slot
       await client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
         appointmentId,
       ]);
 
       if (!force) {
         const capRes = await client.query(
-          `SELECT validate_slot('stlucie', $1, $2::date, $3::time, $4, $5) AS available`,
+          `SELECT validate_slot($1, $2::date, $3::time, $4, $5) AS available`,
           [appt.office_id, newDate, newTime, appt.txn_type_ids, duration],
         );
         const available = capRes.rows[0]?.available || 0;
@@ -175,7 +171,7 @@ app.get("/api/appointments/:officeId", async (req, res) => {
   try {
     const officeId = parseInt(req.params.officeId);
     if (isNaN(officeId)) return res.status(400).json({ error: "Invalid officeId" });
-    const rows = await withTenant(async (client) => {
+    const rows = await withTransaction(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.appointment_time::text AS start_time, a.txn_type_ids,
                 a.first_name, a.last_name,
@@ -183,8 +179,7 @@ app.get("/api/appointments/:officeId", async (req, res) => {
                  FROM unnest(a.txn_type_ids) AS tid
                  JOIN transaction_types tt ON tt.id = tid AND tt.office_id IS NULL) AS duration_min
          FROM appointments a
-         WHERE a.county_id = 'stlucie'
-           AND a.office_id = $1
+         WHERE a.office_id = $1
            AND a.appointment_date = $2
            AND a.status NOT IN ('cancelled', 'no_show')
          ORDER BY a.appointment_time`,
@@ -211,9 +206,8 @@ app.post("/api/find-appointment", async (req, res) => {
       return res.status(400).json({ error: "targetSkills must be a non-empty array of integers" });
     }
 
-    const result = await withTenant(async (client) => {
+    const result = await withTransaction(async (client) => {
       return findAppointment(client, {
-        countyId: COUNTY_ID,
         targetSkills,
         asap: asap ?? false,
         preferredOffice: preferredOffice ?? null,
@@ -252,22 +246,20 @@ app.post("/api/book-appointment", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const result = await withTenant(async (client) => {
+    const result = await withTransaction(async (client) => {
       const r = await client.query(
         `SELECT book_appointment(
-           p_county_id     := $1,
-           p_office_id     := $2,
-           p_date          := $3,
-           p_time          := $4,
-           p_txn_type_ids  := $5,
-           p_first_name    := $6,
-           p_last_name     := $7,
-           p_contact_email := $8,
-           p_contact_phone := $9,
-           p_now_ts        := $10
+           p_office_id     := $1,
+           p_date          := $2,
+           p_time          := $3,
+           p_txn_type_ids  := $4,
+           p_first_name    := $5,
+           p_last_name     := $6,
+           p_contact_email := $7,
+           p_contact_phone := $8,
+           p_now_ts        := $9
          ) AS appointment_id`,
         [
-          COUNTY_ID,
           officeId,
           date,
           time,
@@ -300,47 +292,35 @@ app.post("/api/demo/reset", async (req, res) => {
   try {
     const { clerkCount, runRatePct, crossTrain, activeTxnIds } = req.body;
 
-    await withTenant(async (client) => {
-      await client.query(
-        `DELETE FROM appointments WHERE county_id = 'stlucie' AND appointment_date = $1`,
-        [DEMO_DATE],
-      );
+    await withTransaction(async (client) => {
+      await client.query(`DELETE FROM appointments WHERE appointment_date = $1`, [DEMO_DATE]);
 
       if (activeTxnIds && Array.isArray(activeTxnIds)) {
         await client.query(
           `UPDATE transaction_types SET status = CASE WHEN id = ANY($1::int[]) THEN 'active' ELSE 'hidden' END
-           WHERE county_id = 'stlucie' AND office_id IS NULL`,
+           WHERE office_id IS NULL`,
           [activeTxnIds],
         );
       }
 
       if (runRatePct != null) {
-        await client.query(`UPDATE offices SET run_rate_pct = $1 WHERE county_id = 'stlucie'`, [
-          runRatePct,
-        ]);
+        await client.query(`UPDATE offices SET run_rate_pct = $1`, [runRatePct]);
       }
 
       if (clerkCount != null) {
-        await client.query(`UPDATE offices SET total_desks = $1 WHERE county_id = 'stlucie'`, [
-          clerkCount,
-        ]);
-        await client.query(`UPDATE clerks SET status = 'inactive' WHERE county_id = 'stlucie'`);
-        await client.query(
-          `DELETE FROM clerk_schedules WHERE county_id = 'stlucie' AND schedule_date = $1`,
-          [DEMO_DATE],
-        );
+        await client.query(`UPDATE offices SET total_desks = $1`, [clerkCount]);
+        await client.query(`UPDATE clerks SET status = 'inactive'`);
+        await client.query(`DELETE FROM clerk_schedules WHERE schedule_date = $1`, [DEMO_DATE]);
 
-        const officesRes = await client.query(
-          `SELECT id FROM offices WHERE county_id = 'stlucie' ORDER BY id`,
-        );
+        const officesRes = await client.query(`SELECT id FROM offices ORDER BY id`);
         const txnRes = await client.query(
-          `SELECT id FROM transaction_types WHERE county_id = 'stlucie' AND office_id IS NULL AND status = 'active' ORDER BY id`,
+          `SELECT id FROM transaction_types WHERE office_id IS NULL AND status = 'active' ORDER BY id`,
         );
         const txnIds = txnRes.rows.map((r: { id: number }) => r.id);
         const crossTrainPct = (crossTrain ?? 100) / 100;
 
         const lunchRes = await client.query(
-          `SELECT id, office_id FROM office_lunch_shifts WHERE county_id = 'stlucie' ORDER BY office_id, start_time`,
+          `SELECT id, office_id FROM office_lunch_shifts ORDER BY office_id, start_time`,
         );
         const lunchByOffice: Record<number, number[]> = {};
         for (const r of lunchRes.rows) {
@@ -369,8 +349,8 @@ app.post("/api/demo/reset", async (req, res) => {
               officeLunches.length > 0 ? officeLunches[i % officeLunches.length] : null;
 
             await client.query(
-              `INSERT INTO clerks (county_id, id, first_name, last_name, email, status, skill_ids, office_ids)
-               VALUES ('stlucie', $1, $2, $3, $4, 'active', $5, $6)
+              `INSERT INTO clerks (id, first_name, last_name, email, status, skill_ids, office_ids)
+               VALUES ($1, $2, $3, $4, 'active', $5, $6)
                ON CONFLICT (id) DO UPDATE
                SET status = 'active', skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids,
                    first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email`,
@@ -385,9 +365,9 @@ app.post("/api/demo/reset", async (req, res) => {
             );
 
             await client.query(
-              `INSERT INTO clerk_schedules (county_id, clerk_id, office_id, schedule_date, lunch_shift_id)
-               VALUES ('stlucie', $1, $2, $3, $4)
-               ON CONFLICT (county_id, clerk_id, schedule_date) DO UPDATE
+              `INSERT INTO clerk_schedules (clerk_id, office_id, schedule_date, lunch_shift_id)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (clerk_id, schedule_date) DO UPDATE
                SET office_id = EXCLUDED.office_id, lunch_shift_id = EXCLUDED.lunch_shift_id`,
               [clerkId, office.id, DEMO_DATE, lunchShiftId],
             );
@@ -414,25 +394,18 @@ app.get("/queue-demo", (_req, res) => {
 app.post("/api/queue/reset", async (req, res) => {
   try {
     const officeId = parseInt(req.body.officeId as string) || 1;
-    await withTenant(async (client) => {
-      await client.query(`DELETE FROM queue WHERE county_id = $1 AND office_id = $2`, [
-        COUNTY_ID,
-        officeId,
-      ]);
-      await client.query(`DELETE FROM clerk_sessions WHERE county_id = $1 AND office_id = $2`, [
-        COUNTY_ID,
-        officeId,
-      ]);
-      // Log in clerks at desks 1-3
+    await withTransaction(async (client) => {
+      await client.query(`DELETE FROM queue WHERE office_id = $1`, [officeId]);
+      await client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [officeId]);
       const clerks = await client.query(
-        `SELECT id FROM clerks WHERE county_id = $1 AND $2 = ANY(office_ids) AND status = 'active' ORDER BY id LIMIT 3`,
-        [COUNTY_ID, officeId],
+        `SELECT id FROM clerks WHERE $1 = ANY(office_ids) AND status = 'active' ORDER BY id LIMIT 3`,
+        [officeId],
       );
       for (let i = 0; i < clerks.rows.length; i++) {
         await client.query(
-          `INSERT INTO clerk_sessions (county_id, clerk_id, office_id, desk_number, is_available)
-           VALUES ($1, $2, $3, $4, TRUE)`,
-          [COUNTY_ID, clerks.rows[i].id, officeId, i + 1],
+          `INSERT INTO clerk_sessions (clerk_id, office_id, desk_number, is_available)
+           VALUES ($1, $2, $3, TRUE)`,
+          [clerks.rows[i].id, officeId, i + 1],
         );
       }
     });
@@ -446,17 +419,17 @@ app.post("/api/queue/reset", async (req, res) => {
 app.get("/api/queue/appointments", async (req, res) => {
   try {
     const officeId = parseInt(req.query.officeId as string) || 1;
-    const rows = await withTenant(async (client) => {
+    const rows = await withTransaction(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.first_name, a.last_name, a.appointment_time::text AS time,
                 a.txn_type_ids, a.qr_code, a.is_priority, a.status,
                 a.identity_verified, a.prescreen_completed, a.required_doc_ids
          FROM appointments a
-         WHERE a.county_id = $1 AND a.office_id = $2
-           AND a.appointment_date = $3::date
+         WHERE a.office_id = $1
+           AND a.appointment_date = $2::date
            AND a.status = 'scheduled'
          ORDER BY a.appointment_time, a.id`,
-        [COUNTY_ID, officeId, DEMO_DATE],
+        [officeId, DEMO_DATE],
       );
 
       const apptIds = result.rows.map((r: { id: number }) => r.id);
@@ -465,9 +438,9 @@ app.get("/api/queue/appointments", async (req, res) => {
         const docsResult = await client.query(
           `SELECT appointment_id, doc_id, name, ai_review_status
            FROM documents
-           WHERE county_id = $1 AND appointment_id = ANY($2)
+           WHERE appointment_id = ANY($1)
            ORDER BY created_at`,
-          [COUNTY_ID, apptIds],
+          [apptIds],
         );
         for (const doc of docsResult.rows) {
           (docsByAppt[doc.appointment_id as number] ??= []).push(doc);
@@ -488,14 +461,8 @@ app.get("/api/queue/appointments", async (req, res) => {
 // Get document registry (names for doc_ids)
 app.get("/api/queue/doc-registry", async (_req, res) => {
   try {
-    const rows = await withTenant(async (client) => {
-      const result = await client.query(
-        `SELECT doc_id, name, description FROM document_registry WHERE county_id = $1`,
-        [COUNTY_ID],
-      );
-      return result.rows;
-    });
-    res.json(rows);
+    const result = await pool.query(`SELECT doc_id, name, description FROM document_registry`);
+    res.json(result.rows);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -505,13 +472,11 @@ app.get("/api/queue/doc-registry", async (_req, res) => {
 app.post("/api/queue/upload-doc", async (req, res) => {
   try {
     const { appointmentId, docId, docName, status } = req.body;
-    await withTenant(async (client) => {
-      await client.query(
-        `INSERT INTO documents (county_id, appointment_id, doc_id, name, ai_review_status)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [COUNTY_ID, appointmentId, docId || null, docName, status || "accept"],
-      );
-    });
+    await pool.query(
+      `INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
+       VALUES ($1, $2, $3, $4)`,
+      [appointmentId, docId || null, docName, status || "accept"],
+    );
     res.json({ success: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -522,16 +487,13 @@ app.post("/api/queue/upload-doc", async (req, res) => {
 app.get("/api/queue/documents", async (req, res) => {
   try {
     const appointmentId = parseInt(req.query.appointmentId as string);
-    const rows = await withTenant(async (client) => {
-      const result = await client.query(
-        `SELECT id, name, ai_review_status FROM documents
-         WHERE county_id = $1 AND appointment_id = $2
-         ORDER BY created_at`,
-        [COUNTY_ID, appointmentId],
-      );
-      return result.rows;
-    });
-    res.json(rows);
+    const result = await pool.query(
+      `SELECT id, name, ai_review_status FROM documents
+       WHERE appointment_id = $1
+       ORDER BY created_at`,
+      [appointmentId],
+    );
+    res.json(result.rows);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -541,12 +503,9 @@ app.get("/api/queue/documents", async (req, res) => {
 app.post("/api/queue/mark-prescreen", async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    await withTenant(async (client) => {
-      await client.query(
-        `UPDATE appointments SET prescreen_completed = TRUE WHERE id = $1 AND county_id = $2`,
-        [appointmentId, COUNTY_ID],
-      );
-    });
+    await pool.query(`UPDATE appointments SET prescreen_completed = TRUE WHERE id = $1`, [
+      appointmentId,
+    ]);
     res.json({ success: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -558,14 +517,13 @@ app.post("/api/queue/check-in", async (req, res) => {
   try {
     const { appointmentId, officeId, makePriority } = req.body;
     const oid = parseInt(officeId) || 1;
-    const result = await withTenant(async (client) => {
+    const result = await withTransaction(async (client) => {
       if (makePriority) {
         await client.query(`UPDATE appointments SET is_priority = TRUE WHERE id = $1`, [
           appointmentId,
         ]);
       }
-      const { rows } = await client.query(`SELECT check_in_to_queue($1, $2, $3) AS id`, [
-        COUNTY_ID,
+      const { rows } = await client.query(`SELECT check_in_to_queue($1, $2) AS id`, [
         oid,
         appointmentId,
       ]);
@@ -590,15 +548,15 @@ app.post("/api/queue/check-in", async (req, res) => {
 app.get("/api/queue/state", async (req, res) => {
   try {
     const officeId = parseInt(req.query.officeId as string) || 1;
-    const data = await withTenant(async (client) => {
+    const data = await withTransaction(async (client) => {
       const queue = await client.query(
         `SELECT q.id, q.queue_number, q.status, q.assigned_desk, q.assigned_clerk_id,
                 a.first_name, a.last_name, a.is_priority, a.txn_type_ids
          FROM queue q
          JOIN appointments a ON a.id = q.appointment_id
-         WHERE q.county_id = $1 AND q.office_id = $2
+         WHERE q.office_id = $1
          ORDER BY q.checked_in_at`,
-        [COUNTY_ID, officeId],
+        [officeId],
       );
       const clerks = await client.query(
         `SELECT cs.clerk_id, cs.desk_number, cs.is_available,
@@ -606,9 +564,9 @@ app.get("/api/queue/state", async (req, res) => {
                 c.skill_ids
          FROM clerk_sessions cs
          JOIN clerks c ON c.id = cs.clerk_id
-         WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.logged_out_at IS NULL
+         WHERE cs.office_id = $1 AND cs.logged_out_at IS NULL
          ORDER BY cs.desk_number`,
-        [COUNTY_ID, officeId],
+        [officeId],
       );
       return { queue: queue.rows, clerks: clerks.rows };
     });
@@ -623,9 +581,8 @@ app.post("/api/queue/assign", async (req, res) => {
   try {
     const { clerkId, officeId } = req.body;
     const oid = parseInt(officeId) || 1;
-    const result = await withTenant(async (client) => {
-      const { rows } = await client.query(`SELECT assign_next_customer($1, $2, $3) AS queue_id`, [
-        COUNTY_ID,
+    const result = await withTransaction(async (client) => {
+      const { rows } = await client.query(`SELECT assign_next_customer($1, $2) AS queue_id`, [
         oid,
         clerkId,
       ]);
@@ -651,7 +608,7 @@ app.post("/api/queue/complete", async (req, res) => {
   try {
     const { queueId, officeId } = req.body;
     const oid = parseInt(officeId) || 1;
-    await withTenant(async (client) => {
+    await withTransaction(async (client) => {
       const qRow = await client.query(`SELECT assigned_clerk_id FROM queue WHERE id = $1`, [
         queueId,
       ]);
@@ -674,14 +631,10 @@ app.post("/api/queue/complete", async (req, res) => {
 // Get txn type names for display
 app.get("/api/queue/txn-types", async (_req, res) => {
   try {
-    const rows = await withTenant(async (client) => {
-      const result = await client.query(
-        `SELECT id, name FROM transaction_types WHERE county_id = $1 AND office_id IS NULL ORDER BY id`,
-        [COUNTY_ID],
-      );
-      return result.rows;
-    });
-    res.json(rows);
+    const result = await pool.query(
+      `SELECT id, name FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
+    );
+    res.json(result.rows);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

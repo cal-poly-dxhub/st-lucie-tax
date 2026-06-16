@@ -21,7 +21,6 @@ export interface ClerkServiceRecord {
 
 export async function getClerkServiceRecord(
   db: Queryable,
-  countyId: string,
   queueId: number,
 ): Promise<ClerkServiceRecord> {
   const qRow = await db.query<{
@@ -56,8 +55,8 @@ export async function getClerkServiceRecord(
             a.is_priority
      FROM queue q
      JOIN appointments a ON a.id = q.appointment_id
-     WHERE q.county_id = $1 AND q.id = $2`,
-    [countyId, queueId],
+     WHERE q.id = $1`,
+    [queueId],
   );
 
   if (qRow.rows.length === 0) throw new Error(`Queue entry ${queueId} not found`);
@@ -66,9 +65,9 @@ export async function getClerkServiceRecord(
   const txnRes = await db.query<{ id: number; name: string }>(
     `SELECT id, name
      FROM transaction_types
-     WHERE county_id = $1 AND id = ANY($2::int[]) AND office_id IS NULL
+     WHERE id = ANY($1::int[]) AND office_id IS NULL
      ORDER BY id`,
-    [countyId, r.txn_type_ids],
+    [r.txn_type_ids],
   );
 
   let docs: DocStatus[] = [];
@@ -77,14 +76,13 @@ export async function getClerkServiceRecord(
       `SELECT dr.doc_id, dr.name,
               (d.id IS NOT NULL) AS uploaded,
               d.ai_review_status
-       FROM unnest($3::text[]) AS req(doc_id)
-       JOIN document_registry dr ON dr.county_id = $1 AND dr.doc_id = req.doc_id
+       FROM unnest($2::text[]) AS req(doc_id)
+       JOIN document_registry dr ON dr.doc_id = req.doc_id
        LEFT JOIN documents d
-         ON d.county_id = $1
-        AND d.appointment_id = $2
+         ON d.appointment_id = $1
         AND d.doc_id = req.doc_id
        ORDER BY dr.doc_id`,
-      [countyId, r.appointment_id, r.required_doc_ids],
+      [r.appointment_id, r.required_doc_ids],
     );
     docs = camelRows<DocStatus>(docRes.rows);
   }
@@ -109,15 +107,14 @@ export async function getClerkServiceRecord(
 
 export async function sendToWrittenTest(
   db: Queryable,
-  countyId: string,
   queueId: number,
   testStationId: number,
 ): Promise<void> {
   const { rowCount } = await db.query(
     `UPDATE queue
-     SET status = 'testing', assigned_desk = $3
-     WHERE county_id = $1 AND id = $2 AND status = 'serving'`,
-    [countyId, queueId, testStationId],
+     SET status = 'testing', assigned_desk = $2
+     WHERE id = $1 AND status = 'serving'`,
+    [queueId, testStationId],
   );
   if (rowCount === 0) {
     throw new Error(`Queue entry ${queueId} not found or not in serving status`);
