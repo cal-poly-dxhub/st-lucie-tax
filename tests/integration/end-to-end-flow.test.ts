@@ -105,7 +105,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
   test("full scheduled flow: book → prescreen → upload docs → check-in → serve → complete", async () => {
     // ─── 1. Find a slot ───
     const slot = await findAppointment(db.client, {
-      targetSkills: [ID_CARD],
+      targetTxns: [ID_CARD],
       asap: true,
       preferredOffice: OFFICE,
       preferredDow: null,

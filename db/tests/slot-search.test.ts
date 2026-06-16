@@ -16,7 +16,7 @@ const db = useDb();
 
 function baseInput(overrides: Partial<FindApptInput> = {}): FindApptInput {
   return {
-    targetSkills: [ROAD_TEST],
+    targetTxns: [ROAD_TEST],
     asap: true,
     preferredOffice: null,
     preferredDow: null,
@@ -722,7 +722,7 @@ describe("findAppointment: CELL_QUERY correctness (Cases 25-26)", () => {
     const result = await findAppointment(
       db.client,
       baseInput({
-        targetSkills: [ID_CARD],
+        targetTxns: [ID_CARD],
         preferredOffice: 1,
         asap: false,
       }),
@@ -747,7 +747,7 @@ describe("findAppointment: CELL_QUERY correctness (Cases 25-26)", () => {
       const result = await findAppointment(
         db.client,
         baseInput({
-          targetSkills: [ID_CARD],
+          targetTxns: [ID_CARD],
           asap: true,
         }),
       );
@@ -795,7 +795,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
         preferredOffice: 1,
         preferredTime: "morning",
         preferredDow: 2, // Tuesday (May 12 is a Tuesday)
-        targetSkills: [ROAD_TEST],
+        targetTxns: [ROAD_TEST],
         days: 1,
       }),
     );
@@ -836,7 +836,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
         preferredOffice: 1,
         preferredTime: "morning",
         preferredDow: 2, // Tuesday
-        targetSkills: [ROAD_TEST],
+        targetTxns: [ROAD_TEST],
         days: 1,
       }),
     );
@@ -890,7 +890,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
         preferredOffice: 1,
         preferredTime: "morning",
         preferredDow: 2, // Tuesday
-        targetSkills: [ROAD_TEST],
+        targetTxns: [ROAD_TEST],
         days: 1,
       }),
     );
@@ -942,7 +942,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
         preferredOffice: 1,
         preferredTime: "morning",
         preferredDow: 2,
-        targetSkills: [ROAD_TEST],
+        targetTxns: [ROAD_TEST],
         days: 1,
       }),
     );
