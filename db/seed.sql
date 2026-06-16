@@ -12,9 +12,9 @@ INSERT INTO config (timezone, scheduling_block_padding, default_lookahead_days) 
 -- =============================================================================
 -- Offices (2 locations, 3 desks each)
 -- =============================================================================
-INSERT INTO offices (office_name, name, address, total_desks, run_rate_pct) VALUES
-    ('ftpierce', 'Fort Pierce Office',    '2300 Virginia Ave, Fort Pierce, FL 34982',          3, 100),
-    ('slwest',   'St. Lucie West Office', '250 NW Country Club Dr, Port St. Lucie, FL 34986', 3, 100);
+INSERT INTO offices (name, address, total_desks, run_rate_pct) VALUES
+    ('Fort Pierce Office',    '2300 Virginia Ave, Fort Pierce, FL 34982',          3, 100),
+    ('St. Lucie West Office', '250 NW Country Club Dr, Port St. Lucie, FL 34986', 3, 100);
 
 -- =============================================================================
 -- Office Hours (Mon-Fri 8am-5pm)

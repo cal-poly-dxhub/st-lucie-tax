@@ -19,7 +19,7 @@ CREATE TABLE offices (
     address         TEXT,
     total_desks     INT NOT NULL,
     run_rate_pct    INT NOT NULL DEFAULT 100,
-    UNIQUE (office_name)
+    UNIQUE (name)
 );
 
 CREATE TABLE office_hours (
@@ -143,6 +143,13 @@ CREATE TABLE documents (
     FOREIGN KEY (doc_id) REFERENCES document_registry(doc_id)
 );
 
+CREATE TABLE queue_counters (
+    office_id    INT NOT NULL REFERENCES offices(id),
+    counter_date DATE NOT NULL,
+    last_number  INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (office_id, counter_date)
+);
+
 CREATE TABLE queue (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
@@ -155,13 +162,6 @@ CREATE TABLE queue (
     assigned_desk   INT,
     notes           TEXT
 );
-
--- Postgres requires an IMMUTABLE function to use in an index expression
-CREATE OR REPLACE FUNCTION date_from_timestamptz(ts TIMESTAMPTZ) RETURNS DATE AS $$
-  SELECT ts::date;
-$$ LANGUAGE SQL IMMUTABLE;
-
-CREATE UNIQUE INDEX idx_queue_number_per_day ON queue (office_id, date_from_timestamptz(checked_in_at), queue_number);
 
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
@@ -577,11 +577,11 @@ DECLARE
   v_next_number INT;
   v_queue_id    INT;
 BEGIN
-  SELECT COALESCE(MAX(queue_number), 0) + 1
-    INTO v_next_number
-  FROM queue
-  WHERE office_id = p_office_id
-    AND date_from_timestamptz(checked_in_at) = CURRENT_DATE;
+  INSERT INTO queue_counters (office_id, counter_date, last_number)
+  VALUES (p_office_id, CURRENT_DATE, 1)
+  ON CONFLICT (office_id, counter_date)
+  DO UPDATE SET last_number = queue_counters.last_number + 1
+  RETURNING last_number INTO v_next_number;
 
   INSERT INTO queue (office_id, appointment_id, queue_number, status, notes)
   VALUES (p_office_id, p_appointment_id, v_next_number, 'waiting', p_notes)
