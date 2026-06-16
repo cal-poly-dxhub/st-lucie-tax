@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 
 export interface AssignResult {
@@ -8,7 +8,7 @@ export interface AssignResult {
 }
 
 export async function assignNextCustomer(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   officeId: number,
   clerkId: number,

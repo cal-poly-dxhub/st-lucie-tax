@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 
 export interface ClerkSession {
   sessionId: number;
@@ -14,7 +14,7 @@ export type ClerkLoginOutcome =
   | { ok: false; error: ClerkLoginError };
 
 export async function clerkLogin(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   clerkId: number,
   officeId: number,
@@ -64,7 +64,7 @@ export async function clerkLogin(
 }
 
 export async function setClerkAvailability(
-  db: Pool | PoolClient,
+  db: Queryable,
   clerkId: number,
   officeId: number,
   isAvailable: boolean,
@@ -80,11 +80,7 @@ export async function setClerkAvailability(
   }
 }
 
-export async function clerkLogout(
-  db: Pool | PoolClient,
-  clerkId: number,
-  officeId: number,
-): Promise<void> {
+export async function clerkLogout(db: Queryable, clerkId: number, officeId: number): Promise<void> {
   const { rowCount } = await db.query(
     `UPDATE clerk_sessions
      SET logged_out_at = NOW(), is_available = FALSE

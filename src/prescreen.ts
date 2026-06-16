@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 
 export interface PrescreenQuestion {
@@ -9,7 +9,7 @@ export interface PrescreenQuestion {
 }
 
 export async function getPrescreenQuestions(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   txnTypeIds: number[],
 ): Promise<PrescreenQuestion[]> {
@@ -24,7 +24,7 @@ export async function getPrescreenQuestions(
 }
 
 export async function savePrescreenResponses(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   appointmentId: number,
   responses: Record<string, boolean>,

@@ -1,5 +1,5 @@
 import type { Client } from "pg";
-import { connect } from "./client.ts";
+import { connect } from "./client.js";
 
 export const DATE = "2026-05-12";
 export const FROZEN_NOW = "2026-05-12 06:00";

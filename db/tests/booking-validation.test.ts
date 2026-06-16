@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { useDb } from "./helpers/fixture.ts";
+import { useDb } from "./helpers/fixture.js";
 import {
   BOOK_SQL,
   bookParams,
@@ -7,7 +7,7 @@ import {
   tryBook,
   raceTest,
   ROAD_TEST,
-} from "./helpers/booking.ts";
+} from "./helpers/booking.js";
 
 const db = useDb();
 

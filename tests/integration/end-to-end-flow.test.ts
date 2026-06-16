@@ -1,21 +1,21 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
-import { useDb } from "../../db/tests/helpers/fixture.ts";
-import { bookAppointment } from "../../src/book-appt.ts";
-import { findAppointment } from "../../src/find-appt.ts";
+import { useDb } from "../../db/tests/helpers/fixture.js";
+import { bookAppointment } from "../../src/book-appt.js";
+import { findAppointment } from "../../src/find-appt.js";
 import {
   generateQrCode,
   lookupByQrCode,
   checkInToQueue,
   registerWalkIn,
   setAppointmentPriority,
-} from "../../src/check-in.ts";
-import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.ts";
-import { uploadDocument } from "../../src/documents.ts";
-import { setIdentityVerified } from "../../src/identity.ts";
-import { getCheckInSummary } from "../../src/check-in.ts";
-import { assignNextCustomer } from "../../src/queue.ts";
-import { completeAppointment } from "../../src/complete.ts";
-import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.ts";
+} from "../../src/check-in.js";
+import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
+import { uploadDocument } from "../../src/documents.js";
+import { setIdentityVerified } from "../../src/identity.js";
+import { getCheckInSummary } from "../../src/check-in.js";
+import { assignNextCustomer } from "../../src/queue.js";
+import { completeAppointment } from "../../src/complete.js";
+import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.js";
 import { SESv2Client } from "@aws-sdk/client-sesv2";
 
 // Mock SES — intercept the send method
@@ -24,16 +24,19 @@ vi.mock("@aws-sdk/client-sesv2", () => {
   class MockSESv2Client {
     send = sendMock;
   }
+  class MockSendEmailCommand {
+    constructor(public input: unknown) {}
+  }
   return {
     SESv2Client: MockSESv2Client,
-    SendEmailCommand: vi.fn(),
+    SendEmailCommand: MockSendEmailCommand,
     sendMock,
   };
 });
 
 // Mock the S3 upload stub in documents.ts (it's already a stub but we want to verify calls)
-vi.mock("../../src/documents.ts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/documents.ts")>();
+vi.mock("../../src/documents.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/documents.js")>();
   return {
     ...actual,
     uploadDocument: vi.fn(async (db, input) => {
@@ -156,7 +159,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(ses.send).toHaveBeenCalledTimes(1);
 
     // ─── 4. Pre-visit: upload documents (web path — AI reviewed) ───
-    const docResult = await (uploadDocument as ReturnType<typeof vi.fn>)(db.client, {
+    const docResult = await vi.mocked(uploadDocument)(db.client, {
       countyId: COUNTY,
       appointmentId,
       docId: "photo_id",
@@ -169,7 +172,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(docResult.documentId).toBeGreaterThan(0);
     expect(docResult.s3Key).toContain("stlucie/appointments/");
 
-    await (uploadDocument as ReturnType<typeof vi.fn>)(db.client, {
+    await vi.mocked(uploadDocument)(db.client, {
       countyId: COUNTY,
       appointmentId,
       docId: "proof_address",
@@ -351,7 +354,7 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(idRows[0].identity_verified).toBe(true);
 
     // ─── 3. Clerk scans docs at desk (no AI review) ───
-    await (uploadDocument as ReturnType<typeof vi.fn>)(db.client, {
+    await vi.mocked(uploadDocument)(db.client, {
       countyId: COUNTY,
       appointmentId,
       docId: null,

@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 
 export interface FindApptInput {
   countyId: string;
@@ -24,7 +24,7 @@ export interface FindApptResult {
  * with capacity. Returns null if nothing in the window matches.
  */
 export async function findAppointment(
-  db: Pool | PoolClient,
+  db: Queryable,
   input: FindApptInput,
 ): Promise<FindApptResult | null> {
   const { countyId, targetSkills } = input;
@@ -58,7 +58,7 @@ interface Candidate {
 
 /* Build candidate start times (times when the next appt could start) using the packing model */
 async function buildCandidates(
-  db: Pool | PoolClient,
+  db: Queryable,
   input: FindApptInput,
   offices: OfficeMeta[],
   totalDurationMin: number,
@@ -299,7 +299,7 @@ interface SearchMeta {
 }
 
 async function loadSearchMeta(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   targetSkills: number[],
 ): Promise<SearchMeta | null> {
@@ -388,7 +388,7 @@ interface CellInput {
   nowTs: string;
 }
 
-async function checkCell(db: Pool | PoolClient, c: CellInput): Promise<FindApptResult | null> {
+async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | null> {
   const res = await db.query<{
     office_id: number;
     slot_date: string;

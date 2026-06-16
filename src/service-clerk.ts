@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 import type { DocStatus } from "./documents.js";
 
@@ -20,7 +20,7 @@ export interface ClerkServiceRecord {
 }
 
 export async function getClerkServiceRecord(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   queueId: number,
 ): Promise<ClerkServiceRecord> {
@@ -108,7 +108,7 @@ export async function getClerkServiceRecord(
 }
 
 export async function sendToWrittenTest(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   queueId: number,
   testStationId: number,

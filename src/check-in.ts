@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import { type Queryable } from "./utils.js";
 import { randomUUID } from "node:crypto";
 import QRCode from "qrcode";
 import { camelRows } from "./utils.js";
@@ -18,7 +18,7 @@ export interface QrLookupResult {
 }
 
 export async function lookupByQrCode(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   qrCode: string,
 ): Promise<QrLookupResult | null> {
@@ -38,7 +38,7 @@ export interface CheckInResult {
 }
 
 export async function checkInToQueue(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   officeId: number,
   appointmentId: number,
@@ -82,10 +82,7 @@ const WALK_IN_ERROR_MAP: Record<string, WalkInError> = {
   P0003: "txn_unavailable",
 };
 
-export async function registerWalkIn(
-  db: Pool | PoolClient,
-  input: WalkInInput,
-): Promise<WalkInOutcome> {
+export async function registerWalkIn(db: Queryable, input: WalkInInput): Promise<WalkInOutcome> {
   try {
     const res = await db.query<{ register_walk_in: number }>(
       `SELECT register_walk_in($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -111,7 +108,7 @@ export async function registerWalkIn(
 }
 
 export async function updateQueueNotes(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   queueId: number,
   notes: string,
@@ -126,7 +123,7 @@ export async function updateQueueNotes(
 }
 
 export async function setAppointmentPriority(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   appointmentId: number,
   isPriority: boolean,
@@ -153,7 +150,7 @@ export interface CheckInSummary {
 }
 
 export async function getCheckInSummary(
-  db: Pool | PoolClient,
+  db: Queryable,
   countyId: string,
   appointmentId: number,
 ): Promise<CheckInSummary> {

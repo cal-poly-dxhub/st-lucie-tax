@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { useDb } from "./helpers/fixture.ts";
-import { findAppointment, type FindApptInput } from "../../src/find-appt.ts";
+import { useDb } from "./helpers/fixture.js";
+import { findAppointment, type FindApptInput } from "../../src/find-appt.js";
 import {
   BOOK_SQL,
   bookParams,
@@ -10,7 +10,7 @@ import {
   ROAD_TEST,
   ID_CARD,
   tryBook,
-} from "./helpers/booking.ts";
+} from "./helpers/booking.js";
 
 const db = useDb();
 
