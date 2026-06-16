@@ -190,6 +190,73 @@ describe("assign_next_customer — skill-matched FIFO", () => {
   });
 });
 
+describe("assign_next_customer — concurrent clerk race", () => {
+  const clients: Client[] = [];
+
+  beforeAll(async () => {
+    for (let i = 0; i < 10; i++) {
+      clients.push(await connect());
+    }
+  });
+
+  afterAll(async () => {
+    await Promise.all(clients.map((c) => c.end()));
+  });
+
+  test("10 clerks racing for 1 customer — exactly one wins", async () => {
+    const setup = clients[0];
+
+    await setup.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
+    await setup.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
+
+    // Create 10 clerks with id_card skill and log them in
+    const clerkIds: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const { rows } = await setup.query(
+        `INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids)
+         VALUES ('Race', $1, $2, 'active', $3, $4)
+         RETURNING id`,
+        [`Clerk${i}`, `race${i}@test.com`, [ID_CARD], [OFFICE]],
+      );
+      const clerkId = rows[0].id as number;
+      clerkIds.push(clerkId);
+      await setup.query(
+        `INSERT INTO clerk_sessions (clerk_id, office_id, desk_number, is_available)
+         VALUES ($1, $2, $3, TRUE)`,
+        [clerkId, OFFICE, 10 + i],
+      );
+    }
+
+    // One customer in queue
+    const { rows: apptRows } = await setup.query(
+      `INSERT INTO appointments (
+        office_id, first_name, last_name,
+        contact_email, contact_phone, txn_type_ids,
+        appointment_date, appointment_time, status, is_walk_in, is_priority
+      ) VALUES ($1, 'Solo', 'Customer', 'solo@test.com', '555-0000', $2,
+                CURRENT_DATE, '09:00', 'scheduled', FALSE, FALSE)
+      RETURNING id`,
+      [OFFICE, [ID_CARD]],
+    );
+    const apptId = apptRows[0].id as number;
+    await setup.query(`SELECT check_in_to_queue($1, $2)`, [OFFICE, apptId]);
+
+    // All 10 clerks race to assign_next_customer concurrently
+    const results = await Promise.all(
+      clerkIds.map((clerkId, i) =>
+        clients[i].query(`SELECT assign_next_customer($1, $2) AS queue_id`, [OFFICE, clerkId]),
+      ),
+    );
+
+    const assigned = results
+      .map((r) => r.rows[0].queue_id as number | null)
+      .filter((id) => id !== null);
+
+    // Exactly one clerk should win
+    expect(assigned).toHaveLength(1);
+  });
+});
+
 describe("check_in_to_queue — concurrent queue numbers", () => {
   const clients: Client[] = [];
 
@@ -205,6 +272,9 @@ describe("check_in_to_queue — concurrent queue numbers", () => {
 
   test("10 concurrent check-ins produce unique numbers 1–10", async () => {
     const setup = clients[0];
+
+    await setup.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
+    await setup.query(`DELETE FROM queue_counters WHERE office_id = $1`, [OFFICE]);
 
     const appointmentIds: number[] = [];
     for (let i = 0; i < 10; i++) {
