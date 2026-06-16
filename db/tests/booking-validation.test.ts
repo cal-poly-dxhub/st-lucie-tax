@@ -14,14 +14,13 @@ const db = useDb();
 describe("query 1: get office config", () => {
   test("returns Fort Pierce config for office_id=1", async () => {
     const { rows } = await db.client.query(
-      `SELECT id, office_name, name, total_desks, run_rate_pct
+      `SELECT id, name, total_desks, run_rate_pct
          FROM offices
         WHERE id = 1`,
     );
     expect(rows).toEqual([
       {
         id: 1,
-        office_name: "ftpierce",
         name: "Fort Pierce Office",
         total_desks: 3,
         run_rate_pct: 100,
