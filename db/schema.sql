@@ -18,7 +18,7 @@ CREATE TABLE offices (
     name            TEXT NOT NULL,
     address         TEXT,
     total_desks     INT NOT NULL,
-    run_rate_pct    INT NOT NULL DEFAULT 100,
+    run_rate_pct    INT NOT NULL DEFAULT 100 CHECK (run_rate_pct > 0 AND run_rate_pct < 200),
     UNIQUE (name)
 );
 
