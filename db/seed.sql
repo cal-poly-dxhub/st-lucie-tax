@@ -155,7 +155,7 @@ DECLARE
     appt_id INT;
     req_docs TEXT[];
     doc_upload_roll FLOAT;
-    d INT;
+    doc_idx INT;
 BEGIN
     PERFORM setseed(0.42);
 
@@ -199,18 +199,18 @@ BEGIN
                 doc_upload_roll := random();
                 IF doc_upload_roll < 0.65 THEN
                     -- All docs uploaded
-                    FOR d IN 1..array_length(req_docs, 1) LOOP
+                    FOR doc_idx IN 1..array_length(req_docs, 1) LOOP
                         INSERT INTO documents (county_id, appointment_id, doc_id, name, ai_review_status)
-                        VALUES ('stlucie', appt_id, req_docs[d],
-                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[d]),
+                        VALUES ('stlucie', appt_id, req_docs[doc_idx],
+                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[doc_idx]),
                                 'accept');
                     END LOOP;
                 ELSIF doc_upload_roll < 0.85 THEN
                     -- Partial upload: upload first N-1 docs
-                    FOR d IN 1..GREATEST(1, array_length(req_docs, 1) - 1) LOOP
+                    FOR doc_idx IN 1..GREATEST(1, array_length(req_docs, 1) - 1) LOOP
                         INSERT INTO documents (county_id, appointment_id, doc_id, name, ai_review_status)
-                        VALUES ('stlucie', appt_id, req_docs[d],
-                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[d]),
+                        VALUES ('stlucie', appt_id, req_docs[doc_idx],
+                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[doc_idx]),
                                 CASE WHEN random() > 0.1 THEN 'accept' ELSE 'reject' END);
                     END LOOP;
                 END IF;
