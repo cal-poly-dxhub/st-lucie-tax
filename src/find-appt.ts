@@ -6,9 +6,9 @@ export interface FindApptInput {
   preferredOffice: number | null; // office_id, or null = any
   preferredDow: number | null; // 0=Sun..6=Sat, or null = any
   preferredTime: "morning" | "afternoon" | null;
-  startDate: Date; // production: new Date()
-  days: number; // search-window length
-  nowTs: string; // 'YYYY-MM-DD HH:MM' — local time, no TZ conversion
+  startDate: Date;
+  days: number; // How many days to search in the future
+  nowTs?: string; // 'YYYY-MM-DD HH:MM' local time — omit in production, DB uses now() AT TIME ZONE config.timezone
 }
 
 export interface FindApptResult {
@@ -351,7 +351,7 @@ interface CellInput {
   slotDate: string;
   slotTime: string;
   totalDurationMin: number;
-  nowTs: string;
+  nowTs?: string;
 }
 
 async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | null> {
@@ -360,7 +360,14 @@ async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | 
     slot_date: string;
     slot_time: string;
     available: number;
-  }>(CELL_QUERY, [c.targetSkills, c.officeId, c.slotDate, c.slotTime, c.totalDurationMin, c.nowTs]);
+  }>(CELL_QUERY, [
+    c.targetSkills,
+    c.officeId,
+    c.slotDate,
+    c.slotTime,
+    c.totalDurationMin,
+    c.nowTs ?? null,
+  ]);
 
   if (res.rows.length === 0) return null;
   const r = res.rows[0];
@@ -391,7 +398,7 @@ FROM txn_window tw
 CROSS JOIN office_hours oh
 WHERE oh.office_id   = $2
   AND oh.day_of_week = EXTRACT(DOW FROM $3::date)::int
-  AND ($3::date + $4::time)::timestamp > $6::timestamp
+  AND ($3::date + $4::time)::timestamp > COALESCE($6::timestamp, now() AT TIME ZONE (SELECT timezone FROM config))
   AND ($4::time >= tw.earliest_start OR tw.earliest_start IS NULL)
   AND (($3::date + $4::time)::timestamp + ($5 * interval '1 minute')
        <= ($3::date + tw.latest_end)::timestamp OR tw.latest_end IS NULL)
