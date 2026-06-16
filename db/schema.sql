@@ -113,7 +113,6 @@ CREATE TABLE appointments (
     contact_email   TEXT NOT NULL,
     contact_phone   TEXT NOT NULL,
     can_send_sms    BOOLEAN NOT NULL DEFAULT FALSE,
-    requested_clerk_id INT REFERENCES clerks(id),
     txn_type_ids    INT[] NOT NULL,
     required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
@@ -166,6 +165,7 @@ CREATE TABLE queue (
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
+    appointment_id  INT REFERENCES appointments(id),
     duration_min    INT NOT NULL CHECK (duration_min >= 0),
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
