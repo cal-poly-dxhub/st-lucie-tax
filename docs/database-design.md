@@ -154,7 +154,6 @@ All tables use PostgreSQL Row-Level Security to enforce tenant isolation at the 
 | Customers currently testing | `SELECT * FROM queue WHERE county_id = $1 AND office_id = $2 AND status = 'testing'` |
 | Lobby display (now serving) | `SELECT q.queue_number, q.assigned_desk, a.first_name, a.last_name FROM queue q JOIN appointments a ON q.appointment_id = a.id WHERE q.county_id = $1 AND q.office_id = $2 AND q.status = 'serving' AND q.assigned_desk IS NOT NULL ORDER BY q.checked_in_at` |
 | Customer status by queue number | `SELECT status, assigned_desk FROM queue WHERE county_id = $1 AND office_id = $2 AND queue_number = $3 AND checked_in_at::date = CURRENT_DATE` |
-| Appointments assigned to a specific clerk | `SELECT * FROM appointments WHERE county_id = $1 AND requested_clerk_id = $2 AND appointment_date = $3` |
 | Available clerks | `SELECT * FROM clerk_sessions WHERE county_id = $1 AND office_id = $2 AND is_available = TRUE AND logged_out_at IS NULL` |
 | Clerks currently on lunch | `SELECT cs.*, c.first_name, c.last_name FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = FALSE AND cs.logged_out_at IS NULL` |
 | Available skills right now | `SELECT DISTINCT unnest(c.skill_ids) AS skill_id FROM clerk_sessions cs JOIN clerks c ON cs.clerk_id = c.id WHERE cs.county_id = $1 AND cs.office_id = $2 AND cs.is_available = TRUE AND cs.logged_out_at IS NULL` |
