@@ -1,7 +1,7 @@
 import { type Queryable } from "./utils.js";
 
 export interface FindApptInput {
-  targetSkills: number[];
+  targetTxns: number[];
   asap: boolean;
   preferredOffice: number | null; // office_id, or null = any
   preferredDow: number | null; // 0=Sun..6=Sat, or null = any
@@ -23,27 +23,33 @@ export async function findAppointment(
   db: Queryable,
   input: FindApptInput,
 ): Promise<FindApptResult | null> {
-  const { targetSkills } = input;
+  const { targetTxns } = input;
 
-  const appointmentConfig = await getAppointmentConfig(db, targetSkills);
+  const appointmentConfig = await getAppointmentConfig(db, targetTxns);
   if (appointmentConfig === null) return null;
   const { totalDurationMin, paddingMin } = appointmentConfig;
 
-  const offices = await getEligibleOffices(db, targetSkills);
+  const offices = await getEligibleOfficeHours(db, targetTxns);
   if (offices === null) return null;
 
-  const startTimes = await buildStartTimes(db, input, offices, totalDurationMin, paddingMin);
+  const possibleStartTimes = await buildPossibleStartTimes(
+    db,
+    input,
+    offices,
+    totalDurationMin,
+    paddingMin,
+  );
 
-  for (const time of startTimes) {
-    const hit = await checkCell(db, {
-      targetSkills,
+  for (const time of possibleStartTimes) {
+    const validAppointmentTime = await validateAppointmentTime(db, {
+      targetTxns,
       officeId: time.officeId,
       slotDate: time.slotDate,
       slotTime: time.slotTime,
       totalDurationMin,
       nowTs: input.nowTs,
     });
-    if (hit !== null) return hit;
+    if (validAppointmentTime !== null) return validAppointmentTime;
   }
   return null;
 }
@@ -55,14 +61,14 @@ interface AppointmentStart {
 }
 
 /* Build possible appointment start times using the packing model */
-async function buildStartTimes(
+async function buildPossibleStartTimes(
   db: Queryable,
   input: FindApptInput,
-  offices: EligibleOffices[],
+  offices: EligibleOfficeHours[],
   totalDurationMin: number,
   paddingMin: number,
 ): Promise<AppointmentStart[]> {
-  const { targetSkills, startDate, days } = input;
+  const { targetTxns, startDate, days } = input;
   const officeIds = offices.map((o) => o.id);
 
   const txnWindowRes = await db.query<{
@@ -77,7 +83,7 @@ async function buildStartTimes(
        AND ett.status    = 'active'
      GROUP BY ett.office_id
      HAVING COUNT(*) = $3`,
-    [officeIds, targetSkills, targetSkills.length],
+    [officeIds, targetTxns, targetTxns.length],
   );
   const earliestStartByOffice = new Map<number, string>();
   for (const r of txnWindowRes.rows) {
@@ -111,7 +117,7 @@ async function buildStartTimes(
      WHERE ad.office_id = ANY($1::int[])
        AND ad.appointment_date BETWEEN $2 AND $3
        AND ad.status NOT IN ('cancelled', 'no_show')`,
-    [officeIds, isoDate(startDate), isoDate(endDate), targetSkills],
+    [officeIds, isoDate(startDate), isoDate(endDate), targetTxns],
   );
 
   const lunchEndsByOffice = new Map<number, Set<string>>();
@@ -259,7 +265,7 @@ function compareRank(a: number[], b: number[]): number {
 // DB queries
 // ---------------------------------------------------------------------------
 
-interface EligibleOffices {
+interface EligibleOfficeHours {
   id: number;
   runRatePct: number;
   totalDesks: number;
@@ -271,9 +277,10 @@ interface AppointmentConfig {
   paddingMin: number;
 }
 
+/* Return the length and padding aronud an appointment */
 async function getAppointmentConfig(
   db: Queryable,
-  targetSkills: number[],
+  targetTxns: number[],
 ): Promise<AppointmentConfig | null> {
   const res = await db.query<{ total_duration_min: number; n: number; padding: number }>(
     `SELECT
@@ -284,19 +291,20 @@ async function getAppointmentConfig(
      WHERE g.office_id IS NULL
        AND g.id        = ANY($1::int[])
        AND g.status    = 'active'`,
-    [targetSkills],
+    [targetTxns],
   );
-  if (res.rows[0].n !== targetSkills.length) return null;
+  if (res.rows[0].n !== targetTxns.length) return null;
   return {
     totalDurationMin: res.rows[0].total_duration_min,
     paddingMin: res.rows[0].padding ?? 0,
   };
 }
 
-async function getEligibleOffices(
+/* Returns all offices and their hours which can handle all required transactions */
+async function getEligibleOfficeHours(
   db: Queryable,
-  targetSkills: number[],
-): Promise<EligibleOffices[] | null> {
+  targetTxns: number[],
+): Promise<EligibleOfficeHours[] | null> {
   const officesRes = await db.query<{ id: number; run_rate_pct: number; total_desks: number }>(
     `SELECT o.id, o.run_rate_pct, o.total_desks
      FROM offices o
@@ -307,7 +315,7 @@ async function getEligibleOffices(
          AND ett.status    = 'active'
      ) = $2
      ORDER BY o.id`,
-    [targetSkills, targetSkills.length],
+    [targetTxns, targetTxns.length],
   );
   if (officesRes.rows.length === 0) return null;
 
@@ -324,7 +332,7 @@ async function getEligibleOffices(
     [officeIds],
   );
 
-  const offices: EligibleOffices[] = officesRes.rows.map((r) => ({
+  const offices: EligibleOfficeHours[] = officesRes.rows.map((r) => ({
     id: r.id,
     runRatePct: r.run_rate_pct,
     totalDesks: r.total_desks,
@@ -340,8 +348,8 @@ async function getEligibleOffices(
   return offices;
 }
 
-interface CellInput {
-  targetSkills: number[];
+interface StartTimeInput {
+  targetTxns: number[];
   officeId: number;
   slotDate: string;
   slotTime: string;
@@ -349,14 +357,18 @@ interface CellInput {
   nowTs?: string;
 }
 
-async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | null> {
+/* Validates appointment time is actually bookable */
+async function validateAppointmentTime(
+  db: Queryable,
+  c: StartTimeInput,
+): Promise<FindApptResult | null> {
   const res = await db.query<{
     office_id: number;
     slot_date: string;
     slot_time: string;
     available: number;
-  }>(CELL_QUERY, [
-    c.targetSkills,
+  }>(SLOT_CAPACITY_QUERY, [
+    c.targetTxns,
     c.officeId,
     c.slotDate,
     c.slotTime,
@@ -375,7 +387,7 @@ async function checkCell(db: Queryable, c: CellInput): Promise<FindApptResult | 
   };
 }
 
-const CELL_QUERY = `
+const SLOT_CAPACITY_QUERY = `
 WITH txn_window AS (
   SELECT MAX(ett.available_from)  AS earliest_start,
          MIN(ett.available_until) AS latest_end
