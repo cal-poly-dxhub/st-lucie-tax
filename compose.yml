@@ -5,9 +5,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: stlucie
-      POSTGRES_USER: stlucie
-      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: ${POSTGRES_DB:-stlucie}
+      POSTGRES_USER: ${POSTGRES_USER:-stlucie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
