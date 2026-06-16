@@ -23,7 +23,7 @@ export async function lookupByQrCode(
   qrCode: string,
 ): Promise<QrLookupResult | null> {
   const { rows } = await db.query(
-    `SELECT id, office_id, status
+    `SELECT id AS appointment_id, office_id, status
      FROM appointments
      WHERE county_id = $1 AND qr_code = $2`,
     [countyId, qrCode],
@@ -57,61 +57,6 @@ export async function checkInToQueue(
   return { queueId, queueNumber: qRow.rows[0].queue_number };
 }
 
-export interface AppointmentDocument {
-  id: number;
-  docId: string | null;
-  name: string;
-  s3Key: string | null;
-  aiReviewStatus: "accept" | "reject" | null;
-  aiReviewNotes: string | null;
-  createdAt: string;
-}
-
-export async function getAppointmentDocuments(
-  db: Pool | PoolClient,
-  countyId: string,
-  appointmentId: number,
-): Promise<AppointmentDocument[]> {
-  const { rows } = await db.query(
-    `SELECT id, doc_id, name, s3_key, ai_review_status, ai_review_notes, created_at
-     FROM documents
-     WHERE county_id = $1 AND appointment_id = $2
-     ORDER BY created_at`,
-    [countyId, appointmentId],
-  );
-  return camelRows<AppointmentDocument>(rows);
-}
-
-export interface DocStatus {
-  docId: string;
-  name: string;
-  uploaded: boolean;
-  aiReviewStatus: "accept" | "reject" | null;
-}
-
-export async function getRequiredDocsStatus(
-  db: Pool | PoolClient,
-  countyId: string,
-  appointmentId: number,
-): Promise<DocStatus[]> {
-  const { rows } = await db.query(
-    `SELECT dr.doc_id, dr.name,
-            (d.id IS NOT NULL) AS uploaded,
-            d.ai_review_status
-     FROM appointments a
-     CROSS JOIN LATERAL unnest(a.required_doc_ids) AS req(doc_id)
-     JOIN document_registry dr
-       ON dr.county_id = a.county_id AND dr.doc_id = req.doc_id
-     LEFT JOIN documents d
-       ON d.county_id = a.county_id
-      AND d.appointment_id = a.id
-      AND d.doc_id = req.doc_id
-     WHERE a.county_id = $1 AND a.id = $2
-     ORDER BY dr.doc_id`,
-    [countyId, appointmentId],
-  );
-  return camelRows<DocStatus>(rows);
-}
 
 export interface WalkInInput {
   countyId: string;
