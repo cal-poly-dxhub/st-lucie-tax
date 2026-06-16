@@ -10,7 +10,8 @@
   - If missing documents then scan them in at check-in (allow check-in to defer this to service desk)
   - If not pre-screen questions then send to phone to complete
 6. Once the above are completed - assign to queue
-7. Pull from queue
+7. Clerks complete their appointment hitting the complete button
+8. Clerks pull from queue using summon next button 
 
 ## Design Decisions
 
