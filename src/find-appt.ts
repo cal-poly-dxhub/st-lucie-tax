@@ -18,19 +18,19 @@ export interface FindApptResult {
   available: number;
 }
 
-/**
- * Search the candidate space in preference order, stop at the first cell
- * with capacity. Returns null if nothing in the window matches.
- */
+/* Search for the first open slot with capacity. Returns null if nothing in the window matches preferences */
 export async function findAppointment(
   db: Queryable,
   input: FindApptInput,
 ): Promise<FindApptResult | null> {
   const { targetSkills } = input;
 
-  const meta = await loadSearchMeta(db, targetSkills);
-  if (meta === null) return null;
-  const { offices, totalDurationMin, paddingMin } = meta;
+  const appointmentConfig = await getAppointmentConfig(db, targetSkills);
+  if (appointmentConfig === null) return null;
+  const { totalDurationMin, paddingMin } = appointmentConfig;
+
+  const offices = await getEligibleOffices(db, targetSkills);
+  if (offices === null) return null;
 
   const candidates = await buildCandidates(db, input, offices, totalDurationMin, paddingMin);
 
@@ -58,7 +58,7 @@ interface Candidate {
 async function buildCandidates(
   db: Queryable,
   input: FindApptInput,
-  offices: OfficeMeta[],
+  offices: EligibleOffices[],
   totalDurationMin: number,
   paddingMin: number,
 ): Promise<Candidate[]> {
@@ -259,57 +259,54 @@ function compareRank(a: number[], b: number[]): number {
 // DB queries
 // ---------------------------------------------------------------------------
 
-interface OfficeMeta {
+interface EligibleOffices {
   id: number;
   runRatePct: number;
   totalDesks: number;
   hoursByDow: Map<number, { openTime: string; closeTime: string }>;
 }
 
-interface SearchMeta {
-  offices: OfficeMeta[];
+interface AppointmentConfig {
   totalDurationMin: number;
   paddingMin: number;
 }
 
-async function loadSearchMeta(db: Queryable, targetSkills: number[]): Promise<SearchMeta | null> {
-  const durRes = await db.query<{
-    total_duration_min: number;
-    n: number;
-    padding: number;
-  }>(
-    `
-    SELECT
-      COALESCE(SUM(g.avg_duration_min), 0)::int AS total_duration_min,
-      COUNT(*)::int AS n,
-      (SELECT c.scheduling_block_padding FROM config c) AS padding
-    FROM transaction_types g
-    WHERE g.office_id IS NULL
-      AND g.id        = ANY($1::int[])
-      AND g.status    = 'active'
-    `,
+async function getAppointmentConfig(
+  db: Queryable,
+  targetSkills: number[],
+): Promise<AppointmentConfig | null> {
+  const res = await db.query<{ total_duration_min: number; n: number; padding: number }>(
+    `SELECT
+       COALESCE(SUM(g.avg_duration_min), 0)::int AS total_duration_min,
+       COUNT(*)::int AS n,
+       (SELECT c.scheduling_block_padding FROM config c) AS padding
+     FROM transaction_types g
+     WHERE g.office_id IS NULL
+       AND g.id        = ANY($1::int[])
+       AND g.status    = 'active'`,
     [targetSkills],
   );
-  if (durRes.rows[0].n !== targetSkills.length) return null;
-  const totalDurationMin = durRes.rows[0].total_duration_min;
-  const paddingMin = durRes.rows[0].padding ?? 0;
+  if (res.rows[0].n !== targetSkills.length) return null;
+  return {
+    totalDurationMin: res.rows[0].total_duration_min,
+    paddingMin: res.rows[0].padding ?? 0,
+  };
+}
 
-  const officesRes = await db.query<{
-    id: number;
-    run_rate_pct: number;
-    total_desks: number;
-  }>(
-    `
-    SELECT o.id, o.run_rate_pct, o.total_desks
-    FROM offices o
-    WHERE (
-        SELECT COUNT(*) FROM effective_transaction_types ett
-        WHERE ett.office_id = o.id
-          AND ett.global_id = ANY($1::int[])
-          AND ett.status    = 'active'
-      ) = $2
-    ORDER BY o.id
-    `,
+async function getEligibleOffices(
+  db: Queryable,
+  targetSkills: number[],
+): Promise<EligibleOffices[] | null> {
+  const officesRes = await db.query<{ id: number; run_rate_pct: number; total_desks: number }>(
+    `SELECT o.id, o.run_rate_pct, o.total_desks
+     FROM offices o
+     WHERE (
+       SELECT COUNT(*) FROM effective_transaction_types ett
+       WHERE ett.office_id = o.id
+         AND ett.global_id = ANY($1::int[])
+         AND ett.status    = 'active'
+     ) = $2
+     ORDER BY o.id`,
     [targetSkills, targetSkills.length],
   );
   if (officesRes.rows.length === 0) return null;
@@ -321,15 +318,13 @@ async function loadSearchMeta(db: Queryable, targetSkills: number[]): Promise<Se
     open_time: string;
     close_time: string;
   }>(
-    `
-    SELECT office_id, day_of_week, open_time::text, close_time::text
-    FROM office_hours
-    WHERE office_id = ANY($1::int[])
-    `,
+    `SELECT office_id, day_of_week, open_time::text, close_time::text
+     FROM office_hours
+     WHERE office_id = ANY($1::int[])`,
     [officeIds],
   );
 
-  const offices: OfficeMeta[] = officesRes.rows.map((r) => ({
+  const offices: EligibleOffices[] = officesRes.rows.map((r) => ({
     id: r.id,
     runRatePct: r.run_rate_pct,
     totalDesks: r.total_desks,
@@ -342,7 +337,7 @@ async function loadSearchMeta(db: Queryable, targetSkills: number[]): Promise<Se
       closeTime: h.close_time,
     });
   }
-  return { offices, totalDurationMin, paddingMin };
+  return offices;
 }
 
 interface CellInput {
