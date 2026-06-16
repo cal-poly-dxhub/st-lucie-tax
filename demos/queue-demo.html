@@ -76,7 +76,13 @@
     font-size: 11px;
   }
   .appt-card .docs-status .doc-ok { color: #409d39; }
+  .appt-card .docs-status .doc-missing { color: #cc6600; }
   .appt-card .docs-status .doc-pending { color: #999999; }
+  .appt-card .prescreen-status { font-size: 11px; margin-top: 2px; }
+  .appt-card .prescreen-status .ps-done { color: #409d39; }
+  .appt-card .prescreen-status .ps-pending { color: #cc6600; }
+  .appt-card .qr-img { margin-top: 6px; }
+  .appt-card .qr-img canvas { border: 1px solid #e0e0e0; }
 
   /* Middle panel: Queue + Desks */
   .middle { padding: 16px 24px; }
@@ -365,20 +371,27 @@
       <div class="sr-meta" id="srMeta"></div>
       <div class="sr-docs" id="srDocs"></div>
       <button class="btn btn-upload btn-sm" id="btnUploadDoc" style="display:none">UPLOAD DOC</button>
-      <div style="margin-top:10px;display:none" id="priorityToggle">
+      <div style="margin-top:10px;display:none" id="prescreenToggle">
+        <label style="font-size:12px;cursor:pointer">
+          <input type="checkbox" id="chkPrescreen" onchange="markPrescreen(this)"> Prescreen questions completed
+        </label>
+      </div>
+      <div style="margin-top:6px;display:none" id="priorityToggle">
         <label style="font-size:12px;cursor:pointer">
           <input type="checkbox" id="chkPriority"> Mark as Priority (e.g. veteran, disability)
         </label>
       </div>
-      <button class="btn btn-sm" id="btnCheckIn" style="margin-top:10px;display:none" onclick="doCheckIn()">CHECK IN TO QUEUE</button>
+      <button class="btn btn-sm" id="btnCheckIn" style="margin-top:10px;display:none" onclick="doCheckIn()" disabled>CHECK IN TO QUEUE</button>
     </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 const API = '';
 let officeId = 1;
 let txnTypes = {};
+let docRegistry = {};
 let selectedAppt = null;
 let checkedInIds = new Set();
 
@@ -392,6 +405,7 @@ async function resetDemo() {
   checkedInIds.clear();
   selectedAppt = null;
   document.getElementById('scanResult').classList.remove('visible');
+  document.getElementById('prescreenToggle').style.display = 'none';
   document.getElementById('activityLog').innerHTML = '';
   await fetchJson('/api/queue/reset', {
     method: 'POST',
@@ -403,7 +417,7 @@ async function resetDemo() {
 }
 
 async function loadAll() {
-  await Promise.all([loadTxnTypes(), loadAppointments(), loadQueueState()]);
+  await Promise.all([loadTxnTypes(), loadDocRegistry(), loadAppointments(), loadQueueState()]);
 }
 
 async function loadTxnTypes() {
@@ -412,25 +426,50 @@ async function loadTxnTypes() {
   for (const t of data) txnTypes[t.id] = t.name;
 }
 
+async function loadDocRegistry() {
+  const data = await fetchJson('/api/queue/doc-registry');
+  docRegistry = {};
+  for (const d of data) docRegistry[d.doc_id] = d.name;
+}
+
 async function loadAppointments() {
   const data = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
   const el = document.getElementById('apptList');
   el.innerHTML = '';
-  // Show first 20 for demo clarity
   for (const a of data.slice(0, 20)) {
     const isCheckedIn = checkedInIds.has(a.id);
     const card = document.createElement('div');
     card.className = 'appt-card' + (isCheckedIn ? ' checked-in' : '');
     const txnNames = a.txn_type_ids.map(id => txnTypes[id] || `#${id}`).join(', ');
+
+    const requiredDocs = a.required_doc_ids || [];
+    const uploadedDocIds = (a.uploaded_docs || []).map(d => d.doc_id);
+    const allUploaded = requiredDocs.length > 0 && requiredDocs.every(id => uploadedDocIds.includes(id));
+    const uploadedCount = requiredDocs.filter(id => uploadedDocIds.includes(id)).length;
+
+    let docsHtml = '';
+    if (requiredDocs.length > 0) {
+      const statusClass = allUploaded ? 'doc-ok' : 'doc-missing';
+      docsHtml = `<div class="docs-status"><span class="${statusClass}">${uploadedCount}/${requiredDocs.length} docs uploaded</span></div>`;
+    }
+    const prescreenHtml = `<div class="prescreen-status"><span class="${a.prescreen_completed ? 'ps-done' : 'ps-pending'}">${a.prescreen_completed ? '✓ Prescreen complete' : '○ Prescreen incomplete'}</span></div>`;
+
     card.innerHTML = `
       <div class="name">${a.first_name} ${a.last_name}${a.is_priority ? '<span class="priority-badge">PRIORITY</span>' : ''}</div>
       <div class="meta">${a.time.slice(0,5)} — ${txnNames}</div>
-      <div class="qr">${a.qr_code || 'No QR'}</div>
+      ${docsHtml}
+      ${prescreenHtml}
+      <div class="qr-img" data-qr="${a.qr_code || ''}"></div>
     `;
     if (!isCheckedIn) {
       card.onclick = () => simulateScan(a);
     }
     el.appendChild(card);
+
+    if (a.qr_code) {
+      const qrContainer = card.querySelector('.qr-img');
+      new QRCode(qrContainer, { text: a.qr_code, width: 64, height: 64, correctLevel: QRCode.CorrectLevel.L });
+    }
   }
 }
 
@@ -507,39 +546,84 @@ async function simulateScan(appt) {
     Service: ${txnNames}${appt.is_priority ? '<br><span style="color:#b8860b;font-weight:700">PRIORITY</span>' : ''}
   `;
 
-  // Load docs
-  const docs = await fetchJson(`/api/queue/documents?appointmentId=${appt.id}`);
+  // Show required docs with upload status
+  const requiredDocs = appt.required_doc_ids || [];
+  const uploadedDocs = appt.uploaded_docs || [];
+  const uploadedDocIds = uploadedDocs.map(d => d.doc_id);
   const docsEl = document.getElementById('srDocs');
-  if (docs.length === 0) {
-    docsEl.innerHTML = '<div style="font-size:12px;color:#999;margin-bottom:4px">No documents uploaded</div>';
+
+  if (requiredDocs.length === 0) {
+    docsEl.innerHTML = '<div style="font-size:12px;color:#999;margin-bottom:4px">No documents required</div>';
   } else {
-    docsEl.innerHTML = docs.map(d => `
-      <div class="doc-item">
-        <div class="dot ${d.ai_review_status === 'accept' ? 'ok' : d.ai_review_status === 'reject' ? 'reject' : 'pending'}"></div>
-        <span>${d.name} — ${d.ai_review_status || 'pending'}</span>
-      </div>
-    `).join('');
+    docsEl.innerHTML = '<div style="font-size:12px;font-weight:700;margin-bottom:4px;">Required Documents:</div>' +
+      requiredDocs.map(docId => {
+        const uploaded = uploadedDocs.find(d => d.doc_id === docId);
+        const docName = docRegistry[docId] || docId;
+        if (uploaded) {
+          const statusClass = uploaded.ai_review_status === 'accept' ? 'ok' : uploaded.ai_review_status === 'reject' ? 'reject' : 'pending';
+          return `<div class="doc-item">
+            <div class="dot ${statusClass}"></div>
+            <span>${docName} — ${uploaded.ai_review_status || 'pending'}</span>
+          </div>`;
+        } else {
+          return `<div class="doc-item">
+            <div class="dot pending"></div>
+            <span>${docName} — <em>not uploaded</em></span>
+            <button class="btn btn-sm btn-blue" style="font-size:10px;line-height:20px;padding:0 8px;margin-left:6px;" onclick="uploadDoc(${appt.id}, '${docId}', '${docName.replace(/'/g, "\\'")}')">UPLOAD</button>
+          </div>`;
+        }
+      }).join('');
   }
 
-  document.getElementById('btnUploadDoc').style.display = 'inline-block';
-  document.getElementById('btnUploadDoc').onclick = () => uploadDoc(appt.id);
+  // Prescreen toggle
+  document.getElementById('prescreenToggle').style.display = 'block';
+  const chkPrescreen = document.getElementById('chkPrescreen');
+  chkPrescreen.checked = appt.prescreen_completed;
+  chkPrescreen.disabled = appt.prescreen_completed;
+
+  document.getElementById('btnUploadDoc').style.display = 'none';
   document.getElementById('priorityToggle').style.display = 'block';
   document.getElementById('chkPriority').checked = appt.is_priority;
   document.getElementById('btnCheckIn').style.display = 'inline-block';
+  updateCheckInButton();
   logEvent(`QR scanned: ${appt.qr_code} — ${appt.first_name} ${appt.last_name}`);
 }
 
-async function uploadDoc(appointmentId) {
-  const docNames = ['Driver License', 'Proof of Residency', 'Birth Certificate', 'SSN Card'];
-  const name = docNames[Math.floor(Math.random() * docNames.length)];
-  const status = Math.random() > 0.2 ? 'accept' : 'reject';
+function updateCheckInButton() {
+  const btn = document.getElementById('btnCheckIn');
+  const prescreenDone = document.getElementById('chkPrescreen').checked;
+  btn.disabled = !prescreenDone;
+  btn.title = prescreenDone ? '' : 'Prescreen must be completed before check-in';
+}
+
+async function markPrescreen(checkbox) {
+  if (!selectedAppt || !checkbox.checked) return;
+  await fetchJson('/api/queue/mark-prescreen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appointmentId: selectedAppt.id })
+  });
+  selectedAppt.prescreen_completed = true;
+  checkbox.disabled = true;
+  logEvent(`Prescreen completed: ${selectedAppt.first_name} ${selectedAppt.last_name}`);
+  updateCheckInButton();
+  await loadAppointments();
+}
+
+async function uploadDoc(appointmentId, docId, docName) {
   await fetchJson('/api/queue/upload-doc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appointmentId, docName: name, status })
+    body: JSON.stringify({ appointmentId, docId, docName, status: 'accept' })
   });
-  logEvent(`Doc uploaded: "${name}" — AI review: ${status}`);
-  simulateScan(selectedAppt);
+  logEvent(`Doc uploaded: "${docName}" — accepted`);
+  const appts = await fetchJson(`/api/queue/appointments?officeId=${officeId}`);
+  const updated = appts.find(a => a.id === appointmentId);
+  if (updated) {
+    selectedAppt = updated;
+    simulateScan(updated);
+  }
+  await loadAppointments();
 }
 
 async function doCheckIn() {
