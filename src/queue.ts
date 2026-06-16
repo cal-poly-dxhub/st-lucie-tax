@@ -21,7 +21,7 @@ export async function assignNextCustomer(
   if (queueId === null) return null;
 
   const qRow = await db.query(
-    `SELECT id, assigned_desk, assigned_clerk_id FROM queue WHERE id = $1`,
+    `SELECT id AS queue_id, assigned_desk AS desk_number, assigned_clerk_id AS clerk_id FROM queue WHERE id = $1`,
     [queueId],
   );
   return camelRows<AssignResult>(qRow.rows)[0];
