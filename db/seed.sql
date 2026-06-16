@@ -52,6 +52,19 @@ INSERT INTO transaction_types (county_id, txn_type_id, name, description, avg_du
     ('stlucie', 'license_original', 'Original Driver License', 'First-time FL driver license',     20, 'active', NULL,    NULL);
 
 -- =============================================================================
+-- Document Registry (required documents per transaction type)
+-- =============================================================================
+INSERT INTO document_registry (county_id, doc_id, name, description, alternatives) VALUES
+    ('stlucie', 'photo_id',       'Photo ID',                'Government-issued photo identification',         '{"passport","military_id"}'),
+    ('stlucie', 'proof_address',  'Proof of Residency',      'Utility bill, bank statement, or lease within 60 days', '{}'),
+    ('stlucie', 'ssn_proof',      'Social Security Proof',   'SSN card or W-2 showing full SSN',              '{"w2"}'),
+    ('stlucie', 'birth_cert',     'Birth Certificate',       'Certified US birth certificate or passport',    '{"passport"}'),
+    ('stlucie', 'learner_permit', 'Learner Permit',          'Valid FL learner permit',                        '{}'),
+    ('stlucie', 'vision_cert',    'Vision Certificate',      'Vision test results from licensed provider',     '{}'),
+    ('stlucie', 'vehicle_reg',    'Vehicle Registration',    'Current vehicle registration for test vehicle',  '{}'),
+    ('stlucie', 'insurance_card', 'Insurance Card',          'Proof of insurance for test vehicle',            '{}');
+
+-- =============================================================================
 -- Clerks (3 per office, distributed skills)
 --   Maria  (Fort Pierce): all skills — the only road_test + license_original clerk here
 --   James  (Fort Pierce): id_card + license_original
@@ -125,6 +138,10 @@ DECLARE
         'Young','Allen','King','Wright','Scott','Torres','Nguyen','Hill','Flores',
         'Green','Adams','Nelson','Baker','Hall','Rivera','Campbell','Mitchell',
         'Carter','Roberts'];
+    -- Required docs by txn_type_id: 1=road_test, 2=id_card, 3=license_original
+    road_test_docs TEXT[] := ARRAY['learner_permit','photo_id','vision_cert','vehicle_reg','insurance_card'];
+    id_card_docs TEXT[] := ARRAY['birth_cert','proof_address','ssn_proof'];
+    license_docs TEXT[] := ARRAY['learner_permit','photo_id','proof_address','ssn_proof'];
     day_date DATE;
     office_id_val INT;
     appt_count INT;
@@ -135,6 +152,10 @@ DECLARE
     fname TEXT;
     lname TEXT;
     seq INT := 0;
+    appt_id INT;
+    req_docs TEXT[];
+    doc_upload_roll FLOAT;
+    d INT;
 BEGIN
     PERFORM setseed(0.42);
 
@@ -153,19 +174,47 @@ BEGIN
                 lname := last_names[1 + floor(random() * 50)::int];
                 seq := seq + 1;
 
+                -- Determine required docs based on txn type
+                CASE rand_txn
+                    WHEN 1 THEN req_docs := road_test_docs;
+                    WHEN 2 THEN req_docs := id_card_docs;
+                    WHEN 3 THEN req_docs := license_docs;
+                END CASE;
+
                 INSERT INTO appointments (
                     county_id, office_id, first_name, last_name,
-                    contact_email, contact_phone, txn_type_ids,
+                    contact_email, contact_phone, txn_type_ids, required_doc_ids,
                     appointment_date, appointment_time, qr_code, status, is_walk_in
                 ) VALUES (
                     'stlucie', office_id_val, fname, lname,
                     lower(fname) || '.' || lower(lname) || seq || '@email.com',
                     '772-555-' || lpad(seq::text, 4, '0'),
-                    ARRAY[rand_txn],
+                    ARRAY[rand_txn], req_docs,
                     day_date, slot_time,
                     'QR-' || lpad(seq::text, 5, '0'),
                     'scheduled', FALSE
-                );
+                ) RETURNING id INTO appt_id;
+
+                -- Pre-populate documents: ~65% fully uploaded, ~20% partially, ~15% none
+                doc_upload_roll := random();
+                IF doc_upload_roll < 0.65 THEN
+                    -- All docs uploaded
+                    FOR d IN 1..array_length(req_docs, 1) LOOP
+                        INSERT INTO documents (county_id, appointment_id, doc_id, name, ai_review_status)
+                        VALUES ('stlucie', appt_id, req_docs[d],
+                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[d]),
+                                'accept');
+                    END LOOP;
+                ELSIF doc_upload_roll < 0.85 THEN
+                    -- Partial upload: upload first N-1 docs
+                    FOR d IN 1..GREATEST(1, array_length(req_docs, 1) - 1) LOOP
+                        INSERT INTO documents (county_id, appointment_id, doc_id, name, ai_review_status)
+                        VALUES ('stlucie', appt_id, req_docs[d],
+                                (SELECT dr.name FROM document_registry dr WHERE dr.county_id = 'stlucie' AND dr.doc_id = req_docs[d]),
+                                CASE WHEN random() > 0.1 THEN 'accept' ELSE 'reject' END);
+                    END LOOP;
+                END IF;
+                -- else: no docs uploaded (15%)
             END LOOP;
         END LOOP;
     END LOOP;
