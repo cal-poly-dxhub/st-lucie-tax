@@ -576,9 +576,14 @@ AS $$
 DECLARE
   v_next_number INT;
   v_queue_id    INT;
+  v_today       DATE;
 BEGIN
+  -- Use current time zone for queue number, UTC for everything else for analytics
+  SELECT (now() AT TIME ZONE c.timezone)::date INTO v_today
+  FROM config c;
+
   INSERT INTO queue_counters (office_id, counter_date, last_number)
-  VALUES (p_office_id, CURRENT_DATE, 1)
+  VALUES (p_office_id, v_today, 1)
   ON CONFLICT (office_id, counter_date)
   DO UPDATE SET last_number = queue_counters.last_number + 1
   RETURNING last_number INTO v_next_number;
@@ -621,7 +626,8 @@ BEGIN
     AND q.status = 'waiting'
     AND a.txn_type_ids <@ v_clerk_skills
   ORDER BY a.is_priority DESC, q.checked_in_at ASC
-  LIMIT 1;
+  LIMIT 1
+  FOR UPDATE OF q SKIP LOCKED;
 
   IF v_queue_id IS NULL THEN
     RETURN NULL;
