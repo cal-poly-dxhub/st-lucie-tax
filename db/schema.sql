@@ -15,7 +15,6 @@ CREATE UNIQUE INDEX idx_config_singleton ON config ((TRUE));
 
 CREATE TABLE offices (
     id              SERIAL PRIMARY KEY,
-    office_name     TEXT NOT NULL,
     name            TEXT NOT NULL,
     address         TEXT,
     total_desks     INT NOT NULL,
