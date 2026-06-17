@@ -28,9 +28,9 @@ export async function completeAppointment(
   await db.query(`UPDATE appointments SET status = 'completed' WHERE id = $1`, [appointmentId]);
 
   const shRes = await db.query<{ id: number }>(
-    `INSERT INTO service_history (office_id, duration_min)
-     VALUES ($1, $2) RETURNING id`,
-    [officeId, durationMin],
+    `INSERT INTO service_history (office_id, appointment_id, duration_min)
+     VALUES ($1, $2, $3) RETURNING id`,
+    [officeId, appointmentId, durationMin],
   );
   const serviceHistoryId = shRes.rows[0].id;
 
