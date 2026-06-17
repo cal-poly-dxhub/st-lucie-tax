@@ -132,6 +132,45 @@ export async function setAppointmentPriority(
   }
 }
 
+export interface AppointmentInfo {
+  appointmentId: number;
+  firstName: string;
+  lastName: string;
+  identityVerified: boolean;
+  prescreenCompleted: boolean;
+  requiredDocIds: string[];
+}
+
+export async function getAppointmentInfo(
+  db: Queryable,
+  appointmentId: number,
+): Promise<AppointmentInfo> {
+  const { rows } = await db.query<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    identity_verified: boolean;
+    prescreen_completed: boolean;
+    required_doc_ids: string[];
+  }>(
+    `SELECT id, first_name, last_name, identity_verified, prescreen_completed, required_doc_ids
+     FROM appointments
+     WHERE id = $1`,
+    [appointmentId],
+  );
+  if (rows.length === 0) throw new Error(`Appointment ${appointmentId} not found`);
+
+  const r = rows[0];
+  return {
+    appointmentId: r.id,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    identityVerified: r.identity_verified,
+    prescreenCompleted: r.prescreen_completed,
+    requiredDocIds: r.required_doc_ids,
+  };
+}
+
 export interface CheckInSummary {
   appointmentId: number;
   firstName: string;
