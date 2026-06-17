@@ -28,7 +28,7 @@ export type BookApptResult =
   | { ok: true; appointmentId: number }
   | { ok: false; error: BookApptError };
 
-const PG_ERROR_MAP: Record<string, BookApptError> = {
+export const PG_ERROR_MAP: Record<string, BookApptError> = {
   P0001: "capacity_exceeded",
   P0002: "office_closed",
   P0003: "txn_unavailable",
