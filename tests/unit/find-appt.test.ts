@@ -9,14 +9,14 @@ type Row = Record<string, unknown>;
 function makeDb(responses: Array<{ rows: Row[] }>): Queryable {
   let idx = 0;
   return {
-    async query() {
+    query() {
       if (idx >= responses.length) {
         throw new Error(`Unexpected query #${idx + 1} (only ${responses.length} mocked)`);
       }
       const r = responses[idx++];
-      return { rows: r.rows, rowCount: r.rows.length };
+      return Promise.resolve({ rows: r.rows, rowCount: r.rows.length });
     },
-  };
+  } as Queryable;
 }
 
 function happyPathResponses(
@@ -113,7 +113,7 @@ describe("findAppointment: happy path", () => {
 
   test("returns the first valid candidate when the first fails and second succeeds", async () => {
     // Provide two appointment end times so buildPossibleStartTimes generates two candidates
-    const db: Queryable = (() => {
+    const db = (() => {
       const responses = [
         { rows: [{ total_duration_min: 30, n: 1, padding: 0 }] },
         { rows: [{ id: 1, run_rate_pct: 100, total_desks: 3 }] },
@@ -149,7 +149,7 @@ describe("findAppointment: happy path", () => {
         async query() {
           return { rows: responses[i++].rows, rowCount: responses[i - 1].rows.length };
         },
-      };
+      } as Queryable;
     })();
 
     const result = await findAppointment(db, baseInput());
