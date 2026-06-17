@@ -140,7 +140,7 @@ export interface CheckInSummary {
   prescreenCompleted: boolean;
   docsReady: boolean;
   missingDocs: string[];
-  rejectedDocs: string[];
+  pendingDocs: string[];
   readyForQueue: boolean;
 }
 
@@ -166,37 +166,34 @@ export async function getCheckInSummary(
   const appt = apptRes.rows[0];
 
   const missingDocs: string[] = [];
-  const rejectedDocs: string[] = [];
+  const pendingDocs: string[] = [];
 
   if (appt.required_doc_ids.length > 0) {
     const docRes = await db.query<{
       doc_id: string;
-      uploaded: boolean;
-      ai_review_status: string | null;
+      clerk_validated: boolean | null;
     }>(
-      `SELECT dr.doc_id,
-              (d.id IS NOT NULL) AS uploaded,
-              d.ai_review_status
+      `SELECT req.doc_id,
+              bool_or(d.clerk_validated) AS clerk_validated
        FROM unnest($2::text[]) AS req(doc_id)
-       JOIN document_registry dr
-         ON dr.doc_id = req.doc_id
        LEFT JOIN documents d
          ON d.appointment_id = $1
         AND d.doc_id = req.doc_id
-       ORDER BY dr.doc_id`,
+       GROUP BY req.doc_id
+       ORDER BY req.doc_id`,
       [appointmentId, appt.required_doc_ids],
     );
 
     for (const row of docRes.rows) {
-      if (!row.uploaded) {
+      if (row.clerk_validated === null) {
         missingDocs.push(row.doc_id);
-      } else if (row.ai_review_status === "reject") {
-        rejectedDocs.push(row.doc_id);
+      } else if (!row.clerk_validated) {
+        pendingDocs.push(row.doc_id);
       }
     }
   }
 
-  const docsReady = missingDocs.length === 0 && rejectedDocs.length === 0;
+  const docsReady = missingDocs.length === 0 && pendingDocs.length === 0;
   const readyForQueue = appt.identity_verified && appt.prescreen_completed && docsReady;
 
   return {
@@ -207,7 +204,7 @@ export async function getCheckInSummary(
     prescreenCompleted: appt.prescreen_completed,
     docsReady,
     missingDocs,
-    rejectedDocs,
+    pendingDocs,
     readyForQueue,
   };
 }

@@ -138,7 +138,7 @@ CREATE TABLE documents (
     s3_key          TEXT,
     ai_review_status TEXT CHECK (ai_review_status IN ('accept', 'reject')),
     ai_review_notes  TEXT,
-    clerk_review_status TEXT CHECK (clerk_review_status IN ('accept', 'reject')),
+    clerk_validated BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     FOREIGN KEY (doc_id) REFERENCES document_registry(doc_id)
 );
