@@ -22,10 +22,8 @@ const PARAM_IDX_PRESCREEN_RESPONSES = 13;
 
 function makeDb(result: { rows: Record<string, unknown>[] }): Queryable {
   return {
-    async query() {
-      return { rows: result.rows, rowCount: result.rows.length };
-    },
-  };
+    query: () => Promise.resolve({ rows: result.rows, rowCount: result.rows.length }),
+  } as Queryable;
 }
 
 function makeErrorDb(code: string): Queryable {
@@ -66,7 +64,7 @@ describe("bookAppointment: happy path", () => {
 describe("bookAppointment: concurrency", () => {
   test("ten concurrent bookings — only one succeeds, rest get capacity_exceeded", async () => {
     let booked = false;
-    const db: Queryable = {
+    const db = {
       async query() {
         await new Promise((r) => setTimeout(r, Math.random() * 10));
         if (!booked) {
@@ -77,7 +75,7 @@ describe("bookAppointment: concurrency", () => {
         err.code = "P0001";
         throw err;
       },
-    };
+    } as Queryable;
 
     const results = await Promise.all(
       Array.from({ length: CONCURRENT_RACERS }, (_, i) =>
@@ -125,37 +123,37 @@ describe("bookAppointment: slot_in_past", () => {
 
 describe("bookAppointment: qrCode required", () => {
   test("passes null qrCode when none provided — DB enforces the constraint", async () => {
-    const db: Queryable = {
+    const db = {
       async query(_sql: string, values?: unknown[]) {
         const qrCode = values?.[PARAM_IDX_QR_CODE];
         expect(qrCode).toBeNull();
         return { rows: [{ book_appointment: 1 }], rowCount: 1 };
       },
-    };
+    } as Queryable;
     await bookAppointment(db, baseInput({ qrCode: undefined }));
   });
 
   test("passes qrCode value to the DB when provided", async () => {
-    const db: Queryable = {
+    const db = {
       async query(_sql: string, values?: unknown[]) {
         const qrCode = values?.[PARAM_IDX_QR_CODE];
         expect(qrCode).toBe("QR-XYZ-789");
         return { rows: [{ book_appointment: 1 }], rowCount: 1 };
       },
-    };
+    } as Queryable;
     await bookAppointment(db, baseInput({ qrCode: "QR-XYZ-789" }));
   });
 });
 
 describe("bookAppointment: walk-in", () => {
   test("walk-in passes isWalkIn=true to the DB", async () => {
-    const db: Queryable = {
+    const db = {
       async query(_sql: string, values?: unknown[]) {
         const isWalkIn = values?.[PARAM_IDX_IS_WALK_IN];
         expect(isWalkIn).toBe(true);
         return { rows: [{ book_appointment: 5 }], rowCount: 1 };
       },
-    };
+    } as Queryable;
     const result = await bookAppointment(
       db,
       baseInput({ isWalkIn: true, time: "14:30:00", nowTs: "2026-05-12 14:30" }),
@@ -166,13 +164,13 @@ describe("bookAppointment: walk-in", () => {
 
 describe("bookAppointment: isPriority", () => {
   test("passes isPriority=true to the DB", async () => {
-    const db: Queryable = {
+    const db = {
       async query(_sql: string, values?: unknown[]) {
         const isPriority = values?.[PARAM_IDX_IS_PRIORITY];
         expect(isPriority).toBe(true);
         return { rows: [{ book_appointment: 7 }], rowCount: 1 };
       },
-    };
+    } as Queryable;
     const result = await bookAppointment(db, baseInput({ isPriority: true }));
     expect(result).toEqual({ ok: true, appointmentId: 7 });
   });
@@ -180,7 +178,7 @@ describe("bookAppointment: isPriority", () => {
 
 describe("bookAppointment: default values for optional fields", () => {
   test("omitted optional fields are passed with correct defaults", async () => {
-    const db: Queryable = {
+    const db = {
       async query(_sql: string, values?: unknown[]) {
         expect(values?.[PARAM_IDX_QR_CODE]).toBeNull();
         expect(values?.[PARAM_IDX_IS_WALK_IN]).toBe(false);
@@ -189,7 +187,7 @@ describe("bookAppointment: default values for optional fields", () => {
         expect(values?.[PARAM_IDX_PRESCREEN_RESPONSES]).toBe("{}");
         return { rows: [{ book_appointment: 1 }], rowCount: 1 };
       },
-    };
+    } as Queryable;
     await bookAppointment(
       db,
       baseInput({
