@@ -1,8 +1,7 @@
 import type { Client } from "pg";
 import { connect } from "./client.js";
+import { TEST_DATE, TEST_FROZEN_NOW } from "../../../tests/config.js";
 
-export const DATE = "2026-05-12";
-export const FROZEN_NOW = "2026-05-12 06:00";
 export const ROAD_TEST = 1;
 export const ID_CARD = 2;
 
@@ -37,7 +36,7 @@ export function bookParams(
 ) {
   return [
     overrides.office ?? 1,
-    overrides.date ?? DATE,
+    overrides.date ?? TEST_DATE,
     overrides.time ?? "09:00",
     overrides.skills ?? [ROAD_TEST],
     overrides.requiredDocIds ?? [],
@@ -45,7 +44,7 @@ export function bookParams(
     overrides.last ?? "Booker",
     overrides.email ?? "test@example.com",
     overrides.phone ?? "555-0000",
-    overrides.now ?? FROZEN_NOW,
+    overrides.now ?? TEST_FROZEN_NOW,
   ];
 }
 
@@ -56,12 +55,12 @@ export async function clearOfficeDay(client: Client, office = 1) {
         SELECT id FROM appointments
         WHERE office_id=$1 AND appointment_date=$2
       )`,
-    [office, DATE],
+    [office, TEST_DATE],
   );
   await client.query(
     `DELETE FROM appointments
       WHERE office_id=$1 AND appointment_date=$2`,
-    [office, DATE],
+    [office, TEST_DATE],
   );
 }
 
@@ -104,13 +103,13 @@ export async function raceTest(opts: {
           SELECT id FROM appointments
           WHERE office_id=1 AND appointment_date=$1
         )`,
-      [DATE],
+      [TEST_DATE],
     );
     await setup.query(
       `DELETE FROM appointments
         WHERE office_id=1
           AND appointment_date=$1`,
-      [DATE],
+      [TEST_DATE],
     );
     await setup.query(BOOK_SQL, opts.preBookParams);
 
@@ -136,13 +135,13 @@ export async function raceTest(opts: {
           SELECT id FROM appointments
           WHERE office_id=1 AND appointment_date=$1
         )`,
-      [DATE],
+      [TEST_DATE],
     );
     await setup.query(
       `DELETE FROM appointments
         WHERE office_id=1
           AND appointment_date=$1`,
-      [DATE],
+      [TEST_DATE],
     );
 
     return { winnerId: winnerRow.rows[0].id, loserCode: loserResult };
