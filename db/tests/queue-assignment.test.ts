@@ -62,16 +62,22 @@ describe("check_in_to_queue", () => {
   test("assigns sequential queue numbers per office per day", async () => {
     const appt1 = await createAppointment(db.client, { txnTypes: [ID_CARD] });
     const appt2 = await createAppointment(db.client, { txnTypes: [ID_CARD] });
+    const appt3 = await createAppointment(db.client, { txnTypes: [ID_CARD] });
+    const appt4 = await createAppointment(db.client, { txnTypes: [ID_CARD] });
 
     const q1 = await checkIn(db.client, appt1);
     const q2 = await checkIn(db.client, appt2);
+    const q3 = await checkIn(db.client, appt4);
+    const q4 = await checkIn(db.client, appt3);
 
     const { rows } = await db.client.query(
-      `SELECT id, queue_number FROM queue WHERE id IN ($1, $2) ORDER BY id`,
-      [q1, q2],
+      `SELECT id, queue_number FROM queue WHERE id IN ($1, $2, $3, $4) ORDER BY id`,
+      [q1, q2, q3, q4],
     );
     expect(rows[0].queue_number).toBe(1);
     expect(rows[1].queue_number).toBe(2);
+    expect(rows[2].queue_number).toBe(3);
+    expect(rows[3].queue_number).toBe(4);
   });
 });
 
