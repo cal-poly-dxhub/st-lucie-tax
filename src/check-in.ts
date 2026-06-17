@@ -141,7 +141,6 @@ export interface CheckInSummary {
   docsReady: boolean;
   missingDocs: string[];
   pendingDocs: string[];
-  readyForQueue: boolean;
 }
 
 export async function getCheckInSummary(
@@ -194,7 +193,6 @@ export async function getCheckInSummary(
   }
 
   const docsReady = missingDocs.length === 0 && pendingDocs.length === 0;
-  const readyForQueue = appt.identity_verified && appt.prescreen_completed && docsReady;
 
   return {
     appointmentId: appt.id,
@@ -205,6 +203,5 @@ export async function getCheckInSummary(
     docsReady,
     missingDocs,
     pendingDocs,
-    readyForQueue,
   };
 }
