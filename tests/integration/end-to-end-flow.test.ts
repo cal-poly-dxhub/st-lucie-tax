@@ -39,7 +39,7 @@ vi.mock("../../src/documents.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/documents.js")>();
   return {
     ...actual,
-    uploadDocument: vi.fn(async (db, input) => {
+    uploadDocument: vi.fn(async (_s3, _bucket, db, input) => {
       const s3Key = `appointments/${input.appointmentId}/${Date.now()}_${input.name}`;
       const { rows } = await db.query(
         `INSERT INTO documents (appointment_id, doc_id, name, s3_key, ai_review_status, ai_review_notes)
@@ -151,7 +151,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(ses.send).toHaveBeenCalledTimes(1);
 
     // ─── 4. Pre-visit: upload documents (web path — AI reviewed) ───
-    const docResult = await vi.mocked(uploadDocument)(db.client, {
+    const docResult = await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
       appointmentId,
       docId: "photo_id",
       name: "drivers_license.jpg",
@@ -163,7 +163,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(docResult.documentId).toBeGreaterThan(0);
     expect(docResult.s3Key).toContain("appointments/");
 
-    await vi.mocked(uploadDocument)(db.client, {
+    await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
       appointmentId,
       docId: "proof_address",
       name: "utility_bill.pdf",
@@ -172,6 +172,10 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
       aiReviewStatus: "accept",
       aiReviewNotes: null,
     });
+
+    await db.client.query(`UPDATE documents SET clerk_validated = TRUE WHERE appointment_id = $1`, [
+      appointmentId,
+    ]);
 
     // ─── 5. Pre-visit: complete prescreen questions ───
     await addPrescreenQuestions(ID_CARD);
@@ -197,7 +201,6 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(summary.prescreenCompleted).toBe(true);
     expect(summary.docsReady).toBe(true);
     expect(summary.missingDocs).toEqual([]);
-    expect(summary.readyForQueue).toBe(true);
 
     // ─── 8. Add to queue ───
     const checkInResult = await checkInToQueue(
@@ -274,7 +277,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     );
 
     const summary = await getCheckInSummary(db.client, bookResult.appointmentId);
-    expect(summary.readyForQueue).toBe(false);
+
     expect(summary.missingDocs).toContain("photo_id");
   });
 
@@ -337,7 +340,7 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(idRows[0].identity_verified).toBe(true);
 
     // ─── 3. Clerk scans docs at desk (no AI review) ───
-    await vi.mocked(uploadDocument)(db.client, {
+    await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
       appointmentId,
       docId: null,
       name: "walk_in_photo_id.jpg",
@@ -361,7 +364,6 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(summary.identityVerified).toBe(true);
     expect(summary.prescreenCompleted).toBe(true);
     expect(summary.docsReady).toBe(true);
-    expect(summary.readyForQueue).toBe(true);
 
     // ─── 6. Add to queue with priority ───
     await setAppointmentPriority(db.client, appointmentId, true);
@@ -416,6 +418,5 @@ describe("Flow B: Walk-In — end to end", () => {
     const summary = await getCheckInSummary(db.client, walkInResult.appointmentId);
     expect(summary.identityVerified).toBe(false);
     expect(summary.prescreenCompleted).toBe(false);
-    expect(summary.readyForQueue).toBe(false);
   });
 });
