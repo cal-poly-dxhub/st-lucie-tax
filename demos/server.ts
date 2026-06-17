@@ -1,12 +1,17 @@
 import express from "express";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "url";
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import QRCode from "qrcode";
 import { withTransaction, pool } from "./db.js";
 import { findAppointment } from "../src/find-appt.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT ?? 3000);
 const app = express();
 app.use(express.json());
+app.use("/sample_docs", express.static(path.join(__dirname, "sample_docs")));
 
 const DEMO_DATE = "2026-05-13";
 const NOW_TS = "2026-05-13 06:00";
@@ -640,10 +645,93 @@ app.get("/api/queue/txn-types", async (_req, res) => {
   }
 });
 
+// ─── Prototype (end-to-end workflow) ─────────────────────────────────────────
+const ses = new SESv2Client({ region: "us-west-2" });
+const PROTO_EMAIL = "njriley@calpoly.edu";
+
+app.get("/prototype", (_req, res) => {
+  res.sendFile(path.resolve(__dirname, "prototype.html"));
+});
+
+app.post("/api/send-confirmation", async (_req, res) => {
+  try {
+    const qrCode = randomUUID();
+    const qrDataUrl = await QRCode.toDataURL(qrCode, {
+      errorCorrectionLevel: "M",
+      width: 200,
+    });
+
+    const html = `<p>Hi Jane,</p>
+<p>Your appointment is confirmed:</p>
+<ul>
+  <li><strong>Date:</strong> Tuesday, June 24, 2026</li>
+  <li><strong>Time:</strong> 9:30 AM</li>
+  <li><strong>Location:</strong> Port St. Lucie (Crosstown Pkwy)</li>
+</ul>
+<p>Present this QR code at check-in:</p>
+<img src="${qrDataUrl}" alt="QR Code" width="200" height="200" />
+<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
+
+    const text = `Hi Jane,\n\nYour appointment is confirmed:\n- Date: Tuesday, June 24, 2026\n- Time: 9:30 AM\n- Location: Port St. Lucie (Crosstown Pkwy)\n\nPlease present your QR code at check-in.\n\nThank you,\nSt. Lucie County Tax Collector`;
+
+    await ses.send(
+      new SendEmailCommand({
+        FromEmailAddress: PROTO_EMAIL,
+        Destination: { ToAddresses: [PROTO_EMAIL] },
+        Content: {
+          Simple: {
+            Subject: { Data: "Appointment Confirmed" },
+            Body: { Html: { Data: html }, Text: { Data: text } },
+          },
+        },
+      }),
+    );
+
+    res.json({ ok: true, qrCode });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("send-confirmation error:", msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
+app.post("/api/send-prescreen", async (_req, res) => {
+  try {
+    const qrCode = randomUUID();
+    const prescreenUrl = `http://localhost:${PORT}/prescreen/${qrCode}`;
+
+    const html = `<p>Hi Jane,</p>
+<p>Please complete your pre-screen questions before your appointment:</p>
+<p><a href="${prescreenUrl}">${prescreenUrl}</a></p>
+<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
+
+    const text = `Hi Jane,\n\nPlease complete your pre-screen questions before your appointment:\n${prescreenUrl}\n\nThank you,\nSt. Lucie County Tax Collector`;
+
+    await ses.send(
+      new SendEmailCommand({
+        FromEmailAddress: PROTO_EMAIL,
+        Destination: { ToAddresses: [PROTO_EMAIL] },
+        Content: {
+          Simple: {
+            Subject: { Data: "Complete Your Pre-Screen Questions" },
+            Body: { Html: { Data: html }, Text: { Data: text } },
+          },
+        },
+      }),
+    );
+
+    res.json({ ok: true, prescreenUrl });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("send-prescreen error:", msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
 // ─── Start ──────────────────────────────────────────────────────────────────
-const PORT = Number(process.env.PORT ?? 3000);
 app.listen(PORT, () => {
   console.log(`Scheduling demo at http://localhost:${PORT}/schedule-demo`);
   console.log(`Check-in schedule at http://localhost:${PORT}/schedule`);
   console.log(`Queue demo at http://localhost:${PORT}/queue-demo`);
+  console.log(`Prototype (workflow) at http://localhost:${PORT}/prototype`);
 });
