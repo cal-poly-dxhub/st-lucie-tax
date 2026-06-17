@@ -402,6 +402,41 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(finalAppt[0].status).toBe("completed");
   });
 
+  test("priority walk-in is served before non-priority", async () => {
+    // Regular walk-in checks in first
+    const regular = await registerWalkIn(db.client, {
+      officeId: OFFICE,
+      txnTypeIds: [ID_CARD],
+      firstName: "Normal",
+      lastName: "Person",
+      contactEmail: "normal@example.com",
+      contactPhone: "555-0002",
+      nowTs: "2026-05-12 09:00",
+    });
+    if (!regular.ok) throw new Error("regular walk-in failed");
+    await checkInToQueue(db.client, OFFICE, regular.appointmentId);
+
+    // Priority walk-in checks in second
+    const priority = await registerWalkIn(db.client, {
+      officeId: OFFICE,
+      txnTypeIds: [ID_CARD],
+      firstName: "Priority",
+      lastName: "Person",
+      contactEmail: "priority@example.com",
+      contactPhone: "555-0003",
+      isPriority: true,
+      nowTs: "2026-05-12 09:05",
+    });
+    if (!priority.ok) throw new Error("priority walk-in failed");
+    const priorityCheckIn = await checkInToQueue(db.client, OFFICE, priority.appointmentId);
+
+    // Clerk summons next — should get the priority one
+    await loginClerk(MARIA, 1);
+    const assigned = await assignNextCustomer(db.client, OFFICE, MARIA);
+    expect(assigned).not.toBeNull();
+    expect(assigned!.queueId).toBe(priorityCheckIn.queueId);
+  });
+
   test("walk-in shows unverified status before clerk actions", async () => {
     const walkInResult = await registerWalkIn(db.client, {
       officeId: OFFICE,
