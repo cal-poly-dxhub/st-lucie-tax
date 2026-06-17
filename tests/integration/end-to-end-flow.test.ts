@@ -245,10 +245,10 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(apptRows[0].status).toBe("completed");
 
     const { rows: historyRows } = await db.client.query(
-      `SELECT duration_min FROM service_history ORDER BY id DESC LIMIT 1`,
+      `SELECT duration_sec FROM service_history ORDER BY id DESC LIMIT 1`,
       [],
     );
-    expect(historyRows[0].duration_min).toBeGreaterThanOrEqual(0);
+    expect(historyRows[0].duration_sec).toBeGreaterThanOrEqual(0);
 
     const { rows: clerkRows } = await db.client.query(
       `SELECT is_available FROM clerk_sessions
