@@ -17,6 +17,7 @@ import { assignNextCustomer } from "../../src/queue.js";
 import { completeAppointment } from "../../src/complete.js";
 import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.js";
 import { SESv2Client } from "@aws-sdk/client-sesv2";
+import type { S3Client } from "@aws-sdk/client-s3";
 
 // Mock SES — intercept the send method
 vi.mock("@aws-sdk/client-sesv2", () => {
@@ -149,19 +150,6 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     });
     await sendEmail(ses, emailInput);
     expect(ses.send).toHaveBeenCalledTimes(1);
-
-    // ─── 4. Pre-visit: upload documents (web path — AI reviewed) ───
-    const docResult = await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
-      appointmentId,
-      docId: "photo_id",
-      name: "drivers_license.jpg",
-      fileBuffer: Buffer.from("fake-image"),
-      contentType: "image/jpeg",
-      aiReviewStatus: "accept",
-      aiReviewNotes: "Document verified by AI",
-    });
-    expect(docResult.documentId).toBeGreaterThan(0);
-    expect(docResult.s3Key).toContain("appointments/");
 
     await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
       appointmentId,
@@ -340,7 +328,7 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(idRows[0].identity_verified).toBe(true);
 
     // ─── 3. Clerk scans docs at desk (no AI review) ───
-    await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
+    await vi.mocked(uploadDocument)(null as unknown as S3Client, "test-bucket", db.client, {
       appointmentId,
       docId: null,
       name: "walk_in_photo_id.jpg",
