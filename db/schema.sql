@@ -169,7 +169,7 @@ CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
     appointment_id  INT REFERENCES appointments(id),
-    duration_min    INT NOT NULL CHECK (duration_min >= 0),
+    duration_sec    INT NOT NULL CHECK (duration_sec >= 0),
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
