@@ -213,6 +213,11 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(checkInResult.queueId).toBeGreaterThan(0);
     expect(checkInResult.queueNumber).toBeGreaterThan(0);
 
+    const { rows: noteRows } = await db.client.query(`SELECT notes FROM queue WHERE id = $1`, [
+      checkInResult.queueId,
+    ]);
+    expect(noteRows[0].notes).toBe("Regular check-in");
+
     // ─── 9. Clerk logs in and summons next ───
     await loginClerk(MARIA, 1);
     const assigned = await assignNextCustomer(db.client, OFFICE, MARIA);
