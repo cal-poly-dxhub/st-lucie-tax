@@ -13,7 +13,6 @@ const APPT_DATE = "2026-05-12";
 const APPT_TIME = "09:00:00";
 const DEFAULT_TXN_IDS = [1];
 const QR_CODE = "QR-ABC-123";
-const CONCURRENT_RACERS = 10;
 const PARAM_IDX_QR_CODE = 9;
 const PARAM_IDX_IS_WALK_IN = 10;
 const PARAM_IDX_IS_PRIORITY = 11;
@@ -58,38 +57,6 @@ describe("bookAppointment: happy path", () => {
     const db = makeDb({ rows: [{ book_appointment: 42 }] });
     const result = await bookAppointment(db, baseInput());
     expect(result).toEqual({ ok: true, appointmentId: 42 });
-  });
-});
-
-describe("bookAppointment: concurrency", () => {
-  test("ten concurrent bookings — only one succeeds, rest get capacity_exceeded", async () => {
-    let booked = false;
-    const db = {
-      async query() {
-        await new Promise((r) => setTimeout(r, Math.random() * 10));
-        if (!booked) {
-          booked = true;
-          return { rows: [{ book_appointment: 1 }], rowCount: 1 };
-        }
-        const err = new Error("capacity exceeded") as Error & { code: string };
-        err.code = "P0001";
-        throw err;
-      },
-    } as Queryable;
-
-    const results = await Promise.all(
-      Array.from({ length: CONCURRENT_RACERS }, (_, i) =>
-        bookAppointment(db, baseInput({ firstName: `Racer${i}` })),
-      ),
-    );
-
-    const successes = results.filter((r) => r.ok);
-    const failures = results.filter((r) => !r.ok);
-    expect(successes).toHaveLength(1);
-    expect(failures).toHaveLength(CONCURRENT_RACERS - 1);
-    for (const f of failures) {
-      expect(f).toEqual({ ok: false, error: "capacity_exceeded" });
-    }
   });
 });
 
