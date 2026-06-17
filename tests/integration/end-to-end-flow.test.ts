@@ -230,7 +230,6 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
       officeId: OFFICE,
       queueId: checkInResult.queueId,
       clerkId: MARIA,
-      durationMin: 12,
     });
 
     // Verify final state
@@ -249,7 +248,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
       `SELECT duration_min FROM service_history ORDER BY id DESC LIMIT 1`,
       [],
     );
-    expect(historyRows[0].duration_min).toBe(12);
+    expect(historyRows[0].duration_min).toBeGreaterThanOrEqual(0);
 
     const { rows: clerkRows } = await db.client.query(
       `SELECT is_available FROM clerk_sessions
@@ -387,7 +386,6 @@ describe("Flow B: Walk-In — end to end", () => {
       officeId: OFFICE,
       queueId: checkInResult.queueId,
       clerkId: JAMES,
-      durationMin: 8,
     });
 
     const { rows: finalQueue } = await db.client.query(`SELECT status FROM queue WHERE id = $1`, [

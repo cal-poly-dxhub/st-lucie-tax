@@ -159,6 +159,7 @@ CREATE TABLE queue (
     status          TEXT NOT NULL DEFAULT 'waiting'
                     CHECK (status IN ('waiting', 'serving', 'testing', 'done')),
     checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    served_at       TIMESTAMPTZ,
     assigned_clerk_id INT REFERENCES clerks(id),
     assigned_desk   INT,
     notes           TEXT
@@ -645,6 +646,7 @@ BEGIN
 
   UPDATE queue
   SET status = 'serving',
+      served_at = NOW(),
       assigned_clerk_id = p_clerk_id,
       assigned_desk = v_desk
   WHERE id = v_queue_id;

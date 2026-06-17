@@ -4,24 +4,29 @@ export interface CompleteAppointmentInput {
   officeId: number;
   queueId: number;
   clerkId: number;
+}
+
+export interface CompleteAppointmentResult {
   durationMin: number;
 }
 
 export async function completeAppointment(
   db: Queryable,
   input: CompleteAppointmentInput,
-): Promise<void> {
-  const { officeId, queueId, clerkId, durationMin } = input;
+): Promise<CompleteAppointmentResult> {
+  const { officeId, queueId, clerkId } = input;
 
-  const qRow = await db.query<{ appointment_id: number; status: string }>(
-    `SELECT appointment_id, status FROM queue WHERE id = $1`,
-    [queueId],
-  );
+  const qRow = await db.query<{
+    appointment_id: number;
+    status: string;
+    served_at: Date;
+  }>(`SELECT appointment_id, status, served_at FROM queue WHERE id = $1`, [queueId]);
   if (qRow.rows.length === 0) throw new Error(`Queue entry ${queueId} not found`);
   if (qRow.rows[0].status !== "serving")
     throw new Error(`Queue entry ${queueId} is not in serving status`);
 
-  const appointmentId = qRow.rows[0].appointment_id;
+  const { appointment_id: appointmentId, served_at: servedAt } = qRow.rows[0];
+  const durationMin = Math.round((Date.now() - new Date(servedAt).getTime()) / 60_000);
 
   await db.query(`UPDATE queue SET status = 'done' WHERE id = $1`, [queueId]);
 
@@ -53,4 +58,6 @@ export async function completeAppointment(
      WHERE clerk_id = $1 AND office_id = $2 AND logged_out_at IS NULL`,
     [clerkId, officeId],
   );
+
+  return { durationMin };
 }
