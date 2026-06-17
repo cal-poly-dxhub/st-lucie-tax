@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>St. Lucie Tax Collector - Workflow Prototype</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+
+    nav { background: #1a365d; color: white; padding: 12px 24px; display: flex; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+    nav button { background: #2d4a7a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    nav button:hover { background: #3d5a8a; }
+    nav button.active { background: #4299e1; }
+    nav .title { font-weight: 700; font-size: 16px; margin-right: 16px; line-height: 34px; }
+
+    .view { display: none; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .view.active { display: block; }
+
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h2 { font-size: 18px; margin-bottom: 12px; color: #1a365d; }
+    .card h3 { font-size: 15px; margin-bottom: 8px; color: #2d4a7a; }
+    .card p { font-size: 14px; color: #555; margin-bottom: 8px; line-height: 1.5; }
+
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #333; }
+    input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
+    textarea { resize: vertical; min-height: 60px; }
+    button.btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #4299e1; color: white; }
+    .btn-primary:hover { background: #3182ce; }
+    .btn-success { background: #48bb78; color: white; }
+    .btn-success:hover { background: #38a169; }
+    .btn-warning { background: #ed8936; color: white; }
+    .btn-warning:hover { background: #dd6b20; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f7fafc; font-weight: 600; color: #4a5568; }
+
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #c6f6d5; color: #276749; }
+    .badge-yellow { background: #fefcbf; color: #975a16; }
+    .badge-red { background: #fed7d7; color: #9b2c2c; }
+    .badge-blue { background: #bee3f8; color: #2a4365; }
+    .badge-gray { background: #e2e8f0; color: #4a5568; }
+
+    .qr-img { width: 120px; height: 120px; margin: 12px auto; display: block; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    .queue-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+    .queue-number { font-size: 24px; font-weight: 700; color: #1a365d; width: 50px; }
+    .queue-info { flex: 1; margin-left: 12px; }
+    .queue-info .name { font-weight: 600; font-size: 14px; }
+    .queue-info .txn { font-size: 12px; color: #718096; }
+
+    .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .lobby-card { background: #1a365d; color: white; border-radius: 8px; padding: 20px; text-align: center; }
+    .lobby-card .number { font-size: 48px; font-weight: 700; }
+    .lobby-card .station { font-size: 14px; opacity: 0.8; margin-top: 4px; }
+    .lobby-card.calling { background: #38a169; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+
+    .doc-item { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+    .doc-item .doc-icon { width: 36px; height: 36px; background: #edf2f7; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .doc-item .doc-info { flex: 1; }
+    .doc-item .doc-name { font-weight: 600; font-size: 13px; }
+    .doc-item .doc-status { font-size: 12px; color: #718096; }
+
+    .steps { display: flex; gap: 4px; margin-bottom: 20px; }
+    .step { flex: 1; text-align: center; padding: 8px; background: #edf2f7; border-radius: 4px; font-size: 12px; font-weight: 600; color: #718096; }
+    .step.active { background: #4299e1; color: white; }
+    .step.done { background: #c6f6d5; color: #276749; }
+
+    .toggle { display: flex; align-items: center; gap: 8px; }
+    .toggle input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
+    .toggle label { margin: 0; font-size: 14px; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a365d; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .toast.show { display: block; }
+    .toast.error { background: #e53e3e; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 8px; padding: 20px; max-width: 80vw; max-height: 80vh; overflow: auto; position: relative; }
+    .modal img, .modal embed { max-width: 100%; max-height: 70vh; display: block; margin: 0 auto; }
+    .modal-close { position: absolute; top: 8px; right: 12px; font-size: 24px; cursor: pointer; color: #555; background: none; border: none; }
+    .modal h3 { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="title">St. Lucie Tax Collector</span>
+  <button onclick="showView('confirmation')" id="nav-confirmation">Confirmation</button>
+  <button onclick="showView('checkin')" id="nav-checkin">Check-In Desk</button>
+  <button onclick="showView('walkin')" id="nav-walkin">Walk-In</button>
+  <button onclick="showView('queue')" id="nav-queue">Queue</button>
+  <button onclick="showView('service')" id="nav-service">Service Clerk</button>
+  <button onclick="showView('lobby')" id="nav-lobby">Lobby Display</button>
+</nav>
+
+<div id="toast" class="toast"></div>
+
+<div class="modal-overlay" id="doc-modal" onclick="closeDocModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDocModal()">&times;</button>
+    <h3 id="doc-modal-title">Document</h3>
+    <div id="doc-modal-content"></div>
+  </div>
+</div>
+
+<!-- ========== CONFIRMATION (post-booking) ========== -->
+<div class="view active" id="view-confirmation">
+  <div class="card">
+    <h2>Appointment Confirmed</h2>
+    <p>Customer has booked via AI chatbot. Pre-screen completed. 3 docs submitted (1 accepted, 1 rejected, 1 pending).</p>
+  </div>
+
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <p><strong>Jane Smith</strong></p>
+        <p><strong>Transaction:</strong> Title Transfer (Out-of-State)</p>
+        <p><strong>Date:</strong> Tuesday, June 24, 2026</p>
+        <p><strong>Time:</strong> 9:30 AM</p>
+        <p><strong>Office:</strong> Port St. Lucie (Crosstown Pkwy)</p>
+        <p><strong>Est. Duration:</strong> 25 min</p>
+        <p><strong>Pre-Screen:</strong> <span class="badge badge-green">Completed</span></p>
+      </div>
+      <div style="text-align: center;">
+        <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=APPT-a1b2c3d4-e5f6" alt="QR Code">
+        <p style="font-size: 12px;">Scan at check-in kiosk or front desk</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Document Status</h3>
+    <div class="doc-item">
+      <div class="doc-icon">✅</div>
+      <div class="doc-info">
+        <div class="doc-name">Out-of-State Title (Original)</div>
+        <div class="doc-status">AI Review: <span class="badge badge-green">Accepted</span> — Clear scan, all fields visible</div>
+      </div>
+    </div>
+    <div class="doc-item">
+      <div class="doc-icon">❌</div>
+      <div class="doc-info">
+        <div class="doc-name">Photo ID (Driver License)</div>
+        <div class="doc-status">AI Review: <span class="badge badge-red">Rejected</span> — Image is blurry, please re-upload</div>
+      </div>
+    </div>
+    <div class="doc-item">
+      <div class="doc-icon">⏳</div>
+      <div class="doc-info">
+        <div class="doc-name">Proof of FL Insurance</div>
+        <div class="doc-status"><span class="badge badge-yellow">Pending upload</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Send Confirmation Email</h3>
+    <p>Sends appointment confirmation with embedded QR code to njriley@calpoly.edu</p>
+    <button class="btn btn-primary" onclick="sendConfirmation()">Send Confirmation Email</button>
+  </div>
+</div>
+
+<!-- ========== CHECK-IN DESK ========== -->
+<div class="view" id="view-checkin">
+  <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <h2>Check-In Desk</h2>
+      <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
+    </div>
+    <a href="/schedule" target="_blank" style="flex-shrink: 0; margin-left: 16px; padding: 8px 16px; background: #1a365d; color: white; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;">View Schedule &rarr;</a>
+  </div>
+
+  <div class="card">
+    <h3>Scan / Lookup</h3>
+    <div class="grid-2">
+      <div>
+        <label>Scan QR Code</label>
+        <div id="qr-reader" style="width: 100%; max-width: 300px; margin-bottom: 8px;"></div>
+        <button class="btn btn-primary btn-sm" onclick="startScanner()">Start Camera</button>
+        <button class="btn btn-sm" style="background: #eee; margin-left: 4px;" onclick="stopScanner()">Stop</button>
+        <input type="text" id="qr-result" placeholder="e.g. QR-00001" style="margin-top: 8px;" onkeydown="if(event.key==='Enter')lookupByQr()">
+        <button class="btn btn-primary btn-sm" onclick="lookupByQr()">Lookup</button>
+        <p style="font-size: 11px; color: #718096; margin-top: 4px;">Searches the database by QR code via <code>lookupByQrCode</code>. Seed QR codes look like <code>QR-00001</code>.</p>
+      </div>
+      <div>
+        <label>Or Search by Name</label>
+        <input type="text" id="name-search" placeholder="Last name...">
+        <button class="btn btn-primary btn-sm" onclick="searchByName()">Search</button>
+        <p style="font-size: 11px; color: #975a16; margin-top: 4px;">⚠ Not wired: no last-name search function exists in <code>src/</code> yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic record: populated by lookupByQr() from the real database -->
+  <div id="checkin-empty" class="card">
+    <p style="color: #718096; text-align: center; margin: 0;">Scan a QR code or enter one above to load a customer record from the database.</p>
+  </div>
+
+  <div id="checkin-record" style="display: none;">
+    <div class="card">
+      <h3 id="rec-name">Customer Record</h3>
+      <div class="grid-2">
+        <div>
+          <p><strong>Appointment ID:</strong> <span id="rec-appt-id">—</span></p>
+          <p><strong>Office ID:</strong> <span id="rec-office-id">—</span></p>
+          <p><strong>Status:</strong> <span id="rec-status">—</span></p>
+        </div>
+        <div>
+          <p><strong>Identity:</strong> <span id="rec-identity" class="badge badge-yellow">Not verified</span></p>
+          <p><strong>Pre-Screen:</strong> <span id="rec-prescreen" class="badge badge-yellow">—</span></p>
+          <p><strong>Documents:</strong> <span id="rec-doc-summary" class="badge badge-gray">—</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="checkin-identity-card">
+      <h3>Identity Verification</h3>
+      <p>Clerk manually verifies customer's photo ID in person.</p>
+      <button class="btn btn-success" onclick="verifyIdentity('checkin-identity-card')">Mark Identity Verified</button>
+    </div>
+
+    <div class="card">
+      <h3>Document Review</h3>
+      <p>Required docs loaded from the appointment. The clerk can <strong>Validate</strong> or <strong>Re-scan</strong> any document regardless of the AI's decision.</p>
+      <div id="rec-docs"></div>
+    </div>
+
+    <div class="card">
+      <h3>Notes & Queue Assignment</h3>
+      <label>Notes for Service Clerk</label>
+      <textarea id="rec-notes" placeholder="Special circumstances, repeat visitor context..."></textarea>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-primary">Check In to Queue</button>
+        <button class="btn btn-warning">Priority Queue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== WALK-IN ========== -->
+<div class="view" id="view-walkin">
+  <div class="card">
+    <h2>Walk-In Registration</h2>
+    <p>Customer arrives without appointment. Clerk captures all info that online flow would have collected.</p>
+  </div>
+
+  <div class="card">
+    <h3>Customer Information</h3>
+    <div class="grid-2">
+      <div>
+        <label>First Name</label>
+        <input type="text" placeholder="First name">
+        <label>Last Name</label>
+        <input type="text" placeholder="Last name">
+      </div>
+      <div>
+        <label>Email</label>
+        <input type="email" placeholder="email@example.com">
+        <label>Phone</label>
+        <input type="tel" placeholder="(555) 123-4567">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Transaction Type(s)</h3>
+    <p>Select all that apply. System calculates combined duration.</p>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+      <div class="toggle"><input type="checkbox" id="walkin-dl"><label for="walkin-dl">Driver License Renewal (15 min)</label></div>
+      <div class="toggle"><input type="checkbox" id="walkin-vr"><label for="walkin-vr">Vehicle Registration (10 min)</label></div>
+      <div class="toggle"><input type="checkbox" id="walkin-tt" checked><label for="walkin-tt">Title Transfer (25 min)</label></div>
+      <div class="toggle"><input type="checkbox" id="walkin-vessel"><label for="walkin-vessel">Vessel Registration (20 min)</label></div>
+      <div class="toggle"><input type="checkbox" id="walkin-road"><label for="walkin-road">DL Road Test (45 min)</label></div>
+    </div>
+    <p style="margin-top: 12px; font-size: 13px; color: #4299e1; font-weight: 600;">Estimated duration: 25 min</p>
+  </div>
+
+  <div class="card" id="walkin-identity-card">
+    <h3>Identity Verification</h3>
+    <p>Clerk verifies photo ID at the desk.</p>
+    <button class="btn btn-success" onclick="verifyIdentity('walkin-identity-card')">Mark Identity Verified</button>
+  </div>
+
+  <div class="card">
+    <h3>Document Scan</h3>
+    <p>Clerk scans required documents at the desk (no AI review — human verified).</p>
+    <div class="doc-item" id="walkin-doc-title">
+      <div class="doc-icon">📄</div>
+      <div class="doc-info">
+        <div class="doc-name">Out-of-State Title</div>
+        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-title')">View</button>
+      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-title-file" onchange="docScanned('walkin-doc-title', this)">
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-title-file').click()">Scan</button>
+    </div>
+    <div class="doc-item" id="walkin-doc-photo">
+      <div class="doc-icon">📄</div>
+      <div class="doc-info">
+        <div class="doc-name">Photo ID</div>
+        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-photo')">View</button>
+      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-photo-file" onchange="docScanned('walkin-doc-photo', this)">
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-photo-file').click()">Scan</button>
+    </div>
+    <div class="doc-item" id="walkin-doc-insurance">
+      <div class="doc-icon">📄</div>
+      <div class="doc-info">
+        <div class="doc-name">Proof of FL Insurance</div>
+        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-insurance')">View</button>
+      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-insurance-file" onchange="docScanned('walkin-doc-insurance', this)">
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-insurance-file').click()">Scan</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Pre-Screen</h3>
+    <p>Send link for customer to complete on their phone in the lobby while they wait.</p>
+    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <div class="toggle">
+        <input type="checkbox" id="walkin-prescreen-toggle">
+        <label for="walkin-prescreen-toggle">Pre-Screen Completed</label>
+      </div>
+      <span id="walkin-prescreen-badge" class="badge badge-red">Incomplete</span>
+      <button class="btn btn-warning btn-sm" onclick="sendPrescreen()">Send Pre-Screen Link</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Notes & Queue Assignment</h3>
+    <label>Notes for Service Clerk</label>
+    <textarea placeholder="Special circumstances, repeat visitor context..."></textarea>
+    <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <button class="btn btn-primary">Register & Add to Queue</button>
+      <button class="btn btn-warning">Register & Priority Queue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== QUEUE ========== -->
+<div class="view" id="view-queue">
+  <div class="card">
+    <h2>Live Queue</h2>
+    <p>All customers in order. Priority customers always at the top.</p>
+  </div>
+
+  <div class="card">
+    <div class="queue-item" style="border-left: 4px solid #ed8936; background: #fffbeb;">
+      <div class="queue-number" style="color: #ed8936;">P1</div>
+      <div class="queue-info">
+        <div class="name">Robert Johnson <span class="badge badge-yellow" style="margin-left: 6px;">Priority</span></div>
+        <div class="txn">DL Renewal | Checked in 9:15 AM</div>
+      </div>
+      <span class="badge badge-blue">Serving — Station 1</span>
+    </div>
+    <div class="queue-item">
+      <div class="queue-number">01</div>
+      <div class="queue-info">
+        <div class="name">Jane Smith</div>
+        <div class="txn">Title Transfer | Checked in 9:32 AM</div>
+      </div>
+      <span class="badge badge-yellow">Waiting</span>
+    </div>
+    <div class="queue-item">
+      <div class="queue-number">02</div>
+      <div class="queue-info">
+        <div class="name">Michael Davis</div>
+        <div class="txn">Vehicle Registration | Checked in 9:45 AM</div>
+      </div>
+      <span class="badge badge-yellow">Waiting</span>
+    </div>
+    <div class="queue-item">
+      <div class="queue-number">03</div>
+      <div class="queue-info">
+        <div class="name">Sarah Williams</div>
+        <div class="txn">DL Renewal, Vessel Reg | Checked in 9:50 AM</div>
+      </div>
+      <span class="badge badge-yellow">Waiting</span>
+    </div>
+    <div class="queue-item">
+      <div class="queue-number">04</div>
+      <div class="queue-info">
+        <div class="name">Tom Garcia</div>
+        <div class="txn">Title Transfer | Checked in 10:01 AM</div>
+      </div>
+      <span class="badge badge-yellow">Waiting</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Clerk Availability</h3>
+    <table>
+      <thead>
+        <tr><th>Clerk</th><th>Station</th><th>Skills</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Maria Lopez</td><td>1</td><td>DL, Vehicle Reg, Title</td><td><span class="badge badge-blue">Serving</span></td></tr>
+        <tr><td>James Brown</td><td>2</td><td>DL, Vehicle Reg</td><td><span class="badge badge-green">Available</span></td></tr>
+        <tr><td>Lisa Chen</td><td>3</td><td>Title, Vessel</td><td><span class="badge badge-green">Available</span></td></tr>
+        <tr><td>David Wilson</td><td>4</td><td>DL, Vehicle Reg, Title, Vessel</td><td><span class="badge badge-gray">Unavailable</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ========== SERVICE CLERK ========== -->
+<div class="view" id="view-service">
+  <div class="card">
+    <h2>Service Clerk Dashboard</h2>
+    <p>Clerk processes customers from the queue at their station.</p>
+  </div>
+
+  <div class="card">
+    <h3>Session</h3>
+    <div class="grid-3">
+      <div>
+        <label>Office</label>
+        <select><option>Port St. Lucie</option></select>
+      </div>
+      <div>
+        <label>Station #</label>
+        <select><option selected>Station 3</option></select>
+      </div>
+      <div>
+        <label>Status</label>
+        <div style="margin-top: 8px;" id="availability-toggle">
+          <button class="btn btn-success btn-sm" id="btn-available" onclick="setAvailability(true)">Available</button>
+          <button class="btn btn-sm" id="btn-unavailable" style="background: #eee; margin-left: 4px;" onclick="setAvailability(false)">Unavailable</button>
+        </div>
+        <p id="availability-status" style="font-size: 11px; color: #276749; margin-top: 4px;">Queue will route customers to you</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Station Layout — Port St. Lucie</h3>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px;">
+      <div style="border: 2px solid #48bb78; border-radius: 8px; padding: 12px; text-align: center; background: #f0fff4;">
+        <div style="font-weight: 700; font-size: 16px;">1</div>
+        <div style="font-size: 11px; color: #718096;">Maria L.</div>
+        <span class="badge badge-blue" style="margin-top: 4px;">Serving</span>
+      </div>
+      <div style="border: 2px solid #48bb78; border-radius: 8px; padding: 12px; text-align: center; background: #f0fff4;">
+        <div style="font-weight: 700; font-size: 16px;">2</div>
+        <div style="font-size: 11px; color: #718096;">James B.</div>
+        <span class="badge badge-green" style="margin-top: 4px;">Available</span>
+      </div>
+      <div style="border: 2px solid #4299e1; border-radius: 8px; padding: 12px; text-align: center; background: #ebf8ff;">
+        <div style="font-weight: 700; font-size: 16px;">3</div>
+        <div style="font-size: 11px; color: #718096;">You (Lisa C.)</div>
+        <span class="badge badge-blue" style="margin-top: 4px;">Serving</span>
+      </div>
+      <div style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #f7fafc;">
+        <div style="font-weight: 700; font-size: 16px;">4</div>
+        <div style="font-size: 11px; color: #718096;">David W.</div>
+        <span class="badge badge-gray" style="margin-top: 4px;">Unavailable</span>
+      </div>
+      <div style="border: 2px solid #48bb78; border-radius: 8px; padding: 12px; text-align: center; background: #f0fff4;">
+        <div style="font-weight: 700; font-size: 16px;">5</div>
+        <div style="font-size: 11px; color: #718096;">Ana R.</div>
+        <span class="badge badge-green" style="margin-top: 4px;">Available</span>
+      </div>
+      <div style="border: 2px solid #48bb78; border-radius: 8px; padding: 12px; text-align: center; background: #f0fff4;">
+        <div style="font-weight: 700; font-size: 16px;">6</div>
+        <div style="font-size: 11px; color: #718096;">Chris M.</div>
+        <span class="badge badge-blue" style="margin-top: 4px;">Serving</span>
+      </div>
+      <div style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #f7fafc;">
+        <div style="font-weight: 700; font-size: 16px;">7</div>
+        <div style="font-size: 11px; color: #718096;">—</div>
+        <span class="badge badge-gray" style="margin-top: 4px;">Empty</span>
+      </div>
+      <div style="border: 2px solid #ed8936; border-radius: 8px; padding: 12px; text-align: center; background: #fffbeb;">
+        <div style="font-weight: 700; font-size: 16px;">8</div>
+        <div style="font-size: 11px; color: #718096;">Pat K.</div>
+        <span class="badge badge-yellow" style="margin-top: 4px;">Lunch</span>
+      </div>
+    </div>
+    <p style="font-size: 12px; color: #718096; margin-top: 10px;">Your station highlighted in blue. 12 total desks, 8 shown.</p>
+  </div>
+
+  <div class="card">
+    <h3>Now Serving — Jane Smith <span class="badge badge-blue" style="margin-left: 8px;">Queue #01</span></h3>
+    <div class="steps">
+      <div class="step done">Check-In</div>
+      <div class="step done">Queue</div>
+      <div class="step active">Service</div>
+      <div class="step">Complete</div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <p><strong>Transaction:</strong> Title Transfer (Out-of-State)</p>
+        <p><strong>Duration Estimate:</strong> 25 min</p>
+        <p><strong>Identity:</strong> <span class="badge badge-green">Verified</span></p>
+        <p><strong>Pre-Screen:</strong> <span class="badge badge-green">Complete</span></p>
+      </div>
+      <div>
+        <p><strong>Check-In Notes:</strong></p>
+        <p style="font-size: 13px; background: #fefcbf; padding: 8px; border-radius: 4px;">Customer has lien satisfaction letter in-hand, not yet scanned.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Documents</h3>
+    <div class="doc-item" id="svc-doc-title">
+      <div class="doc-icon">✅</div>
+      <div class="doc-info">
+        <div class="doc-name">Out-of-State Title</div>
+        <div class="doc-status">Clerk validated at check-in</div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc('svc-doc-title')">View</button>
+    </div>
+    <div class="doc-item" id="svc-doc-photo">
+      <div class="doc-icon">✅</div>
+      <div class="doc-info">
+        <div class="doc-name">Photo ID</div>
+        <div class="doc-status">Scanned at check-in desk</div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc('svc-doc-photo')">View</button>
+    </div>
+    <div class="doc-item" id="svc-doc-insurance">
+      <div class="doc-icon">✅</div>
+      <div class="doc-info">
+        <div class="doc-name">Proof of FL Insurance</div>
+        <div class="doc-status">Scanned at check-in desk</div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc('svc-doc-insurance')">View</button>
+    </div>
+    <div class="doc-item" id="svc-doc-lien">
+      <div class="doc-icon">📎</div>
+      <div class="doc-info">
+        <div class="doc-name">Lien Satisfaction Letter</div>
+        <div class="doc-status"><span class="badge badge-yellow">Needs scan</span></div>
+      </div>
+      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('svc-doc-lien')">View</button>
+      <input type="file" accept="image/*,.pdf" style="display:none;" id="svc-doc-lien-file" onchange="docScanned('svc-doc-lien', this)">
+      <button class="btn btn-warning btn-sm" onclick="document.getElementById('svc-doc-lien-file').click()">Scan Now</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Pre-Screen Responses</h3>
+    <table>
+      <tbody>
+        <tr><td>U.S. Citizen or permanent resident?</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Valid Social Security Number?</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Vehicle currently titled in your name?</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Active lien on the vehicle?</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Lien satisfaction letter?</td><td><strong>Yes</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Process Transaction</h3>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+      <button class="btn btn-primary">Process Payment</button>
+    </div>
+
+    <h3>Upload to State System (DHSMV / Orion)</h3>
+    <p style="margin-bottom: 8px;">Drag documents from the list above into the drop zone, or drag files from your computer.</p>
+    <div class="grid-2">
+      <div>
+        <p style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">Available Documents (drag to upload):</p>
+        <div id="drag-source" style="display: flex; flex-direction: column; gap: 6px;">
+          <div class="drag-doc" draggable="true" data-name="florida-transfer.pdf" style="padding: 8px 12px; background: #edf2f7; border-radius: 6px; cursor: grab; font-size: 13px; border: 1px solid #cbd5e0;">📄 Out-of-State Title (florida-transfer.pdf)</div>
+          <div class="drag-doc" draggable="true" data-name="fl-real-id-dl.png" style="padding: 8px 12px; background: #edf2f7; border-radius: 6px; cursor: grab; font-size: 13px; border: 1px solid #cbd5e0;">📄 Photo ID (fl-real-id-dl.png)</div>
+          <div class="drag-doc" draggable="true" data-name="driver-insurnace.png" style="padding: 8px 12px; background: #edf2f7; border-radius: 6px; cursor: grab; font-size: 13px; border: 1px solid #cbd5e0;">📄 FL Insurance (driver-insurnace.png)</div>
+        </div>
+      </div>
+      <div>
+        <p style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">State System Drop Zone:</p>
+        <div id="state-drop-zone" style="min-height: 150px; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center; transition: all 0.2s;">
+          <p style="color: #a0aec0; font-size: 13px; margin: 0;" id="drop-placeholder">Drop documents here to upload to state system</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="complete-card">
+    <h3>Complete</h3>
+    <div style="margin-bottom: 12px;">
+      <p><strong>Summoned at:</strong> <span id="summon-time">—</span></p>
+      <p><strong>Elapsed:</strong> <span id="elapsed-time" style="font-size: 18px; font-weight: 700; color: #1a365d;">—</span></p>
+      <p style="font-size: 11px; color: #718096;">Duration auto-calculated from served_at → NOW() in database</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-success" onclick="completeAndSummon()">Complete & Summon Next</button>
+      <button class="btn btn-sm" style="background: #edf2f7;" onclick="completeOnly()">Complete Only</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== LOBBY DISPLAY ========== -->
+<div class="view" id="view-lobby">
+  <div class="card">
+    <h2>Customer Lobby Display</h2>
+    <p>Public-facing screen. Dual notification: display update + SMS to phone.</p>
+  </div>
+
+  <div class="card" style="background: #1a202c; padding: 32px;">
+    <h2 style="color: white; text-align: center; margin-bottom: 24px; font-size: 22px;">Now Serving</h2>
+    <div class="lobby-grid">
+      <div class="lobby-card calling">
+        <div class="number">01</div>
+        <div class="station">Station 3</div>
+      </div>
+      <div class="lobby-card">
+        <div class="number">P1</div>
+        <div class="station">Station 1</div>
+      </div>
+    </div>
+    <h2 style="color: white; text-align: center; margin: 24px 0 16px; font-size: 18px; opacity: 0.7;">Up Next</h2>
+    <div style="text-align: center; color: #a0aec0; font-size: 32px; font-weight: 700; letter-spacing: 16px;">02 &nbsp; 03</div>
+  </div>
+</div>
+
+<script>
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 4000);
+}
+
+async function sendConfirmation() {
+  try {
+    const res = await fetch('/api/send-confirmation', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Confirmation email sent! Check njriley@calpoly.edu');
+    } else {
+      showToast('Error: ' + data.error, true);
+    }
+  } catch (e) {
+    showToast('Failed to connect to server. Is it running?', true);
+  }
+}
+
+async function sendPrescreen() {
+  try {
+    const res = await fetch('/api/send-prescreen', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Pre-screen link sent! Check njriley@calpoly.edu');
+    } else {
+      showToast('Error: ' + data.error, true);
+    }
+  } catch (e) {
+    showToast('Failed to connect to server. Is it running?', true);
+  }
+}
+
+// Document storage for viewing
+const docFiles = {};
+
+// Pre-loaded sample docs (submitted by customer via AI chatbot)
+docFiles['doc-title'] = { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
+docFiles['doc-photo-id'] = { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' };
+docFiles['doc-insurance'] = { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' };
+// Same docs available in service clerk view
+docFiles['svc-doc-title'] = { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
+docFiles['svc-doc-photo'] = { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' };
+docFiles['svc-doc-insurance'] = { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' };
+
+function viewDoc(docId) {
+  const doc = docFiles[docId];
+  if (!doc) { showToast('No document to view', true); return; }
+  const modal = document.getElementById('doc-modal');
+  const title = document.getElementById('doc-modal-title');
+  const content = document.getElementById('doc-modal-content');
+  const item = document.getElementById(docId);
+  title.textContent = item.querySelector('.doc-name').textContent;
+  if (doc.type === 'application/pdf') {
+    content.innerHTML = '<embed src="' + doc.url + '" type="application/pdf" width="100%" height="600px">';
+  } else {
+    content.innerHTML = '<img src="' + doc.url + '" alt="Document scan">';
+  }
+  modal.classList.add('show');
+}
+
+function closeDocModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('doc-modal').classList.remove('show');
+}
+
+// Identity verification
+function verifyIdentity(cardId) {
+  if (!confirm('Confirm: You have verified this customer\'s photo ID in person?')) return;
+  const card = document.getElementById(cardId);
+  card.innerHTML = `<h3>Identity Verification</h3>
+    <p style="color: #276749; font-weight: 600;">✅ Identity verified by clerk</p>`;
+  showToast('Identity marked as verified');
+}
+
+// Document validation (for AI-accepted docs)
+function validateDoc(docId) {
+  const item = document.getElementById(docId);
+  const badge = item.querySelector('[id$="-badge"]') || item.querySelectorAll('.badge')[item.querySelectorAll('.badge').length - 1];
+  const btn = item.querySelector('[onclick^="validateDoc"]') || item.querySelector('.btn');
+  badge.className = 'badge badge-green';
+  badge.textContent = 'Validated';
+  btn.disabled = true;
+  btn.textContent = 'Done';
+  btn.style.background = '#c6f6d5';
+  btn.style.color = '#276749';
+  item.querySelector('.doc-icon').textContent = '✅';
+  showToast('Document validated');
+}
+
+// Document scan (file upload)
+function docScanned(docId, input) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+  const url = URL.createObjectURL(file);
+  docFiles[docId] = { url, type: file.type, name: file.name };
+
+  const item = document.getElementById(docId);
+  item.querySelector('.doc-icon').textContent = '✅';
+  const status = item.querySelector('.doc-status');
+  status.innerHTML = '<span class="badge badge-green">Scanned</span> — ' + file.name;
+
+  // Show view button, hide scan button
+  const viewBtn = item.querySelector('[onclick^="viewDoc"]');
+  if (viewBtn) viewBtn.style.display = '';
+  const scanBtn = item.querySelectorAll('.btn');
+  const lastBtn = scanBtn[scanBtn.length - 1];
+  lastBtn.disabled = true;
+  lastBtn.textContent = 'Done';
+  lastBtn.style.background = '#c6f6d5';
+  lastBtn.style.color = '#276749';
+
+  showToast('Document scanned: ' + file.name);
+}
+
+// Pre-screen toggles
+function setupPrescreenToggle(toggleId, badgeId) {
+  const toggle = document.getElementById(toggleId);
+  if (!toggle) return;
+  toggle.addEventListener('change', function() {
+    const badge = document.getElementById(badgeId);
+    if (this.checked) {
+      badge.className = 'badge badge-green';
+      badge.textContent = 'Completed';
+    } else {
+      badge.className = 'badge badge-red';
+      badge.textContent = 'Incomplete';
+    }
+  });
+}
+setupPrescreenToggle('walkin-prescreen-toggle', 'walkin-prescreen-badge');
+
+// ─── Check-in lookup (real DB via lookupByQrCode) ────────────────────────────
+async function lookupByQr() {
+  const qrCode = document.getElementById('qr-result').value.trim();
+  if (!qrCode) { showToast('Enter or scan a QR code first', true); return; }
+  try {
+    const res = await fetch('/api/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qrCode }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
+    if (!data.found) {
+      showToast('No appointment found for ' + qrCode, true);
+      document.getElementById('checkin-record').style.display = 'none';
+      document.getElementById('checkin-empty').style.display = '';
+      return;
+    }
+    renderRecord(data);
+    showToast('Loaded ' + data.firstName + ' ' + data.lastName + ' (#' + data.appointmentId + ')');
+  } catch (e) {
+    showToast('Failed to connect to server. Is it running?', true);
+  }
+}
+
+async function searchByName() {
+  const lastName = document.getElementById('name-search').value.trim();
+  if (!lastName) { showToast('Enter a last name', true); return; }
+  try {
+    const res = await fetch('/api/search-name', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lastName }),
+    });
+    const data = await res.json();
+    showToast('Error: ' + (data.error || res.status), true);
+  } catch (e) {
+    showToast('Failed to connect to server. Is it running?', true);
+  }
+}
+
+// AI note: short human-readable explanation of the AI decision.
+// NOTE: src/ does not generate or store ai_review_notes, and the seed leaves
+// them null. This renders the stored note when present, otherwise a templated
+// explanation derived from the AI status so the demo always shows reasoning.
+function aiNote(doc) {
+  if (doc.aiReviewNotes) return doc.aiReviewNotes;
+  if (!doc.uploaded) return 'Not yet uploaded by customer.';
+  switch (doc.aiReviewStatus) {
+    case 'accept':
+      return 'Passed — document type matched, all expected fields detected and legible, not expired.';
+    case 'reject':
+      return 'Failed — image quality too low or a required field could not be read. Customer should re-scan.';
+    default:
+      return 'Uploaded — awaiting AI review.';
+  }
+}
+
+function aiBadge(doc) {
+  if (!doc.uploaded) return '<span class="badge badge-yellow">Not uploaded</span>';
+  if (doc.aiReviewStatus === 'accept') return '<span class="badge badge-green">Accepted</span>';
+  if (doc.aiReviewStatus === 'reject') return '<span class="badge badge-red">Rejected</span>';
+  return '<span class="badge badge-yellow">Pending review</span>';
+}
+
+let recordData = null;
+
+function renderRecord(data) {
+  recordData = data;
+  document.getElementById('checkin-empty').style.display = 'none';
+  document.getElementById('checkin-record').style.display = '';
+
+  document.getElementById('rec-name').textContent =
+    'Customer Record — ' + data.firstName + ' ' + data.lastName;
+  document.getElementById('rec-appt-id').textContent = data.appointmentId;
+  document.getElementById('rec-office-id').textContent = data.officeId;
+  document.getElementById('rec-status').textContent = data.status;
+
+  const idBadge = document.getElementById('rec-identity');
+  if (data.identityVerified) {
+    idBadge.className = 'badge badge-green'; idBadge.textContent = 'Verified';
+  } else {
+    idBadge.className = 'badge badge-yellow'; idBadge.textContent = 'Not verified';
+  }
+
+  const psBadge = document.getElementById('rec-prescreen');
+  if (data.prescreenCompleted) {
+    psBadge.className = 'badge badge-green'; psBadge.textContent = 'Completed';
+  } else {
+    psBadge.className = 'badge badge-red'; psBadge.textContent = 'Incomplete';
+  }
+
+  const docs = data.docs || [];
+  const accepted = docs.filter(d => d.aiReviewStatus === 'accept').length;
+  const docSummary = document.getElementById('rec-doc-summary');
+  docSummary.textContent = accepted + '/' + docs.length + ' AI-accepted';
+  docSummary.className = 'badge ' + (accepted === docs.length ? 'badge-green' : 'badge-yellow');
+
+  // Reset identity card (re-render may follow an earlier verify)
+  document.getElementById('checkin-identity-card').innerHTML =
+    '<h3>Identity Verification</h3>' +
+    '<p>Clerk manually verifies customer\'s photo ID in person.</p>' +
+    '<button class="btn btn-success" onclick="verifyIdentity(\'checkin-identity-card\')">Mark Identity Verified</button>';
+
+  const container = document.getElementById('rec-docs');
+  container.innerHTML = '';
+  docs.forEach((doc, i) => {
+    const docId = 'rec-doc-' + i;
+    const fileId = docId + '-file';
+    const div = document.createElement('div');
+    div.className = 'doc-item';
+    div.id = docId;
+    div.innerHTML =
+      '<div class="doc-icon">' + (doc.clerkValidated ? '✅' : (doc.uploaded ? '📄' : '⏳')) + '</div>' +
+      '<div class="doc-info">' +
+        '<div class="doc-name">' + doc.name + '</div>' +
+        '<div class="doc-status">AI: ' + aiBadge(doc) +
+          ' | Clerk: <span class="badge ' + (doc.clerkValidated ? 'badge-green' : 'badge-yellow') + '" id="' + docId + '-badge">' +
+          (doc.clerkValidated ? 'Validated' : 'Pending') + '</span>' +
+          '<div style="font-size: 11px; color: #718096; margin-top: 4px;">🤖 ' + aiNote(doc) + '</div>' +
+        '</div>' +
+      '</div>' +
+      (doc.uploaded ? '<button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc(\'' + docId + '\')">View</button>' : '') +
+      '<button class="btn btn-success btn-sm" onclick="validateDoc(\'' + docId + '\')">Validate</button>' +
+      '<input type="file" accept="image/*,.pdf" style="display:none;" id="' + fileId + '" onchange="docScanned(\'' + docId + '\', this)">' +
+      '<button class="btn btn-warning btn-sm" onclick="document.getElementById(\'' + fileId + '\').click()">Re-scan</button>';
+    container.appendChild(div);
+
+    // Wire a viewable doc to its sample file when uploaded
+    if (doc.uploaded) {
+      docFiles[docId] = sampleDocFor(doc.docId);
+    }
+  });
+}
+
+// Map registry doc_ids to bundled sample files where we have one; otherwise
+// fall back to a generic image so "View" always shows something in the demo.
+function sampleDocFor(docId) {
+  const map = {
+    photo_id: { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' },
+    insurance_card: { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' },
+  };
+  return map[docId] || { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
+}
+
+// QR Scanner
+let scanner = null;
+
+function startScanner() {
+  if (scanner) return;
+  scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 200, height: 200 } },
+    (decodedText) => {
+      document.getElementById('qr-result').value = decodedText;
+      showToast('QR scanned: ' + decodedText);
+      stopScanner();
+      lookupByQr();
+    },
+    () => {}
+  ).catch(err => {
+    showToast('Camera error: ' + err, true);
+    scanner = null;
+  });
+}
+
+function stopScanner() {
+  if (scanner) {
+    scanner.stop().then(() => { scanner = null; }).catch(() => { scanner = null; });
+  }
+}
+
+// Service timer — tracks time since customer was summoned
+let summonedAt = new Date();
+let timerInterval = null;
+
+function startServiceTimer() {
+  summonedAt = new Date();
+  document.getElementById('summon-time').textContent = summonedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(updateElapsed, 1000);
+  updateElapsed();
+}
+
+function updateElapsed() {
+  const diff = Math.floor((new Date() - summonedAt) / 1000);
+  const min = Math.floor(diff / 60);
+  const sec = diff % 60;
+  document.getElementById('elapsed-time').textContent = min + ':' + String(sec).padStart(2, '0');
+}
+
+function completeAndSummon() {
+  const duration = Math.floor((new Date() - summonedAt) / 60000);
+  if (!confirm('Complete Jane Smith (' + duration + ' min)? Next customer will be summoned.')) return;
+  showToast('Completed Jane Smith (' + duration + ' min). Summoning next: Michael Davis (#02)');
+  startServiceTimer();
+}
+
+function completeOnly() {
+  const duration = Math.floor((new Date() - summonedAt) / 60000);
+  if (!confirm('Complete Jane Smith (' + duration + ' min)?')) return;
+  showToast('Completed Jane Smith (' + duration + ' min). No next customer summoned.');
+  if (timerInterval) clearInterval(timerInterval);
+  document.getElementById('elapsed-time').textContent = duration + ':00 (done)';
+}
+
+// Start timer when service view loads
+startServiceTimer();
+
+// Availability toggle
+function setAvailability(available) {
+  const btnAvail = document.getElementById('btn-available');
+  const btnUnavail = document.getElementById('btn-unavailable');
+  const status = document.getElementById('availability-status');
+  if (available) {
+    btnAvail.style.cssText = '';
+    btnAvail.className = 'btn btn-success btn-sm';
+    btnUnavail.style.cssText = 'background: #eee; margin-left: 4px;';
+    btnUnavail.className = 'btn btn-sm';
+    status.textContent = 'Queue will route customers to you';
+    status.style.color = '#276749';
+    showToast('Status: Available — accepting customers');
+  } else {
+    btnAvail.style.cssText = 'background: #eee;';
+    btnAvail.className = 'btn btn-sm';
+    btnUnavail.style.cssText = 'background: #e53e3e; color: white; margin-left: 4px;';
+    btnUnavail.className = 'btn btn-sm';
+    status.textContent = 'Queue will NOT route customers to you';
+    status.style.color = '#9b2c2c';
+    showToast('Status: Unavailable — queue paused');
+  }
+}
+
+// Drag and drop for state system upload
+document.querySelectorAll('.drag-doc').forEach(el => {
+  el.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', el.dataset.name);
+    el.style.opacity = '0.5';
+  });
+  el.addEventListener('dragend', () => {
+    el.style.opacity = '1';
+  });
+});
+
+const dropZone = document.getElementById('state-drop-zone');
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.style.borderColor = '#4299e1';
+  dropZone.style.background = '#ebf8ff';
+});
+dropZone.addEventListener('dragleave', () => {
+  dropZone.style.borderColor = '#cbd5e0';
+  dropZone.style.background = '';
+});
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.style.borderColor = '#cbd5e0';
+  dropZone.style.background = '';
+
+  const placeholder = document.getElementById('drop-placeholder');
+  if (placeholder) placeholder.remove();
+
+  const docName = e.dataTransfer.getData('text/plain');
+  if (docName) {
+    addToStateSystem(docName);
+  }
+  // Also handle file drops from desktop
+  if (e.dataTransfer.files.length) {
+    for (const file of e.dataTransfer.files) {
+      addToStateSystem(file.name);
+    }
+  }
+});
+
+function addToStateSystem(name) {
+  const item = document.createElement('div');
+  item.style.cssText = 'padding: 8px 12px; background: #c6f6d5; border-radius: 6px; font-size: 13px; border: 1px solid #9ae6b4; width: 100%; display: flex; align-items: center; justify-content: space-between;';
+  item.innerHTML = '✅ ' + name + ' <span class="badge badge-green">Uploaded</span>';
+  dropZone.appendChild(item);
+  showToast('Uploaded to state system: ' + name);
+}
+
+showView('confirmation');
+</script>
+
+</body>
+</html>
