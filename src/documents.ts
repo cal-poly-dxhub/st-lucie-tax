@@ -76,7 +76,10 @@ export interface DocStatus {
   docId: string;
   name: string;
   uploaded: boolean;
+  s3Key: string | null;
   aiReviewStatus: "accept" | "reject" | null;
+  aiReviewNotes: string | null;
+  clerkValidated: boolean;
 }
 
 export async function getRequiredDocsStatus(
@@ -86,7 +89,10 @@ export async function getRequiredDocsStatus(
   const { rows } = await db.query(
     `SELECT dr.doc_id, dr.name,
             (d.id IS NOT NULL) AS uploaded,
-            d.ai_review_status
+            d.s3_key,
+            d.ai_review_status,
+            d.ai_review_notes,
+            COALESCE(d.clerk_validated, FALSE) AS clerk_validated
      FROM appointments a
      CROSS JOIN LATERAL unnest(a.required_doc_ids) AS req(doc_id)
      JOIN document_registry dr
@@ -99,4 +105,13 @@ export async function getRequiredDocsStatus(
     [appointmentId],
   );
   return camelRows<DocStatus>(rows);
+}
+
+export async function validateDocument(db: Queryable, documentId: number): Promise<void> {
+  const { rowCount } = await db.query(`UPDATE documents SET clerk_validated = TRUE WHERE id = $1`, [
+    documentId,
+  ]);
+  if (rowCount === 0) {
+    throw new Error(`Document ${documentId} not found`);
+  }
 }
