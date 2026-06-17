@@ -5,12 +5,11 @@ import {
   BOOK_SQL,
   bookParams,
   clearOfficeDay,
-  DATE,
-  FROZEN_NOW,
   ROAD_TEST,
   ID_CARD,
   tryBook,
 } from "./helpers/booking.js";
+import { TEST_DATE as DATE, TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
 
 const db = useDb();
 

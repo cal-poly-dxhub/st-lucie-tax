@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import { BOOK_SQL, bookParams, clearOfficeDay, DATE } from "./helpers/booking.js";
+import { BOOK_SQL, bookParams, clearOfficeDay } from "./helpers/booking.js";
+import { TEST_DATE as DATE } from "../../tests/config.js";
 
 const db = useDb();
 
