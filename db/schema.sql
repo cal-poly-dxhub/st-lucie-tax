@@ -113,7 +113,7 @@ CREATE TABLE appointments (
     contact_email   TEXT NOT NULL,
     contact_phone   TEXT NOT NULL,
     can_send_sms    BOOLEAN NOT NULL DEFAULT FALSE,
-    txn_type_ids    INT[] NOT NULL,
+    txn_type_ids    INT[] NOT NULL CHECK (array_length(txn_type_ids, 1) > 0),
     required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
