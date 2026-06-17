@@ -7,7 +7,7 @@ export interface CompleteAppointmentInput {
 }
 
 export interface CompleteAppointmentResult {
-  durationMin: number;
+  durationSec: number;
 }
 
 export async function completeAppointment(
@@ -19,25 +19,25 @@ export async function completeAppointment(
   const qRow = await db.query<{
     appointment_id: number;
     status: string;
-    served_at: Date;
-  }>(`SELECT appointment_id, status, served_at FROM queue WHERE id = $1`, [queueId]);
+  }>(`SELECT appointment_id, status FROM queue WHERE id = $1`, [queueId]);
   if (qRow.rows.length === 0) throw new Error(`Queue entry ${queueId} not found`);
   if (qRow.rows[0].status !== "serving")
     throw new Error(`Queue entry ${queueId} is not in serving status`);
 
-  const { appointment_id: appointmentId, served_at: servedAt } = qRow.rows[0];
-  const durationMin = Math.round((Date.now() - new Date(servedAt).getTime()) / 60_000);
+  const { appointment_id: appointmentId } = qRow.rows[0];
 
   await db.query(`UPDATE queue SET status = 'done' WHERE id = $1`, [queueId]);
 
   await db.query(`UPDATE appointments SET status = 'completed' WHERE id = $1`, [appointmentId]);
 
-  const shRes = await db.query<{ id: number }>(
-    `INSERT INTO service_history (office_id, appointment_id, duration_min)
-     VALUES ($1, $2, $3) RETURNING id`,
-    [officeId, appointmentId, durationMin],
+  const shRes = await db.query<{ id: number; duration_sec: number }>(
+    `INSERT INTO service_history (office_id, appointment_id, duration_sec)
+     SELECT $1, $2, EXTRACT(EPOCH FROM (NOW() - served_at))::int
+     FROM queue WHERE id = $3
+     RETURNING id, duration_sec`,
+    [officeId, appointmentId, queueId],
   );
-  const serviceHistoryId = shRes.rows[0].id;
+  const { id: serviceHistoryId, duration_sec: durationSec } = shRes.rows[0];
 
   const txnRow = await db.query<{ txn_type_ids: number[] }>(
     `SELECT txn_type_ids FROM appointments WHERE id = $1`,
@@ -59,5 +59,5 @@ export async function completeAppointment(
     [clerkId, officeId],
   );
 
-  return { durationMin };
+  return { durationSec };
 }
