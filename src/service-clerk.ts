@@ -75,7 +75,10 @@ export async function getClerkServiceRecord(
     const docRes = await db.query(
       `SELECT dr.doc_id, dr.name,
               (d.id IS NOT NULL) AS uploaded,
-              d.ai_review_status
+              d.s3_key,
+              d.ai_review_status,
+              d.ai_review_notes,
+              COALESCE(d.clerk_validated, FALSE) AS clerk_validated
        FROM unnest($2::text[]) AS req(doc_id)
        JOIN document_registry dr ON dr.doc_id = req.doc_id
        LEFT JOIN documents d

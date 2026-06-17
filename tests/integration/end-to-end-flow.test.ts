@@ -10,9 +10,9 @@ import {
   setAppointmentPriority,
 } from "../../src/check-in.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
-import { uploadDocument } from "../../src/documents.js";
+import { uploadDocument, getRequiredDocsStatus } from "../../src/documents.js";
 import { setIdentityVerified } from "../../src/identity.js";
-import { getCheckInSummary } from "../../src/check-in.js";
+import { getAppointmentInfo } from "../../src/check-in.js";
 import { assignNextCustomer } from "../../src/queue.js";
 import { completeAppointment } from "../../src/complete.js";
 import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.js";
@@ -151,7 +151,18 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     await sendEmail(ses, emailInput);
     expect(ses.send).toHaveBeenCalledTimes(1);
 
-    await vi.mocked(uploadDocument)(null as unknown, "test-bucket", db.client, {
+    // ─── 4. Pre-visit: upload documents (web path — AI reviewed) ───
+    await vi.mocked(uploadDocument)(null as unknown as S3Client, "test-bucket", db.client, {
+      appointmentId,
+      docId: "photo_id",
+      name: "drivers_license.jpg",
+      fileBuffer: Buffer.from("fake-image"),
+      contentType: "image/jpeg",
+      aiReviewStatus: "accept",
+      aiReviewNotes: "Document verified by AI",
+    });
+
+    await vi.mocked(uploadDocument)(null as unknown as S3Client, "test-bucket", db.client, {
       appointmentId,
       docId: "proof_address",
       name: "utility_bill.pdf",
@@ -180,15 +191,17 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(lookup).not.toBeNull();
     expect(lookup!.appointmentId).toBe(appointmentId);
 
-    // ─── 7. Check readiness — should be ready (scheduled appts are identity-verified) ───
+    // ─── 7. Verify clerk view — appointment info + doc status ───
     await db.client.query(`UPDATE appointments SET identity_verified = TRUE WHERE id = $1`, [
       appointmentId,
     ]);
 
-    const summary = await getCheckInSummary(db.client, appointmentId);
-    expect(summary.prescreenCompleted).toBe(true);
-    expect(summary.docsReady).toBe(true);
-    expect(summary.missingDocs).toEqual([]);
+    const info = await getAppointmentInfo(db.client, appointmentId);
+    expect(info.prescreenCompleted).toBe(true);
+    expect(info.identityVerified).toBe(true);
+
+    const docs = await getRequiredDocsStatus(db.client, appointmentId);
+    expect(docs.every((d) => d.clerkValidated)).toBe(true);
 
     // ─── 8. Add to queue ───
     const checkInResult = await checkInToQueue(
@@ -241,7 +254,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(clerkRows[0].is_available).toBe(true);
   });
 
-  test("check-in blocks queue entry when docs are missing", async () => {
+  test("clerk sees unuploaded docs as not uploaded", async () => {
     const qrCode = generateQrCode();
     const bookResult = await bookAppointment(db.client, {
       officeId: OFFICE,
@@ -259,14 +272,10 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(bookResult.ok).toBe(true);
     if (!bookResult.ok) throw new Error("booking failed");
 
-    await db.client.query(
-      `UPDATE appointments SET identity_verified = TRUE, prescreen_completed = TRUE WHERE id = $1`,
-      [bookResult.appointmentId],
-    );
-
-    const summary = await getCheckInSummary(db.client, bookResult.appointmentId);
-
-    expect(summary.missingDocs).toContain("photo_id");
+    const docs = await getRequiredDocsStatus(db.client, bookResult.appointmentId);
+    const photoDoc = docs.find((d) => d.docId === "photo_id")!;
+    expect(photoDoc.uploaded).toBe(false);
+    expect(photoDoc.clerkValidated).toBe(false);
   });
 
   test("check-in sends prescreen link when incomplete", async () => {
@@ -347,11 +356,10 @@ describe("Flow B: Walk-In — end to end", () => {
       [String(questions[1].id)]: false,
     });
 
-    // ─── 5. Readiness check — walk-in has no required_doc_ids so docsReady = true ───
-    const summary = await getCheckInSummary(db.client, appointmentId);
-    expect(summary.identityVerified).toBe(true);
-    expect(summary.prescreenCompleted).toBe(true);
-    expect(summary.docsReady).toBe(true);
+    // ─── 5. Clerk reviews appointment info ───
+    const info = await getAppointmentInfo(db.client, appointmentId);
+    expect(info.identityVerified).toBe(true);
+    expect(info.prescreenCompleted).toBe(true);
 
     // ─── 6. Add to queue with priority ───
     await setAppointmentPriority(db.client, appointmentId, true);
@@ -389,7 +397,7 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(finalAppt[0].status).toBe("completed");
   });
 
-  test("walk-in not ready for queue until identity verified and prescreen done", async () => {
+  test("walk-in shows unverified status before clerk actions", async () => {
     const walkInResult = await registerWalkIn(db.client, {
       officeId: OFFICE,
       txnTypeIds: [ID_CARD],
@@ -402,9 +410,8 @@ describe("Flow B: Walk-In — end to end", () => {
     expect(walkInResult.ok).toBe(true);
     if (!walkInResult.ok) throw new Error("walk-in failed");
 
-    // Not verified, prescreen not done
-    const summary = await getCheckInSummary(db.client, walkInResult.appointmentId);
-    expect(summary.identityVerified).toBe(false);
-    expect(summary.prescreenCompleted).toBe(false);
+    const info = await getAppointmentInfo(db.client, walkInResult.appointmentId);
+    expect(info.identityVerified).toBe(false);
+    expect(info.prescreenCompleted).toBe(false);
   });
 });
