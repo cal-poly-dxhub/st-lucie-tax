@@ -1,3 +1,4 @@
+import { PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
 
@@ -17,10 +18,14 @@ export interface UploadDocResult {
 }
 
 export async function uploadDocument(
+  s3: S3Client,
+  bucket: string,
   db: Queryable,
   input: UploadDocInput,
 ): Promise<UploadDocResult> {
   const s3Key = await uploadToS3(
+    s3,
+    bucket,
     input.appointmentId,
     input.name,
     input.fileBuffer,
@@ -44,15 +49,27 @@ export async function uploadDocument(
   return { documentId: rows[0].id, s3Key };
 }
 
-// Stub — replace with real S3 PutObject call
 async function uploadToS3(
+  s3: S3Client,
+  bucket: string,
   appointmentId: number,
   fileName: string,
-  _buffer: Buffer,
-  _contentType: string,
+  buffer: Buffer,
+  contentType: string,
 ): Promise<string> {
   const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return `appointments/${appointmentId}/${Date.now()}_${sanitized}`;
+  const key = `appointments/${appointmentId}/${Date.now()}_${sanitized}`;
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    }),
+  );
+
+  return key;
 }
 
 export interface DocStatus {
