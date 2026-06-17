@@ -15,7 +15,7 @@ export interface BookApptInput {
   qrCode?: string | null;
   isWalkIn?: boolean;
   isPriority?: boolean;
-  nowTs?: string; // 'YYYY-MM-DD HH:MM' — defaults to DB NOW()
+  nowTs?: string; // 'YYYY-MM-DD HH:MM' local time — defaults to now in config.timezone. Used only in testing.
 }
 
 export type BookApptError =
@@ -40,7 +40,7 @@ export async function bookAppointment(
   input: BookApptInput,
 ): Promise<BookApptResult> {
   try {
-    const res = await db.query<{ book_appointment: number }>(
+    const result = await db.query<{ book_appointment: number }>(
       `SELECT book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         input.officeId,
@@ -60,7 +60,7 @@ export async function bookAppointment(
         input.nowTs ?? null,
       ],
     );
-    return { ok: true, appointmentId: res.rows[0].book_appointment };
+    return { ok: true, appointmentId: result.rows[0].book_appointment };
   } catch (err: unknown) {
     const code = err instanceof Error && "code" in err ? (err as { code: string }).code : null;
     const mapped = code ? PG_ERROR_MAP[code] : undefined;
