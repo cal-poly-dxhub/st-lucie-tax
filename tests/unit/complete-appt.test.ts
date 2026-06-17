@@ -21,7 +21,6 @@ const baseInput: CompleteAppointmentInput = {
   officeId: 1,
   queueId: 42,
   clerkId: 10,
-  durationMin: 15,
 };
 
 describe("completeAppointment: error paths", () => {
@@ -31,7 +30,9 @@ describe("completeAppointment: error paths", () => {
   });
 
   test("throws when queue entry is not in serving status", async () => {
-    const db = makeDb([{ rows: [{ appointment_id: 1, status: "waiting" }] }]);
+    const db = makeDb([
+      { rows: [{ appointment_id: 1, status: "waiting", served_at: new Date() }] },
+    ]);
     await expect(completeAppointment(db, baseInput)).rejects.toThrow(
       "Queue entry 42 is not in serving status",
     );
