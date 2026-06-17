@@ -6,7 +6,7 @@ export const ROAD_TEST = 1;
 export const ID_CARD = 2;
 
 export const BOOK_SQL = `
-  SELECT book_appointment(
+  SELECT id FROM book_appointment(
     p_office_id        := $1,
     p_date             := $2,
     p_time             := $3,
@@ -17,7 +17,7 @@ export const BOOK_SQL = `
     p_contact_email    := $8,
     p_contact_phone    := $9,
     p_now_ts           := $10::timestamp
-  ) AS id
+  )
 `;
 
 export function bookParams(

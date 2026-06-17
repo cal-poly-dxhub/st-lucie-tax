@@ -118,7 +118,7 @@ CREATE TABLE appointments (
     required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
     appointment_time TIME NOT NULL,
-    qr_code         TEXT,
+    qr_code         TEXT NOT NULL DEFAULT gen_random_uuid()::text,
     identity_verified BOOLEAN NOT NULL DEFAULT FALSE,
     prescreen_completed BOOLEAN NOT NULL DEFAULT FALSE,
     prescreen_responses JSONB DEFAULT '{}',
@@ -128,7 +128,7 @@ CREATE TABLE appointments (
     is_priority     BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_appointments_qr ON appointments (qr_code) WHERE qr_code IS NOT NULL;
+CREATE UNIQUE INDEX idx_appointments_qr ON appointments (qr_code);
 CREATE INDEX idx_appointments_schedule ON appointments (office_id, appointment_date, appointment_time);
 
 CREATE TABLE documents (
@@ -395,13 +395,12 @@ CREATE OR REPLACE FUNCTION book_appointment(
   p_last_name        TEXT,
   p_contact_email    TEXT,
   p_contact_phone    TEXT,
-  p_qr_code          TEXT DEFAULT NULL,
   p_is_walk_in       BOOLEAN DEFAULT FALSE,
   p_is_priority      BOOLEAN DEFAULT FALSE,
   p_prescreen_completed BOOLEAN DEFAULT FALSE,
   p_prescreen_responses JSONB DEFAULT '{}',
   p_now_ts           TIMESTAMP DEFAULT NULL
-) RETURNS INT
+) RETURNS TABLE(id INT, qr_code TEXT)
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -412,6 +411,7 @@ DECLARE
   v_close_time  TIME;
   v_open_time   TIME;
   v_appt_id     INT;
+  v_qr_code     TEXT;
 BEGIN
   -- "Now" in the office's local zone, so it compares against naive local slot times.
   -- Callers may pass p_now_ts (already local) for deterministic tests.
@@ -484,17 +484,18 @@ BEGIN
     first_name, last_name, contact_email, contact_phone,
     txn_type_ids, required_doc_ids, prescreen_completed, prescreen_responses,
     appointment_date, appointment_time,
-    qr_code, status, is_walk_in, is_priority
+    status, is_walk_in, is_priority
   ) VALUES (
     p_office_id,
     p_first_name, p_last_name, p_contact_email, p_contact_phone,
     p_txn_type_ids, p_required_doc_ids, p_prescreen_completed, p_prescreen_responses,
     p_date, p_time,
-    p_qr_code, 'scheduled', p_is_walk_in, p_is_priority
+    'scheduled', p_is_walk_in, p_is_priority
   )
-  RETURNING id INTO v_appt_id;
+  -- qr_code omitted → column DEFAULT gen_random_uuid()::text generates it
+  RETURNING appointments.id, appointments.qr_code INTO v_appt_id, v_qr_code;
 
-  RETURN v_appt_id;
+  RETURN QUERY SELECT v_appt_id, v_qr_code;
 END $$;
 
 -- =============================================================================
@@ -560,13 +561,13 @@ BEGIN
     first_name, last_name, contact_email, contact_phone,
     txn_type_ids, required_doc_ids, prescreen_completed, prescreen_responses,
     appointment_date, appointment_time,
-    qr_code, status, is_walk_in, is_priority
+    status, is_walk_in, is_priority
   ) VALUES (
     p_office_id,
     p_first_name, p_last_name, p_contact_email, p_contact_phone,
     p_txn_type_ids, '{}', FALSE, '{}',
     v_date, v_time,
-    NULL, 'scheduled', TRUE, p_is_priority
+    'scheduled', TRUE, p_is_priority
   )
   RETURNING id INTO v_appt_id;
 

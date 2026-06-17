@@ -6,6 +6,8 @@ import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import QRCode from "qrcode";
 import { withTransaction, pool } from "./db.js";
 import { findAppointment } from "../src/find-appt.js";
+import { lookupByQrCode, getAppointmentInfo } from "../src/check-in.js";
+import { getRequiredDocsStatus } from "../src/documents.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -213,7 +215,7 @@ app.post("/api/find-appointment", async (req, res) => {
 
     const result = await withTransaction(async (client) => {
       return findAppointment(client, {
-        targetSkills,
+        targetTxns: targetSkills,
         asap: asap ?? false,
         preferredOffice: preferredOffice ?? null,
         preferredDow: preferredDow ?? null,
@@ -253,7 +255,7 @@ app.post("/api/book-appointment", async (req, res) => {
 
     const result = await withTransaction(async (client) => {
       const r = await client.query(
-        `SELECT book_appointment(
+        `SELECT id AS appointment_id FROM book_appointment(
            p_office_id     := $1,
            p_date          := $2,
            p_time          := $3,
@@ -263,7 +265,7 @@ app.post("/api/book-appointment", async (req, res) => {
            p_contact_email := $7,
            p_contact_phone := $8,
            p_now_ts        := $9
-         ) AS appointment_id`,
+         )`,
         [
           officeId,
           date,
@@ -651,6 +653,50 @@ const PROTO_EMAIL = "njriley@calpoly.edu";
 
 app.get("/prototype", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "prototype.html"));
+});
+
+// ─── Lookup by QR code (backed entirely by src/) ─────────────────────────────
+// Wires lookupByQrCode → getAppointmentInfo → getRequiredDocsStatus.
+app.post("/api/lookup", async (req, res) => {
+  try {
+    const qrCode = String(req.body?.qrCode ?? "").trim();
+    if (!qrCode) return res.status(400).json({ error: "qrCode required" });
+
+    const match = await lookupByQrCode(pool, qrCode);
+    if (!match) return res.json({ found: false });
+
+    const [info, docs] = await Promise.all([
+      getAppointmentInfo(pool, match.appointmentId),
+      getRequiredDocsStatus(pool, match.appointmentId),
+    ]);
+
+    res.json({
+      found: true,
+      appointmentId: match.appointmentId,
+      officeId: match.officeId,
+      status: match.status,
+      firstName: info.firstName,
+      lastName: info.lastName,
+      identityVerified: info.identityVerified,
+      prescreenCompleted: info.prescreenCompleted,
+      requiredDocIds: info.requiredDocIds,
+      docs,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("lookup error:", msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ─── Search by last name ─────────────────────────────────────────────────────
+// NOT IMPLEMENTED: no last-name search function exists in src/. Returning 501
+// rather than running an ad-hoc query so the prototype only exercises real src code.
+app.post("/api/search-name", (_req, res) => {
+  res.status(501).json({
+    error:
+      "Last-name search is not implemented in src/. Add e.g. lookupByLastName(db, officeId, lastName) to src/check-in.ts to enable this.",
+  });
 });
 
 app.post("/api/send-confirmation", async (_req, res) => {
