@@ -212,7 +212,16 @@ describe("assign_next_customer — concurrent clerk race", () => {
   });
 
   afterAll(async () => {
-    await Promise.all(clients.map((c) => c.end()));
+    const c = clients[0];
+    if (c) {
+      await c.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
+      await c.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
+      await c.query(`DELETE FROM clerks WHERE first_name = 'Race'`);
+      await c.query(
+        `DELETE FROM appointments WHERE first_name = 'Solo' AND last_name = 'Customer'`,
+      );
+    }
+    await Promise.all(clients.map((cl) => cl.end()));
   });
 
   test("10 clerks racing for 1 customer — exactly one wins", async () => {
