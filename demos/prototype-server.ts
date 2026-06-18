@@ -15,7 +15,7 @@ import {
 import { getRequiredDocsStatus, validateDocument } from "../src/documents.js";
 import { setIdentityVerified } from "../src/identity.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../src/prescreen.js";
-import { getClerkServiceRecord } from "../src/service-clerk.js";
+import { getClerkServiceRecord, sendToWrittenTest } from "../src/service-clerk.js";
 import { completeAppointment } from "../src/complete.js";
 import { assignNextCustomer } from "../src/queue.js";
 import { clerkLogin, setClerkAvailability } from "../src/clerk-session.js";
@@ -474,7 +474,30 @@ app.get("/api/clerk/serving", async (req, res) => {
     if (!rows.length) return res.json({ serving: false });
 
     const record = await getClerkServiceRecord(pool, rows[0].queue_id);
-    res.json({ serving: true, record });
+
+    // Enrich prescreen: attach question text to each response entry
+    const prescreenEntries = Object.entries(record.prescreenResponses);
+    let prescreenWithText: { questionId: string; questionText: string; answer: boolean }[] = [];
+    if (prescreenEntries.length > 0) {
+      const questionIds = prescreenEntries.map(([k]) => parseInt(k)).filter((n) => !isNaN(n));
+      if (questionIds.length > 0) {
+        const { rows: qRows } = await pool.query(
+          `SELECT id, question_text FROM prescreen_questions WHERE id = ANY($1::int[])`,
+          [questionIds],
+        );
+        const textMap = Object.fromEntries(qRows.map((r) => [String(r.id), r.question_text]));
+        prescreenWithText = prescreenEntries.map(([k, v]) => ({
+          questionId: k,
+          questionText: textMap[k] ?? `Question ${k}`,
+          answer: v,
+        }));
+      }
+    }
+
+    // Include current transaction steps if tracked
+    const steps = txnSteps[rows[0].queue_id] ?? { visionTest: false, photo: false, payment: false };
+
+    res.json({ serving: true, record: { ...record, prescreenWithText, steps } });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -518,6 +541,51 @@ app.post("/api/clerk/complete-and-next", async (req, res) => {
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ─── Service Clerk: send to written test ────────────────────────────────────
+app.post("/api/clerk/send-to-test", async (req, res) => {
+  try {
+    const { queueId, testStationId } = req.body;
+    if (!queueId || !testStationId)
+      return res.status(400).json({ error: "queueId and testStationId required" });
+    await sendToWrittenTest(pool, queueId, testStationId);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// In-memory prototype state: transaction steps and state uploads per queueId
+// Real implementation would persist these to the DB.
+const txnSteps: Record<number, { visionTest: boolean; photo: boolean; payment: boolean }> = {};
+const stateUploads: Record<number, Record<string, "pending" | "uploaded">> = {};
+
+// ─── Service Clerk: record transaction step (prototype only) ─────────────────
+app.post("/api/clerk/record-step", (req, res) => {
+  const { queueId, step } = req.body;
+  if (!queueId || !step) return res.status(400).json({ error: "queueId and step required" });
+  if (!["visionTest", "photo", "payment"].includes(step))
+    return res.status(400).json({ error: "step must be visionTest, photo, or payment" });
+  if (!txnSteps[queueId]) txnSteps[queueId] = { visionTest: false, photo: false, payment: false };
+  txnSteps[queueId][step as "visionTest" | "photo" | "payment"] = true;
+  res.json({ ok: true, steps: txnSteps[queueId] });
+});
+
+// ─── Service Clerk: get transaction steps for current serving ────────────────
+app.get("/api/clerk/steps/:queueId", (req, res) => {
+  const queueId = parseInt(req.params.queueId);
+  res.json(txnSteps[queueId] ?? { visionTest: false, photo: false, payment: false });
+});
+
+// ─── Service Clerk: record state system upload (prototype only) ───────────────
+app.post("/api/clerk/state-upload", (req, res) => {
+  const { queueId, docName } = req.body;
+  if (!queueId || !docName) return res.status(400).json({ error: "queueId and docName required" });
+  if (!stateUploads[queueId]) stateUploads[queueId] = {};
+  stateUploads[queueId][docName] = "uploaded";
+  res.json({ ok: true, uploads: stateUploads[queueId] });
 });
 
 // ─── Simulation: reset queue + clerk sessions for clean demo ─────────────────
