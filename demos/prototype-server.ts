@@ -87,8 +87,35 @@ app.post("/api/search-name", (_req, res) => {
 });
 
 app.post("/api/send-confirmation", async (_req, res) => {
+  const qrCode = randomUUID();
+  console.log("send-confirmation: qrCode=", qrCode);
+
   try {
-    const qrCode = randomUUID();
+    const { rows } = await pool.query(
+      `INSERT INTO appointments (
+        office_id, first_name, last_name, contact_email, contact_phone,
+        txn_type_ids, required_doc_ids, appointment_date, appointment_time,
+        qr_code, status, is_walk_in
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id`,
+      [
+        1,
+        "Jane",
+        "Smith",
+        EMAIL,
+        "772-555-0001",
+        [1],
+        ["photo_id", "insurance_card"],
+        "2026-06-24",
+        "09:30",
+        qrCode,
+        "scheduled",
+        false,
+      ],
+    );
+    const appointmentId = rows[0].id;
+    console.log("send-confirmation: appointmentId=", appointmentId);
+
     const qrDataUrl = await QRCode.toDataURL(qrCode, {
       errorCorrectionLevel: "M",
       width: 200,
@@ -97,6 +124,8 @@ app.post("/api/send-confirmation", async (_req, res) => {
     const html = `<p>Hi Jane,</p>
 <p>Your appointment is confirmed:</p>
 <ul>
+  <li><strong>Appointment ID:</strong> ${appointmentId}</li>
+  <li><strong>QR Code:</strong> ${qrCode}</li>
   <li><strong>Date:</strong> Tuesday, June 24, 2026</li>
   <li><strong>Time:</strong> 9:30 AM</li>
   <li><strong>Location:</strong> Port St. Lucie (Crosstown Pkwy)</li>
@@ -108,6 +137,8 @@ app.post("/api/send-confirmation", async (_req, res) => {
     const text = `Hi Jane,
 
 Your appointment is confirmed:
+- Appointment ID: ${appointmentId}
+- QR Code: ${qrCode}
 - Date: Tuesday, June 24, 2026
 - Time: 9:30 AM
 - Location: Port St. Lucie (Crosstown Pkwy)
@@ -117,15 +148,19 @@ Please present your QR code at check-in.
 Thank you,
 St. Lucie County Tax Collector`;
 
-    await sendEmail({
-      to: EMAIL,
-      from: EMAIL,
-      subject: "Appointment Confirmed",
-      html,
-      text,
-    });
+    try {
+      await sendEmail({
+        to: EMAIL,
+        from: EMAIL,
+        subject: "Appointment Confirmed",
+        html,
+        text,
+      });
+    } catch (emailErr: unknown) {
+      console.error("Email send failed:", emailErr);
+    }
 
-    res.json({ ok: true, qrCode });
+    res.json({ ok: true, qrCode, appointmentId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("send-confirmation error:", msg);

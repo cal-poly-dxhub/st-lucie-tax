@@ -191,7 +191,7 @@ BEGIN
                     '772-555-' || lpad(seq::text, 4, '0'),
                     ARRAY[rand_txn], req_docs,
                     day_date, slot_time,
-                    'QR-' || lpad(seq::text, 5, '0'),
+                    gen_random_uuid()::text,
                     'scheduled', FALSE
                 ) RETURNING id INTO appt_id;
 

@@ -189,9 +189,9 @@
         <div id="qr-reader" style="width: 100%; max-width: 300px; margin-bottom: 8px;"></div>
         <button class="btn btn-primary btn-sm" onclick="startScanner()">Start Camera</button>
         <button class="btn btn-sm" style="background: #eee; margin-left: 4px;" onclick="stopScanner()">Stop</button>
-        <input type="text" id="qr-result" placeholder="e.g. QR-00001" style="margin-top: 8px;" onkeydown="if(event.key==='Enter')lookupByQr()">
+        <input type="text" id="qr-result" placeholder="e.g. UUID..." style="margin-top: 8px;" onkeydown="if(event.key==='Enter')lookupByQr()">
         <button class="btn btn-primary btn-sm" onclick="lookupByQr()">Lookup</button>
-        <p style="font-size: 11px; color: #718096; margin-top: 4px;">Searches the database by QR code via <code>lookupByQrCode</code>. Seed QR codes look like <code>QR-00001</code>.</p>
+        <p style="font-size: 11px; color: #718096; margin-top: 4px;">Searches the database by QR code via <code>lookupByQrCode</code>. Seed QR codes are UUIDs (auto-generated).</p>
       </div>
       <div>
         <label>Or Search by Name</label>
