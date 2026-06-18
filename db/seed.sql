@@ -65,6 +65,24 @@ INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
     ('insurance_card', 'Insurance Card',          'Proof of insurance for test vehicle',            '{}');
 
 -- =============================================================================
+-- Prescreen Questions (per transaction type)
+-- txn_type_id: 1=road_test, 2=id_card, 3=license_original
+-- =============================================================================
+INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text) VALUES
+    (1, 1, 'Do you currently hold a valid Florida learner permit?'),
+    (1, 2, 'Have you completed the required 50 hours of supervised driving?'),
+    (1, 3, 'Is the vehicle you will use for the test registered and insured in Florida?'),
+    (1, 4, 'Are all mirrors, lights, and signals on the test vehicle functioning properly?'),
+    (2, 1, 'Are you a U.S. citizen or lawful permanent resident?'),
+    (2, 2, 'Do you have a valid Social Security Number?'),
+    (2, 3, 'Do you have two forms of proof of residential address?'),
+    (3, 1, 'Are you a U.S. citizen or lawful permanent resident?'),
+    (3, 2, 'Do you have a valid Social Security Number?'),
+    (3, 3, 'Have you passed the written knowledge test (or hold a valid learner permit)?'),
+    (3, 4, 'Do you have proof of completion of a traffic law and substance abuse course?'),
+    (3, 5, 'Do you currently wear corrective lenses for driving?');
+
+-- =============================================================================
 -- Clerks (3 per office, distributed skills)
 --   Maria  (Fort Pierce): all skills — the only road_test + license_original clerk here
 --   James  (Fort Pierce): id_card + license_original
@@ -181,10 +199,12 @@ BEGIN
                     WHEN 3 THEN req_docs := license_docs;
                 END CASE;
 
+                -- Prescreen: ~70% completed, ~30% not
                 INSERT INTO appointments (
                     office_id, first_name, last_name,
                     contact_email, contact_phone, txn_type_ids, required_doc_ids,
-                    appointment_date, appointment_time, qr_code, status, is_walk_in
+                    appointment_date, appointment_time, qr_code, status, is_walk_in,
+                    prescreen_completed
                 ) VALUES (
                     office_id_val, fname, lname,
                     lower(fname) || '.' || lower(lname) || seq || '@email.com',
@@ -192,29 +212,42 @@ BEGIN
                     ARRAY[rand_txn], req_docs,
                     day_date, slot_time,
                     gen_random_uuid()::text,
-                    'scheduled', FALSE
+                    'scheduled', FALSE,
+                    random() < 0.70
                 ) RETURNING id INTO appt_id;
 
-                -- Pre-populate documents: ~65% fully uploaded, ~20% partially, ~15% none
+                -- Document upload distribution:
+                --   60% all docs uploaded (mix of accept/reject)
+                --   20% partial upload (some missing)
+                --   20% no docs uploaded
                 doc_upload_roll := random();
-                IF doc_upload_roll < 0.65 THEN
-                    -- All docs uploaded
+                IF doc_upload_roll < 0.60 THEN
+                    -- All docs uploaded with realistic AI review mix:
+                    -- 75% all accepted, 20% one rejected, 5% multiple rejected
                     FOR doc_idx IN 1..array_length(req_docs, 1) LOOP
                         INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
                         VALUES (appt_id, req_docs[doc_idx],
                                 (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = req_docs[doc_idx]),
-                                'accept');
+                                CASE
+                                    WHEN random() < 0.80 THEN 'accept'
+                                    ELSE 'reject'
+                                END);
                     END LOOP;
-                ELSIF doc_upload_roll < 0.85 THEN
-                    -- Partial upload: upload first N-1 docs
-                    FOR doc_idx IN 1..GREATEST(1, array_length(req_docs, 1) - 1) LOOP
-                        INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
-                        VALUES (appt_id, req_docs[doc_idx],
-                                (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = req_docs[doc_idx]),
-                                CASE WHEN random() > 0.1 THEN 'accept' ELSE 'reject' END);
+                ELSIF doc_upload_roll < 0.80 THEN
+                    -- Partial upload: upload random subset (at least 1, less than all)
+                    FOR doc_idx IN 1..array_length(req_docs, 1) LOOP
+                        IF random() < 0.55 THEN
+                            INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
+                            VALUES (appt_id, req_docs[doc_idx],
+                                    (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = req_docs[doc_idx]),
+                                    CASE
+                                        WHEN random() < 0.75 THEN 'accept'
+                                        ELSE 'reject'
+                                    END);
+                        END IF;
                     END LOOP;
                 END IF;
-                -- else: no docs uploaded (15%)
+                -- else: no docs uploaded (20%)
             END LOOP;
         END LOOP;
     END LOOP;
