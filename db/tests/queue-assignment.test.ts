@@ -279,7 +279,16 @@ describe("check_in_to_queue — concurrent queue numbers", () => {
   });
 
   afterAll(async () => {
-    await Promise.all(clients.map((c) => c.end()));
+    // Clean up committed data from the concurrency test
+    const c = clients[0];
+    if (c) {
+      await c.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
+      await c.query(`DELETE FROM queue_counters WHERE office_id = $1`, [OFFICE]);
+      await c.query(
+        `DELETE FROM appointments WHERE first_name = 'Concurrent' AND last_name = 'User'`,
+      );
+    }
+    await Promise.all(clients.map((cl) => cl.end()));
   });
 
   test("10 concurrent check-ins produce unique numbers 1–10", async () => {
