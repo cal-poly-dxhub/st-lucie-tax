@@ -459,6 +459,13 @@
         </div>
       </div>
     </div>
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px;">
+      <div class="toggle">
+        <input type="checkbox" id="svc-available-toggle" checked onchange="clerkToggleAvailability(this.checked)">
+        <label for="svc-available-toggle">Available for customers</label>
+      </div>
+      <span id="svc-available-badge" class="badge badge-green">Available</span>
+    </div>
   </div>
 
   <!-- Empty state -->
@@ -485,6 +492,29 @@
     <div class="card">
       <h3>Documents</h3>
       <div id="svc-docs"></div>
+    </div>
+
+    <div class="card">
+      <h3>Transaction Steps</h3>
+      <div id="svc-steps" style="display: flex; flex-direction: column; gap: 8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Upload to State System</h3>
+      <p style="font-size: 12px; color: #718096; margin-bottom: 10px;">Drag and drop documents or click to upload to Florida DHSMV/Orion.</p>
+      <div id="svc-state-uploads"></div>
+    </div>
+
+    <div class="card">
+      <h3>Written Test</h3>
+      <p style="font-size: 13px; color: #555; margin-bottom: 10px;">Send customer to a written test station. They will be removed from service and tracked in the queue under "testing" status.</p>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <div>
+          <label>Test Station #</label>
+          <input type="number" id="svc-test-station" value="10" style="width: 80px; margin: 0;">
+        </div>
+        <button class="btn btn-warning" style="margin-top: 20px;" onclick="clerkSendToTest()">Send to Written Test</button>
+      </div>
     </div>
 
     <div class="card">
@@ -1099,14 +1129,60 @@ function renderServingRecord(r) {
   }).join('');
   document.getElementById('svc-docs').innerHTML = docsHtml || '<p style="color:#718096;">No documents required.</p>';
 
-  // Prescreen responses
-  const psEntries = Object.entries(r.prescreenResponses || {});
-  if (psEntries.length) {
+  // Prescreen responses — prefer enriched text if available
+  const psItems = r.prescreenWithText && r.prescreenWithText.length
+    ? r.prescreenWithText
+    : Object.entries(r.prescreenResponses || {}).map(([k, v]) => ({ questionId: k, questionText: 'Question ' + k, answer: v }));
+  if (psItems.length) {
     document.getElementById('svc-prescreen').innerHTML = '<table><tbody>' +
-      psEntries.map(([k, v]) => '<tr><td>Question ' + k + '</td><td><strong>' + (v ? 'Yes' : 'No') + '</strong></td></tr>').join('') +
+      psItems.map(q => '<tr><td style="padding-right:16px;">' + q.questionText + '</td><td><strong>' + (q.answer ? 'Yes' : 'No') + '</strong></td></tr>').join('') +
       '</tbody></table>';
   } else {
     document.getElementById('svc-prescreen').innerHTML = '<p style="color:#718096;">No pre-screen responses recorded.</p>';
+  }
+
+  // Transaction steps
+  const steps = r.steps || { visionTest: false, photo: false, payment: false };
+  const stepDefs = [
+    { key: 'visionTest', label: 'Vision Test', icon: '👁' },
+    { key: 'photo', label: 'Photo Capture', icon: '📸' },
+    { key: 'payment', label: 'Payment', icon: '💳' },
+  ];
+  document.getElementById('svc-steps').innerHTML = stepDefs.map(s => {
+    const done = steps[s.key];
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
+      (done ? '#f0fff4' : '#f7fafc') + ';border:1px solid ' + (done ? '#9ae6b4' : '#e2e8f0') + ';border-radius:6px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:18px;">' + s.icon + '</span>' +
+        '<span style="font-weight:600;font-size:13px;">' + s.label + '</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<span class="badge ' + (done ? 'badge-green">Done' : 'badge-gray">Pending') + '</span>' +
+        (done ? '' : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' + s.key + '\')">Mark Done</button>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // State upload panel
+  const docs = r.docs || [];
+  const uploadedDocs = docs.filter(d => d.uploaded);
+  if (uploadedDocs.length) {
+    document.getElementById('svc-state-uploads').innerHTML = uploadedDocs.map(doc => {
+      const inputId = 'state-upload-' + doc.docId;
+      return '<div class="doc-item" id="svc-upload-' + doc.docId + '">' +
+        '<div class="doc-icon">📄</div>' +
+        '<div class="doc-info">' +
+          '<div class="doc-name">' + doc.name + '</div>' +
+          '<div class="doc-status"><span class="badge badge-gray" id="svc-upload-badge-' + doc.docId + '">Not uploaded to state</span></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+          '<input type="file" accept="image/*,.pdf" style="display:none;" id="' + inputId + '" onchange="clerkStateUpload(\'' + doc.name + '\', this)">' +
+          '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'' + inputId + '\').click()">Upload to State</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } else {
+    document.getElementById('svc-state-uploads').innerHTML = '<p style="color:#718096;font-size:13px;">No documents available to upload.</p>';
   }
 }
 
@@ -1143,6 +1219,92 @@ async function clerkCompleteOnly() {
   if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
   const durMin = Math.round(data.durationSec / 60);
   showToast('Completed (' + durMin + ' min). Clerk now available.');
+  document.getElementById('svc-empty').style.display = '';
+  document.getElementById('svc-serving').style.display = 'none';
+  svcCurrentRecord = null;
+}
+
+async function clerkToggleAvailability(available) {
+  if (!svcClerkId) { showToast('Login first', true); return; }
+  const res = await fetch('/api/clerk/availability', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ clerkId: svcClerkId, officeId: svcOfficeId, available }),
+  });
+  const data = await res.json();
+  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
+  const badge = document.getElementById('svc-available-badge');
+  badge.className = 'badge ' + (available ? 'badge-green' : 'badge-yellow');
+  badge.textContent = available ? 'Available' : 'Unavailable';
+  showToast(available ? 'Marked available' : 'Marked unavailable');
+}
+
+async function clerkRecordStep(step) {
+  if (!svcCurrentRecord) return;
+  const res = await fetch('/api/clerk/record-step', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, step }),
+  });
+  const data = await res.json();
+  if (!data.ok) { showToast('Error saving step', true); return; }
+  // Re-render steps panel with updated state
+  const stepDefs = [
+    { key: 'visionTest', label: 'Vision Test', icon: '👁' },
+    { key: 'photo', label: 'Photo Capture', icon: '📸' },
+    { key: 'payment', label: 'Payment', icon: '💳' },
+  ];
+  const steps = data.steps;
+  document.getElementById('svc-steps').innerHTML = stepDefs.map(s => {
+    const done = steps[s.key];
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
+      (done ? '#f0fff4' : '#f7fafc') + ';border:1px solid ' + (done ? '#9ae6b4' : '#e2e8f0') + ';border-radius:6px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:18px;">' + s.icon + '</span>' +
+        '<span style="font-weight:600;font-size:13px;">' + s.label + '</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<span class="badge ' + (done ? 'badge-green">Done' : 'badge-gray">Pending') + '</span>' +
+        (done ? '' : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' + s.key + '\')">Mark Done</button>') +
+      '</div>' +
+    '</div>';
+  }).join('');
+  showToast(step + ' marked done');
+}
+
+async function clerkStateUpload(docName, input) {
+  if (!svcCurrentRecord || !input.files.length) return;
+  const file = input.files[0];
+  const res = await fetch('/api/clerk/state-upload', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, docName }),
+  });
+  const data = await res.json();
+  if (!data.ok) { showToast('Upload error', true); return; }
+  // Find badge by scanning for matching doc name
+  const docItems = document.querySelectorAll('[id^="svc-upload-"]');
+  docItems.forEach(item => {
+    const nameEl = item.querySelector('.doc-name');
+    if (nameEl && nameEl.textContent === docName) {
+      const badge = item.querySelector('[id^="svc-upload-badge-"]');
+      if (badge) { badge.className = 'badge badge-green'; badge.textContent = 'Uploaded ✓'; }
+      const btn = item.querySelector('.btn-primary');
+      if (btn) { btn.disabled = true; btn.textContent = 'Done'; btn.style.background = '#c6f6d5'; btn.style.color = '#276749'; btn.className = 'btn btn-sm'; }
+    }
+  });
+  showToast(docName + ' uploaded to state system (' + file.name + ')');
+}
+
+async function clerkSendToTest() {
+  if (!svcCurrentRecord) { showToast('No customer loaded', true); return; }
+  const station = parseInt(document.getElementById('svc-test-station').value);
+  if (!station) { showToast('Enter a test station number', true); return; }
+  if (!confirm('Send ' + svcCurrentRecord.firstName + ' ' + svcCurrentRecord.lastName + ' to written test at station ' + station + '?')) return;
+  const res = await fetch('/api/clerk/send-to-test', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, testStationId: station }),
+  });
+  const data = await res.json();
+  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
+  showToast('Customer sent to written test at station ' + station);
   document.getElementById('svc-empty').style.display = '';
   document.getElementById('svc-serving').style.display = 'none';
   svcCurrentRecord = null;
