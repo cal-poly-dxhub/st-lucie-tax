@@ -186,7 +186,7 @@
       <h2>Check-In Desk</h2>
       <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
     </div>
-    <a href="/schedule" target="_blank" style="flex-shrink: 0; margin-left: 16px; padding: 8px 16px; background: #1a365d; color: white; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;">View Schedule &rarr;</a>
+    <div style="flex-shrink: 0; margin-left: 16px; padding: 12px 24px; background: #fefcbf; border: 2px dashed #d69e2e; border-radius: 8px; font-size: 14px; font-weight: 700; color: #975a16; text-align: center;">PLACEHOLDER: Schedule View / Adjustment Screen</div>
   </div>
 
   <div class="card">
@@ -203,9 +203,8 @@
       </div>
       <div>
         <label>Or Search by Name</label>
-        <input type="text" id="name-search" placeholder="Last name..." disabled>
-        <button class="btn btn-sm" style="background: #eee; color: #999; cursor: not-allowed;" disabled>Search</button>
-        <p style="font-size: 11px; color: #975a16; margin-top: 4px;">⚠ Not implemented: no last-name search function exists in <code>src/</code> yet.</p>
+        <input type="text" id="name-search" placeholder="First or last name..." onkeydown="if(event.key==='Enter')searchByName()">
+        <button class="btn btn-sm" onclick="searchByName()">Search</button>
       </div>
     </div>
   </div>
@@ -506,23 +505,16 @@
 <div class="view" id="view-lobby">
   <div class="card">
     <h2>Customer Lobby Display</h2>
-    <p>Public-facing screen. Dual notification: display update + SMS to phone.</p>
+    <p>Public-facing screen. Auto-refreshes every 5 seconds from the live queue.</p>
   </div>
 
   <div class="card" style="background: #1a202c; padding: 32px;">
     <h2 style="color: white; text-align: center; margin-bottom: 24px; font-size: 22px;">Now Serving</h2>
-    <div class="lobby-grid">
-      <div class="lobby-card calling">
-        <div class="number">01</div>
-        <div class="station">Station 3</div>
-      </div>
-      <div class="lobby-card">
-        <div class="number">P1</div>
-        <div class="station">Station 1</div>
-      </div>
+    <div class="lobby-grid" id="lobby-serving">
+      <p style="color: #a0aec0; text-align: center;">No one being served</p>
     </div>
     <h2 style="color: white; text-align: center; margin: 24px 0 16px; font-size: 18px; opacity: 0.7;">Up Next</h2>
-    <div style="text-align: center; color: #a0aec0; font-size: 32px; font-weight: 700; letter-spacing: 16px;">02 &nbsp; 03</div>
+    <div id="lobby-waiting" style="text-align: center; color: #a0aec0; font-size: 32px; font-weight: 700; letter-spacing: 16px;">—</div>
   </div>
 </div>
 
@@ -781,18 +773,50 @@ async function lookupByQr() {
 }
 
 async function searchByName() {
-  const lastName = document.getElementById('name-search').value.trim();
-  if (!lastName) { showToast('Enter a last name', true); return; }
+  const query = document.getElementById('name-search').value.trim();
+  if (!query) { showToast('Enter a name to search', true); return; }
   try {
     const res = await fetch('/api/search-name', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lastName }),
+      body: JSON.stringify({ query }),
     });
     const data = await res.json();
-    showToast('Error: ' + (data.error || res.status), true);
+    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
+    if (!data.length) { showToast('No matches for "' + query + '"', true); return; }
+    if (data.length === 1) {
+      // Single match — load directly via QR lookup flow
+      await loadAppointmentById(data[0].appointmentId);
+      return;
+    }
+    // Multiple matches — show picker
+    const list = data.map(r =>
+      `<li style="cursor:pointer;padding:6px 8px;border-bottom:1px solid #eee" onclick="loadAppointmentById(${r.appointmentId})">
+        <strong>${r.firstName} ${r.lastName}</strong> — ${r.appointmentTime}
+      </li>`
+    ).join('');
+    document.getElementById('checkin-record').style.display = 'none';
+    document.getElementById('checkin-empty').innerHTML =
+      `<p>Multiple matches:</p><ul style="list-style:none;padding:0;margin:0">${list}</ul>`;
+    document.getElementById('checkin-empty').style.display = '';
   } catch (e) {
     showToast('Failed to connect to server. Is it running?', true);
+  }
+}
+
+async function loadAppointmentById(appointmentId) {
+  try {
+    const res = await fetch('/api/lookup-by-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.found) { showToast('Could not load appointment', true); return; }
+    renderRecord(data);
+    showToast('Loaded ' + data.firstName + ' ' + data.lastName + ' (#' + data.appointmentId + ')');
+  } catch (e) {
+    showToast('Failed to load appointment', true);
   }
 }
 
@@ -1208,6 +1232,43 @@ async function loadLiveQueue() {
 loadLiveQueue();
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Lobby Display (DB-backed via /api/live-queue) ──────────────────────────
+async function loadLobbyDisplay() {
+  try {
+    const res = await fetch('/api/live-queue');
+    const { queue } = await res.json();
+
+    const serving = queue.filter(q => q.status === 'serving');
+    const waiting = queue.filter(q => q.status === 'waiting');
+
+    const servingEl = document.getElementById('lobby-serving');
+    if (serving.length) {
+      servingEl.innerHTML = serving.map((q, i) => {
+        const num = (q.is_priority ? 'P' : '') + q.queue_number;
+        return '<div class="lobby-card' + (i === 0 ? ' calling' : '') + '">' +
+          '<div class="number">' + num + '</div>' +
+          '<div class="station">Desk ' + q.assigned_desk + '</div>' +
+        '</div>';
+      }).join('');
+    } else {
+      servingEl.innerHTML = '<p style="color: #a0aec0; text-align: center;">No one being served</p>';
+    }
+
+    const waitingEl = document.getElementById('lobby-waiting');
+    if (waiting.length) {
+      waitingEl.innerHTML = waiting.slice(0, 5).map(q =>
+        (q.is_priority ? 'P' : '') + q.queue_number
+      ).join(' &nbsp; ');
+    } else {
+      waitingEl.textContent = '—';
+    }
+  } catch (e) {
+    // silent — lobby just shows stale data
+  }
+}
+loadLobbyDisplay();
+setInterval(loadLobbyDisplay, 5000);
 
 showView('confirmation');
 

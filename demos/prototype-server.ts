@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { pool } from "./db.js";
 import {
   lookupByQrCode,
+  lookupByName,
   getAppointmentInfo,
   checkInToQueue,
   setAppointmentPriority,
@@ -87,14 +88,55 @@ app.post("/api/lookup", async (req, res) => {
   }
 });
 
-// ─── Search by last name ─────────────────────────────────────────────────────
-// NOT IMPLEMENTED: there is no last-name search function in src/. Returning 501
-// rather than running an ad-hoc query so the prototype only exercises real src code.
-app.post("/api/search-name", (_req, res) => {
-  res.status(501).json({
-    error:
-      "Last-name search is not implemented in src/. Add e.g. lookupByLastName(db, officeId, lastName) to src/check-in.ts to enable this.",
-  });
+// ─── Lookup by appointment ID (loads full record like QR lookup) ────────────
+app.post("/api/lookup-by-id", async (req, res) => {
+  try {
+    const appointmentId = parseInt(req.body?.appointmentId);
+    if (!appointmentId) return res.status(400).json({ error: "appointmentId required" });
+
+    const { rows: apptRows } = await pool.query(
+      `SELECT office_id, status FROM appointments WHERE id = $1`,
+      [appointmentId],
+    );
+    if (!apptRows.length) return res.json({ found: false });
+
+    const [info, docs] = await Promise.all([
+      getAppointmentInfo(pool, appointmentId),
+      getRequiredDocsStatus(pool, appointmentId),
+    ]);
+
+    res.json({
+      found: true,
+      appointmentId,
+      officeId: apptRows[0].office_id,
+      status: apptRows[0].status,
+      firstName: info.firstName,
+      lastName: info.lastName,
+      identityVerified: info.identityVerified,
+      prescreenCompleted: info.prescreenCompleted,
+      requiredDocIds: info.requiredDocIds,
+      docs,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ─── Search by name (backed by src/check-in.ts → lookupByName) ─────────────
+app.post("/api/search-name", async (req, res) => {
+  try {
+    const query = String(req.body?.query ?? "").trim();
+    const officeId = parseInt(req.body?.officeId) || 1;
+    const date = req.body?.date || new Date().toISOString().slice(0, 10);
+    if (!query) return res.status(400).json({ error: "query required" });
+
+    const results = await lookupByName(pool, query, officeId, date);
+    res.json(results);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
 });
 
 app.post("/api/send-confirmation", async (_req, res) => {
@@ -234,6 +276,7 @@ app.get("/api/sample-customers", async (_req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT a.id, a.first_name, a.last_name, a.qr_code, a.prescreen_completed,
+        a.txn_type_ids,
         array_length(a.required_doc_ids, 1) AS req_docs,
         (SELECT COUNT(*)::int FROM documents d WHERE d.appointment_id = a.id) AS uploaded,
         (SELECT COUNT(*)::int FROM documents d WHERE d.appointment_id = a.id AND d.ai_review_status = 'accept') AS accepted,
@@ -527,7 +570,7 @@ app.post("/api/sim/assign", async (req, res) => {
     const queueId = rows[0].queue_id;
     if (!queueId) return res.json({ ok: true, assigned: false });
     const qRow = await pool.query(
-      `SELECT q.queue_number, q.assigned_desk, a.first_name, a.last_name
+      `SELECT q.id AS queue_id, q.queue_number, q.assigned_desk, a.first_name, a.last_name
        FROM queue q JOIN appointments a ON a.id = q.appointment_id WHERE q.id = $1`,
       [queueId],
     );
