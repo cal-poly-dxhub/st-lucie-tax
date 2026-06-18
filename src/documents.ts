@@ -73,6 +73,7 @@ async function uploadToS3(
 }
 
 export interface DocStatus {
+  id: number | null;
   docId: string;
   name: string;
   uploaded: boolean;
@@ -87,7 +88,7 @@ export async function getRequiredDocsStatus(
   appointmentId: number,
 ): Promise<DocStatus[]> {
   const { rows } = await db.query(
-    `SELECT dr.doc_id, dr.name,
+    `SELECT d.id, dr.doc_id, dr.name,
             (d.id IS NOT NULL) AS uploaded,
             d.s3_key,
             d.ai_review_status,
