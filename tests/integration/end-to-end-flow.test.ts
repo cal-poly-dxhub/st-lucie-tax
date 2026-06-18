@@ -5,6 +5,7 @@ import { findAppointment } from "../../src/find-appt.js";
 import {
   generateQrCode,
   lookupByQrCode,
+  lookupByName,
   checkInToQueue,
   registerWalkIn,
   setAppointmentPriority,
@@ -80,11 +81,11 @@ async function loginClerk(clerkId: number, desk: number) {
 }
 
 async function addPrescreenQuestions(txnTypeId: number) {
+  await db.client.query(`DELETE FROM prescreen_questions WHERE txn_type_id = $1`, [txnTypeId]);
   await db.client.query(
     `INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text)
      VALUES ($1, 1, 'Do you have corrective lenses?'),
-            ($1, 2, 'Have you had a seizure in the last 2 years?')
-     ON CONFLICT DO NOTHING`,
+            ($1, 2, 'Have you had a seizure in the last 2 years?')`,
     [txnTypeId],
   );
 }
@@ -449,5 +450,103 @@ describe("Flow B: Walk-In — end to end", () => {
     const info = await getAppointmentInfo(db.client, walkInResult.appointmentId);
     expect(info.identityVerified).toBe(false);
     expect(info.prescreenCompleted).toBe(false);
+  });
+});
+
+describe("Lookup — QR code and name search", () => {
+  beforeEach(async () => {
+    await db.client.query(
+      `DELETE FROM documents WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
+      [OFFICE, DATE],
+    );
+    await db.client.query(
+      `DELETE FROM appointments WHERE office_id = $1 AND appointment_date = $2`,
+      [OFFICE, DATE],
+    );
+  });
+
+  test("lookupByQrCode returns appointment for valid QR", async () => {
+    const bookResult = await bookAppointment(db.client, {
+      officeId: OFFICE,
+      date: DATE,
+      time: "09:00:00",
+      txnTypeIds: [ID_CARD],
+      requiredDocIds: ["photo_id"],
+      firstName: "Quinn",
+      lastName: "Lookup",
+      contactEmail: "quinn@example.com",
+      contactPhone: "555-0010",
+      nowTs: FROZEN_NOW,
+    });
+    expect(bookResult.ok).toBe(true);
+    if (!bookResult.ok) throw new Error("booking failed");
+
+    const result = await lookupByQrCode(db.client, bookResult.qrCode);
+    expect(result).not.toBeNull();
+    expect(result!.appointmentId).toBe(bookResult.appointmentId);
+  });
+
+  test("lookupByQrCode returns null for unknown QR", async () => {
+    const result = await lookupByQrCode(db.client, "nonexistent-uuid-value");
+    expect(result).toBeNull();
+  });
+
+  test("lookupByName matches prefix, case-insensitive, scoped to office/date/status", async () => {
+    const bookResult = await bookAppointment(db.client, {
+      officeId: OFFICE,
+      date: DATE,
+      time: "10:00:00",
+      txnTypeIds: [ID_CARD],
+      requiredDocIds: ["photo_id"],
+      firstName: "Jasmine",
+      lastName: "Henderson",
+      contactEmail: "jasmine@example.com",
+      contactPhone: "555-0011",
+      nowTs: FROZEN_NOW,
+    });
+    if (!bookResult.ok) throw new Error("booking failed");
+
+    // First name prefix
+    const byFirst = await lookupByName(db.client, "Jas", OFFICE, DATE);
+    expect(byFirst.length).toBeGreaterThanOrEqual(1);
+    expect(byFirst.some((r) => r.firstName === "Jasmine")).toBe(true);
+
+    // Last name prefix
+    const byLast = await lookupByName(db.client, "Hen", OFFICE, DATE);
+    expect(byLast.some((r) => r.lastName === "Henderson")).toBe(true);
+
+    // Case-insensitive
+    const byLower = await lookupByName(db.client, "jas", OFFICE, DATE);
+    expect(byLower.some((r) => r.firstName === "Jasmine")).toBe(true);
+
+    // Cancelled appointment excluded
+    await db.client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
+      bookResult.appointmentId,
+    ]);
+    const afterCancel = await lookupByName(db.client, "Jas", OFFICE, DATE);
+    expect(afterCancel.some((r) => r.firstName === "Jasmine")).toBe(false);
+  });
+
+  test("lookupByName respects timezone — appointment on 'today' in office tz", async () => {
+    await bookAppointment(db.client, {
+      officeId: OFFICE,
+      date: DATE,
+      time: "16:00:00",
+      txnTypeIds: [ID_CARD],
+      requiredDocIds: ["photo_id"],
+      firstName: "Timezone",
+      lastName: "Test",
+      contactEmail: "tz@example.com",
+      contactPhone: "555-0016",
+      nowTs: FROZEN_NOW,
+    });
+
+    // Correct office-local date finds it
+    const found = await lookupByName(db.client, "Time", OFFICE, "2026-05-12");
+    expect(found.some((r) => r.firstName === "Timezone")).toBe(true);
+
+    // Next day (simulating UTC midnight rollover) is not for local today
+    const notFound = await lookupByName(db.client, "Time", OFFICE, "2026-05-13");
+    expect(notFound.some((r) => r.firstName === "Timezone")).toBe(false);
   });
 });

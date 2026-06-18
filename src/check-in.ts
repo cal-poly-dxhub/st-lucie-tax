@@ -31,6 +31,35 @@ export async function lookupByQrCode(
   return camelRows<QrLookupResult>(rows)[0];
 }
 
+export interface NameLookupResult {
+  appointmentId: number;
+  officeId: number;
+  firstName: string;
+  lastName: string;
+  appointmentTime: string;
+}
+
+export async function lookupByName(
+  db: Queryable,
+  query: string,
+  officeId: number,
+  appointmentDate: string,
+): Promise<NameLookupResult[]> {
+  const { rows } = await db.query(
+    `SELECT id AS appointment_id, office_id, first_name, last_name,
+            appointment_time::text
+     FROM appointments
+     WHERE (first_name ILIKE $1 || '%' OR last_name ILIKE $1 || '%')
+       AND appointment_date = $2::date
+       AND office_id = $3
+       AND status = 'scheduled'
+     ORDER BY appointment_time
+     LIMIT 5`,
+    [query, appointmentDate, officeId],
+  );
+  return camelRows<NameLookupResult>(rows);
+}
+
 export interface CheckInResult {
   queueId: number;
   queueNumber: number;
