@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>St. Lucie Tax Collector - Office View</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 24px; }
+
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 900px; margin-left: auto; margin-right: auto; }
+    .card h2 { font-size: 18px; margin-bottom: 12px; color: #1a365d; }
+    .card h3 { font-size: 15px; margin-bottom: 8px; color: #2d4a7a; }
+    .card p { font-size: 14px; color: #555; margin-bottom: 8px; line-height: 1.5; }
+
+    .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #4299e1; color: white; }
+    .btn-primary:hover { background: #3182ce; }
+    .btn-success { background: #48bb78; color: white; }
+    .btn-success:hover { background: #38a169; }
+    .btn-warning { background: #ed8936; color: white; }
+    .btn-warning:hover { background: #dd6b20; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #c6f6d5; color: #276749; }
+    .badge-yellow { background: #fefcbf; color: #975a16; }
+    .badge-red { background: #fed7d7; color: #9b2c2c; }
+    .badge-blue { background: #bee3f8; color: #2a4365; }
+
+    .queue-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+    .queue-number { font-size: 24px; font-weight: 700; color: #1a365d; width: 50px; }
+    .queue-info { flex: 1; margin-left: 12px; }
+    .queue-info .name { font-weight: 600; font-size: 14px; }
+    .queue-info .txn { font-size: 12px; color: #718096; }
+
+    @keyframes personBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+    .back-link { display: inline-block; margin-bottom: 16px; font-size: 13px; color: #4299e1; text-decoration: none; max-width: 900px; margin-left: auto; margin-right: auto; }
+    .back-link:hover { text-decoration: underline; }
+    .container { max-width: 900px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="prototype.html" class="back-link">&larr; Back to Prototype</a>
+
+  <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <h2>Office View</h2>
+      <p>Animated simulation of customer flow through the office.</p>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label style="font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap;">People: <span id="anim-people-count">6</span></label>
+        <input type="range" id="anim-people-slider" min="1" max="50" value="6" style="width: 100px; margin: 0;" oninput="document.getElementById('anim-people-count').textContent=this.value">
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label style="font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap;">Desks: <span id="anim-desks-count">3</span></label>
+        <input type="range" id="anim-desks-slider" min="1" max="10" value="3" style="width: 80px; margin: 0;" oninput="document.getElementById('anim-desks-count').textContent=this.value">
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label style="font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap;">Speed: <span id="anim-speed-label">1x</span></label>
+        <input type="range" id="anim-speed-slider" min="1" max="10" value="1" style="width: 80px; margin: 0;" oninput="animSpeed=parseInt(this.value);document.getElementById('anim-speed-label').textContent=this.value+'x'">
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-success btn-sm" onclick="startOfficeAnim()">&#9654; Start</button>
+        <button class="btn btn-warning btn-sm" onclick="stopOfficeAnim()">&#9208; Pause</button>
+        <button class="btn btn-sm" style="background:#edf2f7;" onclick="resetOfficeAnim()">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div id="office-floor" style="position: relative; width: 100%; height: 540px; background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%); border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+
+      <!-- Floor tiles pattern -->
+      <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, #e2e8f0 39px, #e2e8f0 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, #e2e8f0 39px, #e2e8f0 40px); opacity: 0.3;"></div>
+
+      <!-- Entrance door -->
+      <div style="position: absolute; top: 230px; left: 0; width: 40px; height: 70px; background: #2d4a7a; border-radius: 0 8px 8px 0; display: flex; align-items: center; justify-content: center; box-shadow: 2px 0 8px rgba(0,0,0,0.2);">
+        <span style="color: white; font-size: 9px; font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg);">ENTRANCE</span>
+      </div>
+
+      <!-- Check-In Desk -->
+      <div style="position: absolute; top: 180px; left: 100px; width: 120px; height: 90px; background: #1a365d; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <span style="font-size: 20px; margin-bottom: 2px;">&#128421;&#65039;</span>
+        <span>CHECK-IN</span>
+        <span style="font-size: 9px; opacity: 0.7;">ID + Docs</span>
+      </div>
+
+      <!-- Waiting Area (chairs) -->
+      <div style="position: absolute; top: 50px; left: 60px; width: 180px; height: 110px; background: rgba(235,248,255,0.8); border: 2px solid #bee3f8; border-radius: 8px; display: flex; flex-direction: column; align-items: center; padding: 8px;">
+        <span style="font-size: 9px; font-weight: 700; color: #2a4365; letter-spacing: 1px;">WAITING AREA</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; justify-content: center;">
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+          <div style="width: 20px; height: 20px; background: #cbd5e0; border-radius: 3px; border: 1px solid #a0aec0;"></div>
+        </div>
+      </div>
+
+      <!-- Service Desks (dynamically generated) -->
+      <div id="anim-desks-container"></div>
+
+      <!-- Exit door -->
+      <div style="position: absolute; top: 460px; right: 0; width: 40px; height: 60px; background: #48bb78; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; box-shadow: -2px 0 8px rgba(0,0,0,0.1);">
+        <span style="color: white; font-size: 9px; font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg);">EXIT</span>
+      </div>
+
+      <!-- Path arrows (dashed lines) -->
+      <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a0aec0"/></marker>
+        </defs>
+        <path d="M 40 265 L 95 240" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 220 225 L 300 130" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 310 100 L 375 100" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 310 100 L 375 260" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrowhead)"/>
+        <path d="M 310 100 L 375 410" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="4" fill="none" marker-end="url(#arrowhead)"/>
+      </svg>
+
+      <!-- Animated people layer -->
+      <div id="anim-people" style="position: absolute; inset: 0; pointer-events: none;"></div>
+
+      <!-- Legend -->
+      <div style="position: absolute; bottom: 8px; left: 8px; font-size: 10px; color: #718096; display: flex; gap: 12px; background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid #e2e8f0; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
+        <span>&#x1F7E1; Entering</span>
+        <span>&#x1F535; Checking In</span>
+        <span>&#x23F3; Waiting</span>
+        <span>&#x1F7E2; Being Served</span>
+        <span>&#x2705; Complete</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Queue Status Panel -->
+  <div class="card">
+    <h3>Queue Status</h3>
+    <div id="anim-queue-status" style="display: flex; flex-direction: column; gap: 8px;">
+      <p style="color: #718096; text-align: center; font-size: 13px;">Press Start to begin simulation</p>
+    </div>
+  </div>
+
+  <!-- Check-In Activity Log -->
+  <div class="card">
+    <h3>Check-In Activity</h3>
+    <div id="anim-activity-log" style="font-size: 12px; max-height: 200px; overflow-y: auto;">
+      <p style="color: #718096; text-align: center;">Activity will appear here during simulation...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+let animSpeed = 1;
+function sleep(ms) { return new Promise(r => setTimeout(r, ms / animSpeed)); }
+
+const CUSTOMERS = [
+  { name: 'Jane Smith', txn: 'Title Transfer', docs: ['Out-of-State Title', 'Photo ID', 'FL Insurance'], priority: false },
+  { name: 'Robert Chen', txn: 'Vehicle Registration', docs: ['Registration Form', 'Photo ID'], priority: false },
+  { name: 'Maria Garcia', txn: 'DL Renewal', docs: ['Photo ID', 'Proof of Residency'], priority: true },
+  { name: 'David Brown', txn: 'Vessel Registration', docs: ['Vessel Title', 'Photo ID', 'Insurance'], priority: false },
+  { name: 'Lisa Johnson', txn: 'Title Transfer', docs: ['Title', 'Photo ID', 'Bill of Sale'], priority: false },
+  { name: 'Kevin Park', txn: 'DL Road Test', docs: ['Learner Permit', 'Photo ID'], priority: false },
+];
+
+const CLERK_NAMES = ['Maria Santos', 'James Wilson', 'Angela Brown', 'David Kim', 'Sarah Lopez',
+  'Tom Rivera', 'Nina Patel', 'Chris Evans', 'Amy Zhang', 'Mark Johnson'];
+
+let numDesks = 3;
+let CLERKS = CLERK_NAMES.slice(0, numDesks);
+let animRunning = false;
+let animInterval = null;
+let animPeople = [];
+let animQueue = [];
+let animDesks = new Array(numDesks).fill(null);
+let animCompleted = [];
+let animNextId = 0;
+let animNextCustomer = 0;
+
+const POSITIONS = {
+  offscreen: { x: -30, y: 265 },
+  entrance: { x: 45, y: 255 },
+  checkin: { x: 160, y: 285 },
+  waiting: [
+    { x: 70, y: 65 }, { x: 100, y: 65 }, { x: 130, y: 65 }, { x: 160, y: 65 },
+    { x: 70, y: 95 }, { x: 100, y: 95 }, { x: 130, y: 95 }, { x: 160, y: 95 },
+    { x: 70, y: 125 }, { x: 100, y: 125 }, { x: 130, y: 125 }, { x: 160, y: 125 },
+    { x: 70, y: 155 }, { x: 100, y: 155 }, { x: 130, y: 155 }, { x: 160, y: 155 },
+    { x: 190, y: 65 }, { x: 190, y: 95 }, { x: 190, y: 125 }, { x: 190, y: 155 },
+    { x: 55, y: 65 }, { x: 55, y: 95 }, { x: 55, y: 125 }, { x: 55, y: 155 },
+  ],
+  desk: function(i) {
+    var spacing = Math.min(150, 460 / numDesks);
+    var startY = 60 + (spacing - 80) / 2;
+    return { x: 460, y: startY + i * spacing };
+  },
+  exit: { x: 620, y: 490 },
+  gone: { x: 680, y: 490 },
+};
+
+function renderDesks() {
+  const container = document.getElementById('anim-desks-container');
+  container.innerHTML = '';
+  const spacing = Math.min(150, 460 / numDesks);
+  const deskHeight = Math.min(120, spacing - 10);
+  for (let i = 0; i < numDesks; i++) {
+    const top = 60 + i * spacing;
+    const div = document.createElement('div');
+    div.id = 'anim-desk-' + (i + 1);
+    div.style.cssText = 'position: absolute; top: ' + top + 'px; left: 380px; width: 200px; height: ' + deskHeight + 'px; background: #f0fff4; border: 2px solid #c6f6d5; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.5s;';
+    div.innerHTML =
+      '<span style="font-weight: 700; font-size: ' + (numDesks > 6 ? '11' : '14') + 'px; color: #276749;">Desk ' + (i+1) + '</span>' +
+      '<span class="anim-desk-clerk" style="font-size: ' + (numDesks > 6 ? '9' : '11') + 'px; color: #718096;">' + CLERKS[i] + '</span>' +
+      '<div class="anim-desk-status" style="margin-top: 4px; font-size: 10px;"></div>';
+    container.appendChild(div);
+  }
+}
+renderDesks();
+
+function createPersonEl(person) {
+  const el = document.createElement('div');
+  const dur = (1.2 / animSpeed).toFixed(2);
+  el.style.cssText = 'position: absolute; display: flex; flex-direction: column; align-items: center; transition: left ' + dur + 's ease-in-out, top ' + dur + 's ease-in-out, opacity 0.5s; pointer-events: none;';
+  const color = person.priority ? '#ed8936' : '#4299e1';
+  el.innerHTML =
+    '<div style="width: 28px; height: 28px; border-radius: 50%; background: ' + color + '; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; font-weight: 700; animation: personBob 2s ease-in-out infinite ' + (Math.random() * 2).toFixed(1) + 's;">' +
+      person.name.charAt(0) +
+    '</div>' +
+    '<span style="font-size: 8px; color: #2d3748; margin-top: 2px; white-space: nowrap; background: rgba(255,255,255,0.9); padding: 0 3px; border-radius: 2px;">' + person.name.split(' ')[0] + '</span>';
+  el.style.left = POSITIONS.offscreen.x + 'px';
+  el.style.top = POSITIONS.offscreen.y + 'px';
+  el.style.opacity = '0';
+  document.getElementById('anim-people').appendChild(el);
+  return el;
+}
+
+function movePerson(person, pos) {
+  person.el.style.left = pos.x + 'px';
+  person.el.style.top = pos.y + 'px';
+  person.el.style.opacity = '1';
+}
+
+function animLog(msg) {
+  const container = document.getElementById('anim-activity-log');
+  const line = document.createElement('div');
+  line.style.cssText = 'padding: 4px 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 8px;';
+  const now = new Date();
+  line.innerHTML = '<span style="color: #718096; font-size: 11px; flex-shrink: 0;">' +
+    now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) +
+    '</span><span>' + msg + '</span>';
+  container.prepend(line);
+  if (container.children.length > 30) container.lastElementChild.remove();
+}
+
+function updateQueuePanel() {
+  const container = document.getElementById('anim-queue-status');
+  let html = '';
+
+  var cols = Math.min(numDesks, 4);
+  html += '<div style="display: grid; grid-template-columns: repeat(' + cols + ', 1fr); gap: 8px; margin-bottom: 12px;">';
+  for (let i = 0; i < numDesks; i++) {
+    const serving = animDesks[i];
+    const busy = serving !== null;
+    html += '<div style="padding: 10px; border-radius: 6px; border: 2px solid ' + (busy ? '#4299e1' : '#c6f6d5') + '; background: ' + (busy ? '#ebf8ff' : '#f0fff4') + ';">' +
+      '<div style="font-size: 11px; font-weight: 700; color: ' + (busy ? '#2a4365' : '#276749') + ';">Desk ' + (i+1) + ' — ' + CLERKS[i] + '</div>' +
+      (busy
+        ? '<div style="font-size: 12px; margin-top: 4px;"><span class="badge badge-blue">Serving</span> ' + serving.name + '</div>' +
+          '<div style="font-size: 10px; color: #718096; margin-top: 2px;">' + serving.txn + '</div>' +
+          '<div style="font-size: 10px; margin-top: 3px;">Docs: ' + serving.docs.map(function(d) { return '<span class="badge badge-green" style="margin: 1px;">' + d + '</span>'; }).join(' ') + '</div>'
+        : '<div style="font-size: 12px; margin-top: 4px; color: #48bb78;">Available</div>'
+      ) +
+      '</div>';
+  }
+  html += '</div>';
+
+  html += '<div style="font-size: 12px; font-weight: 600; color: #4a5568; margin-bottom: 6px;">Queue (' + animQueue.length + ' waiting)</div>';
+  if (animQueue.length === 0) {
+    html += '<div style="font-size: 12px; color: #718096; padding: 8px; text-align: center; background: #f7fafc; border-radius: 4px;">No one waiting</div>';
+  } else {
+    animQueue.forEach(function(p, i) {
+      html += '<div class="queue-item" style="' + (p.priority ? 'border-left: 3px solid #ed8936; background: #fffbeb;' : '') + '">' +
+        '<div class="queue-number" style="font-size: 18px; width: 30px;' + (p.priority ? ' color: #ed8936;' : '') + '">' + (p.priority ? 'P' : '') + (i+1) + '</div>' +
+        '<div class="queue-info"><div class="name">' + p.name + (p.priority ? ' <span class="badge badge-yellow">Priority</span>' : '') + '</div>' +
+        '<div class="txn">' + p.txn + '</div></div>' +
+        '<span class="badge badge-yellow">Waiting</span>' +
+        '</div>';
+    });
+  }
+
+  if (animCompleted.length > 0) {
+    html += '<div style="font-size: 12px; font-weight: 600; color: #4a5568; margin: 12px 0 6px;">Completed (' + animCompleted.length + ')</div>';
+    animCompleted.forEach(function(p) {
+      html += '<div style="padding: 6px 10px; background: #f0fff4; border-radius: 4px; margin-bottom: 4px; font-size: 12px; display: flex; align-items: center; gap: 8px;">' +
+        '<span class="badge badge-green">Done</span>' + p.name + ' — ' + p.txn + '</div>';
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+function updateDeskHighlights() {
+  for (let i = 0; i < numDesks; i++) {
+    const deskEl = document.getElementById('anim-desk-' + (i+1));
+    if (!deskEl) continue;
+    const statusEl = deskEl.querySelector('.anim-desk-status');
+    if (animDesks[i]) {
+      deskEl.style.background = '#ebf8ff';
+      deskEl.style.borderColor = '#4299e1';
+      statusEl.innerHTML = '<span class="badge badge-blue">Serving ' + animDesks[i].name.split(' ')[0] + '</span>';
+    } else {
+      deskEl.style.background = '#f0fff4';
+      deskEl.style.borderColor = '#c6f6d5';
+      statusEl.innerHTML = '<span class="badge badge-green">Available</span>';
+    }
+  }
+}
+
+async function spawnCustomer() {
+  const template = CUSTOMERS[animNextCustomer % CUSTOMERS.length];
+  animNextCustomer++;
+  const person = {
+    id: animNextId++,
+    name: template.name,
+    txn: template.txn,
+    docs: template.docs,
+    priority: template.priority,
+    state: 'entering',
+    el: null,
+  };
+  person.el = createPersonEl(person);
+  animPeople.push(person);
+
+  await sleep(100);
+  movePerson(person, POSITIONS.entrance);
+  animLog('<strong>' + person.name + '</strong> enters the office');
+  await sleep(1500);
+
+  person.state = 'checking-in';
+  movePerson(person, POSITIONS.checkin);
+  animLog('<strong>' + person.name + '</strong> approaches check-in desk');
+  await sleep(2000);
+
+  animLog('Clerk scans QR for <strong>' + person.name + '</strong>...');
+  await sleep(1200);
+  animLog('Verifying ID for <strong>' + person.name + '</strong> — <span class="badge badge-green">Verified</span>');
+  await sleep(1000);
+  for (const doc of person.docs) {
+    animLog('Reviewing doc: <em>' + doc + '</em> — <span class="badge badge-green">Accepted</span>');
+    await sleep(800);
+  }
+  animLog('<strong>' + person.name + '</strong> checked in for <em>' + person.txn + '</em>' + (person.priority ? ' <span class="badge badge-yellow">PRIORITY</span>' : ''));
+
+  person.state = 'waiting';
+  const slot = animQueue.length % POSITIONS.waiting.length;
+  movePerson(person, POSITIONS.waiting[slot]);
+  animQueue.push(person);
+  updateQueuePanel();
+  await sleep(500);
+
+  tryAssignNext();
+}
+
+async function tryAssignNext() {
+  let deskIdx = -1;
+  for (let i = 0; i < numDesks; i++) {
+    if (animDesks[i] === null) { deskIdx = i; break; }
+  }
+  if (deskIdx === -1) return;
+
+  let personIdx = animQueue.findIndex(function(p) { return p.priority; });
+  if (personIdx === -1) personIdx = 0;
+  if (animQueue.length === 0) return;
+
+  const person = animQueue.splice(personIdx, 1)[0];
+  animDesks[deskIdx] = person;
+  person.state = 'serving';
+
+  animQueue.forEach(function(p, i) {
+    const slot = i % POSITIONS.waiting.length;
+    movePerson(p, POSITIONS.waiting[slot]);
+  });
+
+  movePerson(person, POSITIONS.desk(deskIdx));
+  animLog('<strong>' + person.name + '</strong> called to <strong>Desk ' + (deskIdx+1) + '</strong> (' + CLERKS[deskIdx] + ')');
+  updateQueuePanel();
+  updateDeskHighlights();
+
+  const serviceTime = (4000 + Math.random() * 4000) / animSpeed;
+  setTimeout(function() { completeService(deskIdx); }, serviceTime);
+}
+
+async function completeService(deskIdx) {
+  if (!animRunning) return;
+  const person = animDesks[deskIdx];
+  if (!person) return;
+
+  person.state = 'complete';
+  animDesks[deskIdx] = null;
+  animCompleted.push(person);
+  animLog('<strong>' + person.name + '</strong> service complete at Desk ' + (deskIdx+1) + ' — <span class="badge badge-green">Done</span>');
+
+  movePerson(person, POSITIONS.exit);
+  updateQueuePanel();
+  updateDeskHighlights();
+  await sleep(1500);
+
+  person.el.style.opacity = '0';
+  await sleep(600);
+  person.el.remove();
+
+  tryAssignNext();
+}
+
+let animTargetCount = 6;
+let animSpawned = 0;
+
+function startOfficeAnim() {
+  if (animRunning) return;
+  animRunning = true;
+  numDesks = parseInt(document.getElementById('anim-desks-slider').value);
+  CLERKS = CLERK_NAMES.slice(0, numDesks);
+  animDesks = new Array(numDesks).fill(null);
+  renderDesks();
+  animTargetCount = parseInt(document.getElementById('anim-people-slider').value);
+  animSpawned = 0;
+  document.getElementById('anim-activity-log').innerHTML = '';
+  animLog('Simulation started — ' + animTargetCount + ' customers, ' + numDesks + ' desks');
+  updateQueuePanel();
+  updateDeskHighlights();
+
+  const spawnDelay = Math.max(1500, 6000 - (animTargetCount - 6) * 100) / animSpeed;
+
+  function spawnNext() {
+    if (!animRunning || animSpawned >= animTargetCount) return;
+    spawnCustomer();
+    animSpawned++;
+    if (animSpawned < animTargetCount) {
+      animInterval = setTimeout(spawnNext, spawnDelay);
+    }
+  }
+  spawnNext();
+}
+
+function stopOfficeAnim() {
+  animRunning = false;
+  if (animInterval) { clearTimeout(animInterval); animInterval = null; }
+  animLog('Simulation paused');
+}
+
+function resetOfficeAnim() {
+  stopOfficeAnim();
+  animPeople.forEach(function(p) { if (p.el) p.el.remove(); });
+  animPeople = [];
+  animQueue = [];
+  numDesks = parseInt(document.getElementById('anim-desks-slider').value);
+  CLERKS = CLERK_NAMES.slice(0, numDesks);
+  animDesks = new Array(numDesks).fill(null);
+  animCompleted = [];
+  animNextId = 0;
+  animNextCustomer = 0;
+  animSpawned = 0;
+  renderDesks();
+  updateQueuePanel();
+  updateDeskHighlights();
+  document.getElementById('anim-activity-log').innerHTML = '<p style="color: #718096; text-align: center;">Activity will appear here during simulation...</p>';
+  document.getElementById('anim-queue-status').innerHTML = '<p style="color: #718096; text-align: center; font-size: 13px;">Press Start to begin simulation</p>';
+}
+</script>
+
+</body>
+</html>
