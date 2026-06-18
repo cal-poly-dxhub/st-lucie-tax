@@ -154,7 +154,7 @@ CREATE TABLE queue_counters (
 CREATE TABLE queue (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
-    appointment_id  INT REFERENCES appointments(id),
+    appointment_id  INT REFERENCES appointments(id) UNIQUE,
     queue_number    INT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'waiting'
                     CHECK (status IN ('waiting', 'serving', 'testing', 'done')),

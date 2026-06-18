@@ -79,6 +79,12 @@ describe("check_in_to_queue", () => {
     expect(rows[2].queue_number).toBe(3);
     expect(rows[3].queue_number).toBe(4);
   });
+
+  test("rejects duplicate check-in for the same appointment", async () => {
+    const appt = await createAppointment(db.client, { txnTypes: [ID_CARD] });
+    await checkIn(db.client, appt);
+    await expect(checkIn(db.client, appt)).rejects.toThrow(/unique|duplicate/i);
+  });
 });
 
 describe("assign_next_customer — skill-matched FIFO", () => {
