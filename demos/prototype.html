@@ -91,7 +91,6 @@
     .modal-close { position: absolute; top: 8px; right: 12px; font-size: 24px; cursor: pointer; color: #555; background: none; border: none; }
     .modal h3 { margin-bottom: 12px; }
 
-    .svc-desk { transition: background 0.3s, border-color 0.3s; background: #f0fff4; border: 2px solid #c6f6d5; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; position: relative; }
   </style>
 </head>
 <body>
@@ -104,7 +103,7 @@
   <button onclick="showView('queue')" id="nav-queue">Queue</button>
   <button onclick="showView('service')" id="nav-service">Service Clerk</button>
   <button onclick="showView('lobby')" id="nav-lobby">Lobby Display</button>
-  <button onclick="showView('office')" id="nav-office">Office View</button>
+  <button onclick="window.open('office-view.html','_blank')" id="nav-office">Office View</button>
 </nav>
 
 <div id="toast" class="toast"></div>
@@ -527,99 +526,6 @@
   </div>
 </div>
 
-<!-- ========== OFFICE VIEW (top-down animated) ========== -->
-<div class="view" id="view-office">
-  <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
-    <div>
-      <h2>Office View</h2>
-      <p>Live top-down view of customer flow. Polls every 2s.</p>
-    </div>
-    <div style="display: flex; gap: 8px;">
-      <button class="btn btn-success btn-sm" onclick="runSimulation()">▶ Run Simulation</button>
-      <button class="btn btn-warning btn-sm" onclick="resetSimulation()">Reset</button>
-      <button class="btn btn-primary btn-sm" onclick="refreshOfficeView()">Refresh</button>
-    </div>
-  </div>
-
-  <div class="card" style="padding: 0; overflow: hidden;">
-    <div id="office-floor" style="position: relative; width: 100%; height: 480px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-      <!-- Entrance -->
-      <div style="position: absolute; top: 200px; left: 0; width: 36px; height: 60px; background: #2d4a7a; border-radius: 0 6px 6px 0; display: flex; align-items: center; justify-content: center;">
-        <span style="color: white; font-size: 9px; font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg);">ENTER</span>
-      </div>
-
-      <!-- Waiting Area (lobby chairs) — left side -->
-      <div style="position: absolute; top: 60px; left: 55px; width: 160px; height: 350px; background: #ebf8ff; border: 2px solid #bee3f8; border-radius: 8px; display: flex; flex-direction: column; align-items: center; padding-top: 10px;">
-        <span style="font-size: 10px; font-weight: 700; color: #2a4365; margin-bottom: 6px;">WAITING AREA</span>
-        <div id="waiting-area-dots" style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; justify-content: center; align-content: flex-start;"></div>
-      </div>
-
-      <!-- Check-in Desk — right of waiting area -->
-      <div style="position: absolute; top: 160px; left: 240px; width: 90px; height: 100px; background: #1a365d; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600;">
-        <span style="font-size: 16px; margin-bottom: 4px;">🖥️</span>
-        Check-In<br>Desk
-      </div>
-
-      <!-- Prescreen Zone — below check-in -->
-      <div style="position: absolute; top: 380px; left: 230px; width: 120px; height: 70px; background: #fefcbf; border: 2px dashed #d69e2e; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #975a16; font-weight: 600;">
-        <span style="font-size: 14px;">📱</span>
-        Pre-screen
-        <div id="prescreen-zone-dots" style="display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; justify-content: center;"></div>
-      </div>
-
-      <!-- Service Desks — right side, 3 desks -->
-      <div style="position: absolute; top: 40px; left: 380px; width: 460px; height: 400px; display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; padding: 10px;">
-        <div class="svc-desk" id="desk-1">
-          <span style="font-weight: 700; font-size: 13px;">Desk 1</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-        <div class="svc-desk" id="desk-2">
-          <span style="font-weight: 700; font-size: 13px;">Desk 2</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-        <div class="svc-desk" id="desk-3">
-          <span style="font-weight: 700; font-size: 13px;">Desk 3</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-        <div class="svc-desk" id="desk-4">
-          <span style="font-weight: 700; font-size: 13px;">Desk 4</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-        <div class="svc-desk" id="desk-5">
-          <span style="font-weight: 700; font-size: 13px;">Desk 5</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-        <div class="svc-desk" id="desk-6">
-          <span style="font-weight: 700; font-size: 13px;">Desk 6</span>
-          <span class="desk-clerk" style="font-size: 10px; color: #718096;"></span>
-          <div class="desk-customer" style="margin-top: 6px;"></div>
-        </div>
-      </div>
-
-      <!-- Path arrows -->
-      <div style="position: absolute; top: 208px; left: 335px; font-size: 16px; color: #a0aec0;">→</div>
-      <div style="position: absolute; top: 135px; left: 220px; font-size: 12px; color: #a0aec0;">↗</div>
-
-      <!-- Legend -->
-      <div style="position: absolute; bottom: 8px; left: 8px; font-size: 10px; color: #718096; display: flex; gap: 10px; background: white; padding: 4px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">
-        <span>🔵 Waiting</span>
-        <span>🟢 Being Served</span>
-        <span>🟡 Pre-screen</span>
-        <span>🟠 Priority</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" id="sim-log" style="display: none;">
-    <h3>Simulation Log</h3>
-    <div id="sim-log-entries" style="font-size: 12px; font-family: monospace; max-height: 200px; overflow-y: auto;"></div>
-  </div>
-</div>
 
 <script>
 function showView(id) {
@@ -627,7 +533,6 @@ function showView(id) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('view-' + id).classList.add('active');
   document.getElementById('nav-' + id).classList.add('active');
-  if (id === 'office') refreshOfficeView();
 }
 
 function showToast(msg, isError) {
@@ -1301,149 +1206,6 @@ async function loadLiveQueue() {
   }
 }
 loadLiveQueue();
-
-// Office View — top-down animated floor plan
-let officeViewInterval = null;
-
-function makeDot(name, color, priority) {
-  const dot = document.createElement('div');
-  dot.style.cssText = 'display: flex; flex-direction: column; align-items: center; transition: all 0.6s ease;';
-  dot.innerHTML = '<div style="width: 24px; height: 24px; border-radius: 50%; background: ' + color + '; border: 2px solid ' + (priority ? '#ed8936' : 'white') + '; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; font-weight: 700;">' +
-    name.charAt(0) + '</div>' +
-    '<span style="font-size: 9px; color: #4a5568; margin-top: 2px; white-space: nowrap;">' + name.split(' ')[0] + '</span>';
-  return dot;
-}
-
-function simLog(msg) {
-  const log = document.getElementById('sim-log');
-  const entries = document.getElementById('sim-log-entries');
-  log.style.display = '';
-  const line = document.createElement('div');
-  line.style.cssText = 'padding: 3px 0; border-bottom: 1px solid #eee;';
-  line.textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' — ' + msg;
-  entries.prepend(line);
-}
-
-async function refreshOfficeView() {
-  try {
-    const res = await fetch('/api/live-queue');
-    const { queue, clerks } = await res.json();
-
-    document.getElementById('waiting-area-dots').innerHTML = '';
-    document.getElementById('prescreen-zone-dots').innerHTML = '';
-    document.querySelectorAll('.desk-customer').forEach(el => el.innerHTML = '');
-    document.querySelectorAll('.desk-clerk').forEach(el => el.textContent = '');
-    document.querySelectorAll('.svc-desk').forEach(el => { el.style.background = '#f0fff4'; el.style.borderColor = '#c6f6d5'; });
-
-    clerks.forEach(c => {
-      const desk = document.getElementById('desk-' + c.desk_number);
-      if (!desk) return;
-      desk.querySelector('.desk-clerk').textContent = c.name;
-      if (!c.is_available) {
-        desk.style.background = '#ebf8ff';
-        desk.style.borderColor = '#90cdf4';
-      }
-    });
-
-    queue.forEach(q => {
-      const name = q.first_name + ' ' + q.last_name.charAt(0) + '.';
-      const isPriority = q.is_priority;
-      if (q.status === 'serving' && q.assigned_desk) {
-        const desk = document.getElementById('desk-' + q.assigned_desk);
-        if (desk) {
-          desk.querySelector('.desk-customer').appendChild(makeDot(name, '#38a169', isPriority));
-          desk.style.background = '#ebf8ff';
-          desk.style.borderColor = '#4299e1';
-        }
-      } else {
-        document.getElementById('waiting-area-dots').appendChild(
-          makeDot(name, isPriority ? '#ed8936' : '#4299e1', isPriority)
-        );
-      }
-    });
-
-    // Show a couple prescreen-pending as decoration
-    const apptRes = await fetch('/api/sample-customers');
-    const appts = await apptRes.json();
-    let n = 0;
-    appts.forEach(a => {
-      if (!a.prescreen_completed && n < 3) {
-        document.getElementById('prescreen-zone-dots').appendChild(
-          makeDot(a.first_name + ' ' + a.last_name.charAt(0) + '.', '#d69e2e', false)
-        );
-        n++;
-      }
-    });
-  } catch (e) { console.error('Office view error:', e); }
-}
-
-async function resetSimulation() {
-  await fetch('/api/sim/reset', { method: 'POST' });
-  document.getElementById('sim-log-entries').innerHTML = '';
-  simLog('Simulation reset — queue cleared, clerks logged out');
-  refreshOfficeView();
-}
-
-async function runSimulation() {
-  simLog('Starting simulation...');
-
-  // 1. Reset
-  await fetch('/api/sim/reset', { method: 'POST' });
-  simLog('Queue and sessions cleared');
-  await refreshOfficeView();
-  await sleep(800);
-
-  // 2. Log in 3 clerks
-  const clerkRes = await fetch('/api/sim/login-clerks', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ officeId: 1, count: 3 })
-  });
-  const clerkData = await clerkRes.json();
-  simLog('Logged in ' + clerkData.clerks.length + ' clerks at desks 1-3');
-  await refreshOfficeView();
-  await sleep(1000);
-
-  // 3. Check in 3 customers from today's appointments
-  const custRes = await fetch('/api/sample-customers');
-  const customers = await custRes.json();
-  const toCheckIn = customers.slice(0, 3);
-
-  for (const cust of toCheckIn) {
-    const ciRes = await fetch('/api/check-in', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ appointmentId: cust.id, officeId: 1 })
-    });
-    const ciData = await ciRes.json();
-    if (ciData.ok) {
-      simLog(cust.first_name + ' ' + cust.last_name + ' checked in → Queue #' + ciData.queueNumber);
-    } else {
-      simLog('Check-in failed for ' + cust.first_name + ': ' + (ciData.error || 'unknown'));
-    }
-    await refreshOfficeView();
-    await sleep(1200);
-  }
-
-  simLog('All 3 customers waiting. Assigning to clerks...');
-  await sleep(1500);
-
-  // 4. Each clerk calls next
-  for (const clerk of clerkData.clerks) {
-    const aRes = await fetch('/api/sim/assign', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ clerkId: clerk.clerkId, officeId: 1 })
-    });
-    const aData = await aRes.json();
-    if (aData.assigned) {
-      simLog(aData.first_name + ' ' + aData.last_name + ' → Desk ' + aData.assigned_desk);
-    } else {
-      simLog('Desk ' + clerk.desk + ': no one in queue');
-    }
-    await refreshOfficeView();
-    await sleep(1200);
-  }
-
-  simLog('All customers being served!');
-}
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
