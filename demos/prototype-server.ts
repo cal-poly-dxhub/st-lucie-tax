@@ -128,7 +128,7 @@ app.post("/api/search-name", async (req, res) => {
   try {
     const query = String(req.body?.query ?? "").trim();
     const officeId = parseInt(req.body?.officeId) || 1;
-    const date = req.body?.date || new Date().toISOString().slice(0, 10);
+    const date = req.body?.date || "2026-06-24";
     if (!query) return res.status(400).json({ error: "query required" });
 
     const results = await lookupByName(pool, query, officeId, date);
@@ -139,17 +139,29 @@ app.post("/api/search-name", async (req, res) => {
   }
 });
 
-app.post("/api/send-confirmation", async (_req, res) => {
+app.post("/api/send-confirmation", async (req, res) => {
   const qrCode = randomUUID();
-  console.log("send-confirmation: qrCode=", qrCode);
+  const prescreen = req.body?.prescreen ?? true;
+  const identity = req.body?.identity ?? false;
+  const docsConfig = req.body?.docs ?? "mixed";
+  console.log(
+    "send-confirmation: qrCode=",
+    qrCode,
+    "prescreen=",
+    prescreen,
+    "identity=",
+    identity,
+    "docs=",
+    docsConfig,
+  );
 
   try {
     const { rows } = await pool.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
         txn_type_ids, required_doc_ids, appointment_date, appointment_time,
-        qr_code, status, is_walk_in
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        qr_code, status, is_walk_in, prescreen_completed, identity_verified
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id`,
       [
         1,
@@ -158,16 +170,42 @@ app.post("/api/send-confirmation", async (_req, res) => {
         EMAIL,
         "772-555-0001",
         [1],
-        ["photo_id", "insurance_card"],
+        ["photo_id", "insurance_card", "proof_address"],
         "2026-06-24",
         "09:30",
         qrCode,
         "scheduled",
         false,
+        prescreen,
+        identity,
       ],
     );
     const appointmentId = rows[0].id;
     console.log("send-confirmation: appointmentId=", appointmentId);
+
+    // Insert documents based on config
+    const docDefs: { docId: string; name: string; status: string | null }[] = [];
+    if (docsConfig === "mixed") {
+      docDefs.push({ docId: "photo_id", name: "Photo ID", status: "accept" });
+      docDefs.push({ docId: "insurance_card", name: "Insurance Card", status: "reject" });
+      // proof_address not uploaded (pending)
+    } else if (docsConfig === "all-accepted") {
+      docDefs.push({ docId: "photo_id", name: "Photo ID", status: "accept" });
+      docDefs.push({ docId: "insurance_card", name: "Insurance Card", status: "accept" });
+      docDefs.push({ docId: "proof_address", name: "Proof of Residency", status: "accept" });
+    } else if (docsConfig === "all-pending") {
+      // All required but none uploaded — no document rows
+    } else if (docsConfig === "none") {
+      // No docs at all
+    }
+
+    for (const doc of docDefs) {
+      await pool.query(
+        `INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
+         VALUES ($1, $2, $3, $4)`,
+        [appointmentId, doc.docId, doc.name, doc.status],
+      );
+    }
 
     const qrDataUrl = await QRCode.toDataURL(qrCode, {
       errorCorrectionLevel: "M",
@@ -240,7 +278,12 @@ app.post("/api/send-prescreen", async (req, res) => {
       }
     }
 
-    const prescreenUrl = `${BASE_URL}/prescreen/${qrCode}`;
+    const autoCheckIn = req.body?.autoCheckIn || false;
+    const priority = req.body?.priority || false;
+    let prescreenUrl = `${BASE_URL}/prescreen/${qrCode}`;
+    if (autoCheckIn) {
+      prescreenUrl += `?autoCheckIn=1${priority ? "&priority=1" : ""}`;
+    }
 
     const html = `<p>Hi ${firstName},</p>
 <p>Please complete your pre-screen questions before your appointment:</p>
@@ -271,7 +314,7 @@ St. Lucie County Tax Collector`;
   }
 });
 
-// ─── Sample customers for testing (shows QR codes for lookup) ───────────────
+// ─── Sample customers for testing (returns Jane Smith appointments) ──────────
 app.get("/api/sample-customers", async (_req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -282,9 +325,9 @@ app.get("/api/sample-customers", async (_req, res) => {
         (SELECT COUNT(*)::int FROM documents d WHERE d.appointment_id = a.id AND d.ai_review_status = 'accept') AS accepted,
         (SELECT COUNT(*)::int FROM documents d WHERE d.appointment_id = a.id AND d.ai_review_status = 'reject') AS rejected
       FROM appointments a
-      WHERE a.appointment_date = '2026-05-13' AND a.office_id = 1
-      ORDER BY a.id
-      LIMIT 12
+      WHERE a.first_name = 'Jane' AND a.last_name = 'Smith'
+      ORDER BY a.id DESC
+      LIMIT 1
     `);
     res.json(rows);
   } catch (err: unknown) {
@@ -292,11 +335,125 @@ app.get("/api/sample-customers", async (_req, res) => {
   }
 });
 
+// ─── Seed queue: create 5 customers and check them in ───────────────────────
+app.post("/api/seed-queue", async (_req, res) => {
+  try {
+    // Clear existing queue
+    await pool.query(`DELETE FROM queue`);
+    await pool.query(`DELETE FROM queue_counters`);
+
+    const customers = [
+      {
+        first: "Robert",
+        last: "Garcia",
+        txn: [2],
+        docs: ["birth_cert", "proof_address", "ssn_proof"],
+        allDocsValid: true,
+      },
+      {
+        first: "Patricia",
+        last: "Wilson",
+        txn: [3],
+        docs: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+        allDocsValid: true,
+      },
+      {
+        first: "Michael",
+        last: "Johnson",
+        txn: [1],
+        docs: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+        allDocsValid: true,
+      },
+      {
+        first: "Linda",
+        last: "Martinez",
+        txn: [2],
+        docs: ["birth_cert", "proof_address", "ssn_proof"],
+        allDocsValid: false,
+      },
+      {
+        first: "David",
+        last: "Anderson",
+        txn: [3],
+        docs: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+        allDocsValid: true,
+      },
+    ];
+
+    const officeId = 1;
+    const apptDate = "2026-06-24";
+    const results = [];
+
+    for (let i = 0; i < customers.length; i++) {
+      const c = customers[i];
+      const qrCode = randomUUID();
+      const minutes = i * 15;
+      const time = `${String(9 + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+      // Create appointment with 'scheduled' status
+      const { rows } = await pool.query(
+        `INSERT INTO appointments (
+          office_id, first_name, last_name, contact_email, contact_phone,
+          txn_type_ids, required_doc_ids, appointment_date, appointment_time,
+          qr_code, status, is_walk_in, prescreen_completed, identity_verified
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING id`,
+        [
+          officeId,
+          c.first,
+          c.last,
+          `${c.first.toLowerCase()}.${c.last.toLowerCase()}@email.com`,
+          `772-555-${String(100 + i).padStart(4, "0")}`,
+          c.txn,
+          c.docs,
+          apptDate,
+          time,
+          qrCode,
+          "scheduled",
+          false,
+          true, // all have prescreen done
+          true, // all identity verified
+        ],
+      );
+      const appointmentId = rows[0].id;
+
+      // Insert documents
+      for (let d = 0; d < c.docs.length; d++) {
+        const docId = c.docs[d];
+        let status = "accept";
+        if (!c.allDocsValid && d === c.docs.length - 1) {
+          status = "reject";
+        }
+        const { rows: regRows } = await pool.query(
+          `SELECT name FROM document_registry WHERE doc_id = $1`,
+          [docId],
+        );
+        const docName = regRows[0]?.name || docId;
+        await pool.query(
+          `INSERT INTO documents (appointment_id, doc_id, name, ai_review_status, clerk_validated)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [appointmentId, docId, docName, status, c.allDocsValid],
+        );
+      }
+
+      // Check in to queue
+      const queueResult = await checkInToQueue(pool, officeId, appointmentId, undefined);
+      results.push({ name: `${c.first} ${c.last}`, queueNumber: queueResult.queueNumber });
+    }
+
+    res.json({ ok: true, seeded: results });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("seed-queue error:", msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
 // ─── Live queue state (reads from queue + clerk_sessions tables) ─────────────
 app.get("/api/live-queue", async (_req, res) => {
   try {
     const queue = await pool.query(`
-      SELECT q.id, q.queue_number, q.status, q.assigned_desk, q.notes,
+      SELECT q.id, q.appointment_id, q.queue_number, q.status, q.assigned_desk, q.notes,
              q.checked_in_at, q.served_at,
              a.first_name, a.last_name, a.is_priority, a.txn_type_ids
       FROM queue q
@@ -367,6 +524,80 @@ app.post("/api/check-in", async (req, res) => {
   }
 });
 
+// ─── Walk-in registration (create appointment + check in) ──────────────────
+app.post("/api/walk-in", async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, txns, prescreen, priority, notes } = req.body;
+    // TODO: validate email format and phone number format
+    if (!firstName || !lastName || !txns?.length)
+      return res.status(400).json({ error: "firstName, lastName, and txns required" });
+
+    // TODO: pull required docs per txn type from the database instead of hardcoding
+    const txnDocMap: Record<string, string[]> = {
+      road_test: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+      id_card: ["birth_cert", "proof_address", "ssn_proof"],
+      license_original: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+    };
+    const txnIdMap: Record<string, number> = { road_test: 1, id_card: 2, license_original: 3 };
+
+    const txnTypeIds = txns.map((t: string) => txnIdMap[t]).filter(Boolean);
+    const seen = new Set<string>();
+    const requiredDocs: string[] = [];
+    for (const t of txns as string[]) {
+      for (const d of txnDocMap[t] || []) {
+        if (!seen.has(d)) {
+          seen.add(d);
+          requiredDocs.push(d);
+        }
+      }
+    }
+
+    const officeId = 1;
+    const qrCode = randomUUID();
+
+    const { rows } = await pool.query(
+      `INSERT INTO appointments (
+        office_id, first_name, last_name, contact_email, contact_phone,
+        txn_type_ids, required_doc_ids, appointment_date, appointment_time,
+        qr_code, status, is_walk_in, prescreen_completed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING id`,
+      [
+        officeId,
+        firstName,
+        lastName,
+        email || `${firstName.toLowerCase()}.${lastName.toLowerCase()}@walkin.local`,
+        phone || "",
+        txnTypeIds,
+        requiredDocs,
+        "2026-06-24",
+        "09:00",
+        qrCode,
+        "scheduled",
+        true,
+        !!prescreen,
+      ],
+    );
+    const appointmentId = rows[0].id;
+
+    if (priority) {
+      await setAppointmentPriority(pool, appointmentId, true);
+    }
+
+    if (!prescreen) {
+      // Prescreen not done — don't check in yet; auto check-in happens after prescreen submission
+      return res.json({ ok: true, appointmentId, pendingPrescreen: true });
+    }
+
+    const result = await checkInToQueue(pool, officeId, appointmentId, notes || undefined);
+    res.json({ ok: true, appointmentId, queueId: result.queueId, queueNumber: result.queueNumber });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("walk-in error:", msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
 // ─── Prescreen page (served as HTML) ─────────────────────────────────────────
 app.get("/prescreen/:qrCode", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "prescreen.html"));
@@ -400,7 +631,7 @@ app.get("/api/prescreen/:qrCode", async (req, res) => {
   }
 });
 
-// ─── Prescreen API: submit responses ─────────────────────────────────────────
+// ─── Prescreen API: submit responses (auto check-in if flagged) ─────────────
 app.post("/api/prescreen/:qrCode/submit", async (req, res) => {
   try {
     const qrCode = req.params.qrCode;
@@ -409,7 +640,44 @@ app.post("/api/prescreen/:qrCode/submit", async (req, res) => {
 
     const responses: Record<string, boolean> = req.body?.responses || {};
     await savePrescreenResponses(pool, match.appointmentId, responses);
+
+    const autoCheckIn: boolean = req.body?.autoCheckIn || false;
+    const priority: boolean = req.body?.priority || false;
+
+    if (autoCheckIn) {
+      if (priority) {
+        await setAppointmentPriority(pool, match.appointmentId, true);
+      }
+      const queueResult = await checkInToQueue(
+        pool,
+        match.officeId,
+        match.appointmentId,
+        undefined,
+      );
+      return res.json({ ok: true, checkedIn: true, queueNumber: queueResult.queueNumber });
+    }
+
     res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Service Clerk: list clerks for an office (with skills) ─────────────────
+app.get("/api/clerks", async (req, res) => {
+  try {
+    const officeId = parseInt(req.query.officeId as string) || 1;
+    const { rows } = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.skill_ids,
+              array_agg(tt.name ORDER BY tt.id) FILTER (WHERE tt.id IS NOT NULL) AS skill_names
+       FROM clerks c
+       LEFT JOIN transaction_types tt ON tt.id = ANY(c.skill_ids)
+       WHERE $1 = ANY(c.office_ids) AND c.status = 'active'
+       GROUP BY c.id
+       ORDER BY c.id`,
+      [officeId],
+    );
+    res.json({ clerks: rows });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -423,6 +691,11 @@ app.post("/api/clerk/login", async (req, res) => {
       return res.status(400).json({ error: "clerkId, officeId, deskNumber required" });
     const result = await clerkLogin(pool, clerkId, officeId, deskNumber);
     if (!result.ok && result.error === "already_logged_in") {
+      await pool.query(
+        `UPDATE clerk_sessions SET is_available = TRUE, desk_number = $3
+         WHERE clerk_id = $1 AND office_id = $2 AND logged_out_at IS NULL`,
+        [clerkId, officeId, deskNumber],
+      );
       return res.json({ ok: true, note: "already_logged_in" });
     }
     if (!result.ok) return res.json({ ok: false, error: result.error });

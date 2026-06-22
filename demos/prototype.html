@@ -1,1467 +1,2839 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>St. Lucie Tax Collector - Workflow Prototype</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>St. Lucie Tax Collector - Workflow Prototype</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+      }
 
-    nav { background: #1a365d; color: white; padding: 12px 24px; display: flex; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
-    nav button { background: #2d4a7a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    nav button:hover { background: #3d5a8a; }
-    nav button.active { background: #4299e1; }
-    nav .title { font-weight: 700; font-size: 16px; margin-right: 16px; line-height: 34px; }
+      nav {
+        background: #1a365d;
+        color: white;
+        padding: 12px 24px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      nav button {
+        background: #2d4a7a;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      nav button:hover {
+        background: #3d5a8a;
+      }
+      nav button.active {
+        background: #4299e1;
+      }
+      nav .title {
+        font-weight: 700;
+        font-size: 16px;
+        margin-right: 16px;
+        line-height: 34px;
+      }
 
-    .view { display: none; max-width: 900px; margin: 24px auto; padding: 0 16px; }
-    .view.active { display: block; }
+      .view {
+        display: none;
+        max-width: 900px;
+        margin: 24px auto;
+        padding: 0 16px;
+      }
+      .view.active {
+        display: block;
+      }
 
-    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card h2 { font-size: 18px; margin-bottom: 12px; color: #1a365d; }
-    .card h3 { font-size: 15px; margin-bottom: 8px; color: #2d4a7a; }
-    .card p { font-size: 14px; color: #555; margin-bottom: 8px; line-height: 1.5; }
+      .card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .card h2 {
+        font-size: 18px;
+        margin-bottom: 12px;
+        color: #1a365d;
+      }
+      .card h3 {
+        font-size: 15px;
+        margin-bottom: 8px;
+        color: #2d4a7a;
+      }
+      .card p {
+        font-size: 14px;
+        color: #555;
+        margin-bottom: 8px;
+        line-height: 1.5;
+      }
 
-    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #333; }
-    input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
-    textarea { resize: vertical; min-height: 60px; }
-    button.btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
-    .btn-primary { background: #4299e1; color: white; }
-    .btn-primary:hover { background: #3182ce; }
-    .btn-success { background: #48bb78; color: white; }
-    .btn-success:hover { background: #38a169; }
-    .btn-warning { background: #ed8936; color: white; }
-    .btn-warning:hover { background: #dd6b20; }
-    .btn-sm { padding: 6px 12px; font-size: 12px; }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #333;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 60px;
+      }
+      button.btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .btn-primary {
+        background: #4299e1;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #3182ce;
+      }
+      .btn-success {
+        background: #48bb78;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #38a169;
+      }
+      .btn-warning {
+        background: #ed8936;
+        color: white;
+      }
+      .btn-warning:hover {
+        background: #dd6b20;
+      }
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
 
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #f7fafc; font-weight: 600; color: #4a5568; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        padding: 8px 12px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+      th {
+        background: #f7fafc;
+        font-weight: 600;
+        color: #4a5568;
+      }
 
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .badge-green { background: #c6f6d5; color: #276749; }
-    .badge-yellow { background: #fefcbf; color: #975a16; }
-    .badge-red { background: #fed7d7; color: #9b2c2c; }
-    .badge-blue { background: #bee3f8; color: #2a4365; }
-    .badge-gray { background: #e2e8f0; color: #4a5568; }
+      .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .badge-green {
+        background: #c6f6d5;
+        color: #276749;
+      }
+      .badge-yellow {
+        background: #fefcbf;
+        color: #975a16;
+      }
+      .badge-red {
+        background: #fed7d7;
+        color: #9b2c2c;
+      }
+      .badge-blue {
+        background: #bee3f8;
+        color: #2a4365;
+      }
+      .badge-gray {
+        background: #e2e8f0;
+        color: #4a5568;
+      }
 
-    .qr-img { width: 120px; height: 120px; margin: 12px auto; display: block; }
+      .qr-img {
+        width: 120px;
+        height: 120px;
+        margin: 12px auto;
+        display: block;
+      }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 600px) {
+        .grid-2,
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    .queue-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
-    .queue-number { font-size: 24px; font-weight: 700; color: #1a365d; width: 50px; }
-    .queue-info { flex: 1; margin-left: 12px; }
-    .queue-info .name { font-weight: 600; font-size: 14px; }
-    .queue-info .txn { font-size: 12px; color: #718096; }
+      .queue-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 8px;
+      }
+      .queue-number {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a365d;
+        width: 50px;
+      }
+      .queue-info {
+        flex: 1;
+        margin-left: 12px;
+      }
+      .queue-info .name {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .queue-info .txn {
+        font-size: 12px;
+        color: #718096;
+      }
 
-    .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-    .lobby-card { background: #1a365d; color: white; border-radius: 8px; padding: 20px; text-align: center; }
-    .lobby-card .number { font-size: 48px; font-weight: 700; }
-    .lobby-card .station { font-size: 14px; opacity: 0.8; margin-top: 4px; }
-    .lobby-card.calling { background: #38a169; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+      .lobby-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+      }
+      .lobby-card {
+        background: #1a365d;
+        color: white;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+      }
+      .lobby-card .number {
+        font-size: 48px;
+        font-weight: 700;
+      }
+      .lobby-card .station {
+        font-size: 14px;
+        opacity: 0.8;
+        margin-top: 4px;
+      }
+      .lobby-card.calling {
+        background: #38a169;
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
 
-    .doc-item { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
-    .doc-item .doc-icon { width: 36px; height: 36px; background: #edf2f7; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-    .doc-item .doc-info { flex: 1; }
-    .doc-item .doc-name { font-weight: 600; font-size: 13px; }
-    .doc-item .doc-status { font-size: 12px; color: #718096; }
+      .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 8px;
+      }
+      .doc-item .doc-icon {
+        width: 36px;
+        height: 36px;
+        background: #edf2f7;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+      .doc-item .doc-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .doc-item .doc-name {
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .doc-item .doc-status {
+        font-size: 12px;
+        color: #718096;
+      }
+      .doc-item .doc-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+      }
 
-    .steps { display: flex; gap: 4px; margin-bottom: 20px; }
-    .step { flex: 1; text-align: center; padding: 8px; background: #edf2f7; border-radius: 4px; font-size: 12px; font-weight: 600; color: #718096; }
-    .step.active { background: #4299e1; color: white; }
-    .step.done { background: #c6f6d5; color: #276749; }
+      .state-doc-tile {
+        width: 130px;
+        padding: 16px 12px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f7fafc;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: grab;
+        transition:
+          transform 0.1s,
+          box-shadow 0.1s;
+        user-select: none;
+      }
+      .state-doc-tile:hover {
+        border-color: #4299e1;
+        box-shadow: 0 2px 8px rgba(66, 153, 225, 0.2);
+      }
+      .state-doc-tile:active,
+      .state-doc-tile.dragging {
+        transform: scale(0.95);
+        opacity: 0.7;
+        cursor: grabbing;
+      }
 
-    .toggle { display: flex; align-items: center; gap: 8px; }
-    .toggle input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
-    .toggle label { margin: 0; font-size: 14px; }
+      .steps {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+      }
+      .step {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        background: #edf2f7;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #718096;
+      }
+      .step.active {
+        background: #4299e1;
+        color: white;
+      }
+      .step.done {
+        background: #c6f6d5;
+        color: #276749;
+      }
 
-    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a365d; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-    .toast.show { display: block; }
-    .toast.error { background: #e53e3e; }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .toggle input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+      }
+      .toggle label {
+        margin: 0;
+        font-size: 14px;
+      }
 
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
-    .modal-overlay.show { display: flex; }
-    .modal { background: white; border-radius: 8px; padding: 20px; max-width: 80vw; max-height: 80vh; overflow: auto; position: relative; }
-    .modal img, .modal embed { max-width: 100%; max-height: 70vh; display: block; margin: 0 auto; }
-    .modal-close { position: absolute; top: 8px; right: 12px; font-size: 24px; cursor: pointer; color: #555; background: none; border: none; }
-    .modal h3 { margin-bottom: 12px; }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1a365d;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 999;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+      .toast.show {
+        display: block;
+      }
+      .toast.error {
+        background: #e53e3e;
+      }
 
-  </style>
-</head>
-<body>
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 200;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-overlay.show {
+        display: flex;
+      }
+      .modal {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        max-width: 80vw;
+        max-height: 80vh;
+        overflow: auto;
+        position: relative;
+      }
+      .modal img,
+      .modal embed {
+        max-width: 100%;
+        max-height: 70vh;
+        display: block;
+        margin: 0 auto;
+      }
+      .modal-close {
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        font-size: 24px;
+        cursor: pointer;
+        color: #555;
+        background: none;
+        border: none;
+      }
+      .modal h3 {
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <span class="title">St. Lucie Tax Collector</span>
+      <button onclick="showView('confirmation')" id="nav-confirmation">Confirmation</button>
+      <button onclick="showView('checkin')" id="nav-checkin">Check-In Desk</button>
+      <button onclick="showView('walkin')" id="nav-walkin">Walk-In</button>
+      <button onclick="showView('queue')" id="nav-queue">Queue</button>
+      <button onclick="showView('service')" id="nav-service">Service Clerk</button>
+      <button onclick="showView('lobby')" id="nav-lobby">Lobby Display</button>
+      <button onclick="window.open('office-view.html', '_blank')" id="nav-office">
+        Office View
+      </button>
+    </nav>
 
-<nav>
-  <span class="title">St. Lucie Tax Collector</span>
-  <button onclick="showView('confirmation')" id="nav-confirmation">Confirmation</button>
-  <button onclick="showView('checkin')" id="nav-checkin">Check-In Desk</button>
-  <button onclick="showView('walkin')" id="nav-walkin">Walk-In</button>
-  <button onclick="showView('queue')" id="nav-queue">Queue</button>
-  <button onclick="showView('service')" id="nav-service">Service Clerk</button>
-  <button onclick="showView('lobby')" id="nav-lobby">Lobby Display</button>
-  <button onclick="window.open('office-view.html','_blank')" id="nav-office">Office View</button>
-</nav>
+    <div id="toast" class="toast"></div>
 
-<div id="toast" class="toast"></div>
-
-<div class="modal-overlay" id="doc-modal" onclick="closeDocModal(event)">
-  <div class="modal">
-    <button class="modal-close" onclick="closeDocModal()">&times;</button>
-    <h3 id="doc-modal-title">Document</h3>
-    <div id="doc-modal-content"></div>
-  </div>
-</div>
-
-<!-- ========== CONFIRMATION (post-booking) ========== -->
-<div class="view active" id="view-confirmation">
-  <div class="card">
-    <h2>Appointment Confirmed</h2>
-    <p>Customer has booked via AI chatbot. Pre-screen completed. 3 docs submitted (1 accepted, 1 rejected, 1 pending).</p>
-  </div>
-
-  <div class="card">
-    <div class="grid-2">
-      <div>
-        <p><strong>Jane Smith</strong></p>
-        <p><strong>Transaction:</strong> Title Transfer (Out-of-State)</p>
-        <p><strong>Date:</strong> Tuesday, June 24, 2026</p>
-        <p><strong>Time:</strong> 9:30 AM</p>
-        <p><strong>Office:</strong> Port St. Lucie (Crosstown Pkwy)</p>
-        <p><strong>Est. Duration:</strong> 25 min</p>
-        <p><strong>Pre-Screen:</strong> <span class="badge badge-green">Completed</span></p>
-      </div>
-      <div style="text-align: center;">
-        <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=APPT-a1b2c3d4-e5f6" alt="QR Code">
-        <p style="font-size: 12px;">Scan at check-in kiosk or front desk</p>
+    <div class="modal-overlay" id="doc-modal" onclick="closeDocModal(event)">
+      <div class="modal">
+        <button class="modal-close" onclick="closeDocModal()">&times;</button>
+        <h3 id="doc-modal-title">Document</h3>
+        <div id="doc-modal-content"></div>
       </div>
     </div>
-  </div>
 
-  <div class="card">
-    <h3>Document Status</h3>
-    <div class="doc-item">
-      <div class="doc-icon">✅</div>
-      <div class="doc-info">
-        <div class="doc-name">Out-of-State Title (Original)</div>
-        <div class="doc-status">AI Review: <span class="badge badge-green">Accepted</span> — Clear scan, all fields visible</div>
+    <!-- ========== CONFIRMATION (post-booking) ========== -->
+    <div class="view active" id="view-confirmation">
+      <div class="card">
+        <h2>Appointment Confirmed</h2>
+        <p>Customer has booked via AI chatbot. Status reflects the configuration below.</p>
       </div>
-    </div>
-    <div class="doc-item">
-      <div class="doc-icon">❌</div>
-      <div class="doc-info">
-        <div class="doc-name">Photo ID (Driver License)</div>
-        <div class="doc-status">AI Review: <span class="badge badge-red">Rejected</span> — Image is blurry, please re-upload</div>
-      </div>
-    </div>
-    <div class="doc-item">
-      <div class="doc-icon">⏳</div>
-      <div class="doc-info">
-        <div class="doc-name">Proof of FL Insurance</div>
-        <div class="doc-status"><span class="badge badge-yellow">Pending upload</span></div>
-      </div>
-    </div>
-  </div>
 
-  <div class="card">
-    <h3>Send Confirmation Email</h3>
-    <p>Sends appointment confirmation with embedded QR code to njriley@calpoly.edu</p>
-    <button class="btn btn-primary" onclick="sendConfirmation()">Send Confirmation Email</button>
-  </div>
-
-  <div class="card">
-    <h3>Test Customers (for QR Lookup)</h3>
-    <p style="font-size: 12px; color: #718096; margin-bottom: 10px;">Click a QR code to copy it, then paste into Check-In Desk scan field.</p>
-    <div id="sample-customers" style="font-size: 12px;">Loading...</div>
-  </div>
-</div>
-
-<!-- ========== CHECK-IN DESK ========== -->
-<div class="view" id="view-checkin">
-  <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
-    <div>
-      <h2>Check-In Desk</h2>
-      <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
-    </div>
-    <div style="flex-shrink: 0; margin-left: 16px; padding: 12px 24px; background: #fefcbf; border: 2px dashed #d69e2e; border-radius: 8px; font-size: 14px; font-weight: 700; color: #975a16; text-align: center;">PLACEHOLDER: Schedule View / Adjustment Screen</div>
-  </div>
-
-  <div class="card">
-    <h3>Scan / Lookup</h3>
-    <div class="grid-2">
-      <div>
-        <label>Scan QR Code</label>
-        <div id="qr-reader" style="width: 100%; max-width: 300px; margin-bottom: 8px;"></div>
-        <button class="btn btn-primary btn-sm" onclick="startScanner()">Start Camera</button>
-        <button class="btn btn-sm" style="background: #eee; margin-left: 4px;" onclick="stopScanner()">Stop</button>
-        <input type="text" id="qr-result" placeholder="e.g. UUID..." style="margin-top: 8px;" onkeydown="if(event.key==='Enter')lookupByQr()">
-        <button class="btn btn-primary btn-sm" onclick="lookupByQr()">Lookup</button>
-        <p style="font-size: 11px; color: #718096; margin-top: 4px;">Searches the database by QR code via <code>lookupByQrCode</code>. Seed QR codes are UUIDs (auto-generated).</p>
-      </div>
-      <div>
-        <label>Or Search by Name</label>
-        <input type="text" id="name-search" placeholder="First or last name..." onkeydown="if(event.key==='Enter')searchByName()">
-        <button class="btn btn-sm" onclick="searchByName()">Search</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Today's Appointments</h3>
-    <p style="font-size: 12px; color: #718096; margin-bottom: 8px;">Click a row to load the customer record.</p>
-    <div id="todays-queue" style="font-size: 12px;">Loading...</div>
-  </div>
-
-  <!-- Dynamic record: populated by lookupByQr() or row click from the real database -->
-  <div id="checkin-empty" class="card" style="display: none;">
-    <p style="color: #718096; text-align: center; margin: 0;">Select a customer above or scan a QR code to load their record.</p>
-  </div>
-
-  <div id="checkin-record" style="display: none;">
-    <div class="card" style="padding: 0; overflow: hidden;">
-      <!-- Header bar -->
-      <div style="background: #1a365d; color: white; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;">
-        <div>
-          <h3 id="rec-name" style="color: white; margin: 0; font-size: 16px;">Customer Record</h3>
-          <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">
-            Appt <span id="rec-appt-id">—</span> · <span id="rec-office-id">—</span> · <span id="rec-status" class="badge badge-blue" style="font-size: 10px;">—</span>
+      <div class="card">
+        <h3>Jane Smith — Demo Configuration</h3>
+        <p style="font-size: 12px; color: #718096; margin-bottom: 12px">
+          Adjust Jane's status for the demo. Changes take effect on next "Send Confirmation Email"
+          (re-seeds her appointment).
+        </p>
+        <div class="grid-3">
+          <div>
+            <label>Pre-Screen</label>
+            <select id="cfg-prescreen">
+              <option value="true" selected>Completed</option>
+              <option value="false">Not completed</option>
+            </select>
+          </div>
+          <div>
+            <label>Identity Verified</label>
+            <select id="cfg-identity">
+              <option value="false" selected>Not verified</option>
+              <option value="true">Verified</option>
+            </select>
+          </div>
+          <div>
+            <label>Docs Status</label>
+            <select id="cfg-docs">
+              <option value="mixed" selected>1 accepted, 1 rejected, 1 pending</option>
+              <option value="all-accepted">All accepted</option>
+              <option value="all-pending">All pending upload</option>
+              <option value="none">No docs uploaded</option>
+            </select>
           </div>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <span id="rec-prescreen" class="badge badge-yellow">—</span>
-          <span id="rec-doc-summary" class="badge badge-gray">—</span>
+      </div>
+
+      <div class="card">
+        <div class="grid-2">
+          <div>
+            <p><strong>Jane Smith</strong></p>
+            <p><strong>Transaction:</strong> Title Transfer (Out-of-State)</p>
+            <p><strong>Date:</strong> Tuesday, June 24, 2026</p>
+            <p><strong>Time:</strong> 9:30 AM</p>
+            <p><strong>Office:</strong> Port St. Lucie (Crosstown Pkwy)</p>
+            <p><strong>Est. Duration:</strong> 25 min</p>
+            <p>
+              <strong>Pre-Screen:</strong> <span class="badge" id="cfg-prescreen-badge">—</span>
+            </p>
+            <p><strong>Identity:</strong> <span class="badge" id="cfg-identity-badge">—</span></p>
+          </div>
+          <div style="text-align: center">
+            <img
+              class="qr-img"
+              id="cfg-qr-img"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=APPT-jane-smith-placeholder"
+              alt="QR Code"
+            />
+            <p style="font-size: 12px">Scan at check-in kiosk or front desk</p>
+            <p style="font-size: 11px; color: #718096" id="cfg-qr-code-text">
+              Send confirmation to generate QR
+            </p>
+          </div>
+        </div>
+        <div style="margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 14px">
+          <div style="font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 8px">
+            Document Status
+          </div>
+          <div id="cfg-doc-status"></div>
         </div>
       </div>
 
-      <div style="padding: 16px 20px;">
-        <!-- Identity verification row -->
-        <div id="checkin-identity-card" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fffbeb; border: 1px solid #fbd38d; border-radius: 6px; margin-bottom: 14px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 18px;">🪪</span>
+      <div class="card">
+        <h3>Send Confirmation Email</h3>
+        <p>
+          Creates Jane's appointment in DB with the configured status and sends confirmation email
+          to njriley@calpoly.edu
+        </p>
+        <button class="btn btn-primary" onclick="sendConfirmation()">
+          Send Confirmation Email
+        </button>
+      </div>
+    </div>
+
+    <!-- ========== CHECK-IN DESK ========== -->
+    <div class="view" id="view-checkin">
+      <div class="card" style="display: flex; align-items: center; justify-content: space-between">
+        <div>
+          <h2>Check-In Desk</h2>
+          <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
+        </div>
+        <div
+          style="
+            flex-shrink: 0;
+            margin-left: 16px;
+            padding: 12px 24px;
+            background: #fefcbf;
+            border: 2px dashed #d69e2e;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #975a16;
+            text-align: center;
+          "
+        >
+          PLACEHOLDER: Schedule View / Adjustment Screen
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Scan / Lookup</h3>
+        <div class="grid-2">
+          <div>
+            <label>Scan QR Code</label>
+            <div id="qr-reader" style="width: 100%; max-width: 300px; margin-bottom: 8px"></div>
+            <button class="btn btn-primary btn-sm" onclick="startScanner()">Start Camera</button>
+            <button
+              class="btn btn-sm"
+              style="background: #eee; margin-left: 4px"
+              onclick="stopScanner()"
+            >
+              Stop
+            </button>
+            <input
+              type="text"
+              id="qr-result"
+              placeholder="e.g. UUID..."
+              style="margin-top: 8px"
+              onkeydown="if (event.key === 'Enter') lookupByQr();"
+            />
+            <button class="btn btn-primary btn-sm" onclick="lookupByQr()">Lookup</button>
+            <p style="font-size: 11px; color: #718096; margin-top: 4px">
+              Searches the database by QR code via <code>lookupByQrCode</code>. Seed QR codes are
+              UUIDs (auto-generated).
+            </p>
+          </div>
+          <div>
+            <label>Or Search by Name</label>
+            <input
+              type="text"
+              id="name-search"
+              placeholder="First or last name..."
+              onkeydown="if (event.key === 'Enter') searchByName();"
+            />
+            <button class="btn btn-sm" onclick="searchByName()">Search</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic record: populated by lookupByQr() or row click from the real database -->
+      <div id="checkin-empty" class="card" style="display: none">
+        <p style="color: #718096; text-align: center; margin: 0">
+          Select a customer above or scan a QR code to load their record.
+        </p>
+      </div>
+
+      <div id="checkin-record" style="display: none">
+        <div class="card" style="padding: 0; overflow: hidden">
+          <!-- Header bar -->
+          <div
+            style="
+              background: #1a365d;
+              color: white;
+              padding: 14px 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            "
+          >
             <div>
-              <div style="font-size: 13px; font-weight: 600;">Identity Verification</div>
-              <div style="font-size: 11px; color: #718096;">Verify photo ID in person</div>
+              <h3 id="rec-name" style="color: white; margin: 0; font-size: 16px">
+                Customer Record
+              </h3>
+              <div style="font-size: 12px; opacity: 0.8; margin-top: 2px">
+                Appt <span id="rec-appt-id">—</span> · <span id="rec-office-id">—</span> ·
+                <span id="rec-status" class="badge badge-blue" style="font-size: 10px">—</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center">
+              <span id="rec-prescreen" class="badge badge-yellow">—</span>
+              <span id="rec-doc-summary" class="badge badge-gray">—</span>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span id="rec-identity" class="badge badge-yellow">Not verified</span>
-            <button class="btn btn-success btn-sm" onclick="verifyIdentityUnified()">Verify</button>
-          </div>
-        </div>
 
-        <!-- Prescreen row -->
-        <div id="checkin-prescreen-card" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 6px; margin-bottom: 14px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 18px;">📋</span>
-            <div>
-              <div style="font-size: 13px; font-weight: 600;">Pre-Screen Questions</div>
-              <div style="font-size: 11px; color: #718096;">Required before service</div>
+          <div style="padding: 16px 20px">
+            <!-- Identity verification row -->
+            <div
+              id="checkin-identity-card"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 14px;
+                background: #fffbeb;
+                border: 1px solid #fbd38d;
+                border-radius: 6px;
+                margin-bottom: 14px;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="font-size: 18px">🪪</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600">Identity Verification</div>
+                  <div style="font-size: 11px; color: #718096">Verify photo ID in person</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px">
+                <span id="rec-identity" class="badge badge-yellow">Not verified</span>
+                <button class="btn btn-success btn-sm" onclick="verifyIdentityUnified()">
+                  Verify
+                </button>
+              </div>
+            </div>
+
+            <!-- Prescreen row -->
+            <div
+              id="checkin-prescreen-card"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 14px;
+                background: #fff5f5;
+                border: 1px solid #feb2b2;
+                border-radius: 6px;
+                margin-bottom: 14px;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="font-size: 18px">📋</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600">Pre-Screen Questions</div>
+                  <div style="font-size: 11px; color: #718096">Required before service</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px">
+                <span id="rec-prescreen-inline" class="badge badge-red">Not completed</span>
+              </div>
+            </div>
+
+            <!-- Documents section -->
+            <!-- TODO: wire scan to uploadDocument (src/documents.ts) to upload to S3 -->
+            <div style="margin-bottom: 14px">
+              <div style="font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 8px">
+                Documents
+              </div>
+              <div id="rec-docs"></div>
+            </div>
+
+            <!-- Ready indicator -->
+            <div
+              id="ready-indicator"
+              style="
+                display: none;
+                padding: 12px 16px;
+                background: #f0fff4;
+                border: 2px solid #48bb78;
+                border-radius: 8px;
+                margin-bottom: 12px;
+                text-align: center;
+              "
+            >
+              <div style="font-size: 24px; margin-bottom: 4px">✅</div>
+              <div style="font-size: 14px; font-weight: 700; color: #276749">READY FOR QUEUE</div>
+              <div style="font-size: 11px; color: #718096">
+                Identity verified · Pre-screen done · All docs validated
+              </div>
+            </div>
+            <div
+              id="not-ready-indicator"
+              style="
+                display: none;
+                padding: 10px 14px;
+                background: #fff5f5;
+                border: 1px solid #feb2b2;
+                border-radius: 8px;
+                margin-bottom: 12px;
+              "
+            >
+              <div style="font-size: 12px; font-weight: 600; color: #9b2c2c">
+                ⚠ Not ready — missing:
+              </div>
+              <ul
+                id="not-ready-list"
+                style="font-size: 11px; color: #742a2a; margin: 4px 0 0 16px; padding: 0"
+              ></ul>
+            </div>
+
+            <!-- Notes row -->
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 12px">
+              <textarea
+                id="rec-notes"
+                placeholder="Notes for service clerk..."
+                style="min-height: 44px; font-size: 13px; margin-bottom: 10px"
+              ></textarea>
+              <div id="checkin-buttons"></div>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span id="rec-prescreen-inline" class="badge badge-red">Not completed</span>
-            <button id="rec-send-prescreen-btn" class="btn btn-warning btn-sm" onclick="sendPrescreenForRecord()">Send Link</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== WALK-IN ========== -->
+    <div class="view" id="view-walkin">
+      <div class="card">
+        <h2>Walk-In Registration</h2>
+        <p>
+          Customer arrives without appointment. Clerk captures all info that online flow would have
+          collected.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Customer Information</h3>
+        <div class="grid-2">
+          <div>
+            <label>First Name</label>
+            <input type="text" placeholder="First name" />
+            <label>Last Name</label>
+            <input type="text" placeholder="Last name" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input type="email" placeholder="email@example.com" />
+            <label>Phone</label>
+            <input type="tel" placeholder="(555) 123-4567" />
           </div>
         </div>
+      </div>
 
-        <!-- Documents section -->
-        <!-- TODO: wire scan to uploadDocument (src/documents.ts) to upload to S3 -->
-        <div style="margin-bottom: 14px;">
-          <div style="font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 8px;">Documents</div>
-          <div id="rec-docs"></div>
-        </div>
-
-        <!-- Ready indicator -->
-        <div id="ready-indicator" style="display: none; padding: 12px 16px; background: #f0fff4; border: 2px solid #48bb78; border-radius: 8px; margin-bottom: 12px; text-align: center;">
-          <div style="font-size: 24px; margin-bottom: 4px;">✅</div>
-          <div style="font-size: 14px; font-weight: 700; color: #276749;">READY FOR QUEUE</div>
-          <div style="font-size: 11px; color: #718096;">Identity verified · Pre-screen done · All docs validated</div>
-        </div>
-        <div id="not-ready-indicator" style="display: none; padding: 10px 14px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; margin-bottom: 12px;">
-          <div style="font-size: 12px; font-weight: 600; color: #9b2c2c;">⚠ Not ready — missing:</div>
-          <ul id="not-ready-list" style="font-size: 11px; color: #742a2a; margin: 4px 0 0 16px; padding: 0;"></ul>
-        </div>
-
-        <!-- Notes row -->
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 12px;">
-          <textarea id="rec-notes" placeholder="Notes for service clerk..." style="min-height: 44px; font-size: 13px; margin-bottom: 10px;"></textarea>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="doCheckIn(false)">Check In to Queue</button>
-            <button class="btn btn-warning btn-sm" onclick="doCheckIn(true)">Priority</button>
+      <div class="card">
+        <h3>Transaction Type(s)</h3>
+        <p>Select all that apply. System calculates combined duration and required documents.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <div class="toggle">
+            <input type="checkbox" id="walkin-road_test" onchange="updateWalkinDocs()" /><label
+              for="walkin-road_test"
+              >Road Test (30 min)</label
+            >
+          </div>
+          <div class="toggle">
+            <input type="checkbox" id="walkin-id_card" onchange="updateWalkinDocs()" /><label
+              for="walkin-id_card"
+              >State ID Card (15 min)</label
+            >
+          </div>
+          <div class="toggle">
+            <input
+              type="checkbox"
+              id="walkin-license_original"
+              checked
+              onchange="updateWalkinDocs()"
+            /><label for="walkin-license_original">Original Driver License (20 min)</label>
           </div>
         </div>
+        <p
+          id="walkin-duration"
+          style="margin-top: 12px; font-size: 13px; color: #4299e1; font-weight: 600"
+        >
+          Estimated duration: 20 min
+        </p>
       </div>
-    </div>
-  </div>
-</div>
 
-<!-- ========== WALK-IN ========== -->
-<div class="view" id="view-walkin">
-  <div class="card">
-    <h2>Walk-In Registration</h2>
-    <p>Customer arrives without appointment. Clerk captures all info that online flow would have collected.</p>
-  </div>
-
-  <div class="card">
-    <h3>Customer Information</h3>
-    <div class="grid-2">
-      <div>
-        <label>First Name</label>
-        <input type="text" placeholder="First name">
-        <label>Last Name</label>
-        <input type="text" placeholder="Last name">
+      <div class="card" id="walkin-identity-card">
+        <h3>Identity Verification</h3>
+        <p>Clerk verifies photo ID at the desk.</p>
+        <button class="btn btn-success" onclick="verifyIdentity('walkin-identity-card')">
+          Mark Identity Verified
+        </button>
       </div>
-      <div>
-        <label>Email</label>
-        <input type="email" placeholder="email@example.com">
-        <label>Phone</label>
-        <input type="tel" placeholder="(555) 123-4567">
+
+      <div class="card">
+        <h3>Document Scan</h3>
+        <p>Clerk scans required documents at the desk (no AI review — human verified).</p>
+        <div id="walkin-docs-container"></div>
       </div>
-    </div>
-  </div>
 
-  <div class="card">
-    <h3>Transaction Type(s)</h3>
-    <p>Select all that apply. System calculates combined duration.</p>
-    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-      <div class="toggle"><input type="checkbox" id="walkin-dl"><label for="walkin-dl">Driver License Renewal (15 min)</label></div>
-      <div class="toggle"><input type="checkbox" id="walkin-vr"><label for="walkin-vr">Vehicle Registration (10 min)</label></div>
-      <div class="toggle"><input type="checkbox" id="walkin-tt" checked><label for="walkin-tt">Title Transfer (25 min)</label></div>
-      <div class="toggle"><input type="checkbox" id="walkin-vessel"><label for="walkin-vessel">Vessel Registration (20 min)</label></div>
-      <div class="toggle"><input type="checkbox" id="walkin-road"><label for="walkin-road">DL Road Test (45 min)</label></div>
-    </div>
-    <p style="margin-top: 12px; font-size: 13px; color: #4299e1; font-weight: 600;">Estimated duration: 25 min</p>
-  </div>
-
-  <div class="card" id="walkin-identity-card">
-    <h3>Identity Verification</h3>
-    <p>Clerk verifies photo ID at the desk.</p>
-    <button class="btn btn-success" onclick="verifyIdentity('walkin-identity-card')">Mark Identity Verified</button>
-  </div>
-
-  <div class="card">
-    <h3>Document Scan</h3>
-    <p>Clerk scans required documents at the desk (no AI review — human verified).</p>
-    <div class="doc-item" id="walkin-doc-title">
-      <div class="doc-icon">📄</div>
-      <div class="doc-info">
-        <div class="doc-name">Out-of-State Title</div>
-        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
+      <div class="card">
+        <h3>Pre-Screen</h3>
+        <p>
+          If not already completed, pre-screen will be sent to the customer and they'll be checked
+          in automatically upon completion.
+        </p>
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+          <div class="toggle">
+            <input type="checkbox" id="walkin-prescreen-toggle" onchange="updateWalkinButtons()" />
+            <label for="walkin-prescreen-toggle">Pre-Screen Already Completed</label>
+          </div>
+          <span id="walkin-prescreen-badge" class="badge badge-red">Incomplete</span>
+        </div>
       </div>
-      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-title')">View</button>
-      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-title-file" onchange="docScanned('walkin-doc-title', this)">
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-title-file').click()">Scan</button>
-    </div>
-    <div class="doc-item" id="walkin-doc-photo">
-      <div class="doc-icon">📄</div>
-      <div class="doc-info">
-        <div class="doc-name">Photo ID</div>
-        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
-      </div>
-      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-photo')">View</button>
-      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-photo-file" onchange="docScanned('walkin-doc-photo', this)">
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-photo-file').click()">Scan</button>
-    </div>
-    <div class="doc-item" id="walkin-doc-insurance">
-      <div class="doc-icon">📄</div>
-      <div class="doc-info">
-        <div class="doc-name">Proof of FL Insurance</div>
-        <div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div>
-      </div>
-      <button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc('walkin-doc-insurance')">View</button>
-      <input type="file" accept="image/*,.pdf" style="display:none;" id="walkin-doc-insurance-file" onchange="docScanned('walkin-doc-insurance', this)">
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('walkin-doc-insurance-file').click()">Scan</button>
-    </div>
-  </div>
 
-  <div class="card">
-    <h3>Pre-Screen</h3>
-    <p>Send link for customer to complete on their phone in the lobby while they wait.</p>
-    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-      <div class="toggle">
-        <input type="checkbox" id="walkin-prescreen-toggle">
-        <label for="walkin-prescreen-toggle">Pre-Screen Completed</label>
-      </div>
-      <span id="walkin-prescreen-badge" class="badge badge-red">Incomplete</span>
-      <button class="btn btn-warning btn-sm" onclick="sendPrescreen()">Send Pre-Screen Link</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Notes & Queue Assignment</h3>
-    <label>Notes for Service Clerk</label>
-    <textarea placeholder="Special circumstances, repeat visitor context..."></textarea>
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button class="btn btn-primary">Register & Add to Queue</button>
-      <button class="btn btn-warning">Register & Priority Queue</button>
-    </div>
-  </div>
-</div>
-
-<!-- ========== QUEUE ========== -->
-<div class="view" id="view-queue">
-  <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
-    <div>
-      <h2>Live Queue</h2>
-      <p>All customers currently in the queue, loaded from the database.</p>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="loadLiveQueue()">Refresh</button>
-  </div>
-
-  <div class="card">
-    <div id="live-queue-items">
-      <p style="color: #718096; text-align: center;">Loading queue...</p>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Clerk Sessions</h3>
-    <div id="live-clerk-sessions">
-      <p style="color: #718096; text-align: center;">Loading...</p>
-    </div>
-  </div>
-</div>
-
-<!-- ========== SERVICE CLERK ========== -->
-<div class="view" id="view-service">
-  <div class="card">
-    <h2>Service Clerk Dashboard</h2>
-    <p>Clerk processes customers from the queue at their station.</p>
-  </div>
-
-  <div class="card">
-    <h3>Session</h3>
-    <div class="grid-3">
-      <div>
-        <label>Clerk</label>
-        <select id="svc-clerk-select">
-          <option value="1">Maria Santos (1)</option>
-          <option value="2">James Wilson (2)</option>
-          <option value="3">Angela Brown (3)</option>
-        </select>
-      </div>
-      <div>
-        <label>Desk #</label>
-        <select id="svc-desk-select">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-        </select>
-      </div>
-      <div>
-        <label>Actions</label>
-        <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;">
-          <button class="btn btn-primary btn-sm" onclick="clerkDoLogin()">Login</button>
-          <button class="btn btn-success btn-sm" onclick="clerkSummonNext()">Summon Next</button>
+      <div class="card">
+        <h3>Notes & Queue Assignment</h3>
+        <label>Notes for Service Clerk</label>
+        <textarea
+          id="walkin-notes"
+          placeholder="Special circumstances, repeat visitor context..."
+        ></textarea>
+        <div id="walkin-buttons" style="display: flex; gap: 8px; margin-top: 12px">
+          <button class="btn btn-primary" onclick="registerWalkIn(false)">
+            Send Pre-Screen & Check In
+          </button>
+          <button class="btn btn-warning" onclick="registerWalkIn(true)">
+            Send Pre-Screen & Priority
+          </button>
         </div>
       </div>
     </div>
-    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px;">
-      <div class="toggle">
-        <input type="checkbox" id="svc-available-toggle" checked onchange="clerkToggleAvailability(this.checked)">
-        <label for="svc-available-toggle">Available for customers</label>
-      </div>
-      <span id="svc-available-badge" class="badge badge-green">Available</span>
-    </div>
-  </div>
 
-  <!-- Empty state -->
-  <div id="svc-empty" class="card">
-    <p style="color: #718096; text-align: center;">Login as a clerk and summon a customer to begin service.</p>
-  </div>
-
-  <!-- Dynamic: now-serving record -->
-  <div id="svc-serving" style="display: none;">
-    <div class="card">
-      <h3 id="svc-serving-title">Now Serving</h3>
-      <div class="steps">
-        <div class="step done">Check-In</div>
-        <div class="step done">Queue</div>
-        <div class="step active">Service</div>
-        <div class="step">Complete</div>
-      </div>
-      <div class="grid-2">
-        <div id="svc-info"></div>
-        <div id="svc-notes-area"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Documents</h3>
-      <div id="svc-docs"></div>
-    </div>
-
-    <div class="card">
-      <h3>Transaction Steps</h3>
-      <div id="svc-steps" style="display: flex; flex-direction: column; gap: 8px;"></div>
-    </div>
-
-    <div class="card">
-      <h3>Upload to State System</h3>
-      <p style="font-size: 12px; color: #718096; margin-bottom: 10px;">Drag and drop documents or click to upload to Florida DHSMV/Orion.</p>
-      <div id="svc-state-uploads"></div>
-    </div>
-
-    <div class="card">
-      <h3>Written Test</h3>
-      <p style="font-size: 13px; color: #555; margin-bottom: 10px;">Send customer to a written test station. They will be removed from service and tracked in the queue under "testing" status.</p>
-      <div style="display: flex; gap: 8px; align-items: center;">
+    <!-- ========== QUEUE ========== -->
+    <div class="view" id="view-queue">
+      <div class="card" style="display: flex; align-items: center; justify-content: space-between">
         <div>
-          <label>Test Station #</label>
-          <input type="number" id="svc-test-station" value="10" style="width: 80px; margin: 0;">
+          <h2>Live Queue</h2>
+          <p>All customers currently in the queue, loaded from the database.</p>
         </div>
-        <button class="btn btn-warning" style="margin-top: 20px;" onclick="clerkSendToTest()">Send to Written Test</button>
+        <div style="display: flex; gap: 8px">
+          <button class="btn btn-warning btn-sm" onclick="seedQueue()">Check In 5 Customers</button>
+          <button class="btn btn-primary btn-sm" onclick="loadLiveQueue()">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="live-queue-items">
+          <p style="color: #718096; text-align: center">Loading queue...</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Clerk Sessions</h3>
+        <div id="live-clerk-sessions">
+          <p style="color: #718096; text-align: center">Loading...</p>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h3>Pre-Screen Responses</h3>
-      <div id="svc-prescreen"></div>
-    </div>
+    <!-- ========== SERVICE CLERK ========== -->
+    <div class="view" id="view-service">
+      <div class="card">
+        <h2>Service Clerk Dashboard</h2>
+        <p>Clerk processes customers from the queue at their station.</p>
+      </div>
 
-    <div class="card">
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-success" onclick="clerkCompleteAndNext()">Complete & Summon Next</button>
-        <button class="btn btn-sm" style="background: #edf2f7;" onclick="clerkCompleteOnly()">Complete Only</button>
+      <div class="card">
+        <h3>Session</h3>
+        <div class="grid-3">
+          <div>
+            <label>Clerk</label>
+            <select id="svc-clerk-select" onchange="showClerkSkills()">
+              <option value="">Loading...</option>
+            </select>
+            <div
+              id="svc-clerk-skills"
+              style="
+                margin-top: 6px;
+                font-size: 12px;
+                color: #4a5568;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 4px;
+              "
+            ></div>
+          </div>
+          <div>
+            <label>Desk #</label>
+            <select id="svc-desk-select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div>
+            <label>Actions</label>
+            <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap">
+              <button class="btn btn-primary btn-sm" onclick="clerkDoLogin()">Login</button>
+              <button class="btn btn-success btn-sm" onclick="clerkSummonNext()">
+                Summon Next
+              </button>
+            </div>
+          </div>
+        </div>
+        <div
+          style="
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+          "
+        >
+          <div class="toggle">
+            <input
+              type="checkbox"
+              id="svc-available-toggle"
+              checked
+              onchange="clerkToggleAvailability(this.checked)"
+            />
+            <label for="svc-available-toggle">Available for customers</label>
+          </div>
+          <span id="svc-available-badge" class="badge badge-green">Available</span>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="svc-empty" class="card">
+        <p style="color: #718096; text-align: center">
+          Login as a clerk and summon a customer to begin service.
+        </p>
+      </div>
+
+      <!-- Dynamic: now-serving record -->
+      <div id="svc-serving" style="display: none">
+        <div class="card">
+          <h3 id="svc-serving-title">Now Serving</h3>
+          <div class="steps">
+            <div class="step done">Check-In</div>
+            <div class="step done">Queue</div>
+            <div class="step active">Service</div>
+            <div class="step">Complete</div>
+          </div>
+          <div class="grid-2">
+            <div id="svc-info"></div>
+            <div id="svc-notes-area"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Documents</h3>
+          <div id="svc-docs"></div>
+        </div>
+
+        <div class="card">
+          <h3>Transaction Steps</h3>
+          <div id="svc-steps" style="display: flex; flex-direction: column; gap: 8px"></div>
+        </div>
+
+        <div class="card">
+          <h3>Upload to State System (DHSMV / Orion)</h3>
+          <p style="font-size: 12px; color: #718096; margin-bottom: 10px">
+            Drag documents from below into the state system window.
+          </p>
+          <div id="svc-state-uploads" style="display: flex; flex-wrap: wrap; gap: 12px"></div>
+        </div>
+
+        <div class="card" style="background: #1a202c; border: 2px solid #4a5568">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
+            <h3 style="color: #e2e8f0; margin: 0">DHSMV / Orion — State System</h3>
+          </div>
+          <div
+            id="state-system-dropzone"
+            style="
+              min-height: 120px;
+              border: 2px dashed #4a5568;
+              border-radius: 8px;
+              padding: 16px;
+              display: flex;
+              flex-wrap: wrap;
+              gap: 12px;
+              align-items: center;
+              justify-content: center;
+              transition:
+                border-color 0.2s,
+                background 0.2s;
+            "
+          >
+            <p
+              id="state-system-placeholder"
+              style="color: #718096; font-size: 13px; margin: 0; text-align: center"
+            >
+              Drop documents here to upload to state system
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Written Test</h3>
+          <p style="font-size: 13px; color: #555; margin-bottom: 10px">
+            Send customer to a written test station. They will be removed from service and tracked
+            in the queue under "testing" status.
+          </p>
+          <div style="display: flex; gap: 8px; align-items: center">
+            <div>
+              <label>Test Station #</label>
+              <input
+                type="number"
+                id="svc-test-station"
+                value="10"
+                style="width: 80px; margin: 0"
+              />
+            </div>
+            <button class="btn btn-warning" style="margin-top: 20px" onclick="clerkSendToTest()">
+              Send to Written Test
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Pre-Screen Responses</h3>
+          <div id="svc-prescreen"></div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; gap: 8px">
+            <button class="btn btn-success" onclick="clerkCompleteAndNext()">
+              Complete & Summon Next
+            </button>
+            <button class="btn btn-sm" style="background: #edf2f7" onclick="clerkCompleteOnly()">
+              Complete Only
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- ========== LOBBY DISPLAY ========== -->
-<div class="view" id="view-lobby">
-  <div class="card">
-    <h2>Customer Lobby Display</h2>
-    <p>Public-facing screen. Auto-refreshes every 5 seconds from the live queue.</p>
-  </div>
+    <!-- ========== LOBBY DISPLAY ========== -->
+    <div class="view" id="view-lobby">
+      <div class="card">
+        <h2>Customer Lobby Display</h2>
+        <p>Public-facing screen. Auto-refreshes every 5 seconds from the live queue.</p>
+      </div>
 
-  <div class="card" style="background: #1a202c; padding: 32px;">
-    <h2 style="color: white; text-align: center; margin-bottom: 24px; font-size: 22px;">Now Serving</h2>
-    <div class="lobby-grid" id="lobby-serving">
-      <p style="color: #a0aec0; text-align: center;">No one being served</p>
+      <div class="card" style="background: #1a202c; padding: 32px">
+        <h2 style="color: white; text-align: center; margin-bottom: 24px; font-size: 22px">
+          Now Serving
+        </h2>
+        <div class="lobby-grid" id="lobby-serving">
+          <p style="color: #a0aec0; text-align: center">No one being served</p>
+        </div>
+        <h2
+          style="
+            color: white;
+            text-align: center;
+            margin: 24px 0 16px;
+            font-size: 18px;
+            opacity: 0.7;
+          "
+        >
+          Up Next
+        </h2>
+        <div
+          id="lobby-waiting"
+          style="
+            text-align: center;
+            color: #a0aec0;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 16px;
+          "
+        >
+          —
+        </div>
+      </div>
     </div>
-    <h2 style="color: white; text-align: center; margin: 24px 0 16px; font-size: 18px; opacity: 0.7;">Up Next</h2>
-    <div id="lobby-waiting" style="text-align: center; color: #a0aec0; font-size: 32px; font-weight: 700; letter-spacing: 16px;">—</div>
-  </div>
-</div>
 
+    <script>
+      function showView(id) {
+        document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+        document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+        document.getElementById("view-" + id).classList.add("active");
+        document.getElementById("nav-" + id).classList.add("active");
+      }
 
-<script>
-function showView(id) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('view-' + id).classList.add('active');
-  document.getElementById('nav-' + id).classList.add('active');
-}
+      function showToast(msg, isError) {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.className = "toast show" + (isError ? " error" : "");
+        setTimeout(() => (t.className = "toast"), 4000);
+      }
 
-function showToast(msg, isError) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => t.className = 'toast', 4000);
-}
+      // ─── Jane Smith demo config ────────────────────────────────────────────────
+      const JANE_CONFIG = {
+        get prescreen() {
+          return document.getElementById("cfg-prescreen").value === "true";
+        },
+        get identity() {
+          return document.getElementById("cfg-identity").value === "true";
+        },
+        get docs() {
+          return document.getElementById("cfg-docs").value;
+        },
+      };
 
-async function sendConfirmation() {
-  try {
-    const res = await fetch('/api/send-confirmation', { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) {
-      showToast('Confirmation email sent! Check njriley@calpoly.edu');
-    } else {
-      showToast('Error: ' + data.error, true);
-    }
-  } catch (e) {
-    showToast('Failed to connect to server. Is it running?', true);
-  }
-}
+      function renderJaneConfig() {
+        const psBadge = document.getElementById("cfg-prescreen-badge");
+        if (JANE_CONFIG.prescreen) {
+          psBadge.className = "badge badge-green";
+          psBadge.textContent = "Completed";
+        } else {
+          psBadge.className = "badge badge-red";
+          psBadge.textContent = "Not completed";
+        }
 
-async function sendPrescreen() {
-  try {
-    const res = await fetch('/api/send-prescreen', { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) {
-      showToast('Pre-screen link sent! Check njriley@calpoly.edu');
-    } else {
-      showToast('Error: ' + data.error, true);
-    }
-  } catch (e) {
-    showToast('Failed to connect to server. Is it running?', true);
-  }
-}
+        const idBadge = document.getElementById("cfg-identity-badge");
+        if (JANE_CONFIG.identity) {
+          idBadge.className = "badge badge-green";
+          idBadge.textContent = "Verified";
+        } else {
+          idBadge.className = "badge badge-yellow";
+          idBadge.textContent = "Not verified";
+        }
 
-// Document storage for viewing
-const docFiles = {};
+        const docContainer = document.getElementById("cfg-doc-status");
+        const docConfigs = {
+          mixed: [
+            {
+              icon: "✅",
+              name: "Out-of-State Title (Original)",
+              status:
+                'AI Review: <span class="badge badge-green">Accepted</span> — Clear scan, all fields visible',
+            },
+            {
+              icon: "❌",
+              name: "Photo ID (Driver License)",
+              status:
+                'AI Review: <span class="badge badge-red">Rejected</span> — Image is blurry, please re-upload',
+            },
+            {
+              icon: "⏳",
+              name: "Proof of FL Insurance",
+              status: '<span class="badge badge-yellow">Pending upload</span>',
+            },
+          ],
+          "all-accepted": [
+            {
+              icon: "✅",
+              name: "Out-of-State Title (Original)",
+              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+            },
+            {
+              icon: "✅",
+              name: "Photo ID (Driver License)",
+              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+            },
+            {
+              icon: "✅",
+              name: "Proof of FL Insurance",
+              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+            },
+          ],
+          "all-pending": [
+            {
+              icon: "⏳",
+              name: "Out-of-State Title (Original)",
+              status: '<span class="badge badge-yellow">Pending upload</span>',
+            },
+            {
+              icon: "⏳",
+              name: "Photo ID (Driver License)",
+              status: '<span class="badge badge-yellow">Pending upload</span>',
+            },
+            {
+              icon: "⏳",
+              name: "Proof of FL Insurance",
+              status: '<span class="badge badge-yellow">Pending upload</span>',
+            },
+          ],
+          none: [],
+        };
+        const docs = docConfigs[JANE_CONFIG.docs] || [];
+        if (!docs.length) {
+          docContainer.innerHTML = '<p style="color:#718096;">No documents uploaded yet.</p>';
+        } else {
+          docContainer.innerHTML = docs
+            .map(
+              (d) =>
+                '<div class="doc-item"><div class="doc-icon">' +
+                d.icon +
+                "</div>" +
+                '<div class="doc-info"><div class="doc-name">' +
+                d.name +
+                "</div>" +
+                '<div class="doc-status">' +
+                d.status +
+                "</div></div></div>",
+            )
+            .join("");
+        }
+      }
 
-// Pre-loaded sample docs (submitted by customer via AI chatbot)
-docFiles['doc-title'] = { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
-docFiles['doc-photo-id'] = { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' };
-docFiles['doc-insurance'] = { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' };
-// Same docs available in service clerk view
-docFiles['svc-doc-title'] = { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
-docFiles['svc-doc-photo'] = { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' };
-docFiles['svc-doc-insurance'] = { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' };
+      document.getElementById("cfg-prescreen").addEventListener("change", renderJaneConfig);
+      document.getElementById("cfg-identity").addEventListener("change", renderJaneConfig);
+      document.getElementById("cfg-docs").addEventListener("change", renderJaneConfig);
+      renderJaneConfig();
 
-function viewDoc(docId) {
-  const doc = docFiles[docId];
-  if (!doc) { showToast('No document to view', true); return; }
-  const modal = document.getElementById('doc-modal');
-  const title = document.getElementById('doc-modal-title');
-  const content = document.getElementById('doc-modal-content');
-  const item = document.getElementById(docId);
-  title.textContent = item.querySelector('.doc-name').textContent;
-  if (doc.type === 'application/pdf') {
-    content.innerHTML = '<embed src="' + doc.url + '" type="application/pdf" width="100%" height="600px">';
-  } else {
-    content.innerHTML = '<img src="' + doc.url + '" alt="Document scan">';
-  }
-  modal.classList.add('show');
-}
+      async function sendConfirmation() {
+        try {
+          const res = await fetch("/api/send-confirmation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prescreen: JANE_CONFIG.prescreen,
+              identity: JANE_CONFIG.identity,
+              docs: JANE_CONFIG.docs,
+            }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            document.getElementById("cfg-qr-img").src =
+              "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" +
+              encodeURIComponent(data.qrCode);
+            document.getElementById("cfg-qr-code-text").textContent = data.qrCode;
+            showToast("Confirmation email sent! Check njriley@calpoly.edu");
+          } else {
+            showToast("Error: " + data.error, true);
+          }
+        } catch (e) {
+          showToast("Failed to connect to server. Is it running?", true);
+        }
+      }
 
-function closeDocModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  document.getElementById('doc-modal').classList.remove('show');
-}
+      async function sendPrescreen() {
+        try {
+          const res = await fetch("/api/send-prescreen", { method: "POST" });
+          const data = await res.json();
+          if (data.ok) {
+            showToast("Pre-screen link sent! Check njriley@calpoly.edu");
+          } else {
+            showToast("Error: " + data.error, true);
+          }
+        } catch (e) {
+          showToast("Failed to connect to server. Is it running?", true);
+        }
+      }
 
-// Identity verification
-function verifyIdentity(cardId) {
-  if (!confirm('Confirm: You have verified this customer\'s photo ID in person?')) return;
-  const card = document.getElementById(cardId);
-  card.innerHTML = `<h3>Identity Verification</h3>
+      // Document storage for viewing
+      const docFiles = {};
+
+      // Pre-loaded sample docs (submitted by customer via AI chatbot)
+      docFiles["doc-title"] = {
+        url: "sample_docs/florida-transfer.pdf",
+        type: "application/pdf",
+        name: "florida-transfer.pdf",
+      };
+      docFiles["doc-photo-id"] = {
+        url: "sample_docs/fl-real-id-dl.png",
+        type: "image/png",
+        name: "fl-real-id-dl.png",
+      };
+      docFiles["doc-insurance"] = {
+        url: "sample_docs/driver-insurnace.png",
+        type: "image/png",
+        name: "driver-insurnace.png",
+      };
+      // Same docs available in service clerk view
+      docFiles["svc-doc-title"] = {
+        url: "sample_docs/florida-transfer.pdf",
+        type: "application/pdf",
+        name: "florida-transfer.pdf",
+      };
+      docFiles["svc-doc-photo"] = {
+        url: "sample_docs/fl-real-id-dl.png",
+        type: "image/png",
+        name: "fl-real-id-dl.png",
+      };
+      docFiles["svc-doc-insurance"] = {
+        url: "sample_docs/driver-insurnace.png",
+        type: "image/png",
+        name: "driver-insurnace.png",
+      };
+
+      function viewDoc(docId) {
+        const doc = docFiles[docId];
+        if (!doc) {
+          showToast("No document to view", true);
+          return;
+        }
+        const modal = document.getElementById("doc-modal");
+        const title = document.getElementById("doc-modal-title");
+        const content = document.getElementById("doc-modal-content");
+        const item = document.getElementById(docId);
+        title.textContent = item.querySelector(".doc-name").textContent;
+        if (doc.type === "application/pdf") {
+          content.innerHTML =
+            '<embed src="' + doc.url + '" type="application/pdf" width="100%" height="600px">';
+        } else {
+          content.innerHTML = '<img src="' + doc.url + '" alt="Document scan">';
+        }
+        modal.classList.add("show");
+      }
+
+      function closeDocModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById("doc-modal").classList.remove("show");
+      }
+
+      // Identity verification
+      function verifyIdentity(cardId) {
+        if (!confirm("Confirm: You have verified this customer's photo ID in person?")) return;
+        const card = document.getElementById(cardId);
+        card.innerHTML = `<h3>Identity Verification</h3>
     <p style="color: #276749; font-weight: 600;">✅ Identity verified by clerk</p>`;
-  showToast('Identity marked as verified');
-}
+        showToast("Identity marked as verified");
+      }
 
-async function verifyIdentityUnified() {
-  if (!confirm('Confirm: You have verified this customer\'s photo ID in person?')) return;
-  if (!recordData) return;
-  try {
-    const res = await fetch('/api/verify-identity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: recordData.appointmentId }),
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
-  } catch (e) {
-    showToast('Server error — is it running?', true); return;
-  }
-  const card = document.getElementById('checkin-identity-card');
-  card.style.background = '#f0fff4';
-  card.style.borderColor = '#9ae6b4';
-  const badge = document.getElementById('rec-identity');
-  badge.className = 'badge badge-green';
-  badge.textContent = 'Verified';
-  const btn = card.querySelector('button');
-  btn.disabled = true;
-  btn.textContent = 'Done';
-  btn.style.background = '#c6f6d5';
-  btn.style.color = '#276749';
-  showToast('Identity verified (saved to DB)');
-  updateReadiness();
-}
+      async function verifyIdentityUnified() {
+        if (!confirm("Confirm: You have verified this customer's photo ID in person?")) return;
+        if (!recordData) return;
+        try {
+          const res = await fetch("/api/verify-identity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId: recordData.appointmentId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast("Error: " + (data.error || res.status), true);
+            return;
+          }
+        } catch (e) {
+          showToast("Server error — is it running?", true);
+          return;
+        }
+        const card = document.getElementById("checkin-identity-card");
+        card.style.background = "#f0fff4";
+        card.style.borderColor = "#9ae6b4";
+        const badge = document.getElementById("rec-identity");
+        badge.className = "badge badge-green";
+        badge.textContent = "Verified";
+        const btn = card.querySelector("button");
+        btn.disabled = true;
+        btn.textContent = "Done";
+        btn.style.background = "#c6f6d5";
+        btn.style.color = "#276749";
+        showToast("Identity verified (saved to DB)");
+        updateReadiness();
+      }
 
-// Check in to queue (backed by src/check-in.ts → checkInToQueue)
-async function doCheckIn(priority) {
-  if (!recordData) { showToast('No customer loaded', true); return; }
-  const notes = document.getElementById('rec-notes').value.trim();
-  try {
-    const res = await fetch('/api/check-in', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        appointmentId: recordData.appointmentId,
-        officeId: recordData.officeId,
-        notes: notes || undefined,
-        priority,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
-    showToast('Checked in! Queue #' + data.queueNumber + (priority ? ' (Priority)' : ''));
-    document.getElementById('checkin-record').style.display = 'none';
-    document.getElementById('checkin-empty').style.display = '';
-  } catch (e) {
-    showToast('Server error — is it running?', true);
-  }
-}
+      // Check in to queue (backed by src/check-in.ts → checkInToQueue)
+      async function doCheckIn(priority) {
+        if (!recordData) {
+          showToast("No customer loaded", true);
+          return;
+        }
+        const notes = document.getElementById("rec-notes").value.trim();
+        try {
+          const res = await fetch("/api/check-in", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              appointmentId: recordData.appointmentId,
+              officeId: recordData.officeId,
+              notes: notes || undefined,
+              priority,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast("Error: " + (data.error || res.status), true);
+            return;
+          }
+          showToast("Checked in! Queue #" + data.queueNumber + (priority ? " (Priority)" : ""));
+          document.getElementById("checkin-record").style.display = "none";
+          document.getElementById("checkin-empty").style.display = "";
+        } catch (e) {
+          showToast("Server error — is it running?", true);
+        }
+      }
 
-// Document validation (backed by src/documents.ts → validateDocument)
-async function validateDoc(docId) {
-  const item = document.getElementById(docId);
-  const docDbId = item?.dataset?.dbId;
-  if (docDbId) {
-    try {
-      const res = await fetch('/api/validate-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: parseInt(docDbId) }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
-    } catch (e) {
-      showToast('Server error — is it running?', true); return;
-    }
-  }
-  const badge = item.querySelector('[id$="-badge"]') || item.querySelectorAll('.badge')[item.querySelectorAll('.badge').length - 1];
-  const btn = item.querySelector('[onclick^="validateDoc"]') || item.querySelector('.btn-success');
-  badge.className = 'badge badge-green';
-  badge.textContent = 'Clerk ✓';
-  btn.disabled = true;
-  btn.textContent = 'Done';
-  btn.style.background = '#c6f6d5';
-  btn.style.color = '#276749';
-  item.querySelector('.doc-icon').textContent = '✅';
-  showToast('Document validated' + (docDbId ? ' (saved to DB)' : ''));
-  updateReadiness();
-}
+      // Document validation (backed by src/documents.ts → validateDocument)
+      async function validateDoc(docId) {
+        const item = document.getElementById(docId);
+        const docDbId = item?.dataset?.dbId;
+        if (docDbId) {
+          try {
+            const res = await fetch("/api/validate-document", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ documentId: parseInt(docDbId) }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showToast("Error: " + (data.error || res.status), true);
+              return;
+            }
+          } catch (e) {
+            showToast("Server error — is it running?", true);
+            return;
+          }
+        }
+        const badge =
+          item.querySelector('[id$="-badge"]') ||
+          item.querySelectorAll(".badge")[item.querySelectorAll(".badge").length - 1];
+        const btn =
+          item.querySelector('[onclick^="validateDoc"]') || item.querySelector(".btn-success");
+        badge.className = "badge badge-green";
+        badge.textContent = "Clerk ✓";
+        btn.disabled = true;
+        btn.textContent = "Done";
+        btn.style.background = "#c6f6d5";
+        btn.style.color = "#276749";
+        item.querySelector(".doc-icon").textContent = "✅";
+        showToast("Document validated" + (docDbId ? " (saved to DB)" : ""));
+        updateReadiness();
+      }
 
-// Document scan (file upload)
-function docScanned(docId, input) {
-  if (!input.files.length) return;
-  const file = input.files[0];
-  const url = URL.createObjectURL(file);
-  docFiles[docId] = { url, type: file.type, name: file.name };
+      // Document scan (file upload)
+      function docScanned(docId, input) {
+        if (!input.files.length) return;
+        const file = input.files[0];
+        const url = URL.createObjectURL(file);
+        docFiles[docId] = { url, type: file.type, name: file.name };
 
-  const item = document.getElementById(docId);
-  item.querySelector('.doc-icon').textContent = '📄';
-  const status = item.querySelector('.doc-status');
-  status.innerHTML = '<span class="badge badge-green">Scanned</span> — ' + file.name +
-    ' <span class="badge badge-gray" id="' + docId + '-badge">Clerk pending</span>';
+        const item = document.getElementById(docId);
+        item.querySelector(".doc-icon").textContent = "📄";
+        const status = item.querySelector(".doc-status");
+        status.innerHTML =
+          '<span class="badge badge-green">Scanned</span> — ' +
+          file.name +
+          ' <span class="badge badge-gray" id="' +
+          docId +
+          '-badge">Clerk pending</span>';
 
-  // Show view button
-  const viewBtn = item.querySelector('[onclick^="viewDoc"]');
-  if (viewBtn) viewBtn.style.display = '';
+        // Show view button
+        const viewBtn = item.querySelector('[onclick^="viewDoc"]');
+        if (viewBtn) viewBtn.style.display = "";
 
-  // Add validate button if not already present
-  if (!item.querySelector('[onclick^="validateDoc"]')) {
-    const btnContainer = item.querySelector('div[style*="flex-shrink"]') || item.lastElementChild;
-    const valBtn = document.createElement('button');
-    valBtn.className = 'btn btn-success btn-sm';
-    valBtn.onclick = function() { validateDoc(docId); };
-    valBtn.textContent = 'Validate';
-    btnContainer.insertBefore(valBtn, btnContainer.firstChild);
-  }
+        // Add validate button if not already present
+        if (!item.querySelector('[onclick^="validateDoc"]')) {
+          const btnContainer =
+            item.querySelector('div[style*="flex-shrink"]') || item.lastElementChild;
+          const valBtn = document.createElement("button");
+          valBtn.className = "btn btn-success btn-sm";
+          valBtn.onclick = function () {
+            validateDoc(docId);
+          };
+          valBtn.textContent = "Validate";
+          btnContainer.insertBefore(valBtn, btnContainer.firstChild);
+        }
 
-  // Update scan button to "Done"
-  const scanBtn = item.querySelectorAll('.btn-warning');
-  const lastBtn = scanBtn[scanBtn.length - 1];
-  if (lastBtn) {
-    lastBtn.disabled = true;
-    lastBtn.textContent = 'Done';
-    lastBtn.style.background = '#c6f6d5';
-    lastBtn.style.color = '#276749';
-    lastBtn.className = 'btn btn-sm';
-  }
+        showToast("Document scanned: " + file.name);
+        updateReadiness();
+      }
 
-  showToast('Document scanned: ' + file.name);
-  updateReadiness();
-}
+      // Pre-screen toggles
+      function setupPrescreenToggle(toggleId, badgeId) {
+        const toggle = document.getElementById(toggleId);
+        if (!toggle) return;
+        toggle.addEventListener("change", function () {
+          const badge = document.getElementById(badgeId);
+          if (this.checked) {
+            badge.className = "badge badge-green";
+            badge.textContent = "Completed";
+          } else {
+            badge.className = "badge badge-red";
+            badge.textContent = "Incomplete";
+          }
+        });
+      }
+      setupPrescreenToggle("walkin-prescreen-toggle", "walkin-prescreen-badge");
 
-// Pre-screen toggles
-function setupPrescreenToggle(toggleId, badgeId) {
-  const toggle = document.getElementById(toggleId);
-  if (!toggle) return;
-  toggle.addEventListener('change', function() {
-    const badge = document.getElementById(badgeId);
-    if (this.checked) {
-      badge.className = 'badge badge-green';
-      badge.textContent = 'Completed';
-    } else {
-      badge.className = 'badge badge-red';
-      badge.textContent = 'Incomplete';
-    }
-  });
-}
-setupPrescreenToggle('walkin-prescreen-toggle', 'walkin-prescreen-badge');
+      function updateWalkinButtons() {
+        const done = document.getElementById("walkin-prescreen-toggle").checked;
+        const container = document.getElementById("walkin-buttons");
+        if (done) {
+          container.innerHTML =
+            '<button class="btn btn-primary" onclick="registerWalkIn(false)">Check In to Queue</button>' +
+            '<button class="btn btn-warning" onclick="registerWalkIn(true)">Priority</button>';
+        } else {
+          container.innerHTML =
+            '<button class="btn btn-primary" onclick="registerWalkIn(false)">Send Pre-Screen & Check In</button>' +
+            '<button class="btn btn-warning" onclick="registerWalkIn(true)">Send Pre-Screen & Priority</button>';
+        }
+      }
+      updateWalkinButtons();
 
-// ─── Check-in lookup (real DB via lookupByQrCode) ────────────────────────────
-async function lookupByQr() {
-  const qrCode = document.getElementById('qr-result').value.trim();
-  if (!qrCode) { showToast('Enter or scan a QR code first', true); return; }
-  try {
-    const res = await fetch('/api/lookup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qrCode }),
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
-    if (!data.found) {
-      showToast('No appointment found for ' + qrCode, true);
-      document.getElementById('checkin-record').style.display = 'none';
-      document.getElementById('checkin-empty').style.display = '';
-      return;
-    }
-    renderRecord(data);
-    showToast('Loaded ' + data.firstName + ' ' + data.lastName + ' (#' + data.appointmentId + ')');
-  } catch (e) {
-    showToast('Failed to connect to server. Is it running?', true);
-  }
-}
+      // ─── Walk-in: dynamic docs based on transaction type ──────────────────────────
+      const TXN_DOCS = {
+        road_test: [
+          { docId: "learner_permit", name: "Learner Permit" },
+          { docId: "photo_id", name: "Photo ID" },
+          { docId: "vision_cert", name: "Vision Certificate" },
+          { docId: "vehicle_reg", name: "Vehicle Registration" },
+          { docId: "insurance_card", name: "Insurance Card" },
+        ],
+        id_card: [
+          { docId: "birth_cert", name: "Birth Certificate" },
+          { docId: "proof_address", name: "Proof of Residency" },
+          { docId: "ssn_proof", name: "Social Security Proof" },
+        ],
+        license_original: [
+          { docId: "learner_permit", name: "Learner Permit" },
+          { docId: "photo_id", name: "Photo ID" },
+          { docId: "proof_address", name: "Proof of Residency" },
+          { docId: "ssn_proof", name: "Social Security Proof" },
+        ],
+      };
+      const TXN_DURATIONS = { road_test: 30, id_card: 15, license_original: 20 };
 
-async function searchByName() {
-  const query = document.getElementById('name-search').value.trim();
-  if (!query) { showToast('Enter a name to search', true); return; }
-  try {
-    const res = await fetch('/api/search-name', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('Error: ' + (data.error || res.status), true); return; }
-    if (!data.length) { showToast('No matches for "' + query + '"', true); return; }
-    if (data.length === 1) {
-      // Single match — load directly via QR lookup flow
-      await loadAppointmentById(data[0].appointmentId);
-      return;
-    }
-    // Multiple matches — show picker
-    const list = data.map(r =>
-      `<li style="cursor:pointer;padding:6px 8px;border-bottom:1px solid #eee" onclick="loadAppointmentById(${r.appointmentId})">
+      function getSelectedWalkinTxns() {
+        const txns = [];
+        if (document.getElementById("walkin-road_test").checked) txns.push("road_test");
+        if (document.getElementById("walkin-id_card").checked) txns.push("id_card");
+        if (document.getElementById("walkin-license_original").checked)
+          txns.push("license_original");
+        return txns;
+      }
+
+      function updateWalkinDocs() {
+        const txns = getSelectedWalkinTxns();
+        const seen = new Set();
+        const docs = [];
+        txns.forEach((txn) => {
+          (TXN_DOCS[txn] || []).forEach((d) => {
+            if (!seen.has(d.docId)) {
+              seen.add(d.docId);
+              docs.push(d);
+            }
+          });
+        });
+
+        const container = document.getElementById("walkin-docs-container");
+        if (!docs.length) {
+          container.innerHTML =
+            '<p style="color:#718096;">Select a transaction type to see required documents.</p>';
+        } else {
+          container.innerHTML = docs
+            .map((d) => {
+              const id = "walkin-doc-" + d.docId;
+              const fileId = id + "-file";
+              return (
+                '<div class="doc-item" id="' +
+                id +
+                '">' +
+                '<div class="doc-icon">📄</div>' +
+                '<div class="doc-info"><div class="doc-name">' +
+                d.name +
+                "</div>" +
+                '<div class="doc-status"><span class="badge badge-yellow">Not scanned</span></div></div>' +
+                '<div class="doc-actions">' +
+                '<button class="btn btn-sm" style="background: #edf2f7; display:none;" onclick="viewDoc(\'' +
+                id +
+                "')\">View</button>" +
+                '<input type="file" accept="image/*,.pdf" style="display:none;" id="' +
+                fileId +
+                '" onchange="docScanned(\'' +
+                id +
+                "', this)\">" +
+                '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'' +
+                fileId +
+                "').click()\">Scan</button>" +
+                "</div></div>"
+              );
+            })
+            .join("");
+        }
+
+        // Update duration
+        const totalMin = txns.reduce((sum, t) => sum + (TXN_DURATIONS[t] || 0), 0);
+        document.getElementById("walkin-duration").textContent = totalMin
+          ? "Estimated duration: " + totalMin + " min"
+          : "Select a transaction type";
+      }
+      updateWalkinDocs();
+
+      async function registerWalkIn(priority) {
+        const firstName = document
+          .querySelector('#view-walkin input[placeholder="First name"]')
+          .value.trim();
+        const lastName = document
+          .querySelector('#view-walkin input[placeholder="Last name"]')
+          .value.trim();
+        const email = document.querySelector('#view-walkin input[type="email"]').value.trim();
+        const phone = document.querySelector('#view-walkin input[type="tel"]').value.trim();
+        const txns = getSelectedWalkinTxns();
+
+        if (!firstName || !lastName) {
+          showToast("First and last name required", true);
+          return;
+        }
+        if (!txns.length) {
+          showToast("Select at least one transaction type", true);
+          return;
+        }
+
+        const prescreen = document.getElementById("walkin-prescreen-toggle").checked;
+        const notes = document.getElementById("walkin-notes").value.trim();
+
+        try {
+          const res = await fetch("/api/walk-in", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              firstName,
+              lastName,
+              email,
+              phone,
+              txns,
+              prescreen,
+              priority,
+              notes,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast("Error: " + (data.error || res.status), true);
+            return;
+          }
+
+          if (prescreen) {
+            showToast(
+              "Walk-in registered! Queue #" + data.queueNumber + (priority ? " (Priority)" : ""),
+            );
+          } else {
+            // Send prescreen with auto check-in flag
+            const psRes = await fetch("/api/send-prescreen", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                appointmentId: data.appointmentId,
+                autoCheckIn: true,
+                priority,
+              }),
+            });
+            const psData = await psRes.json();
+            if (psData.ok) {
+              showToast("Registered! Pre-screen sent — will auto check in upon completion");
+            } else {
+              showToast(
+                "Registered but failed to send pre-screen: " + (psData.error || "unknown"),
+                true,
+              );
+            }
+          }
+        } catch (e) {
+          showToast("Server not running", true);
+        }
+      }
+
+      // ─── Check-in lookup (real DB via lookupByQrCode) ────────────────────────────
+      async function lookupByQr() {
+        const qrCode = document.getElementById("qr-result").value.trim();
+        if (!qrCode) {
+          showToast("Enter or scan a QR code first", true);
+          return;
+        }
+        try {
+          const res = await fetch("/api/lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ qrCode }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast("Error: " + (data.error || res.status), true);
+            return;
+          }
+          if (!data.found) {
+            showToast("No appointment found for " + qrCode, true);
+            document.getElementById("checkin-record").style.display = "none";
+            document.getElementById("checkin-empty").style.display = "";
+            return;
+          }
+          renderRecord(data);
+          showToast(
+            "Loaded " + data.firstName + " " + data.lastName + " (#" + data.appointmentId + ")",
+          );
+        } catch (e) {
+          showToast("Failed to connect to server. Is it running?", true);
+        }
+      }
+
+      async function searchByName() {
+        const query = document.getElementById("name-search").value.trim();
+        if (!query) {
+          showToast("Enter a name to search", true);
+          return;
+        }
+        try {
+          const res = await fetch("/api/search-name", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast("Error: " + (data.error || res.status), true);
+            return;
+          }
+          if (!data.length) {
+            showToast('No matches for "' + query + '"', true);
+            return;
+          }
+          if (data.length === 1) {
+            // Single match — load directly via QR lookup flow
+            await loadAppointmentById(data[0].appointmentId);
+            return;
+          }
+          // Multiple matches — show picker
+          const list = data
+            .map(
+              (r) =>
+                `<li style="cursor:pointer;padding:6px 8px;border-bottom:1px solid #eee" onclick="loadAppointmentById(${r.appointmentId})">
         <strong>${r.firstName} ${r.lastName}</strong> — ${r.appointmentTime}
-      </li>`
-    ).join('');
-    document.getElementById('checkin-record').style.display = 'none';
-    document.getElementById('checkin-empty').innerHTML =
-      `<p>Multiple matches:</p><ul style="list-style:none;padding:0;margin:0">${list}</ul>`;
-    document.getElementById('checkin-empty').style.display = '';
-  } catch (e) {
-    showToast('Failed to connect to server. Is it running?', true);
-  }
-}
+      </li>`,
+            )
+            .join("");
+          document.getElementById("checkin-record").style.display = "none";
+          document.getElementById("checkin-empty").innerHTML =
+            `<p>Multiple matches:</p><ul style="list-style:none;padding:0;margin:0">${list}</ul>`;
+          document.getElementById("checkin-empty").style.display = "";
+        } catch (e) {
+          showToast("Failed to connect to server. Is it running?", true);
+        }
+      }
 
-async function loadAppointmentById(appointmentId) {
-  try {
-    const res = await fetch('/api/lookup-by-id', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.found) { showToast('Could not load appointment', true); return; }
-    renderRecord(data);
-    showToast('Loaded ' + data.firstName + ' ' + data.lastName + ' (#' + data.appointmentId + ')');
-  } catch (e) {
-    showToast('Failed to load appointment', true);
-  }
-}
+      async function loadAppointmentById(appointmentId) {
+        try {
+          const res = await fetch("/api/lookup-by-id", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.found) {
+            showToast("Could not load appointment", true);
+            return;
+          }
+          renderRecord(data);
+          showToast(
+            "Loaded " + data.firstName + " " + data.lastName + " (#" + data.appointmentId + ")",
+          );
+        } catch (e) {
+          showToast("Failed to load appointment", true);
+        }
+      }
 
-// AI note: short human-readable explanation of the AI decision.
-// NOTE: src/ does not generate or store ai_review_notes, and the seed leaves
-// them null. This renders the stored note when present, otherwise a templated
-// explanation derived from the AI status so the demo always shows reasoning.
-function aiNote(doc) {
-  if (doc.aiReviewNotes) return doc.aiReviewNotes;
-  if (!doc.uploaded) return 'Not yet uploaded by customer.';
-  switch (doc.aiReviewStatus) {
-    case 'accept':
-      return 'Passed — document type matched, all expected fields detected and legible, not expired.';
-    case 'reject':
-      return 'Failed — image quality too low or a required field could not be read. Customer should re-scan.';
-    default:
-      return 'Uploaded — awaiting AI review.';
-  }
-}
+      // AI note: short human-readable explanation of the AI decision.
+      // NOTE: src/ does not generate or store ai_review_notes, and the seed leaves
+      // them null. This renders the stored note when present, otherwise a templated
+      // explanation derived from the AI status so the demo always shows reasoning.
+      function aiNote(doc) {
+        if (doc.aiReviewNotes) return doc.aiReviewNotes;
+        if (!doc.uploaded) return "Not yet uploaded by customer.";
+        switch (doc.aiReviewStatus) {
+          case "accept":
+            return "Passed — document type matched, all expected fields detected and legible, not expired.";
+          case "reject":
+            return "Failed — image quality too low or a required field could not be read. Customer should re-scan.";
+          default:
+            return "Uploaded — awaiting AI review.";
+        }
+      }
 
-function aiBadge(doc) {
-  if (!doc.uploaded) return '<span class="badge badge-yellow">Not uploaded</span>';
-  if (doc.aiReviewStatus === 'accept') return '<span class="badge badge-green">Accepted</span>';
-  if (doc.aiReviewStatus === 'reject') return '<span class="badge badge-red">Rejected</span>';
-  return '<span class="badge badge-yellow">Pending review</span>';
-}
+      function aiBadge(doc) {
+        if (!doc.uploaded) return '<span class="badge badge-yellow">Not uploaded</span>';
+        if (doc.aiReviewStatus === "accept")
+          return '<span class="badge badge-green">Accepted</span>';
+        if (doc.aiReviewStatus === "reject") return '<span class="badge badge-red">Rejected</span>';
+        return '<span class="badge badge-yellow">Pending review</span>';
+      }
 
-let recordData = null;
+      let recordData = null;
 
-function renderRecord(data) {
-  recordData = data;
-  document.getElementById('checkin-empty').style.display = 'none';
-  document.getElementById('checkin-record').style.display = '';
+      function renderRecord(data) {
+        recordData = data;
+        document.getElementById("checkin-empty").style.display = "none";
+        document.getElementById("checkin-record").style.display = "";
 
-  document.getElementById('rec-name').textContent = data.firstName + ' ' + data.lastName;
-  document.getElementById('rec-appt-id').textContent = '#' + data.appointmentId;
-  document.getElementById('rec-office-id').textContent = data.officeId;
-  document.getElementById('rec-status').textContent = data.status;
+        document.getElementById("rec-name").textContent = data.firstName + " " + data.lastName;
+        document.getElementById("rec-appt-id").textContent = "#" + data.appointmentId;
+        document.getElementById("rec-office-id").textContent = data.officeId;
+        document.getElementById("rec-status").textContent = data.status;
 
-  const idBadge = document.getElementById('rec-identity');
-  const idCard = document.getElementById('checkin-identity-card');
-  if (data.identityVerified) {
-    idBadge.className = 'badge badge-green'; idBadge.textContent = 'Verified';
-    idCard.style.background = '#f0fff4';
-    idCard.style.borderColor = '#9ae6b4';
-    const btn = idCard.querySelector('button');
-    if (btn) { btn.disabled = true; btn.textContent = 'Done'; btn.style.background = '#c6f6d5'; btn.style.color = '#276749'; }
-  } else {
-    idBadge.className = 'badge badge-yellow'; idBadge.textContent = 'Not verified';
-    idCard.style.background = '#fffbeb';
-    idCard.style.borderColor = '#fbd38d';
-    const btn = idCard.querySelector('button');
-    if (btn) { btn.disabled = false; btn.textContent = 'Verify'; btn.style.background = ''; btn.style.color = ''; btn.className = 'btn btn-success btn-sm'; }
-  }
+        const idBadge = document.getElementById("rec-identity");
+        const idCard = document.getElementById("checkin-identity-card");
+        if (data.identityVerified) {
+          idBadge.className = "badge badge-green";
+          idBadge.textContent = "Verified";
+          idCard.style.background = "#f0fff4";
+          idCard.style.borderColor = "#9ae6b4";
+          const btn = idCard.querySelector("button");
+          if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Done";
+            btn.style.background = "#c6f6d5";
+            btn.style.color = "#276749";
+          }
+        } else {
+          idBadge.className = "badge badge-yellow";
+          idBadge.textContent = "Not verified";
+          idCard.style.background = "#fffbeb";
+          idCard.style.borderColor = "#fbd38d";
+          const btn = idCard.querySelector("button");
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Verify";
+            btn.style.background = "";
+            btn.style.color = "";
+            btn.className = "btn btn-success btn-sm";
+          }
+        }
 
-  const psBadge = document.getElementById('rec-prescreen');
-  const psCard = document.getElementById('checkin-prescreen-card');
-  const psInline = document.getElementById('rec-prescreen-inline');
-  const psSendBtn = document.getElementById('rec-send-prescreen-btn');
-  if (data.prescreenCompleted) {
-    psBadge.className = 'badge badge-green'; psBadge.textContent = 'Pre-screen ✓';
-    psInline.className = 'badge badge-green'; psInline.textContent = 'Completed';
-    psCard.style.background = '#f0fff4'; psCard.style.borderColor = '#9ae6b4';
-    psSendBtn.style.display = 'none';
-  } else {
-    psBadge.className = 'badge badge-red'; psBadge.textContent = 'Pre-screen ✗';
-    psInline.className = 'badge badge-red'; psInline.textContent = 'Not completed';
-    psCard.style.background = '#fff5f5'; psCard.style.borderColor = '#feb2b2';
-    psSendBtn.style.display = '';
-  }
+        const psBadge = document.getElementById("rec-prescreen");
+        const psCard = document.getElementById("checkin-prescreen-card");
+        const psInline = document.getElementById("rec-prescreen-inline");
+        if (data.prescreenCompleted) {
+          psBadge.className = "badge badge-green";
+          psBadge.textContent = "Pre-screen ✓";
+          psInline.className = "badge badge-green";
+          psInline.textContent = "Completed";
+          psCard.style.background = "#f0fff4";
+          psCard.style.borderColor = "#9ae6b4";
+        } else {
+          psBadge.className = "badge badge-red";
+          psBadge.textContent = "Pre-screen ✗";
+          psInline.className = "badge badge-red";
+          psInline.textContent = "Not completed";
+          psCard.style.background = "#fff5f5";
+          psCard.style.borderColor = "#feb2b2";
+        }
 
-  const docs = data.docs || [];
-  const accepted = docs.filter(d => d.aiReviewStatus === 'accept').length;
-  const docSummary = document.getElementById('rec-doc-summary');
-  docSummary.textContent = accepted + '/' + docs.length + ' docs';
-  docSummary.className = 'badge ' + (accepted === docs.length ? 'badge-green' : 'badge-yellow');
+        // Render check-in buttons based on prescreen status
+        const btnContainer = document.getElementById("checkin-buttons");
+        if (data.prescreenCompleted) {
+          btnContainer.innerHTML =
+            '<div style="display: flex; gap: 8px;">' +
+            '<button class="btn btn-primary btn-sm" style="flex: 1;" onclick="doCheckIn(false)">Check In to Queue</button>' +
+            '<button class="btn btn-warning btn-sm" onclick="doCheckIn(true)">Priority</button>' +
+            "</div>";
+        } else {
+          btnContainer.innerHTML =
+            '<div style="display: flex; gap: 8px;">' +
+            '<button class="btn btn-primary btn-sm" style="flex: 1;" onclick="sendPrescreenAndCheckIn(false)">Send Pre-Screen & Check In</button>' +
+            '<button class="btn btn-warning btn-sm" onclick="sendPrescreenAndCheckIn(true)">Pre-Screen & Priority</button>' +
+            "</div>";
+        }
 
-  const container = document.getElementById('rec-docs');
-  container.innerHTML = '';
-  docs.forEach((doc, i) => {
-    const docId = 'rec-doc-' + i;
-    const fileId = docId + '-file';
-    const div = document.createElement('div');
-    div.className = 'doc-item';
-    div.id = docId;
-    if (doc.id) div.dataset.dbId = doc.id;
-    div.innerHTML =
-      '<div class="doc-icon">' + (doc.clerkValidated ? '✅' : (doc.uploaded ? '📄' : '⏳')) + '</div>' +
-      '<div class="doc-info">' +
-        '<div class="doc-name">' + doc.name + '</div>' +
-        '<div class="doc-status">' + aiBadge(doc) +
-          ' <span class="badge ' + (doc.clerkValidated ? 'badge-green' : 'badge-gray') + '" id="' + docId + '-badge">' +
-          (doc.clerkValidated ? 'Clerk ✓' : 'Clerk pending') + '</span>' +
-          '<div style="font-size: 11px; color: #718096; margin-top: 2px;">🤖 ' + aiNote(doc) + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div style="display: flex; gap: 4px; flex-shrink: 0;">' +
-        (doc.uploaded ? '<button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc(\'' + docId + '\')">View</button>' : '') +
-        (doc.uploaded ? '<button class="btn btn-success btn-sm" onclick="validateDoc(\'' + docId + '\')">Validate</button>' : '') +
-        '<input type="file" accept="image/*,.pdf" style="display:none;" id="' + fileId + '" onchange="docScanned(\'' + docId + '\', this)">' +
-        '<button class="btn btn-warning btn-sm" onclick="document.getElementById(\'' + fileId + '\').click()">' + (doc.uploaded ? 'Re-scan' : 'Scan') + '</button>' +
-      '</div>';
-    container.appendChild(div);
+        const docs = data.docs || [];
+        const accepted = docs.filter((d) => d.aiReviewStatus === "accept").length;
+        const docSummary = document.getElementById("rec-doc-summary");
+        docSummary.textContent = accepted + "/" + docs.length + " docs";
+        docSummary.className =
+          "badge " + (accepted === docs.length ? "badge-green" : "badge-yellow");
 
-    if (doc.uploaded) {
-      docFiles[docId] = sampleDocFor(doc.docId);
-    }
-  });
+        const container = document.getElementById("rec-docs");
+        container.innerHTML = "";
+        docs.forEach((doc, i) => {
+          const docId = "rec-doc-" + i;
+          const fileId = docId + "-file";
+          const div = document.createElement("div");
+          div.className = "doc-item";
+          div.id = docId;
+          if (doc.id) div.dataset.dbId = doc.id;
+          div.innerHTML =
+            '<div class="doc-icon">' +
+            (doc.clerkValidated ? "✅" : doc.uploaded ? "📄" : "⏳") +
+            "</div>" +
+            '<div class="doc-info">' +
+            '<div class="doc-name">' +
+            doc.name +
+            "</div>" +
+            '<div class="doc-status">' +
+            aiBadge(doc) +
+            ' <span class="badge ' +
+            (doc.clerkValidated ? "badge-green" : "badge-gray") +
+            '" id="' +
+            docId +
+            '-badge">' +
+            (doc.clerkValidated ? "Clerk ✓" : "Clerk pending") +
+            "</span>" +
+            '<div style="font-size: 11px; color: #718096; margin-top: 2px;">🤖 ' +
+            aiNote(doc) +
+            "</div>" +
+            "</div>" +
+            "</div>" +
+            '<div style="display: flex; gap: 4px; flex-shrink: 0;">' +
+            (doc.uploaded
+              ? '<button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc(\'' +
+                docId +
+                "')\">View</button>"
+              : "") +
+            (doc.uploaded
+              ? '<button class="btn btn-success btn-sm" onclick="validateDoc(\'' +
+                docId +
+                "')\">Validate</button>"
+              : "") +
+            '<input type="file" accept="image/*,.pdf" style="display:none;" id="' +
+            fileId +
+            '" onchange="docScanned(\'' +
+            docId +
+            "', this)\">" +
+            '<button class="btn btn-warning btn-sm" onclick="document.getElementById(\'' +
+            fileId +
+            "').click()\">" +
+            (doc.uploaded ? "Re-scan" : "Scan") +
+            "</button>" +
+            "</div>";
+          container.appendChild(div);
 
-  updateReadiness();
-}
+          if (doc.uploaded) {
+            docFiles[docId] = sampleDocFor(doc.docId);
+          }
+        });
 
-function updateReadiness() {
-  if (!recordData) return;
-  const missing = [];
+        updateReadiness();
+      }
 
-  // Identity
-  const idBadge = document.getElementById('rec-identity');
-  if (!idBadge || idBadge.textContent !== 'Verified') missing.push('Identity not verified');
+      function updateReadiness() {
+        if (!recordData) return;
+        const missing = [];
 
-  // Prescreen
-  const psInline = document.getElementById('rec-prescreen-inline');
-  if (!psInline || psInline.textContent !== 'Completed') missing.push('Pre-screen not completed');
+        // Identity
+        const idBadge = document.getElementById("rec-identity");
+        if (!idBadge || idBadge.textContent !== "Verified") missing.push("Identity not verified");
 
-  // All docs validated by clerk
-  const docItems = document.querySelectorAll('#rec-docs .doc-item');
-  let allValidated = true;
-  docItems.forEach(item => {
-    const badge = item.querySelector('[id$="-badge"]');
-    if (!badge || badge.textContent !== 'Clerk ✓') {
-      allValidated = false;
-    }
-  });
-  if (!allValidated) missing.push('Not all documents clerk-validated');
+        // Prescreen
+        const psInline = document.getElementById("rec-prescreen-inline");
+        if (!psInline || psInline.textContent !== "Completed")
+          missing.push("Pre-screen not completed");
 
-  const ready = document.getElementById('ready-indicator');
-  const notReady = document.getElementById('not-ready-indicator');
-  if (missing.length === 0) {
-    ready.style.display = '';
-    notReady.style.display = 'none';
-  } else {
-    ready.style.display = 'none';
-    notReady.style.display = '';
-    document.getElementById('not-ready-list').innerHTML = missing.map(m => '<li>' + m + '</li>').join('');
-  }
-}
+        // All docs validated by clerk
+        const docItems = document.querySelectorAll("#rec-docs .doc-item");
+        let allValidated = true;
+        docItems.forEach((item) => {
+          const badge = item.querySelector('[id$="-badge"]');
+          if (!badge || badge.textContent !== "Clerk ✓") {
+            allValidated = false;
+          }
+        });
+        if (!allValidated) missing.push("Not all documents clerk-validated");
 
-async function sendPrescreenForRecord() {
-  if (!recordData) return;
-  try {
-    const res = await fetch('/api/send-prescreen', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: recordData.appointmentId }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast('Pre-screen link sent to ' + (data.sentTo || 'customer'));
-    } else {
-      showToast('Error: ' + (data.error || 'unknown'), true);
-    }
-  } catch (e) {
-    showToast('Server error', true);
-  }
-}
+        const ready = document.getElementById("ready-indicator");
+        const notReady = document.getElementById("not-ready-indicator");
+        if (missing.length === 0) {
+          ready.style.display = "";
+          notReady.style.display = "none";
+        } else {
+          ready.style.display = "none";
+          notReady.style.display = "";
+          document.getElementById("not-ready-list").innerHTML = missing
+            .map((m) => "<li>" + m + "</li>")
+            .join("");
+        }
+      }
 
-// Map registry doc_ids to bundled sample files where we have one; otherwise
-// fall back to a generic image so "View" always shows something in the demo.
-function sampleDocFor(docId) {
-  const map = {
-    photo_id: { url: 'sample_docs/fl-real-id-dl.png', type: 'image/png', name: 'fl-real-id-dl.png' },
-    insurance_card: { url: 'sample_docs/driver-insurnace.png', type: 'image/png', name: 'driver-insurnace.png' },
-  };
-  return map[docId] || { url: 'sample_docs/florida-transfer.pdf', type: 'application/pdf', name: 'florida-transfer.pdf' };
-}
+      async function sendPrescreenForRecord() {
+        if (!recordData) return;
+        try {
+          const res = await fetch("/api/send-prescreen", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId: recordData.appointmentId }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            showToast("Pre-screen link sent to " + (data.sentTo || "customer"));
+          } else {
+            showToast("Error: " + (data.error || "unknown"), true);
+          }
+        } catch (e) {
+          showToast("Server error", true);
+        }
+      }
 
-// QR Scanner
-let scanner = null;
+      async function sendPrescreenAndCheckIn(priority) {
+        if (!recordData) return;
+        try {
+          const res = await fetch("/api/send-prescreen", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              appointmentId: recordData.appointmentId,
+              autoCheckIn: true,
+              priority,
+            }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            showToast(
+              "Pre-screen sent — customer will be auto checked in" +
+                (priority ? " (Priority)" : "") +
+                " upon completion",
+            );
+            document.getElementById("checkin-record").style.display = "none";
+            document.getElementById("checkin-empty").style.display = "";
+          } else {
+            showToast("Error: " + (data.error || "unknown"), true);
+          }
+        } catch (e) {
+          showToast("Server error", true);
+        }
+      }
 
-function startScanner() {
-  if (scanner) return;
-  scanner = new Html5Qrcode("qr-reader");
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 200, height: 200 } },
-    (decodedText) => {
-      document.getElementById('qr-result').value = decodedText;
-      showToast('QR scanned: ' + decodedText);
-      stopScanner();
-      lookupByQr();
-    },
-    () => {}
-  ).catch(err => {
-    showToast('Camera error: ' + err, true);
-    scanner = null;
-  });
-}
+      // Map registry doc_ids to bundled sample files where we have one; otherwise
+      // fall back to a generic image so "View" always shows something in the demo.
+      function sampleDocFor(docId) {
+        const map = {
+          photo_id: {
+            url: "sample_docs/fl-real-id-dl.png",
+            type: "image/png",
+            name: "fl-real-id-dl.png",
+          },
+          insurance_card: {
+            url: "sample_docs/driver-insurnace.png",
+            type: "image/png",
+            name: "driver-insurnace.png",
+          },
+        };
+        return (
+          map[docId] || {
+            url: "sample_docs/florida-transfer.pdf",
+            type: "application/pdf",
+            name: "florida-transfer.pdf",
+          }
+        );
+      }
 
-function stopScanner() {
-  if (scanner) {
-    scanner.stop().then(() => { scanner = null; }).catch(() => { scanner = null; });
-  }
-}
+      // QR Scanner
+      let scanner = null;
 
-// ─── Service Clerk (DB-backed) ──────────────────────────────────────────────
-let svcClerkId = null;
-let svcOfficeId = 1;
-let svcCurrentRecord = null;
+      function startScanner() {
+        if (scanner) return;
+        scanner = new Html5Qrcode("qr-reader");
+        scanner
+          .start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 200, height: 200 } },
+            (decodedText) => {
+              document.getElementById("qr-result").value = decodedText;
+              showToast("QR scanned: " + decodedText);
+              stopScanner();
+              lookupByQr();
+            },
+            () => {},
+          )
+          .catch((err) => {
+            showToast("Camera error: " + err, true);
+            scanner = null;
+          });
+      }
 
-function getSelectedClerk() { return parseInt(document.getElementById('svc-clerk-select').value); }
-function getSelectedDesk() { return parseInt(document.getElementById('svc-desk-select').value); }
+      function stopScanner() {
+        if (scanner) {
+          scanner
+            .stop()
+            .then(() => {
+              scanner = null;
+            })
+            .catch(() => {
+              scanner = null;
+            });
+        }
+      }
 
-async function clerkDoLogin() {
-  const clerkId = getSelectedClerk();
-  const desk = getSelectedDesk();
-  const res = await fetch('/api/clerk/login', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ clerkId, officeId: svcOfficeId, deskNumber: desk }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Login failed: ' + (data.error || 'unknown'), true); return; }
-  svcClerkId = clerkId;
-  showToast('Logged in as clerk ' + clerkId + ' at desk ' + desk);
-  await clerkLoadServing();
-}
+      // ─── Service Clerk (DB-backed) ──────────────────────────────────────────────
+      let svcClerkId = null;
+      let svcOfficeId = 1;
+      let svcCurrentRecord = null;
+      let svcClerkList = [];
 
-async function clerkSummonNext() {
-  if (!svcClerkId) { showToast('Login first', true); return; }
-  const res = await fetch('/api/clerk/summon-next', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ clerkId: svcClerkId, officeId: svcOfficeId }),
-  });
-  const data = await res.json();
-  if (!data.assigned) { showToast('No one in queue', true); return; }
-  showToast('Customer assigned to desk ' + data.deskNumber);
-  await clerkLoadServing();
-}
+      async function loadClerkList() {
+        const res = await fetch("/api/clerks?officeId=" + svcOfficeId);
+        const data = await res.json();
+        svcClerkList = data.clerks || [];
+        const sel = document.getElementById("svc-clerk-select");
+        sel.innerHTML = svcClerkList
+          .map(
+            (c) =>
+              '<option value="' +
+              c.id +
+              '">' +
+              c.first_name +
+              " " +
+              c.last_name +
+              " (" +
+              c.id +
+              ")</option>",
+          )
+          .join("");
+        showClerkSkills();
+      }
 
-async function clerkLoadServing() {
-  if (!svcClerkId) return;
-  const res = await fetch('/api/clerk/serving?clerkId=' + svcClerkId + '&officeId=' + svcOfficeId);
-  const data = await res.json();
-  if (!data.serving) {
-    document.getElementById('svc-empty').style.display = '';
-    document.getElementById('svc-serving').style.display = 'none';
-    svcCurrentRecord = null;
-    return;
-  }
-  svcCurrentRecord = data.record;
-  renderServingRecord(data.record);
-}
+      function showClerkSkills() {
+        const clerkId = parseInt(document.getElementById("svc-clerk-select").value);
+        const clerk = svcClerkList.find((c) => c.id === clerkId);
+        const el = document.getElementById("svc-clerk-skills");
+        if (!clerk || !clerk.skill_names || clerk.skill_names.length === 0) {
+          el.innerHTML = "";
+          return;
+        }
+        el.innerHTML =
+          "<strong>Skills:</strong> " +
+          clerk.skill_names.map((s) => '<span class="badge badge-blue">' + s + "</span>").join("");
+      }
 
-function renderServingRecord(r) {
-  document.getElementById('svc-empty').style.display = 'none';
-  document.getElementById('svc-serving').style.display = '';
+      function getSelectedClerk() {
+        return parseInt(document.getElementById("svc-clerk-select").value);
+      }
+      function getSelectedDesk() {
+        return parseInt(document.getElementById("svc-desk-select").value);
+      }
 
-  document.getElementById('svc-serving-title').innerHTML =
-    'Now Serving — ' + r.firstName + ' ' + r.lastName +
-    ' <span class="badge badge-blue" style="margin-left:8px;">Queue #' + r.queueNumber + '</span>' +
-    (r.isPriority ? ' <span class="badge badge-yellow">Priority</span>' : '');
+      async function clerkDoLogin() {
+        const clerkId = getSelectedClerk();
+        const desk = getSelectedDesk();
+        const res = await fetch("/api/clerk/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerkId, officeId: svcOfficeId, deskNumber: desk }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Login failed: " + (data.error || "unknown"), true);
+          return;
+        }
+        svcClerkId = clerkId;
+        showToast("Logged in as clerk " + clerkId + " at desk " + desk);
+        await clerkLoadServing();
+      }
 
-  document.getElementById('svc-info').innerHTML =
-    '<p><strong>Transaction:</strong> ' + r.txnTypes.map(t => t.name).join(', ') + '</p>' +
-    '<p><strong>Identity:</strong> <span class="badge ' + (r.identityVerified ? 'badge-green">Verified' : 'badge-yellow">Not verified') + '</span></p>' +
-    '<p><strong>Pre-Screen:</strong> <span class="badge ' + (r.prescreenCompleted ? 'badge-green">Complete' : 'badge-red">Incomplete') + '</span></p>';
+      async function clerkSummonNext() {
+        if (!svcClerkId) {
+          showToast("Login first", true);
+          return;
+        }
+        const res = await fetch("/api/clerk/summon-next", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerkId: svcClerkId, officeId: svcOfficeId }),
+        });
+        const data = await res.json();
+        if (!data.assigned) {
+          showToast("No one in queue", true);
+          return;
+        }
+        showToast("Customer assigned to desk " + data.deskNumber);
+        await clerkLoadServing();
+      }
 
-  document.getElementById('svc-notes-area').innerHTML = r.notes
-    ? '<p><strong>Check-In Notes:</strong></p><p style="font-size:13px;background:#fefcbf;padding:8px;border-radius:4px;">' + r.notes + '</p>'
-    : '<p style="color:#718096;font-size:13px;">No notes from check-in.</p>';
+      async function clerkLoadServing() {
+        if (!svcClerkId) return;
+        const res = await fetch(
+          "/api/clerk/serving?clerkId=" + svcClerkId + "&officeId=" + svcOfficeId,
+        );
+        const data = await res.json();
+        if (!data.serving) {
+          document.getElementById("svc-empty").style.display = "";
+          document.getElementById("svc-serving").style.display = "none";
+          svcCurrentRecord = null;
+          return;
+        }
+        svcCurrentRecord = data.record;
+        renderServingRecord(data.record);
+      }
 
-  // Documents
-  const docsHtml = r.docs.map(doc => {
-    const icon = doc.clerkValidated ? '✅' : (doc.uploaded ? '📄' : '⏳');
-    const statusBadge = doc.clerkValidated ? '<span class="badge badge-green">Validated</span>'
-      : doc.uploaded ? '<span class="badge badge-yellow">Needs validation</span>'
-      : '<span class="badge badge-gray">Not uploaded</span>';
-    return '<div class="doc-item"><div class="doc-icon">' + icon + '</div>' +
-      '<div class="doc-info"><div class="doc-name">' + doc.name + '</div>' +
-      '<div class="doc-status">' + statusBadge + '</div></div></div>';
-  }).join('');
-  document.getElementById('svc-docs').innerHTML = docsHtml || '<p style="color:#718096;">No documents required.</p>';
+      function renderServingRecord(r) {
+        document.getElementById("svc-empty").style.display = "none";
+        document.getElementById("svc-serving").style.display = "";
 
-  // Prescreen responses — prefer enriched text if available
-  const psItems = r.prescreenWithText && r.prescreenWithText.length
-    ? r.prescreenWithText
-    : Object.entries(r.prescreenResponses || {}).map(([k, v]) => ({ questionId: k, questionText: 'Question ' + k, answer: v }));
-  if (psItems.length) {
-    document.getElementById('svc-prescreen').innerHTML = '<table><tbody>' +
-      psItems.map(q => '<tr><td style="padding-right:16px;">' + q.questionText + '</td><td><strong>' + (q.answer ? 'Yes' : 'No') + '</strong></td></tr>').join('') +
-      '</tbody></table>';
-  } else {
-    document.getElementById('svc-prescreen').innerHTML = '<p style="color:#718096;">No pre-screen responses recorded.</p>';
-  }
+        // Reset state system drop zone
+        const dz = document.getElementById("state-system-dropzone");
+        dz.innerHTML =
+          '<p id="state-system-placeholder" style="color: #718096; font-size: 13px; margin: 0; text-align: center;">Drop documents here to upload to state system</p>';
 
-  // Transaction steps
-  const steps = r.steps || { visionTest: false, photo: false, payment: false };
-  const stepDefs = [
-    { key: 'visionTest', label: 'Vision Test', icon: '👁' },
-    { key: 'photo', label: 'Photo Capture', icon: '📸' },
-    { key: 'payment', label: 'Payment', icon: '💳' },
-  ];
-  document.getElementById('svc-steps').innerHTML = stepDefs.map(s => {
-    const done = steps[s.key];
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
-      (done ? '#f0fff4' : '#f7fafc') + ';border:1px solid ' + (done ? '#9ae6b4' : '#e2e8f0') + ';border-radius:6px;">' +
-      '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:18px;">' + s.icon + '</span>' +
-        '<span style="font-weight:600;font-size:13px;">' + s.label + '</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;">' +
-        '<span class="badge ' + (done ? 'badge-green">Done' : 'badge-gray">Pending') + '</span>' +
-        (done ? '' : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' + s.key + '\')">Mark Done</button>') +
-      '</div>' +
-    '</div>';
-  }).join('');
+        document.getElementById("svc-serving-title").innerHTML =
+          "Now Serving — " +
+          r.firstName +
+          " " +
+          r.lastName +
+          ' <span class="badge badge-blue" style="margin-left:8px;">Queue #' +
+          r.queueNumber +
+          "</span>" +
+          (r.isPriority ? ' <span class="badge badge-yellow">Priority</span>' : "");
 
-  // State upload panel
-  const docs = r.docs || [];
-  const uploadedDocs = docs.filter(d => d.uploaded);
-  if (uploadedDocs.length) {
-    document.getElementById('svc-state-uploads').innerHTML = uploadedDocs.map(doc => {
-      const inputId = 'state-upload-' + doc.docId;
-      return '<div class="doc-item" id="svc-upload-' + doc.docId + '">' +
-        '<div class="doc-icon">📄</div>' +
-        '<div class="doc-info">' +
-          '<div class="doc-name">' + doc.name + '</div>' +
-          '<div class="doc-status"><span class="badge badge-gray" id="svc-upload-badge-' + doc.docId + '">Not uploaded to state</span></div>' +
-        '</div>' +
-        '<div style="display:flex;gap:4px;flex-shrink:0;">' +
-          '<input type="file" accept="image/*,.pdf" style="display:none;" id="' + inputId + '" onchange="clerkStateUpload(\'' + doc.name + '\', this)">' +
-          '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'' + inputId + '\').click()">Upload to State</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-  } else {
-    document.getElementById('svc-state-uploads').innerHTML = '<p style="color:#718096;font-size:13px;">No documents available to upload.</p>';
-  }
-}
+        document.getElementById("svc-info").innerHTML =
+          "<p><strong>Transaction:</strong> " +
+          r.txnTypes.map((t) => t.name).join(", ") +
+          "</p>" +
+          '<p><strong>Identity:</strong> <span class="badge ' +
+          (r.identityVerified ? 'badge-green">Verified' : 'badge-yellow">Not verified') +
+          "</span></p>" +
+          '<p><strong>Pre-Screen:</strong> <span class="badge ' +
+          (r.prescreenCompleted ? 'badge-green">Complete' : 'badge-red">Incomplete') +
+          "</span></p>";
 
-async function clerkCompleteAndNext() {
-  if (!svcCurrentRecord || !svcClerkId) return;
-  if (!confirm('Complete ' + svcCurrentRecord.firstName + ' ' + svcCurrentRecord.lastName + '? Next customer will be summoned.')) return;
-  const res = await fetch('/api/clerk/complete-and-next', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, clerkId: svcClerkId, officeId: svcOfficeId }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
-  const durMin = Math.round(data.durationSec / 60);
-  if (data.next) {
-    showToast('Completed (' + durMin + ' min). Next customer loaded.');
-    svcCurrentRecord = data.next;
-    renderServingRecord(data.next);
-  } else {
-    showToast('Completed (' + durMin + ' min). No one else in queue.');
-    document.getElementById('svc-empty').style.display = '';
-    document.getElementById('svc-serving').style.display = 'none';
-    svcCurrentRecord = null;
-  }
-}
+        document.getElementById("svc-notes-area").innerHTML = r.notes
+          ? '<p><strong>Check-In Notes:</strong></p><p style="font-size:13px;background:#fefcbf;padding:8px;border-radius:4px;">' +
+            r.notes +
+            "</p>"
+          : '<p style="color:#718096;font-size:13px;">No notes from check-in.</p>';
 
-async function clerkCompleteOnly() {
-  if (!svcCurrentRecord || !svcClerkId) return;
-  if (!confirm('Complete ' + svcCurrentRecord.firstName + ' ' + svcCurrentRecord.lastName + '?')) return;
-  const res = await fetch('/api/clerk/complete', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, clerkId: svcClerkId, officeId: svcOfficeId }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
-  const durMin = Math.round(data.durationSec / 60);
-  showToast('Completed (' + durMin + ' min). Clerk now available.');
-  document.getElementById('svc-empty').style.display = '';
-  document.getElementById('svc-serving').style.display = 'none';
-  svcCurrentRecord = null;
-}
+        // Documents
+        const docsHtml = r.docs
+          .map((doc) => {
+            const icon = doc.clerkValidated ? "✅" : doc.uploaded ? "📄" : "⏳";
+            const statusBadge = doc.clerkValidated
+              ? '<span class="badge badge-green">Validated</span>'
+              : doc.uploaded
+                ? '<span class="badge badge-yellow">Needs validation</span>'
+                : '<span class="badge badge-gray">Not uploaded</span>';
+            return (
+              '<div class="doc-item"><div class="doc-icon">' +
+              icon +
+              "</div>" +
+              '<div class="doc-info"><div class="doc-name">' +
+              doc.name +
+              "</div>" +
+              '<div class="doc-status">' +
+              statusBadge +
+              "</div></div></div>"
+            );
+          })
+          .join("");
+        document.getElementById("svc-docs").innerHTML =
+          docsHtml || '<p style="color:#718096;">No documents required.</p>';
 
-async function clerkToggleAvailability(available) {
-  if (!svcClerkId) { showToast('Login first', true); return; }
-  const res = await fetch('/api/clerk/availability', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ clerkId: svcClerkId, officeId: svcOfficeId, available }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
-  const badge = document.getElementById('svc-available-badge');
-  badge.className = 'badge ' + (available ? 'badge-green' : 'badge-yellow');
-  badge.textContent = available ? 'Available' : 'Unavailable';
-  showToast(available ? 'Marked available' : 'Marked unavailable');
-}
+        // Prescreen responses — prefer enriched text if available
+        const psItems =
+          r.prescreenWithText && r.prescreenWithText.length
+            ? r.prescreenWithText
+            : Object.entries(r.prescreenResponses || {}).map(([k, v]) => ({
+                questionId: k,
+                questionText: "Question " + k,
+                answer: v,
+              }));
+        if (psItems.length) {
+          document.getElementById("svc-prescreen").innerHTML =
+            "<table><tbody>" +
+            psItems
+              .map(
+                (q) =>
+                  '<tr><td style="padding-right:16px;">' +
+                  q.questionText +
+                  "</td><td><strong>" +
+                  (q.answer ? "Yes" : "No") +
+                  "</strong></td></tr>",
+              )
+              .join("") +
+            "</tbody></table>";
+        } else {
+          document.getElementById("svc-prescreen").innerHTML =
+            '<p style="color:#718096;">No pre-screen responses recorded.</p>';
+        }
 
-async function clerkRecordStep(step) {
-  if (!svcCurrentRecord) return;
-  const res = await fetch('/api/clerk/record-step', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, step }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Error saving step', true); return; }
-  // Re-render steps panel with updated state
-  const stepDefs = [
-    { key: 'visionTest', label: 'Vision Test', icon: '👁' },
-    { key: 'photo', label: 'Photo Capture', icon: '📸' },
-    { key: 'payment', label: 'Payment', icon: '💳' },
-  ];
-  const steps = data.steps;
-  document.getElementById('svc-steps').innerHTML = stepDefs.map(s => {
-    const done = steps[s.key];
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
-      (done ? '#f0fff4' : '#f7fafc') + ';border:1px solid ' + (done ? '#9ae6b4' : '#e2e8f0') + ';border-radius:6px;">' +
-      '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:18px;">' + s.icon + '</span>' +
-        '<span style="font-weight:600;font-size:13px;">' + s.label + '</span>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;">' +
-        '<span class="badge ' + (done ? 'badge-green">Done' : 'badge-gray">Pending') + '</span>' +
-        (done ? '' : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' + s.key + '\')">Mark Done</button>') +
-      '</div>' +
-    '</div>';
-  }).join('');
-  showToast(step + ' marked done');
-}
+        // Transaction steps
+        const steps = r.steps || { visionTest: false, photo: false, payment: false };
+        const stepDefs = [
+          { key: "visionTest", label: "Vision Test", icon: "👁" },
+          { key: "photo", label: "Photo Capture", icon: "📸" },
+          { key: "payment", label: "Payment", icon: "💳" },
+        ];
+        document.getElementById("svc-steps").innerHTML = stepDefs
+          .map((s) => {
+            const done = steps[s.key];
+            return (
+              '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
+              (done ? "#f0fff4" : "#f7fafc") +
+              ";border:1px solid " +
+              (done ? "#9ae6b4" : "#e2e8f0") +
+              ';border-radius:6px;">' +
+              '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span style="font-size:18px;">' +
+              s.icon +
+              "</span>" +
+              '<span style="font-weight:600;font-size:13px;">' +
+              s.label +
+              "</span>" +
+              "</div>" +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<span class="badge ' +
+              (done ? 'badge-green">Done' : 'badge-gray">Pending') +
+              "</span>" +
+              (done
+                ? ""
+                : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' +
+                  s.key +
+                  "')\">Mark Done</button>") +
+              "</div>" +
+              "</div>"
+            );
+          })
+          .join("");
 
-async function clerkStateUpload(docName, input) {
-  if (!svcCurrentRecord || !input.files.length) return;
-  const file = input.files[0];
-  const res = await fetch('/api/clerk/state-upload', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, docName }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Upload error', true); return; }
-  // Find badge by scanning for matching doc name
-  const docItems = document.querySelectorAll('[id^="svc-upload-"]');
-  docItems.forEach(item => {
-    const nameEl = item.querySelector('.doc-name');
-    if (nameEl && nameEl.textContent === docName) {
-      const badge = item.querySelector('[id^="svc-upload-badge-"]');
-      if (badge) { badge.className = 'badge badge-green'; badge.textContent = 'Uploaded ✓'; }
-      const btn = item.querySelector('.btn-primary');
-      if (btn) { btn.disabled = true; btn.textContent = 'Done'; btn.style.background = '#c6f6d5'; btn.style.color = '#276749'; btn.className = 'btn btn-sm'; }
-    }
-  });
-  showToast(docName + ' uploaded to state system (' + file.name + ')');
-}
+        // State upload panel — draggable document tiles
+        const allDocs = r.docs || [];
+        const uploadedDocs = allDocs.filter((d) => d.uploaded);
+        const stateContainer = document.getElementById("svc-state-uploads");
+        if (uploadedDocs.length) {
+          stateContainer.innerHTML = uploadedDocs
+            .map((doc) => {
+              const sampleFile = sampleDocFor(doc.docId);
+              return (
+                '<div class="state-doc-tile" draggable="true" data-doc-id="' +
+                doc.docId +
+                '" data-doc-name="' +
+                doc.name +
+                '" data-file-url="' +
+                sampleFile.url +
+                '" data-file-type="' +
+                sampleFile.type +
+                '">' +
+                '<div style="font-size: 28px; margin-bottom: 6px;">📄</div>' +
+                '<div style="font-size: 12px; font-weight: 600; text-align: center;">' +
+                doc.name +
+                "</div>" +
+                '<div style="font-size: 10px; color: #718096; margin-top: 4px;">' +
+                (doc.clerkValidated ? "✓ Validated" : "Uploaded") +
+                "</div>" +
+                "</div>"
+              );
+            })
+            .join("");
+          // Attach drag handlers
+          stateContainer.querySelectorAll(".state-doc-tile").forEach((tile) => {
+            tile.addEventListener("dragstart", handleDocDragStart);
+          });
+        } else {
+          stateContainer.innerHTML =
+            '<p style="color:#718096;font-size:13px;">No documents gathered at check-in.</p>';
+        }
+      }
 
-async function clerkSendToTest() {
-  if (!svcCurrentRecord) { showToast('No customer loaded', true); return; }
-  const station = parseInt(document.getElementById('svc-test-station').value);
-  if (!station) { showToast('Enter a test station number', true); return; }
-  if (!confirm('Send ' + svcCurrentRecord.firstName + ' ' + svcCurrentRecord.lastName + ' to written test at station ' + station + '?')) return;
-  const res = await fetch('/api/clerk/send-to-test', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ queueId: svcCurrentRecord.queueId, testStationId: station }),
-  });
-  const data = await res.json();
-  if (!data.ok) { showToast('Error: ' + (data.error || 'unknown'), true); return; }
-  showToast('Customer sent to written test at station ' + station);
-  document.getElementById('svc-empty').style.display = '';
-  document.getElementById('svc-serving').style.display = 'none';
-  svcCurrentRecord = null;
-}
+      async function clerkCompleteAndNext() {
+        if (!svcCurrentRecord || !svcClerkId) return;
+        if (
+          !confirm(
+            "Complete " +
+              svcCurrentRecord.firstName +
+              " " +
+              svcCurrentRecord.lastName +
+              "? Next customer will be summoned.",
+          )
+        )
+          return;
+        const res = await fetch("/api/clerk/complete-and-next", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queueId: svcCurrentRecord.queueId,
+            clerkId: svcClerkId,
+            officeId: svcOfficeId,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Error: " + (data.error || "unknown"), true);
+          return;
+        }
+        const durMin = Math.round(data.durationSec / 60);
+        if (data.next) {
+          showToast("Completed (" + durMin + " min). Next customer loaded.");
+          svcCurrentRecord = data.next;
+          renderServingRecord(data.next);
+        } else {
+          showToast("Completed (" + durMin + " min). No one else in queue.");
+          document.getElementById("svc-empty").style.display = "";
+          document.getElementById("svc-serving").style.display = "none";
+          svcCurrentRecord = null;
+        }
+      }
 
-// Load today's appointments for the check-in desk
-async function loadTodaysQueue() {
-  const container = document.getElementById('todays-queue');
-  try {
-    const res = await fetch('/api/sample-customers');
-    const customers = await res.json();
-    if (!customers.length) { container.textContent = 'No appointments today.'; return; }
-    container.innerHTML = '<table><thead><tr>' +
-      '<th>Name</th><th>Prescreen</th><th>Docs</th><th></th>' +
-      '</tr></thead><tbody>' +
-      customers.map(c => {
-        const docLabel = c.uploaded === 0 ? 'None' :
-          c.uploaded + '/' + c.req_docs + ' (' + c.accepted + '✓' + (c.rejected ? ' ' + c.rejected + '✗' : '') + ')';
-        const docClass = c.uploaded === 0 ? 'badge-red' :
-          (c.uploaded === c.req_docs && c.rejected === 0) ? 'badge-green' : 'badge-yellow';
-        return '<tr style="cursor:pointer;" onclick="loadCustomerByQr(\'' + c.qr_code + '\')">' +
-          '<td><strong>' + c.first_name + ' ' + c.last_name + '</strong></td>' +
-          '<td><span class="badge ' + (c.prescreen_completed ? 'badge-green' : 'badge-red') + '">' + (c.prescreen_completed ? '✓' : '✗') + '</span></td>' +
-          '<td><span class="badge ' + docClass + '">' + docLabel + '</span></td>' +
-          '<td><button class="btn btn-primary btn-sm">Load</button></td>' +
-          '</tr>';
-      }).join('') +
-      '</tbody></table>';
-  } catch (e) {
-    container.textContent = 'Server not running.';
-  }
-}
+      async function clerkCompleteOnly() {
+        if (!svcCurrentRecord || !svcClerkId) return;
+        if (
+          !confirm("Complete " + svcCurrentRecord.firstName + " " + svcCurrentRecord.lastName + "?")
+        )
+          return;
+        const res = await fetch("/api/clerk/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queueId: svcCurrentRecord.queueId,
+            clerkId: svcClerkId,
+            officeId: svcOfficeId,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Error: " + (data.error || "unknown"), true);
+          return;
+        }
+        const durMin = Math.round(data.durationSec / 60);
+        showToast("Completed (" + durMin + " min). Clerk now available.");
+        document.getElementById("svc-empty").style.display = "";
+        document.getElementById("svc-serving").style.display = "none";
+        svcCurrentRecord = null;
+      }
 
-function loadCustomerByQr(qrCode) {
-  document.getElementById('qr-result').value = qrCode;
-  lookupByQr();
-}
+      async function clerkToggleAvailability(available) {
+        if (!svcClerkId) {
+          showToast("Login first", true);
+          return;
+        }
+        const res = await fetch("/api/clerk/availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerkId: svcClerkId, officeId: svcOfficeId, available }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Error: " + (data.error || "unknown"), true);
+          return;
+        }
+        const badge = document.getElementById("svc-available-badge");
+        badge.className = "badge " + (available ? "badge-green" : "badge-yellow");
+        badge.textContent = available ? "Available" : "Unavailable";
+        showToast(available ? "Marked available" : "Marked unavailable");
+      }
 
-loadTodaysQueue();
+      async function clerkRecordStep(step) {
+        if (!svcCurrentRecord) return;
+        const res = await fetch("/api/clerk/record-step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queueId: svcCurrentRecord.queueId, step }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Error saving step", true);
+          return;
+        }
+        // Re-render steps panel with updated state
+        const stepDefs = [
+          { key: "visionTest", label: "Vision Test", icon: "👁" },
+          { key: "photo", label: "Photo Capture", icon: "📸" },
+          { key: "payment", label: "Payment", icon: "💳" },
+        ];
+        const steps = data.steps;
+        document.getElementById("svc-steps").innerHTML = stepDefs
+          .map((s) => {
+            const done = steps[s.key];
+            return (
+              '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:' +
+              (done ? "#f0fff4" : "#f7fafc") +
+              ";border:1px solid " +
+              (done ? "#9ae6b4" : "#e2e8f0") +
+              ';border-radius:6px;">' +
+              '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span style="font-size:18px;">' +
+              s.icon +
+              "</span>" +
+              '<span style="font-weight:600;font-size:13px;">' +
+              s.label +
+              "</span>" +
+              "</div>" +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<span class="badge ' +
+              (done ? 'badge-green">Done' : 'badge-gray">Pending') +
+              "</span>" +
+              (done
+                ? ""
+                : '<button class="btn btn-success btn-sm" onclick="clerkRecordStep(\'' +
+                  s.key +
+                  "')\">Mark Done</button>") +
+              "</div>" +
+              "</div>"
+            );
+          })
+          .join("");
+        showToast(step + " marked done");
+      }
 
-// Live queue from DB
-async function loadLiveQueue() {
-  const qContainer = document.getElementById('live-queue-items');
-  const cContainer = document.getElementById('live-clerk-sessions');
-  try {
-    const res = await fetch('/api/live-queue');
-    const { queue, clerks, txnTypes } = await res.json();
-    const txnMap = {};
-    txnTypes.forEach(t => txnMap[t.id] = t.name);
+      function handleDocDragStart(e) {
+        const tile = e.currentTarget;
+        tile.classList.add("dragging");
+        const fileUrl = tile.dataset.fileUrl;
+        const docName = tile.dataset.docName;
+        const fileType = tile.dataset.fileType;
+        // Set multiple data types so external apps can accept the drop
+        e.dataTransfer.setData("text/plain", docName);
+        e.dataTransfer.setData("text/uri-list", window.location.origin + "/demos/" + fileUrl);
+        e.dataTransfer.setData(
+          "text/html",
+          '<a href="' + window.location.origin + "/demos/" + fileUrl + '">' + docName + "</a>",
+        );
+        e.dataTransfer.effectAllowed = "copy";
+        // Fetch file as blob and attach to dataTransfer if possible
+        fetch(fileUrl)
+          .then((r) => r.blob())
+          .then((blob) => {
+            const file = new File([blob], fileUrl.split("/").pop(), { type: fileType });
+            if (e.dataTransfer.items && e.dataTransfer.items.add) {
+              e.dataTransfer.items.add(file);
+            }
+          })
+          .catch(() => {});
+        setTimeout(() => tile.classList.remove("dragging"), 200);
+      }
 
-    if (!queue.length) {
-      qContainer.innerHTML = '<p style="color: #718096; text-align: center;">Queue is empty. Check in a customer to see them here.</p>';
-    } else {
-      qContainer.innerHTML = queue.map(q => {
-        const isPriority = q.is_priority;
-        const txnNames = (q.txn_type_ids || []).map(id => txnMap[id] || 'Unknown').join(', ');
-        const time = new Date(q.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const statusBadge = q.status === 'serving'
-          ? '<span class="badge badge-blue">Serving — Desk ' + q.assigned_desk + '</span>'
-          : q.status === 'testing'
-          ? '<span class="badge badge-yellow">Testing</span>'
-          : '<span class="badge badge-yellow">Waiting</span>';
-        return '<div class="queue-item"' + (isPriority ? ' style="border-left: 4px solid #ed8936; background: #fffbeb;"' : '') + '>' +
-          '<div class="queue-number"' + (isPriority ? ' style="color: #ed8936;"' : '') + '>' + (isPriority ? 'P' : '') + q.queue_number + '</div>' +
-          '<div class="queue-info">' +
-            '<div class="name">' + q.first_name + ' ' + q.last_name +
-              (isPriority ? ' <span class="badge badge-yellow" style="margin-left:6px;">Priority</span>' : '') + '</div>' +
-            '<div class="txn">' + txnNames + ' | Checked in ' + time + '</div>' +
-          '</div>' +
-          statusBadge +
-        '</div>';
-      }).join('');
-    }
+      // State system drop zone handlers
+      (function () {
+        const dz = document.getElementById("state-system-dropzone");
+        dz.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          dz.style.borderColor = "#4299e1";
+          dz.style.background = "rgba(66, 153, 225, 0.1)";
+        });
+        dz.addEventListener("dragleave", function (e) {
+          if (!dz.contains(e.relatedTarget)) {
+            dz.style.borderColor = "#4a5568";
+            dz.style.background = "";
+          }
+        });
+        dz.addEventListener("drop", function (e) {
+          e.preventDefault();
+          dz.style.borderColor = "#4a5568";
+          dz.style.background = "";
+          const docName = e.dataTransfer.getData("text/plain");
+          if (!docName) return;
+          const placeholder = document.getElementById("state-system-placeholder");
+          if (placeholder) placeholder.remove();
+          // Add the document as a received file in the state system
+          const el = document.createElement("div");
+          el.style.cssText =
+            "padding: 10px 14px; background: #2d3748; border: 1px solid #4a5568; border-radius: 6px; display: flex; align-items: center; gap: 8px;";
+          el.innerHTML =
+            '<span style="font-size: 20px;">📄</span>' +
+            '<div><div style="color: #e2e8f0; font-size: 13px; font-weight: 600;">' +
+            docName +
+            "</div>" +
+            '<div style="color: #68d391; font-size: 11px;">✓ Received</div></div>';
+          dz.appendChild(el);
+          showToast(docName + " dropped into state system");
+          // Also mark the source tile as uploaded
+          const tiles = document.querySelectorAll(".state-doc-tile");
+          tiles.forEach(function (tile) {
+            if (tile.dataset.docName === docName) {
+              tile.style.opacity = "0.5";
+              tile.style.borderColor = "#68d391";
+              tile.querySelector("div:last-child").textContent = "✓ Sent";
+            }
+          });
+        });
+      })();
 
-    if (!clerks.length) {
-      cContainer.innerHTML = '<p style="color: #718096; text-align: center;">No clerk sessions active.</p>';
-    } else {
-      cContainer.innerHTML = '<table><thead><tr><th>Clerk</th><th>Desk</th><th>Status</th></tr></thead><tbody>' +
-        clerks.map(c => '<tr><td>' + c.name + '</td><td>' + c.desk_number + '</td><td><span class="badge ' +
-          (c.is_available ? 'badge-green">Available' : 'badge-blue">Serving') + '</span></td></tr>').join('') +
-        '</tbody></table>';
-    }
-  } catch (e) {
-    qContainer.innerHTML = '<p style="color:#e53e3e;">Server not running.</p>';
-  }
-}
-loadLiveQueue();
+      async function clerkStateUpload(docName, input) {
+        if (!svcCurrentRecord || !input.files.length) return;
+        const file = input.files[0];
+        const res = await fetch("/api/clerk/state-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queueId: svcCurrentRecord.queueId, docName }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Upload error", true);
+          return;
+        }
+        // Find badge by scanning for matching doc name
+        const docItems = document.querySelectorAll('[id^="svc-upload-"]');
+        docItems.forEach((item) => {
+          const nameEl = item.querySelector(".doc-name");
+          if (nameEl && nameEl.textContent === docName) {
+            const badge = item.querySelector('[id^="svc-upload-badge-"]');
+            if (badge) {
+              badge.className = "badge badge-green";
+              badge.textContent = "Uploaded ✓";
+            }
+            const btn = item.querySelector(".btn-primary");
+            if (btn) {
+              btn.disabled = true;
+              btn.textContent = "Done";
+              btn.style.background = "#c6f6d5";
+              btn.style.color = "#276749";
+              btn.className = "btn btn-sm";
+            }
+          }
+        });
+        showToast(docName + " uploaded to state system (" + file.name + ")");
+      }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+      async function clerkSendToTest() {
+        if (!svcCurrentRecord) {
+          showToast("No customer loaded", true);
+          return;
+        }
+        const station = parseInt(document.getElementById("svc-test-station").value);
+        if (!station) {
+          showToast("Enter a test station number", true);
+          return;
+        }
+        if (
+          !confirm(
+            "Send " +
+              svcCurrentRecord.firstName +
+              " " +
+              svcCurrentRecord.lastName +
+              " to written test at station " +
+              station +
+              "?",
+          )
+        )
+          return;
+        const res = await fetch("/api/clerk/send-to-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queueId: svcCurrentRecord.queueId, testStationId: station }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showToast("Error: " + (data.error || "unknown"), true);
+          return;
+        }
+        showToast("Customer sent to written test at station " + station);
+        document.getElementById("svc-empty").style.display = "";
+        document.getElementById("svc-serving").style.display = "none";
+        svcCurrentRecord = null;
+      }
 
-// ─── Lobby Display (DB-backed via /api/live-queue) ──────────────────────────
-async function loadLobbyDisplay() {
-  try {
-    const res = await fetch('/api/live-queue');
-    const { queue } = await res.json();
+      function loadCustomerByQr(qrCode) {
+        document.getElementById("qr-result").value = qrCode;
+        lookupByQr();
+      }
 
-    const serving = queue.filter(q => q.status === 'serving');
-    const waiting = queue.filter(q => q.status === 'waiting');
+      async function seedQueue() {
+        try {
+          const res = await fetch("/api/seed-queue", { method: "POST" });
+          const data = await res.json();
+          if (data.ok) {
+            showToast("Seeded " + data.seeded.length + " customers into queue");
+            loadLiveQueue();
+          } else {
+            showToast("Error: " + (data.error || "unknown"), true);
+          }
+        } catch (e) {
+          showToast("Server not running", true);
+        }
+      }
 
-    const servingEl = document.getElementById('lobby-serving');
-    if (serving.length) {
-      servingEl.innerHTML = serving.map((q, i) => {
-        const num = (q.is_priority ? 'P' : '') + q.queue_number;
-        return '<div class="lobby-card' + (i === 0 ? ' calling' : '') + '">' +
-          '<div class="number">' + num + '</div>' +
-          '<div class="station">Desk ' + q.assigned_desk + '</div>' +
-        '</div>';
-      }).join('');
-    } else {
-      servingEl.innerHTML = '<p style="color: #a0aec0; text-align: center;">No one being served</p>';
-    }
+      // Live queue from DB
+      async function loadLiveQueue() {
+        const qContainer = document.getElementById("live-queue-items");
+        const cContainer = document.getElementById("live-clerk-sessions");
+        try {
+          const res = await fetch("/api/live-queue");
+          const { queue, clerks, txnTypes } = await res.json();
+          const txnMap = {};
+          txnTypes.forEach((t) => (txnMap[t.id] = t.name));
 
-    const waitingEl = document.getElementById('lobby-waiting');
-    if (waiting.length) {
-      waitingEl.innerHTML = waiting.slice(0, 5).map(q =>
-        (q.is_priority ? 'P' : '') + q.queue_number
-      ).join(' &nbsp; ');
-    } else {
-      waitingEl.textContent = '—';
-    }
-  } catch (e) {
-    // silent — lobby just shows stale data
-  }
-}
-loadLobbyDisplay();
-setInterval(loadLobbyDisplay, 5000);
+          if (!queue.length) {
+            qContainer.innerHTML =
+              '<p style="color: #718096; text-align: center;">Queue is empty. Check in a customer to see them here.</p>';
+          } else {
+            qContainer.innerHTML = queue
+              .map((q) => {
+                const isPriority = q.is_priority;
+                const txnNames = (q.txn_type_ids || [])
+                  .map((id) => txnMap[id] || "Unknown")
+                  .join(", ");
+                const time = new Date(q.checked_in_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+                const statusBadge =
+                  q.status === "serving"
+                    ? '<span class="badge badge-blue">Serving — Desk ' + q.assigned_desk + "</span>"
+                    : q.status === "testing"
+                      ? '<span class="badge badge-yellow">Testing</span>'
+                      : '<span class="badge badge-yellow">Waiting</span>';
+                return (
+                  '<div class="queue-item"' +
+                  (isPriority
+                    ? ' style="border-left: 4px solid #ed8936; background: #fffbeb;"'
+                    : "") +
+                  ">" +
+                  '<div class="queue-number"' +
+                  (isPriority ? ' style="color: #ed8936;"' : "") +
+                  ">" +
+                  (isPriority ? "P" : "") +
+                  q.queue_number +
+                  "</div>" +
+                  '<div class="queue-info">' +
+                  '<div class="name">' +
+                  q.first_name +
+                  " " +
+                  q.last_name +
+                  (isPriority
+                    ? ' <span class="badge badge-yellow" style="margin-left:6px;">Priority</span>'
+                    : "") +
+                  "</div>" +
+                  '<div class="txn">' +
+                  txnNames +
+                  " | Checked in " +
+                  time +
+                  "</div>" +
+                  "</div>" +
+                  statusBadge +
+                  "</div>"
+                );
+              })
+              .join("");
+          }
 
-showView('confirmation');
+          if (!clerks.length) {
+            cContainer.innerHTML =
+              '<p style="color: #718096; text-align: center;">No clerk sessions active.</p>';
+          } else {
+            cContainer.innerHTML =
+              "<table><thead><tr><th>Clerk</th><th>Desk</th><th>Status</th></tr></thead><tbody>" +
+              clerks
+                .map(
+                  (c) =>
+                    "<tr><td>" +
+                    c.name +
+                    "</td><td>" +
+                    c.desk_number +
+                    '</td><td><span class="badge ' +
+                    (c.is_available ? 'badge-green">Available' : 'badge-blue">Serving') +
+                    "</span></td></tr>",
+                )
+                .join("") +
+              "</tbody></table>";
+          }
+        } catch (e) {
+          qContainer.innerHTML = '<p style="color:#e53e3e;">Server not running.</p>';
+        }
+      }
+      loadLiveQueue();
 
-// Load sample customers for testing
-(async function loadSampleCustomers() {
-  try {
-    const res = await fetch('/api/sample-customers');
-    const customers = await res.json();
-    const container = document.getElementById('sample-customers');
-    if (!customers.length) { container.textContent = 'No sample data found.'; return; }
-    container.innerHTML = '<table><thead><tr>' +
-      '<th>Name</th><th>QR Code (click to copy)</th><th>Prescreen</th><th>Docs</th>' +
-      '</tr></thead><tbody>' +
-      customers.map(c => {
-        const docLabel = c.uploaded === 0 ? 'None' :
-          c.uploaded + '/' + c.req_docs + ' (' + c.accepted + '✓ ' + c.rejected + '✗)';
-        const docClass = c.uploaded === 0 ? 'badge-red' :
-          (c.uploaded === c.req_docs && c.rejected === 0) ? 'badge-green' : 'badge-yellow';
-        return '<tr>' +
-          '<td><strong>' + c.first_name + ' ' + c.last_name + '</strong></td>' +
-          '<td><code style="cursor:pointer; font-size:11px; background:#edf2f7; padding:2px 6px; border-radius:3px;" onclick="navigator.clipboard.writeText(\'' + c.qr_code + '\');showToast(\'Copied QR: ' + c.qr_code.slice(0,8) + '…\')">' + c.qr_code + '</code></td>' +
-          '<td><span class="badge ' + (c.prescreen_completed ? 'badge-green' : 'badge-red') + '">' + (c.prescreen_completed ? '✓' : '✗') + '</span></td>' +
-          '<td><span class="badge ' + docClass + '">' + docLabel + '</span></td>' +
-          '</tr>';
-      }).join('') +
-      '</tbody></table>';
-  } catch (e) {
-    document.getElementById('sample-customers').textContent = 'Server not running — start prototype-server.ts';
-  }
-})();
-</script>
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
 
-</body>
+      // ─── Lobby Display (DB-backed via /api/live-queue) ──────────────────────────
+      async function loadLobbyDisplay() {
+        try {
+          const res = await fetch("/api/live-queue");
+          const { queue } = await res.json();
+
+          const serving = queue.filter((q) => q.status === "serving");
+          const waiting = queue.filter((q) => q.status === "waiting");
+
+          const servingEl = document.getElementById("lobby-serving");
+          if (serving.length) {
+            servingEl.innerHTML = serving
+              .map((q, i) => {
+                const num = (q.is_priority ? "P" : "") + q.queue_number;
+                return (
+                  '<div class="lobby-card' +
+                  (i === 0 ? " calling" : "") +
+                  '">' +
+                  '<div class="number">' +
+                  num +
+                  "</div>" +
+                  '<div class="station">Desk ' +
+                  q.assigned_desk +
+                  "</div>" +
+                  "</div>"
+                );
+              })
+              .join("");
+          } else {
+            servingEl.innerHTML =
+              '<p style="color: #a0aec0; text-align: center;">No one being served</p>';
+          }
+
+          const waitingEl = document.getElementById("lobby-waiting");
+          if (waiting.length) {
+            waitingEl.innerHTML = waiting
+              .slice(0, 5)
+              .map((q) => (q.is_priority ? "P" : "") + q.queue_number)
+              .join(" &nbsp; ");
+          } else {
+            waitingEl.textContent = "—";
+          }
+        } catch (e) {
+          // silent — lobby just shows stale data
+        }
+      }
+      loadLobbyDisplay();
+      setInterval(loadLobbyDisplay, 5000);
+
+      loadClerkList();
+      showView("confirmation");
+    </script>
+  </body>
 </html>
