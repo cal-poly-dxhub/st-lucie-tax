@@ -48,6 +48,7 @@ export function bookParams(
   ];
 }
 
+/* Deletes all appointments from an office on a given date */
 export async function clearOfficeDay(client: Client, office = 1) {
   await client.query(
     `DELETE FROM documents
@@ -64,6 +65,7 @@ export async function clearOfficeDay(client: Client, office = 1) {
   );
 }
 
+/* Attempt to book a given appointment and rollback if fails so that test can continue */
 export async function tryBook(
   client: Client,
   params: unknown[],
@@ -88,6 +90,7 @@ export async function tryBook(
   }
 }
 
+/* Tries to book the same appt from two clients to ensure locks work */
 export async function raceTest(opts: {
   preBookParams: unknown[];
   racerAParams: unknown[];
@@ -97,20 +100,7 @@ export async function raceTest(opts: {
   const a = await connect();
   const b = await connect();
   try {
-    await setup.query(
-      `DELETE FROM documents
-        WHERE appointment_id IN (
-          SELECT id FROM appointments
-          WHERE office_id=1 AND appointment_date=$1
-        )`,
-      [TEST_DATE],
-    );
-    await setup.query(
-      `DELETE FROM appointments
-        WHERE office_id=1
-          AND appointment_date=$1`,
-      [TEST_DATE],
-    );
+    await clearOfficeDay(setup);
     await setup.query(BOOK_SQL, opts.preBookParams);
 
     await a.query("BEGIN");
@@ -129,20 +119,7 @@ export async function raceTest(opts: {
     );
     await b.query("ROLLBACK");
 
-    await setup.query(
-      `DELETE FROM documents
-        WHERE appointment_id IN (
-          SELECT id FROM appointments
-          WHERE office_id=1 AND appointment_date=$1
-        )`,
-      [TEST_DATE],
-    );
-    await setup.query(
-      `DELETE FROM appointments
-        WHERE office_id=1
-          AND appointment_date=$1`,
-      [TEST_DATE],
-    );
+    await clearOfficeDay(setup);
 
     return { winnerId: winnerRow.rows[0].id, loserCode: loserResult };
   } finally {
