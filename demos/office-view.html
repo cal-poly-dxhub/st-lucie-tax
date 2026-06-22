@@ -158,28 +158,22 @@
 let animSpeed = 1;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms / animSpeed)); }
 
-const CUSTOMERS = [
-  { name: 'Jane Smith', txn: 'Title Transfer', docs: ['Out-of-State Title', 'Photo ID', 'FL Insurance'], priority: false },
-  { name: 'Robert Chen', txn: 'Vehicle Registration', docs: ['Registration Form', 'Photo ID'], priority: false },
-  { name: 'Maria Garcia', txn: 'DL Renewal', docs: ['Photo ID', 'Proof of Residency'], priority: true },
-  { name: 'David Brown', txn: 'Vessel Registration', docs: ['Vessel Title', 'Photo ID', 'Insurance'], priority: false },
-  { name: 'Lisa Johnson', txn: 'Title Transfer', docs: ['Title', 'Photo ID', 'Bill of Sale'], priority: false },
-  { name: 'Kevin Park', txn: 'DL Road Test', docs: ['Learner Permit', 'Photo ID'], priority: false },
-];
-
-const CLERK_NAMES = ['Maria Santos', 'James Wilson', 'Angela Brown', 'David Kim', 'Sarah Lopez',
-  'Tom Rivera', 'Nina Patel', 'Chris Evans', 'Amy Zhang', 'Mark Johnson'];
+const API = 'http://localhost:3000';
 
 let numDesks = 3;
-let CLERKS = CLERK_NAMES.slice(0, numDesks);
+let CLERKS = [];
+let clerkIds = [];
 let animRunning = false;
 let animInterval = null;
 let animPeople = [];
 let animQueue = [];
-let animDesks = new Array(numDesks).fill(null);
+let animDesks = [];
 let animCompleted = [];
 let animNextId = 0;
-let animNextCustomer = 0;
+let animSpawned = 0;
+let animTargetCount = 6;
+let dbCustomers = [];
+let txnMap = {};
 
 const POSITIONS = {
   offscreen: { x: -30, y: 265 },
@@ -214,12 +208,11 @@ function renderDesks() {
     div.style.cssText = 'position: absolute; top: ' + top + 'px; left: 380px; width: 200px; height: ' + deskHeight + 'px; background: #f0fff4; border: 2px solid #c6f6d5; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.5s;';
     div.innerHTML =
       '<span style="font-weight: 700; font-size: ' + (numDesks > 6 ? '11' : '14') + 'px; color: #276749;">Desk ' + (i+1) + '</span>' +
-      '<span class="anim-desk-clerk" style="font-size: ' + (numDesks > 6 ? '9' : '11') + 'px; color: #718096;">' + CLERKS[i] + '</span>' +
+      '<span class="anim-desk-clerk" style="font-size: ' + (numDesks > 6 ? '9' : '11') + 'px; color: #718096;">' + (CLERKS[i] || 'Clerk ' + (i+1)) + '</span>' +
       '<div class="anim-desk-status" style="margin-top: 4px; font-size: 10px;"></div>';
     container.appendChild(div);
   }
 }
-renderDesks();
 
 function createPersonEl(person) {
   const el = document.createElement('div');
@@ -253,7 +246,7 @@ function animLog(msg) {
     now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) +
     '</span><span>' + msg + '</span>';
   container.prepend(line);
-  if (container.children.length > 30) container.lastElementChild.remove();
+  if (container.children.length > 50) container.lastElementChild.remove();
 }
 
 function updateQueuePanel() {
@@ -266,11 +259,10 @@ function updateQueuePanel() {
     const serving = animDesks[i];
     const busy = serving !== null;
     html += '<div style="padding: 10px; border-radius: 6px; border: 2px solid ' + (busy ? '#4299e1' : '#c6f6d5') + '; background: ' + (busy ? '#ebf8ff' : '#f0fff4') + ';">' +
-      '<div style="font-size: 11px; font-weight: 700; color: ' + (busy ? '#2a4365' : '#276749') + ';">Desk ' + (i+1) + ' — ' + CLERKS[i] + '</div>' +
+      '<div style="font-size: 11px; font-weight: 700; color: ' + (busy ? '#2a4365' : '#276749') + ';">Desk ' + (i+1) + ' — ' + (CLERKS[i] || 'Clerk ' + (i+1)) + '</div>' +
       (busy
         ? '<div style="font-size: 12px; margin-top: 4px;"><span class="badge badge-blue">Serving</span> ' + serving.name + '</div>' +
-          '<div style="font-size: 10px; color: #718096; margin-top: 2px;">' + serving.txn + '</div>' +
-          '<div style="font-size: 10px; margin-top: 3px;">Docs: ' + serving.docs.map(function(d) { return '<span class="badge badge-green" style="margin: 1px;">' + d + '</span>'; }).join(' ') + '</div>'
+          '<div style="font-size: 10px; color: #718096; margin-top: 2px;">' + serving.txn + '</div>'
         : '<div style="font-size: 12px; margin-top: 4px; color: #48bb78;">Available</div>'
       ) +
       '</div>';
@@ -319,69 +311,110 @@ function updateDeskHighlights() {
   }
 }
 
-async function spawnCustomer() {
-  const template = CUSTOMERS[animNextCustomer % CUSTOMERS.length];
-  animNextCustomer++;
+// ─── Real API calls ─────────────────────────────────────────────────────────
+
+async function apiPost(path, body) {
+  const res = await fetch(API + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function apiGet(path) {
+  const res = await fetch(API + path);
+  return res.json();
+}
+
+async function spawnCustomer(customerData) {
   const person = {
     id: animNextId++,
-    name: template.name,
-    txn: template.txn,
-    docs: template.docs,
-    priority: template.priority,
+    dbId: customerData.id,
+    name: customerData.first_name + ' ' + customerData.last_name,
+    txn: customerData.txn || 'Service',
+    priority: false,
     state: 'entering',
+    queueId: null,
     el: null,
   };
   person.el = createPersonEl(person);
   animPeople.push(person);
 
+  // Animate: enter
   await sleep(100);
   movePerson(person, POSITIONS.entrance);
   animLog('<strong>' + person.name + '</strong> enters the office');
-  await sleep(1500);
+  await sleep(1200);
 
+  // Animate: go to check-in
   person.state = 'checking-in';
   movePerson(person, POSITIONS.checkin);
   animLog('<strong>' + person.name + '</strong> approaches check-in desk');
-  await sleep(2000);
+  await sleep(1500);
 
-  animLog('Clerk scans QR for <strong>' + person.name + '</strong>...');
-  await sleep(1200);
-  animLog('Verifying ID for <strong>' + person.name + '</strong> — <span class="badge badge-green">Verified</span>');
-  await sleep(1000);
-  for (const doc of person.docs) {
-    animLog('Reviewing doc: <em>' + doc + '</em> — <span class="badge badge-green">Accepted</span>');
-    await sleep(800);
+  // Real API: verify identity
+  animLog('Verifying ID for <strong>' + person.name + '</strong>...');
+  await apiPost('/api/verify-identity', { appointmentId: person.dbId });
+  animLog('ID verified for <strong>' + person.name + '</strong> — <span class="badge badge-green">Verified</span>');
+  await sleep(800);
+
+  // Real API: check in to queue
+  animLog('Checking in <strong>' + person.name + '</strong> to queue...');
+  const ciResult = await apiPost('/api/check-in', { appointmentId: person.dbId, officeId: 1 });
+  if (!ciResult.ok) {
+    animLog('<span style="color: #e53e3e;">Check-in failed for ' + person.name + ': ' + (ciResult.error || 'unknown') + '</span>');
+    person.el.style.opacity = '0';
+    await sleep(500);
+    person.el.remove();
+    return;
   }
-  animLog('<strong>' + person.name + '</strong> checked in for <em>' + person.txn + '</em>' + (person.priority ? ' <span class="badge badge-yellow">PRIORITY</span>' : ''));
+  person.queueId = ciResult.queueId;
+  animLog('<strong>' + person.name + '</strong> checked in — Queue #' + ciResult.queueNumber);
 
+  // Move to waiting area
   person.state = 'waiting';
   const slot = animQueue.length % POSITIONS.waiting.length;
   movePerson(person, POSITIONS.waiting[slot]);
   animQueue.push(person);
   updateQueuePanel();
-  await sleep(500);
+  await sleep(400);
 
+  // Try to assign
   tryAssignNext();
 }
 
 async function tryAssignNext() {
+  // Find a free desk
   let deskIdx = -1;
   for (let i = 0; i < numDesks; i++) {
     if (animDesks[i] === null) { deskIdx = i; break; }
   }
   if (deskIdx === -1) return;
-
-  let personIdx = animQueue.findIndex(function(p) { return p.priority; });
-  if (personIdx === -1) personIdx = 0;
   if (animQueue.length === 0) return;
+
+  const clerkId = clerkIds[deskIdx];
+  if (!clerkId) return;
+
+  // Real API: assign next customer via the database
+  const result = await apiPost('/api/sim/assign', { clerkId: clerkId, officeId: 1 });
+  if (!result.assigned) return;
+
+  // Find matching person in our visual queue
+  const personIdx = animQueue.findIndex(function(p) { return p.queueId === result.queue_id; });
+  if (personIdx === -1) {
+    // DB assigned someone we don't have visually — just update state
+    animLog('Desk ' + (deskIdx+1) + ' assigned (DB-side)');
+    return;
+  }
 
   const person = animQueue.splice(personIdx, 1)[0];
   animDesks[deskIdx] = person;
   person.state = 'serving';
 
+  // Reposition remaining
   animQueue.forEach(function(p, i) {
-    const slot = i % POSITIONS.waiting.length;
-    movePerson(p, POSITIONS.waiting[slot]);
+    movePerson(p, POSITIONS.waiting[i % POSITIONS.waiting.length]);
   });
 
   movePerson(person, POSITIONS.desk(deskIdx));
@@ -389,6 +422,7 @@ async function tryAssignNext() {
   updateQueuePanel();
   updateDeskHighlights();
 
+  // Simulate service time then complete via real API
   const serviceTime = (4000 + Math.random() * 4000) / animSpeed;
   setTimeout(function() { completeService(deskIdx); }, serviceTime);
 }
@@ -397,6 +431,9 @@ async function completeService(deskIdx) {
   if (!animRunning) return;
   const person = animDesks[deskIdx];
   if (!person) return;
+
+  // Real API: complete the appointment
+  await apiPost('/api/sim/complete', { queueId: person.queueId, officeId: 1 });
 
   person.state = 'complete';
   animDesks[deskIdx] = null;
@@ -412,34 +449,71 @@ async function completeService(deskIdx) {
   await sleep(600);
   person.el.remove();
 
+  // Assign next from queue
   tryAssignNext();
 }
 
-let animTargetCount = 6;
-let animSpawned = 0;
+// ─── Start / Stop / Reset ───────────────────────────────────────────────────
 
-function startOfficeAnim() {
+async function startOfficeAnim() {
   if (animRunning) return;
   animRunning = true;
   numDesks = parseInt(document.getElementById('anim-desks-slider').value);
-  CLERKS = CLERK_NAMES.slice(0, numDesks);
-  animDesks = new Array(numDesks).fill(null);
-  renderDesks();
   animTargetCount = parseInt(document.getElementById('anim-people-slider').value);
   animSpawned = 0;
+  animDesks = new Array(numDesks).fill(null);
+
   document.getElementById('anim-activity-log').innerHTML = '';
-  animLog('Simulation started — ' + animTargetCount + ' customers, ' + numDesks + ' desks');
+  animLog('Initializing simulation — ' + animTargetCount + ' customers, ' + numDesks + ' desks...');
+
+  // 1. Reset DB state
+  await apiPost('/api/sim/reset', {});
+  animLog('Database reset (queue cleared, clerk sessions cleared)');
+
+  // 2. Login clerks
+  const clerkResult = await apiPost('/api/sim/login-clerks', { officeId: 1, count: numDesks });
+  clerkIds = clerkResult.clerks.map(function(c) { return c.clerkId; });
+  CLERKS = [];
+
+  // Fetch clerk names from live-queue
+  const lq = await apiGet('/api/live-queue');
+  lq.clerks.forEach(function(c, i) { CLERKS[i] = c.name; });
+  while (CLERKS.length < numDesks) CLERKS.push('Clerk ' + (CLERKS.length + 1));
+
+  // Also get txn types
+  if (lq.txnTypes) lq.txnTypes.forEach(function(t) { txnMap[t.id] = t.name; });
+
+  renderDesks();
+  animLog('Logged in ' + clerkIds.length + ' clerks');
   updateQueuePanel();
   updateDeskHighlights();
 
-  const spawnDelay = Math.max(1500, 6000 - (animTargetCount - 6) * 100) / animSpeed;
+  // 3. Load customers from DB
+  dbCustomers = await apiGet('/api/sample-customers');
+  if (!dbCustomers.length) {
+    animLog('<span style="color: #e53e3e;">No customers in DB! Seed the database first.</span>');
+    animRunning = false;
+    return;
+  }
+  animLog('Loaded ' + dbCustomers.length + ' customers from database');
 
-  function spawnNext() {
-    if (!animRunning || animSpawned >= animTargetCount) return;
-    spawnCustomer();
+  // 4. Spawn customers one by one
+  const spawnDelay = Math.max(1500, 6000 - (animTargetCount - 6) * 100) / animSpeed;
+  const maxToSpawn = Math.min(animTargetCount, dbCustomers.length);
+
+  async function spawnNext() {
+    if (!animRunning || animSpawned >= maxToSpawn) return;
+    const cust = dbCustomers[animSpawned % dbCustomers.length];
+    // Enrich with txn name
+    if (cust.txn_type_ids && cust.txn_type_ids.length) {
+      cust.txn = cust.txn_type_ids.map(function(id) { return txnMap[id] || 'Service'; }).join(', ');
+    }
+    await spawnCustomer(cust);
     animSpawned++;
-    if (animSpawned < animTargetCount) {
+    if (animSpawned < maxToSpawn && animRunning) {
       animInterval = setTimeout(spawnNext, spawnDelay);
+    } else if (animSpawned >= maxToSpawn) {
+      animLog('All ' + maxToSpawn + ' customers checked in.');
     }
   }
   spawnNext();
@@ -451,24 +525,31 @@ function stopOfficeAnim() {
   animLog('Simulation paused');
 }
 
-function resetOfficeAnim() {
+async function resetOfficeAnim() {
   stopOfficeAnim();
   animPeople.forEach(function(p) { if (p.el) p.el.remove(); });
   animPeople = [];
   animQueue = [];
   numDesks = parseInt(document.getElementById('anim-desks-slider').value);
-  CLERKS = CLERK_NAMES.slice(0, numDesks);
   animDesks = new Array(numDesks).fill(null);
+  CLERKS = [];
+  clerkIds = [];
   animCompleted = [];
   animNextId = 0;
-  animNextCustomer = 0;
   animSpawned = 0;
+
+  // Reset DB too
+  try { await apiPost('/api/sim/reset', {}); } catch(e) {}
+
   renderDesks();
   updateQueuePanel();
   updateDeskHighlights();
   document.getElementById('anim-activity-log').innerHTML = '<p style="color: #718096; text-align: center;">Activity will appear here during simulation...</p>';
   document.getElementById('anim-queue-status').innerHTML = '<p style="color: #718096; text-align: center; font-size: 13px;">Press Start to begin simulation</p>';
 }
+
+// Initial render
+renderDesks();
 </script>
 
 </body>
