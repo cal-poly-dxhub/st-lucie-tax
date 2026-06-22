@@ -69,6 +69,40 @@ St. Lucie County Tax Collector`;
   };
 }
 
+export interface QueueSummonInput {
+  recipientEmail: string;
+  firstName: string;
+  appointmentId: number;
+  deskNumber: number;
+  officeName: string;
+  fromEmail: string;
+}
+
+export function buildQueueSummonEmail(input: QueueSummonInput): EmailInput {
+  const html = `<p>Hi ${input.firstName},</p>
+<p><strong>It's your turn!</strong></p>
+<p>Please proceed to <strong>Desk ${input.deskNumber}</strong> at ${input.officeName}.</p>
+<p>Your appointment number: <strong>${input.appointmentId}</strong></p>
+<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
+
+  const text = `Hi ${input.firstName},
+
+It's your turn! Please proceed to Desk ${input.deskNumber} at ${input.officeName}.
+
+Your appointment number: ${input.appointmentId}
+
+Thank you,
+St. Lucie County Tax Collector`;
+
+  return {
+    to: input.recipientEmail,
+    from: input.fromEmail,
+    subject: `It's Your Turn — Desk ${input.deskNumber}`,
+    html,
+    text,
+  };
+}
+
 export interface PrescreenLinkInput {
   recipientEmail: string;
   firstName: string;
