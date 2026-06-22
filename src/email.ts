@@ -29,6 +29,7 @@ export async function sendEmail(ses: SESv2Client, input: EmailInput): Promise<vo
 export interface QrConfirmationInput {
   recipientEmail: string;
   firstName: string;
+  confirmationCode: string;
   appointmentDate: string;
   appointmentTime: string;
   officeName: string;
@@ -40,6 +41,7 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
   const html = `<p>Hi ${input.firstName},</p>
 <p>Your appointment is confirmed:</p>
 <ul>
+  <li><strong>Confirmation Code:</strong> ${input.confirmationCode}</li>
   <li><strong>Date:</strong> ${input.appointmentDate}</li>
   <li><strong>Time:</strong> ${input.appointmentTime}</li>
   <li><strong>Location:</strong> ${input.officeName}</li>
@@ -51,6 +53,7 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
   const text = `Hi ${input.firstName},
 
 Your appointment is confirmed:
+- Confirmation Code: ${input.confirmationCode}
 - Date: ${input.appointmentDate}
 - Time: ${input.appointmentTime}
 - Location: ${input.officeName}
@@ -72,7 +75,7 @@ St. Lucie County Tax Collector`;
 export interface QueueSummonInput {
   recipientEmail: string;
   firstName: string;
-  appointmentId: number;
+  confirmationCode: string;
   deskNumber: number;
   officeName: string;
   fromEmail: string;
@@ -82,14 +85,14 @@ export function buildQueueSummonEmail(input: QueueSummonInput): EmailInput {
   const html = `<p>Hi ${input.firstName},</p>
 <p><strong>It's your turn!</strong></p>
 <p>Please proceed to <strong>Desk ${input.deskNumber}</strong> at ${input.officeName}.</p>
-<p>Your appointment number: <strong>${input.appointmentId}</strong></p>
+<p>Your confirmation code: <strong>${input.confirmationCode}</strong></p>
 <p>Thank you,<br>St. Lucie County Tax Collector</p>`;
 
   const text = `Hi ${input.firstName},
 
 It's your turn! Please proceed to Desk ${input.deskNumber} at ${input.officeName}.
 
-Your appointment number: ${input.appointmentId}
+Your confirmation code: ${input.confirmationCode}
 
 Thank you,
 St. Lucie County Tax Collector`;
@@ -106,13 +109,13 @@ St. Lucie County Tax Collector`;
 export interface PrescreenLinkInput {
   recipientEmail: string;
   firstName: string;
-  qrCode: string;
+  confirmationCode: string;
   baseUrl: string;
   fromEmail: string;
 }
 
 export function buildPrescreenLinkEmail(input: PrescreenLinkInput): EmailInput {
-  const prescreenUrl = `${input.baseUrl}/prescreen/${input.qrCode}`;
+  const prescreenUrl = `${input.baseUrl}/prescreen/${input.confirmationCode}`;
 
   const html = `<p>Hi ${input.firstName},</p>
 <p>Please complete your pre-screen questions before your appointment:</p>

@@ -6,7 +6,7 @@ import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import QRCode from "qrcode";
 import { withTransaction, pool } from "./db.js";
 import { findAppointment } from "../src/find-appt.js";
-import { lookupByQrCode, getAppointmentInfo } from "../src/check-in.js";
+import { lookupByConfirmationCode, getAppointmentInfo } from "../src/check-in.js";
 import { getRequiredDocsStatus } from "../src/documents.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -429,7 +429,7 @@ app.get("/api/queue/appointments", async (req, res) => {
     const rows = await withTransaction(async (client) => {
       const result = await client.query(
         `SELECT a.id, a.first_name, a.last_name, a.appointment_time::text AS time,
-                a.txn_type_ids, a.qr_code, a.is_priority, a.status,
+                a.txn_type_ids, a.confirmation_code, a.is_priority, a.status,
                 a.identity_verified, a.prescreen_completed, a.required_doc_ids
          FROM appointments a
          WHERE a.office_id = $1
@@ -655,14 +655,13 @@ app.get("/prototype", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "prototype.html"));
 });
 
-// ─── Lookup by QR code (backed entirely by src/) ─────────────────────────────
-// Wires lookupByQrCode → getAppointmentInfo → getRequiredDocsStatus.
+// ─── Lookup by confirmation code (backed entirely by src/) ───────────────────
 app.post("/api/lookup", async (req, res) => {
   try {
-    const qrCode = String(req.body?.qrCode ?? "").trim();
-    if (!qrCode) return res.status(400).json({ error: "qrCode required" });
+    const confirmationCode = String(req.body?.confirmationCode ?? "").trim();
+    if (!confirmationCode) return res.status(400).json({ error: "confirmationCode required" });
 
-    const match = await lookupByQrCode(pool, qrCode);
+    const match = await lookupByConfirmationCode(pool, confirmationCode);
     if (!match) return res.json({ found: false });
 
     const [info, docs] = await Promise.all([

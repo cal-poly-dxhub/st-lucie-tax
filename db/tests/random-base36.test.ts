@@ -26,31 +26,31 @@ describe("random_base36", () => {
     expect(unique.size).toBe(100);
   });
 
-  test("appointment gets a base36 qr_code by default", async () => {
+  test("appointment gets a base36 confirmation_code by default", async () => {
     const { rows } = await db.client.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
         txn_type_ids, appointment_date, appointment_time
       ) VALUES (1, 'Test', 'User', 'test@example.com', '555-0000', '{1}', '2026-07-01', '09:00')
-      RETURNING qr_code`,
+      RETURNING confirmation_code`,
     );
-    const code = rows[0].qr_code;
+    const code = rows[0].confirmation_code;
     expect(code).toHaveLength(8);
     expect(code).toMatch(/^[0-9A-Z]{8}$/);
   });
 
-  test("unique constraint prevents duplicate qr_code", async () => {
+  test("unique constraint prevents duplicate confirmation_code", async () => {
     await db.client.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
-        txn_type_ids, appointment_date, appointment_time, qr_code
+        txn_type_ids, appointment_date, appointment_time, confirmation_code
       ) VALUES (1, 'A', 'B', 'a@b.com', '555-0000', '{1}', '2026-07-01', '09:00', 'TESTCODE')`,
     );
     await expect(
       db.client.query(
         `INSERT INTO appointments (
           office_id, first_name, last_name, contact_email, contact_phone,
-          txn_type_ids, appointment_date, appointment_time, qr_code
+          txn_type_ids, appointment_date, appointment_time, confirmation_code
         ) VALUES (1, 'C', 'D', 'c@d.com', '555-0000', '{1}', '2026-07-01', '09:30', 'TESTCODE')`,
       ),
     ).rejects.toThrow(/unique/i);
