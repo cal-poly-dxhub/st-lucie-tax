@@ -203,7 +203,7 @@ BEGIN
                 INSERT INTO appointments (
                     office_id, first_name, last_name,
                     contact_email, contact_phone, txn_type_ids, required_doc_ids,
-                    appointment_date, appointment_time, qr_code, status, is_walk_in,
+                    appointment_date, appointment_time, confirmation_code, status, is_walk_in,
                     prescreen_completed
                 ) VALUES (
                     office_id_val, fname, lname,

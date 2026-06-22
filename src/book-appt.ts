@@ -24,7 +24,7 @@ export type BookApptError =
   | "txn_unavailable";
 
 export type BookApptResult =
-  | { ok: true; appointmentId: number; qrCode: string }
+  | { ok: true; appointmentId: number; confirmationCode: string }
   | { ok: false; error: BookApptError };
 
 export const PG_ERROR_MAP: Record<string, BookApptError> = {
@@ -39,8 +39,8 @@ export async function bookAppointment(
   input: BookApptInput,
 ): Promise<BookApptResult> {
   try {
-    const result = await db.query<{ id: number; qr_code: string }>(
-      `SELECT id, qr_code FROM book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+    const result = await db.query<{ id: number; confirmation_code: string }>(
+      `SELECT id, confirmation_code FROM book_appointment($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         input.officeId,
         input.date,
@@ -58,7 +58,11 @@ export async function bookAppointment(
         input.nowTs ?? null,
       ],
     );
-    return { ok: true, appointmentId: result.rows[0].id, qrCode: result.rows[0].qr_code };
+    return {
+      ok: true,
+      appointmentId: result.rows[0].id,
+      confirmationCode: result.rows[0].confirmation_code,
+    };
   } catch (err: unknown) {
     const code = err instanceof Error && "code" in err ? (err as { code: string }).code : null;
     const mapped = code ? PG_ERROR_MAP[code] : undefined;

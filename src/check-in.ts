@@ -1,34 +1,29 @@
 import { type Queryable } from "./utils.js";
-import { randomUUID } from "node:crypto";
 import QRCode from "qrcode";
 import { camelRows } from "./utils.js";
-
-export function generateQrCode(): string {
-  return randomUUID();
-}
 
 export async function generateQrCodeDataUrl(content: string): Promise<string> {
   return QRCode.toDataURL(content, { errorCorrectionLevel: "M", width: 200 });
 }
 
-export interface QrLookupResult {
+export interface ConfirmationCodeLookupResult {
   appointmentId: number;
   officeId: number;
   status: string;
 }
 
-export async function lookupByQrCode(
+export async function lookupByConfirmationCode(
   db: Queryable,
-  qrCode: string,
-): Promise<QrLookupResult | null> {
+  confirmationCode: string,
+): Promise<ConfirmationCodeLookupResult | null> {
   const { rows } = await db.query(
     `SELECT id AS appointment_id, office_id, status
      FROM appointments
-     WHERE qr_code = $1`,
-    [qrCode],
+     WHERE confirmation_code = $1`,
+    [confirmationCode],
   );
   if (rows.length === 0) return null;
-  return camelRows<QrLookupResult>(rows)[0];
+  return camelRows<ConfirmationCodeLookupResult>(rows)[0];
 }
 
 export interface NameLookupResult {

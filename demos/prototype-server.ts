@@ -1,12 +1,11 @@
 import express from "express";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import QRCode from "qrcode";
 import { pool } from "./db.js";
 import {
-  lookupByQrCode,
+  generateQrCodeDataUrl,
+  lookupByConfirmationCode,
   lookupByName,
   getAppointmentInfo,
   checkInToQueue,
@@ -19,7 +18,11 @@ import { getClerkServiceRecord, sendToWrittenTest } from "../src/service-clerk.j
 import { completeAppointment } from "../src/complete.js";
 import { assignNextCustomer } from "../src/queue.js";
 import { clerkLogin, setClerkAvailability } from "../src/clerk-session.js";
-import { buildQueueSummonEmail } from "../src/email.js";
+import {
+  buildQrConfirmationEmail,
+  buildPrescreenLinkEmail,
+  buildQueueSummonEmail,
+} from "../src/email.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -59,7 +62,7 @@ async function sendEmail(input: {
 async function sendSummonEmail(queueId: number) {
   try {
     const { rows } = await pool.query(
-      `SELECT a.id AS appointment_id, a.first_name, a.contact_email, q.assigned_desk, o.name AS office_name
+      `SELECT a.confirmation_code, a.first_name, a.contact_email, q.assigned_desk, o.name AS office_name
        FROM queue q
        JOIN appointments a ON a.id = q.appointment_id
        JOIN offices o ON o.id = q.office_id
@@ -71,7 +74,7 @@ async function sendSummonEmail(queueId: number) {
     const emailInput = buildQueueSummonEmail({
       recipientEmail: row.contact_email,
       firstName: row.first_name,
-      appointmentId: row.appointment_id,
+      confirmationCode: row.confirmation_code,
       deskNumber: row.assigned_desk,
       officeName: row.office_name,
       fromEmail: EMAIL,
@@ -83,13 +86,13 @@ async function sendSummonEmail(queueId: number) {
 }
 
 // ─── Lookup by QR code (backed entirely by src/) ─────────────────────────────
-// Wires lookupByQrCode → getAppointmentInfo → getRequiredDocsStatus.
+// Wires lookupByConfirmationCode → getAppointmentInfo → getRequiredDocsStatus.
 app.post("/api/lookup", async (req, res) => {
   try {
-    const qrCode = String(req.body?.qrCode ?? "").trim();
-    if (!qrCode) return res.status(400).json({ error: "qrCode required" });
+    const confirmationCode = String(req.body?.confirmationCode ?? "").trim();
+    if (!confirmationCode) return res.status(400).json({ error: "confirmationCode required" });
 
-    const match = await lookupByQrCode(pool, qrCode);
+    const match = await lookupByConfirmationCode(pool, confirmationCode);
     if (!match) return res.json({ found: false });
 
     const [info, docs] = await Promise.all([
@@ -168,29 +171,18 @@ app.post("/api/search-name", async (req, res) => {
 });
 
 app.post("/api/send-confirmation", async (req, res) => {
-  const qrCode = randomUUID();
   const prescreen = req.body?.prescreen ?? true;
   const identity = req.body?.identity ?? false;
   const docsConfig = req.body?.docs ?? "mixed";
-  console.log(
-    "send-confirmation: qrCode=",
-    qrCode,
-    "prescreen=",
-    prescreen,
-    "identity=",
-    identity,
-    "docs=",
-    docsConfig,
-  );
 
   try {
     const { rows } = await pool.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
         txn_type_ids, required_doc_ids, appointment_date, appointment_time,
-        qr_code, status, is_walk_in, prescreen_completed, identity_verified
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING id`,
+        status, is_walk_in, prescreen_completed, identity_verified
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING id, confirmation_code`,
       [
         1,
         "Jane",
@@ -201,7 +193,6 @@ app.post("/api/send-confirmation", async (req, res) => {
         ["photo_id", "insurance_card", "proof_address"],
         "2026-06-24",
         "09:30",
-        qrCode,
         "scheduled",
         false,
         prescreen,
@@ -209,7 +200,7 @@ app.post("/api/send-confirmation", async (req, res) => {
       ],
     );
     const appointmentId = rows[0].id;
-    console.log("send-confirmation: appointmentId=", appointmentId);
+    const confirmationCode = rows[0].confirmation_code;
 
     // Insert documents based on config
     const docDefs: { docId: string; name: string; status: string | null }[] = [];
@@ -235,51 +226,25 @@ app.post("/api/send-confirmation", async (req, res) => {
       );
     }
 
-    const qrDataUrl = await QRCode.toDataURL(qrCode, {
-      errorCorrectionLevel: "M",
-      width: 200,
+    const qrDataUrl = await generateQrCodeDataUrl(confirmationCode);
+    const emailInput = buildQrConfirmationEmail({
+      recipientEmail: EMAIL,
+      firstName: "Jane",
+      confirmationCode,
+      appointmentDate: "Tuesday, June 24, 2026",
+      appointmentTime: "9:30 AM",
+      officeName: "Port St. Lucie (Crosstown Pkwy)",
+      qrCodeDataUrl: qrDataUrl,
+      fromEmail: EMAIL,
     });
 
-    const html = `<p>Hi Jane,</p>
-<p>Your appointment is confirmed:</p>
-<ul>
-  <li><strong>Appointment ID:</strong> ${appointmentId}</li>
-  <li><strong>QR Code:</strong> ${qrCode}</li>
-  <li><strong>Date:</strong> Tuesday, June 24, 2026</li>
-  <li><strong>Time:</strong> 9:30 AM</li>
-  <li><strong>Location:</strong> Port St. Lucie (Crosstown Pkwy)</li>
-</ul>
-<p>Present this QR code at check-in:</p>
-<img src="${qrDataUrl}" alt="QR Code" width="200" height="200" />
-<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
-
-    const text = `Hi Jane,
-
-Your appointment is confirmed:
-- Appointment ID: ${appointmentId}
-- QR Code: ${qrCode}
-- Date: Tuesday, June 24, 2026
-- Time: 9:30 AM
-- Location: Port St. Lucie (Crosstown Pkwy)
-
-Please present your QR code at check-in.
-
-Thank you,
-St. Lucie County Tax Collector`;
-
     try {
-      await sendEmail({
-        to: EMAIL,
-        from: EMAIL,
-        subject: "Appointment Confirmed",
-        html,
-        text,
-      });
+      await sendEmail(emailInput);
     } catch (emailErr: unknown) {
       console.error("Email send failed:", emailErr);
     }
 
-    res.json({ ok: true, qrCode, appointmentId });
+    res.json({ ok: true, confirmationCode, appointmentId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("send-confirmation error:", msg);
@@ -292,48 +257,30 @@ app.post("/api/send-prescreen", async (req, res) => {
     const appointmentId = req.body?.appointmentId;
     let toEmail = EMAIL;
     let firstName = "there";
-    let qrCode = randomUUID();
+    let confirmationCode = "DEMO1234";
 
     if (appointmentId) {
       const { rows } = await pool.query(
-        `SELECT first_name, contact_email, qr_code FROM appointments WHERE id = $1`,
+        `SELECT first_name, contact_email, confirmation_code FROM appointments WHERE id = $1`,
         [appointmentId],
       );
       if (rows.length) {
         firstName = rows[0].first_name;
         toEmail = rows[0].contact_email;
-        qrCode = rows[0].qr_code;
+        confirmationCode = rows[0].confirmation_code;
       }
     }
 
-    const autoCheckIn = req.body?.autoCheckIn || false;
-    const priority = req.body?.priority || false;
-    let prescreenUrl = `${BASE_URL}/prescreen/${qrCode}`;
-    if (autoCheckIn) {
-      prescreenUrl += `?autoCheckIn=1${priority ? "&priority=1" : ""}`;
-    }
-
-    const html = `<p>Hi ${firstName},</p>
-<p>Please complete your pre-screen questions before your appointment:</p>
-<p><a href="${prescreenUrl}">${prescreenUrl}</a></p>
-<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
-
-    const text = `Hi ${firstName},
-
-Please complete your pre-screen questions before your appointment:
-${prescreenUrl}
-
-Thank you,
-St. Lucie County Tax Collector`;
-
-    await sendEmail({
-      to: toEmail,
-      from: EMAIL,
-      subject: "Complete Your Pre-Screen Questions",
-      html,
-      text,
+    const emailInput = buildPrescreenLinkEmail({
+      recipientEmail: toEmail,
+      firstName,
+      confirmationCode,
+      baseUrl: BASE_URL,
+      fromEmail: EMAIL,
     });
+    await sendEmail(emailInput);
 
+    const prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}`;
     res.json({ ok: true, prescreenUrl, sentTo: toEmail });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -346,7 +293,7 @@ St. Lucie County Tax Collector`;
 app.get("/api/sample-customers", async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT a.id, a.first_name, a.last_name, a.qr_code, a.prescreen_completed,
+      SELECT a.id, a.first_name, a.last_name, a.confirmation_code, a.prescreen_completed,
         a.txn_type_ids,
         array_length(a.required_doc_ids, 1) AS req_docs,
         (SELECT COUNT(*)::int FROM documents d WHERE d.appointment_id = a.id) AS uploaded,
@@ -414,17 +361,15 @@ app.post("/api/seed-queue", async (_req, res) => {
 
     for (let i = 0; i < customers.length; i++) {
       const c = customers[i];
-      const qrCode = randomUUID();
       const minutes = i * 15;
       const time = `${String(9 + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
-      // Create appointment with 'scheduled' status
       const { rows } = await pool.query(
         `INSERT INTO appointments (
           office_id, first_name, last_name, contact_email, contact_phone,
           txn_type_ids, required_doc_ids, appointment_date, appointment_time,
-          qr_code, status, is_walk_in, prescreen_completed, identity_verified
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          status, is_walk_in, prescreen_completed, identity_verified
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id`,
         [
           officeId,
@@ -436,7 +381,6 @@ app.post("/api/seed-queue", async (_req, res) => {
           c.docs,
           apptDate,
           time,
-          qrCode,
           "scheduled",
           false,
           true, // all have prescreen done
@@ -581,14 +525,13 @@ app.post("/api/walk-in", async (req, res) => {
     }
 
     const officeId = 1;
-    const qrCode = randomUUID();
 
     const { rows } = await pool.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
         txn_type_ids, required_doc_ids, appointment_date, appointment_time,
-        qr_code, status, is_walk_in, prescreen_completed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        status, is_walk_in, prescreen_completed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id`,
       [
         officeId,
@@ -600,7 +543,6 @@ app.post("/api/walk-in", async (req, res) => {
         requiredDocs,
         "2026-06-24",
         "09:00",
-        qrCode,
         "scheduled",
         true,
         !!prescreen,
@@ -627,15 +569,15 @@ app.post("/api/walk-in", async (req, res) => {
 });
 
 // ─── Prescreen page (served as HTML) ─────────────────────────────────────────
-app.get("/prescreen/:qrCode", (_req, res) => {
+app.get("/prescreen/:confirmationCode", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "prescreen.html"));
 });
 
 // ─── Prescreen API: load questions for an appointment by QR code ─────────────
-app.get("/api/prescreen/:qrCode", async (req, res) => {
+app.get("/api/prescreen/:confirmationCode", async (req, res) => {
   try {
-    const qrCode = req.params.qrCode;
-    const match = await lookupByQrCode(pool, qrCode);
+    const confirmationCode = req.params.confirmationCode;
+    const match = await lookupByConfirmationCode(pool, confirmationCode);
     if (!match) return res.status(404).json({ error: "Appointment not found" });
 
     const { rows } = await pool.query(
@@ -660,10 +602,10 @@ app.get("/api/prescreen/:qrCode", async (req, res) => {
 });
 
 // ─── Prescreen API: submit responses (auto check-in if flagged) ─────────────
-app.post("/api/prescreen/:qrCode/submit", async (req, res) => {
+app.post("/api/prescreen/:confirmationCode/submit", async (req, res) => {
   try {
-    const qrCode = req.params.qrCode;
-    const match = await lookupByQrCode(pool, qrCode);
+    const confirmationCode = req.params.confirmationCode;
+    const match = await lookupByConfirmationCode(pool, confirmationCode);
     if (!match) return res.status(404).json({ error: "Appointment not found" });
 
     const responses: Record<string, boolean> = req.body?.responses || {};
