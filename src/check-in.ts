@@ -49,7 +49,8 @@ export async function lookupByName(
     `SELECT id AS appointment_id, office_id, first_name, last_name,
             appointment_time::text
      FROM appointments
-     WHERE (first_name ILIKE $1 || '%' OR last_name ILIKE $1 || '%')
+     WHERE (first_name ILIKE $1 || '%' OR last_name ILIKE $1 || '%'
+            OR (first_name || ' ' || last_name) ILIKE $1 || '%')
        AND appointment_date = $2::date
        AND office_id = $3
        AND status = 'scheduled'

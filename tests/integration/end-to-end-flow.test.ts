@@ -525,6 +525,19 @@ describe("Lookup — QR code and name search", () => {
     ]);
     const afterCancel = await lookupByName(db.client, "Jas", OFFICE, DATE);
     expect(afterCancel.some((r) => r.firstName === "Jasmine")).toBe(false);
+
+    // Case-insensitive partial name
+    const byFullNameLower = await lookupByName(db.client, "jas h", OFFICE, DATE);
+    expect(
+      byFullNameLower.some((r) => r.firstName === "Jasmine" && r.lastName === "Henderson"),
+    ).toBe(true);
+
+    // Full "first last" prefix matches
+    const byFullName = await lookupByName(db.client, "Jasmine Henderson", OFFICE, DATE);
+    expect(byFullName.length).toBeGreaterThanOrEqual(1);
+    expect(byFullName.some((r) => r.firstName === "Jasmine" && r.lastName === "Henderson")).toBe(
+      true,
+    );
   });
 
   test("lookupByName respects timezone — appointment on 'today' in office tz", async () => {
