@@ -1,4 +1,7 @@
+import { resolve } from "node:path";
 import { Client, type ClientConfig } from "pg";
+
+process.loadEnvFile(resolve(import.meta.dirname, "../../../.env"));
 
 export const dbConfig: ClientConfig = {
   host: process.env.PGHOST ?? "localhost",
