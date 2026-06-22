@@ -271,6 +271,13 @@ app.post("/api/send-prescreen", async (req, res) => {
       }
     }
 
+    const autoCheckIn = req.body?.autoCheckIn || false;
+    const priority = req.body?.priority || false;
+    let prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}`;
+    if (autoCheckIn) {
+      prescreenUrl += `?autoCheckIn=1${priority ? "&priority=1" : ""}`;
+    }
+
     const emailInput = buildPrescreenLinkEmail({
       recipientEmail: toEmail,
       firstName,
@@ -278,9 +285,17 @@ app.post("/api/send-prescreen", async (req, res) => {
       baseUrl: BASE_URL,
       fromEmail: EMAIL,
     });
-    await sendEmail(emailInput);
+    // Override the URL in the email with the one that has query params
+    const html = emailInput.html.replace(
+      new RegExp(`${BASE_URL}/prescreen/${confirmationCode}`, "g"),
+      prescreenUrl,
+    );
+    const text = emailInput.text.replace(
+      new RegExp(`${BASE_URL}/prescreen/${confirmationCode}`, "g"),
+      prescreenUrl,
+    );
+    await sendEmail({ ...emailInput, html, text });
 
-    const prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}`;
     res.json({ ok: true, prescreenUrl, sentTo: toEmail });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

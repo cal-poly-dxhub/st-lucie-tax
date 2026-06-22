@@ -1046,27 +1046,6 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>Written Test</h3>
-          <p style="font-size: 13px; color: #555; margin-bottom: 10px">
-            Send customer to a written test station. They will be removed from service and tracked
-            in the queue under "testing" status.
-          </p>
-          <div style="display: flex; gap: 8px; align-items: center">
-            <div>
-              <label>Test Station #</label>
-              <input
-                type="number"
-                id="svc-test-station"
-                value="10"
-                style="width: 80px; margin: 0"
-              />
-            </div>
-            <button class="btn btn-warning" style="margin-top: 20px" onclick="clerkSendToTest()">
-              Send to Written Test
-            </button>
-          </div>
-        </div>
 
         <div class="card">
           <h3>Pre-Screen Responses</h3>
@@ -1271,8 +1250,8 @@
           if (data.ok) {
             document.getElementById("cfg-qr-img").src =
               "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" +
-              encodeURIComponent(data.qrCode);
-            document.getElementById("cfg-qr-code-text").textContent = data.qrCode;
+              encodeURIComponent(data.confirmationCode);
+            document.getElementById("cfg-qr-code-text").textContent = data.confirmationCode;
             showToast("Confirmation email sent! Check njriley@calpoly.edu");
           } else {
             showToast("Error: " + data.error, true);
@@ -1711,7 +1690,7 @@
           const res = await fetch("/api/lookup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ qrCode }),
+            body: JSON.stringify({ confirmationCode: qrCode }),
           });
           const data = await res.json();
           if (!res.ok) {
@@ -2254,29 +2233,58 @@
           : '<p style="color:#718096;font-size:13px;">No notes from check-in.</p>';
 
         // Documents
-        const docsHtml = r.docs
-          .map((doc) => {
+        const docsContainer = document.getElementById("svc-docs");
+        docsContainer.innerHTML = "";
+        if (!r.docs.length) {
+          docsContainer.innerHTML = '<p style="color:#718096;">No documents required.</p>';
+        } else {
+          r.docs.forEach((doc, i) => {
+            const docId = "svc-doc-" + i;
+            const fileId = docId + "-file";
             const icon = doc.clerkValidated ? "✅" : doc.uploaded ? "📄" : "⏳";
-            const statusBadge = doc.clerkValidated
-              ? '<span class="badge badge-green">Validated</span>'
-              : doc.uploaded
-                ? '<span class="badge badge-yellow">Needs validation</span>'
-                : '<span class="badge badge-gray">Not uploaded</span>';
-            return (
-              '<div class="doc-item"><div class="doc-icon">' +
-              icon +
-              "</div>" +
-              '<div class="doc-info"><div class="doc-name">' +
-              doc.name +
-              "</div>" +
+            const div = document.createElement("div");
+            div.className = "doc-item";
+            div.id = docId;
+            if (doc.id) div.dataset.dbId = doc.id;
+            div.innerHTML =
+              '<div class="doc-icon">' + icon + "</div>" +
+              '<div class="doc-info"><div class="doc-name">' + doc.name + "</div>" +
               '<div class="doc-status">' +
-              statusBadge +
-              "</div></div></div>"
-            );
-          })
-          .join("");
-        document.getElementById("svc-docs").innerHTML =
-          docsHtml || '<p style="color:#718096;">No documents required.</p>';
+              (doc.clerkValidated
+                ? '<span class="badge badge-green" id="' + docId + '-badge">Validated</span>'
+                : doc.uploaded
+                  ? '<span class="badge badge-yellow" id="' + docId + '-badge">Needs validation</span>'
+                  : '<span class="badge badge-gray" id="' + docId + '-badge">Not uploaded</span>') +
+              "</div></div>" +
+              '<div style="display: flex; gap: 4px; flex-shrink: 0;">' +
+              (doc.uploaded
+                ? '<button class="btn btn-sm" style="background: #edf2f7;" onclick="viewDoc(\'' +
+                  docId +
+                  "')\">View</button>"
+                : "") +
+              (doc.uploaded && !doc.clerkValidated
+                ? '<button class="btn btn-success btn-sm" onclick="validateDoc(\'' +
+                  docId +
+                  "')\">Validate</button>"
+                : "") +
+              '<input type="file" accept="image/*,.pdf" style="display:none;" id="' +
+              fileId +
+              '" onchange="docScanned(\'' +
+              docId +
+              "', this)\">" +
+              '<button class="btn btn-warning btn-sm" onclick="document.getElementById(\'' +
+              fileId +
+              "').click()\">" +
+              (doc.uploaded ? "Re-scan" : "Scan") +
+              "</button>" +
+              "</div>";
+            docsContainer.appendChild(div);
+
+            if (doc.uploaded) {
+              docFiles[docId] = sampleDocFor(doc.docId);
+            }
+          });
+        }
 
         // Prescreen responses — prefer enriched text if available
         const psItems =
