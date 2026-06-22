@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — St. Lucie Tax Collector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+
+    nav { background: #1a365d; color: white; padding: 12px 24px; display: flex; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; align-items: center; }
+    nav .title { font-weight: 700; font-size: 16px; margin-right: 16px; }
+    nav button { background: #2d4a7a; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    nav button:hover { background: #3d5a8a; }
+    nav button.active { background: #4299e1; }
+
+    .view { display: none; max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+    .view.active { display: block; }
+
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h2 { font-size: 18px; margin-bottom: 12px; color: #1a365d; }
+    .card h3 { font-size: 15px; margin-bottom: 8px; color: #2d4a7a; }
+
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #333; }
+    input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
+    textarea { resize: vertical; min-height: 60px; }
+
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #4299e1; color: white; }
+    .btn-primary:hover { background: #3182ce; }
+    .btn-success { background: #48bb78; color: white; }
+    .btn-success:hover { background: #38a169; }
+    .btn-danger { background: #e53e3e; color: white; }
+    .btn-danger:hover { background: #c53030; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f7fafc; font-weight: 600; color: #4a5568; }
+    tr:hover { background: #f7fafc; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #c6f6d5; color: #276749; }
+    .badge-yellow { background: #fefcbf; color: #975a16; }
+    .badge-red { background: #fed7d7; color: #9b2c2c; }
+    .badge-blue { background: #bee3f8; color: #2a4365; }
+    .badge-gray { background: #e2e8f0; color: #4a5568; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+    .form-row > div { flex: 1; min-width: 120px; }
+    .form-row .btn { margin-bottom: 12px; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a365d; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .toast.show { display: block; }
+    .toast.error { background: #e53e3e; }
+
+    .actions { display: flex; gap: 4px; }
+    .inline-input { width: auto; margin: 0; padding: 4px 8px; font-size: 12px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <nav>
+    <span class="title">Admin Dashboard</span>
+    <button onclick="showView('config')" id="nav-config">Global Config</button>
+    <button onclick="showView('offices')" id="nav-offices">Offices</button>
+    <button onclick="showView('transactions')" id="nav-transactions">Transactions</button>
+    <button onclick="showView('clerks')" id="nav-clerks">Clerks</button>
+    <button onclick="showView('hotbuttons')" id="nav-hotbuttons">Hotbuttons</button>
+    <button onclick="showView('prescreen')" id="nav-prescreen">Pre-Screen</button>
+    <button onclick="showView('skills')" id="nav-skills">Skills</button>
+    <button onclick="showView('documents')" id="nav-documents">Documents</button>
+    <button onclick="showView('durations')" id="nav-durations">Duration Engine</button>
+    <button onclick="window.location.href='/prototype.html'" style="margin-left:auto; background:#4a5568;">Back to Prototype</button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ========== GLOBAL CONFIG ========== -->
+  <div class="view active" id="view-config">
+    <div class="card">
+      <h2>Global Configuration</h2>
+      <div class="grid-3">
+        <div>
+          <label>Timezone</label>
+          <input type="text" id="cfg-timezone" placeholder="America/New_York">
+        </div>
+        <div>
+          <label>Scheduling Block Padding (min)</label>
+          <input type="number" id="cfg-padding" min="0" max="30">
+        </div>
+        <div>
+          <label>Default Lookahead Days</label>
+          <input type="number" id="cfg-lookahead" min="1" max="365">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
+    </div>
+  </div>
+
+  <!-- ========== OFFICES ========== -->
+  <div class="view" id="view-offices">
+    <div class="card">
+      <h2>Office Locations</h2>
+      <table id="offices-table">
+        <thead><tr><th>ID</th><th>Name</th><th>Address</th><th>Desks</th><th>Run Rate %</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Office</h3>
+      <div class="form-row">
+        <div><label>Name</label><input type="text" id="office-name" placeholder="Office name"></div>
+        <div><label>Address</label><input type="text" id="office-address" placeholder="123 Main St"></div>
+        <div><label>Total Desks</label><input type="number" id="office-desks" value="8"></div>
+        <div><label>Run Rate %</label><input type="number" id="office-runrate" value="100" min="1" max="199"></div>
+        <button class="btn btn-success" onclick="addOffice()">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Office Hours</h3>
+      <table id="hours-table">
+        <thead><tr><th>Office</th><th>Day</th><th>Open</th><th>Close</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-row" style="margin-top: 12px;">
+        <div><label>Office</label><select id="hours-office"></select></div>
+        <div><label>Day</label>
+          <select id="hours-day">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+        <div><label>Open</label><input type="time" id="hours-open" value="08:00"></div>
+        <div><label>Close</label><input type="time" id="hours-close" value="17:00"></div>
+        <button class="btn btn-success" onclick="addHours()">Add/Update</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Lunch Shifts</h3>
+      <table id="lunch-table">
+        <thead><tr><th>Office</th><th>Shift #</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-row" style="margin-top: 12px;">
+        <div><label>Office</label><select id="lunch-office"></select></div>
+        <div><label>Shift #</label><input type="number" id="lunch-shift" value="1" min="1"></div>
+        <div><label>Start</label><input type="time" id="lunch-start" value="11:30"></div>
+        <div><label>End</label><input type="time" id="lunch-end" value="12:00"></div>
+        <button class="btn btn-success" onclick="addLunch()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TRANSACTION TYPES ========== -->
+  <div class="view" id="view-transactions">
+    <div class="card">
+      <h2>Transaction Types</h2>
+      <table id="txn-table">
+        <thead><tr><th>ID</th><th>Slug</th><th>Name</th><th>Duration</th><th>Status</th><th>Hours</th><th>Online</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Transaction Type</h3>
+      <div class="grid-2">
+        <div>
+          <label>Type ID (slug)</label><input type="text" id="txn-slug" placeholder="e.g. road_test">
+          <label>Name</label><input type="text" id="txn-name" placeholder="Road Test">
+          <label>Description</label><textarea id="txn-desc" placeholder="Optional description"></textarea>
+        </div>
+        <div>
+          <label>Avg Duration (min)</label><input type="number" id="txn-duration" value="20" min="1">
+          <label>Status</label>
+          <select id="txn-status"><option value="active">Active</option><option value="internal">Internal</option><option value="hidden">Hidden</option></select>
+          <label>Available From</label><input type="time" id="txn-from">
+          <label>Available Until</label><input type="time" id="txn-until">
+          <label>Online Eligible</label>
+          <select id="txn-online"><option value="false">No</option><option value="true">Yes</option></select>
+          <label>Redirect URL</label><input type="text" id="txn-redirect" placeholder="https://...">
+        </div>
+      </div>
+      <button class="btn btn-success" style="margin-top: 8px;" onclick="addTxnType()">Add Transaction Type</button>
+    </div>
+
+    <div class="card">
+      <h3>Transaction-Office Availability</h3>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Shows which transactions are available at each office. Toggle availability or set per-office hour overrides.</p>
+      <div id="txn-office-matrix"></div>
+    </div>
+  </div>
+
+  <!-- ========== SKILLS ========== -->
+  <div class="view" id="view-skills">
+    <div class="card">
+      <h2>Skill Assignment Matrix</h2>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Assign transaction-type skills to clerks. Check the boxes to indicate which transaction types each clerk can handle.</p>
+      <div id="skills-matrix"></div>
+    </div>
+  </div>
+
+  <!-- ========== DOCUMENTS ========== -->
+  <div class="view" id="view-documents">
+    <div class="card">
+      <h2>Document Registry</h2>
+      <table id="doc-registry-table">
+        <thead><tr><th>Doc ID</th><th>Name</th><th>Description</th><th>Alternatives</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Document Type</h3>
+      <div class="grid-2">
+        <div>
+          <label>Doc ID (slug)</label><input type="text" id="doc-id" placeholder="e.g. photo_id">
+          <label>Name</label><input type="text" id="doc-name" placeholder="Photo ID">
+        </div>
+        <div>
+          <label>Description</label><textarea id="doc-desc" placeholder="A government-issued photo ID"></textarea>
+          <label>Alternatives (comma-sep doc IDs)</label><input type="text" id="doc-alts" placeholder="passport,state_id">
+        </div>
+      </div>
+      <button class="btn btn-success" onclick="addDocType()">Add Document Type</button>
+    </div>
+
+    <div class="card">
+      <h3>Transaction Document Requirements</h3>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Configure which documents are required for each transaction type.</p>
+      <div id="txn-flows-container"></div>
+    </div>
+  </div>
+
+  <!-- ========== CLERKS ========== -->
+  <div class="view" id="view-clerks">
+    <div class="card">
+      <h2>Clerk Management</h2>
+      <table id="clerks-table">
+        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Skills</th><th>Offices</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Clerk</h3>
+      <div class="grid-3">
+        <div><label>First Name</label><input type="text" id="clerk-first" placeholder="Jane"></div>
+        <div><label>Last Name</label><input type="text" id="clerk-last" placeholder="Doe"></div>
+        <div><label>Email</label><input type="email" id="clerk-email" placeholder="jane@county.gov"></div>
+      </div>
+      <div class="grid-3">
+        <div><label>Status</label>
+          <select id="clerk-status"><option value="active">Active</option><option value="in_training">In Training</option><option value="inactive">Inactive</option></select>
+        </div>
+        <div><label>Skill IDs (comma sep)</label><input type="text" id="clerk-skills" placeholder="1,2,3"></div>
+        <div><label>Office IDs (comma sep)</label><input type="text" id="clerk-offices" placeholder="1,2"></div>
+      </div>
+      <button class="btn btn-success" onclick="addClerk()">Add Clerk</button>
+    </div>
+
+    <div class="card">
+      <h3>Bulk Import (CSV format)</h3>
+      <p style="font-size: 12px; color: #718096; margin-bottom: 8px;">Paste CSV: firstName,lastName,email,status,skillIds,officeIds (one per line)</p>
+      <textarea id="clerk-csv" rows="4" placeholder="Jane,Doe,jane@county.gov,active,1|2|3,1&#10;John,Smith,john@county.gov,active,1|2,1|2"></textarea>
+      <button class="btn btn-primary" onclick="bulkImportClerks()">Import</button>
+    </div>
+  </div>
+
+  <!-- ========== HOTBUTTONS ========== -->
+  <div class="view" id="view-hotbuttons">
+    <div class="card">
+      <h2>Chatbot Hotbuttons</h2>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Suggested prompt shortcuts shown in the public-facing chat interface.</p>
+      <table id="hotbuttons-table">
+        <thead><tr><th>Order</th><th>Label</th><th>Prompt</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Hotbutton</h3>
+      <div class="form-row">
+        <div style="max-width: 80px;"><label>Order</label><input type="number" id="hb-order" value="1" min="0"></div>
+        <div><label>Label</label><input type="text" id="hb-label" placeholder="Renew Registration"></div>
+        <div style="flex: 2;"><label>Prompt</label><input type="text" id="hb-prompt" placeholder="I need to renew my vehicle registration"></div>
+        <button class="btn btn-success" onclick="addHotbutton()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== PRESCREEN QUESTIONS ========== -->
+  <div class="view" id="view-prescreen">
+    <div class="card">
+      <h2>Pre-Screen Questions</h2>
+      <table id="prescreen-table">
+        <thead><tr><th>ID</th><th>Transaction</th><th>Order</th><th>Question</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Add Question</h3>
+      <div class="form-row">
+        <div><label>Transaction Type</label><select id="ps-txn"></select></div>
+        <div style="max-width: 80px;"><label>Order</label><input type="number" id="ps-order" value="1" min="1"></div>
+        <div style="flex: 3;"><label>Question Text</label><input type="text" id="ps-text" placeholder="Do you have corrective lenses?"></div>
+        <button class="btn btn-success" onclick="addPrescreenQ()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== DURATION ENGINE ========== -->
+  <div class="view" id="view-durations">
+    <div class="card">
+      <h2>Performance Monitoring</h2>
+      <div class="form-row" style="margin-bottom: 16px;">
+        <div style="max-width: 150px;">
+          <label>Time Range</label>
+          <select id="perf-days" onchange="loadPerformanceMetrics()">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30" selected>Last 30 days</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div><canvas id="chart-avg-by-txn"></canvas></div>
+        <div><canvas id="chart-daily-times"></canvas></div>
+      </div>
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div><canvas id="chart-daily-volume"></canvas></div>
+        <div><canvas id="chart-office-comparison"></canvas></div>
+      </div>
+      <div class="grid-3" id="perf-kpis" style="margin-bottom: 16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Duration Recommendations</h2>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">System-generated recommendations based on actual service times. Approve to update the transaction's estimated duration.</p>
+      <table id="duration-table">
+        <thead><tr><th>Transaction</th><th>Current (min)</th><th>Recommended (min)</th><th>Samples</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+let officesData = [];
+let txnTypesData = [];
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  const btn = document.getElementById('nav-' + id);
+  if (btn) btn.classList.add('active');
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 3500);
+}
+
+// ─── Global Config ──────────────────────────────────────────────────────────
+async function loadConfig() {
+  const res = await fetch('/api/admin/config');
+  const data = await res.json();
+  document.getElementById('cfg-timezone').value = data.timezone || '';
+  document.getElementById('cfg-padding').value = data.scheduling_block_padding ?? 0;
+  document.getElementById('cfg-lookahead').value = data.default_lookahead_days ?? 14;
+}
+
+async function saveConfig() {
+  const res = await fetch('/api/admin/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      timezone: document.getElementById('cfg-timezone').value || null,
+      schedulingBlockPadding: parseInt(document.getElementById('cfg-padding').value) || 0,
+      defaultLookaheadDays: parseInt(document.getElementById('cfg-lookahead').value) || 14,
+    }),
+  });
+  if (res.ok) showToast('Config saved');
+  else showToast('Error saving config', true);
+}
+
+// ─── Offices ────────────────────────────────────────────────────────────────
+async function loadOffices() {
+  const res = await fetch('/api/admin/offices');
+  const data = await res.json();
+  officesData = data.offices;
+
+  // Offices table
+  const tbody = document.querySelector('#offices-table tbody');
+  tbody.innerHTML = data.offices.map(o => `<tr>
+    <td>${o.id}</td><td>${o.name}</td><td>${o.address || '—'}</td>
+    <td>${o.total_desks}</td><td>${o.run_rate_pct}%</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteOffice(${o.id})">Delete</button></td>
+  </tr>`).join('');
+
+  // Hours table
+  const htbody = document.querySelector('#hours-table tbody');
+  htbody.innerHTML = data.hours.map(h => {
+    const officeName = data.offices.find(o => o.id === h.office_id)?.name || h.office_id;
+    return `<tr><td>${officeName}</td><td>${DAYS[h.day_of_week]}</td><td>${h.open_time}</td><td>${h.close_time}</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteHours(${h.id})">Delete</button></td></tr>`;
+  }).join('');
+
+  // Lunch table
+  const ltbody = document.querySelector('#lunch-table tbody');
+  ltbody.innerHTML = data.lunches.map(l => {
+    const officeName = data.offices.find(o => o.id === l.office_id)?.name || l.office_id;
+    return `<tr><td>${officeName}</td><td>${l.shift_num}</td><td>${l.start_time}</td><td>${l.end_time}</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteLunch(${l.id})">Delete</button></td></tr>`;
+  }).join('');
+
+  // Populate office selectors
+  const opts = data.offices.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+  document.getElementById('hours-office').innerHTML = opts;
+  document.getElementById('lunch-office').innerHTML = opts;
+}
+
+async function addOffice() {
+  const res = await fetch('/api/admin/offices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: document.getElementById('office-name').value,
+      address: document.getElementById('office-address').value,
+      totalDesks: parseInt(document.getElementById('office-desks').value),
+      runRatePct: parseInt(document.getElementById('office-runrate').value),
+    }),
+  });
+  if (res.ok) { showToast('Office added'); loadOffices(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deleteOffice(id) {
+  if (!confirm('Delete this office? This cannot be undone.')) return;
+  await fetch('/api/admin/offices/' + id, { method: 'DELETE' });
+  loadOffices();
+}
+
+async function addHours() {
+  const res = await fetch('/api/admin/office-hours', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officeId: parseInt(document.getElementById('hours-office').value),
+      dayOfWeek: parseInt(document.getElementById('hours-day').value),
+      openTime: document.getElementById('hours-open').value,
+      closeTime: document.getElementById('hours-close').value,
+    }),
+  });
+  if (res.ok) { showToast('Hours saved'); loadOffices(); }
+  else showToast('Error', true);
+}
+
+async function deleteHours(id) {
+  await fetch('/api/admin/office-hours/' + id, { method: 'DELETE' });
+  loadOffices();
+}
+
+async function addLunch() {
+  const res = await fetch('/api/admin/lunch-shifts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      officeId: parseInt(document.getElementById('lunch-office').value),
+      shiftNum: parseInt(document.getElementById('lunch-shift').value),
+      startTime: document.getElementById('lunch-start').value,
+      endTime: document.getElementById('lunch-end').value,
+    }),
+  });
+  if (res.ok) { showToast('Lunch shift added'); loadOffices(); }
+  else showToast('Error', true);
+}
+
+async function deleteLunch(id) {
+  await fetch('/api/admin/lunch-shifts/' + id, { method: 'DELETE' });
+  loadOffices();
+}
+
+// ─── Transaction Types ──────────────────────────────────────────────────────
+async function loadTxnTypes() {
+  const res = await fetch('/api/admin/transaction-types');
+  txnTypesData = await res.json();
+
+  const tbody = document.querySelector('#txn-table tbody');
+  tbody.innerHTML = txnTypesData.map(t => {
+    const statusBadge = t.status === 'active' ? 'badge-green' : t.status === 'hidden' ? 'badge-gray' : 'badge-yellow';
+    const hours = (t.available_from || t.available_until) ? `${t.available_from || '—'} – ${t.available_until || '—'}` : '—';
+    return `<tr>
+      <td>${t.id}</td><td>${t.txn_type_id}</td><td>${t.name}</td>
+      <td>${t.avg_duration_min} min</td>
+      <td><span class="badge ${statusBadge}">${t.status}</span></td>
+      <td>${hours}</td>
+      <td>${t.is_online_eligible ? '<span class="badge badge-blue">Yes</span>' : '—'}</td>
+      <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteTxnType(${t.id})">Delete</button></td>
+    </tr>`;
+  }).join('');
+
+  // Populate prescreen txn selector
+  const globalTxns = txnTypesData.filter(t => !t.office_id);
+  document.getElementById('ps-txn').innerHTML = globalTxns.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+async function addTxnType() {
+  const res = await fetch('/api/admin/transaction-types', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      txnTypeId: document.getElementById('txn-slug').value,
+      name: document.getElementById('txn-name').value,
+      description: document.getElementById('txn-desc').value || null,
+      avgDurationMin: parseInt(document.getElementById('txn-duration').value),
+      status: document.getElementById('txn-status').value,
+      availableFrom: document.getElementById('txn-from').value || null,
+      availableUntil: document.getElementById('txn-until').value || null,
+      isOnlineEligible: document.getElementById('txn-online').value === 'true',
+      onlineRedirectUrl: document.getElementById('txn-redirect').value || null,
+    }),
+  });
+  if (res.ok) { showToast('Transaction type added'); loadTxnTypes(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deleteTxnType(id) {
+  if (!confirm('Delete this transaction type?')) return;
+  const res = await fetch('/api/admin/transaction-types/' + id, { method: 'DELETE' });
+  if (res.ok) { showToast('Deleted'); loadTxnTypes(); }
+  else showToast('Error: may have dependent records', true);
+}
+
+// ─── Clerks ─────────────────────────────────────────────────────────────────
+async function loadClerks() {
+  const res = await fetch('/api/admin/clerks');
+  const clerks = await res.json();
+
+  const tbody = document.querySelector('#clerks-table tbody');
+  tbody.innerHTML = clerks.map(c => {
+    const statusBadge = c.status === 'active' ? 'badge-green' : c.status === 'inactive' ? 'badge-red' : 'badge-yellow';
+    return `<tr>
+      <td>${c.id}</td><td>${c.first_name} ${c.last_name}</td><td>${c.email}</td>
+      <td><span class="badge ${statusBadge}">${c.status}</span></td>
+      <td>${(c.skill_ids || []).join(', ') || '—'}</td>
+      <td>${(c.office_ids || []).join(', ') || '—'}</td>
+      <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteClerk(${c.id})">Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function addClerk() {
+  const skillIds = document.getElementById('clerk-skills').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+  const officeIds = document.getElementById('clerk-offices').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+  const res = await fetch('/api/admin/clerks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: document.getElementById('clerk-first').value,
+      lastName: document.getElementById('clerk-last').value,
+      email: document.getElementById('clerk-email').value,
+      status: document.getElementById('clerk-status').value,
+      skillIds,
+      officeIds,
+    }),
+  });
+  if (res.ok) { showToast('Clerk added'); loadClerks(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deleteClerk(id) {
+  if (!confirm('Delete this clerk?')) return;
+  await fetch('/api/admin/clerks/' + id, { method: 'DELETE' });
+  loadClerks();
+}
+
+async function bulkImportClerks() {
+  const csv = document.getElementById('clerk-csv').value.trim();
+  if (!csv) { showToast('Paste CSV data first', true); return; }
+  const rows = csv.split('\n').filter(l => l.trim());
+  const clerks = rows.map(line => {
+    const [firstName, lastName, email, status, skills, offices] = line.split(',').map(s => s.trim());
+    return {
+      firstName, lastName, email,
+      status: status || 'active',
+      skillIds: (skills || '').split('|').map(s => parseInt(s)).filter(n => !isNaN(n)),
+      officeIds: (offices || '').split('|').map(s => parseInt(s)).filter(n => !isNaN(n)),
+    };
+  });
+  const res = await fetch('/api/admin/clerks/bulk-import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clerks }),
+  });
+  const data = await res.json();
+  if (res.ok) { showToast(`Imported ${data.count} clerks`); loadClerks(); }
+  else showToast('Error: ' + data.error, true);
+}
+
+// ─── Hotbuttons ─────────────────────────────────────────────────────────────
+async function loadHotbuttons() {
+  const res = await fetch('/api/admin/hotbuttons');
+  const hbs = await res.json();
+
+  const tbody = document.querySelector('#hotbuttons-table tbody');
+  tbody.innerHTML = hbs.map(h => `<tr>
+    <td>${h.sort_order}</td><td>${h.label}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">${h.prompt}</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteHotbutton(${h.id})">Delete</button></td>
+  </tr>`).join('');
+}
+
+async function addHotbutton() {
+  const res = await fetch('/api/admin/hotbuttons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sortOrder: parseInt(document.getElementById('hb-order').value) || 0,
+      label: document.getElementById('hb-label').value,
+      prompt: document.getElementById('hb-prompt').value,
+    }),
+  });
+  if (res.ok) { showToast('Hotbutton added'); loadHotbuttons(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deleteHotbutton(id) {
+  await fetch('/api/admin/hotbuttons/' + id, { method: 'DELETE' });
+  loadHotbuttons();
+}
+
+// ─── Prescreen Questions ────────────────────────────────────────────────────
+async function loadPrescreen() {
+  const res = await fetch('/api/admin/prescreen-questions');
+  const questions = await res.json();
+
+  const tbody = document.querySelector('#prescreen-table tbody');
+  tbody.innerHTML = questions.map(q => `<tr>
+    <td>${q.id}</td><td>${q.txn_name}</td><td>${q.sort_order}</td>
+    <td style="max-width:400px;">${q.question_text}</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deletePrescreenQ(${q.id})">Delete</button></td>
+  </tr>`).join('');
+}
+
+async function addPrescreenQ() {
+  const res = await fetch('/api/admin/prescreen-questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      txnTypeId: parseInt(document.getElementById('ps-txn').value),
+      sortOrder: parseInt(document.getElementById('ps-order').value) || 1,
+      questionText: document.getElementById('ps-text').value,
+    }),
+  });
+  if (res.ok) { showToast('Question added'); loadPrescreen(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deletePrescreenQ(id) {
+  await fetch('/api/admin/prescreen-questions/' + id, { method: 'DELETE' });
+  loadPrescreen();
+}
+
+// ─── Duration Recommendations ───────────────────────────────────────────────
+async function loadDurations() {
+  const res = await fetch('/api/admin/duration-recommendations');
+  const recs = await res.json();
+
+  const tbody = document.querySelector('#duration-table tbody');
+  if (!recs.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#718096;">No recommendations yet. These are generated as service history accumulates.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = recs.map(r => {
+    const statusBadge = r.status === 'approved' ? 'badge-green' : r.status === 'rejected' ? 'badge-red' : 'badge-yellow';
+    const actions = r.status === 'pending'
+      ? `<button class="btn btn-success btn-sm" onclick="approveDuration(${r.id})">Approve</button> <button class="btn btn-danger btn-sm" onclick="rejectDuration(${r.id})">Reject</button>`
+      : '—';
+    return `<tr>
+      <td>${r.txn_name}</td><td>${r.current_avg_min}</td><td>${r.recommended_avg_min}</td>
+      <td>${r.sample_size}</td><td><span class="badge ${statusBadge}">${r.status}</span></td>
+      <td>${new Date(r.created_at).toLocaleDateString()}</td><td class="actions">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function approveDuration(id) {
+  if (!confirm('Approve this recommendation? This will update the transaction duration.')) return;
+  const res = await fetch(`/api/admin/duration-recommendations/${id}/approve`, { method: 'POST' });
+  if (res.ok) { showToast('Approved — duration updated'); loadDurations(); loadTxnTypes(); }
+  else showToast('Error', true);
+}
+
+async function rejectDuration(id) {
+  await fetch(`/api/admin/duration-recommendations/${id}/reject`, { method: 'POST' });
+  showToast('Rejected');
+  loadDurations();
+}
+
+// ─── Skills Matrix ─────────────────────────────────────────────────────────
+async function loadSkillsMatrix() {
+  const res = await fetch('/api/admin/skills-matrix');
+  const data = await res.json();
+
+  if (!data.clerks.length || !data.txnTypes.length) {
+    document.getElementById('skills-matrix').innerHTML = '<p style="color:#718096;">No clerks or transaction types found.</p>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Clerk</th><th>Status</th>';
+  data.txnTypes.forEach(t => { html += `<th style="text-align:center;">${t.name}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  data.clerks.forEach(c => {
+    const statusBadge = c.status === 'active' ? 'badge-green' : c.status === 'inactive' ? 'badge-red' : 'badge-yellow';
+    html += `<tr><td>${c.first_name} ${c.last_name}</td><td><span class="badge ${statusBadge}">${c.status}</span></td>`;
+    data.txnTypes.forEach(t => {
+      const checked = (c.skill_ids || []).includes(t.id) ? 'checked' : '';
+      html += `<td style="text-align:center;"><input type="checkbox" ${checked} onchange="toggleSkill(${c.id}, ${t.id}, this.checked)" /></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('skills-matrix').innerHTML = html;
+}
+
+async function toggleSkill(clerkId, txnTypeId, checked) {
+  // Get current skills from the matrix data
+  const res = await fetch('/api/admin/skills-matrix');
+  const data = await res.json();
+  const clerk = data.clerks.find(c => c.id === clerkId);
+  if (!clerk) return;
+
+  let skillIds = [...(clerk.skill_ids || [])];
+  if (checked && !skillIds.includes(txnTypeId)) {
+    skillIds.push(txnTypeId);
+  } else if (!checked) {
+    skillIds = skillIds.filter(id => id !== txnTypeId);
+  }
+
+  const updateRes = await fetch(`/api/admin/clerk-skills/${clerkId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skillIds }),
+  });
+  if (updateRes.ok) showToast('Skill updated');
+  else showToast('Error updating skill', true);
+}
+
+// ─── Transaction-Office Matrix ─────────────────────────────────────────────
+async function loadTxnOfficeMatrix() {
+  const res = await fetch('/api/admin/txn-office-matrix');
+  const data = await res.json();
+
+  if (!data.offices.length || !data.globalTxns.length) {
+    document.getElementById('txn-office-matrix').innerHTML = '<p style="color:#718096;">No offices or transaction types found.</p>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Transaction</th>';
+  data.offices.forEach(o => { html += `<th style="text-align:center;">${o.name}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  data.globalTxns.forEach(t => {
+    html += `<tr><td>${t.name}</td>`;
+    data.offices.forEach(o => {
+      const override = data.overrides.find(ov => ov.txn_type_id === t.txn_type_id && ov.office_id === o.id);
+      const isHidden = override && override.status === 'hidden';
+      const checked = !isHidden ? 'checked' : '';
+      html += `<td style="text-align:center;"><input type="checkbox" ${checked} onchange="toggleTxnOffice('${t.txn_type_id}', ${o.id}, this.checked, ${override ? override.id : 'null'})" /></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('txn-office-matrix').innerHTML = html;
+}
+
+async function toggleTxnOffice(txnTypeId, officeId, enabled, overrideId) {
+  try {
+    if (!enabled) {
+      // Create/update override with hidden status
+      await fetch('/api/admin/txn-office-override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ txnTypeId, officeId, status: 'hidden' }),
+      });
+    } else {
+      // Remove override (or set to active)
+      if (overrideId) {
+        await fetch(`/api/admin/txn-office-override/${overrideId}`, { method: 'DELETE' });
+      } else {
+        await fetch('/api/admin/txn-office-override', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ txnTypeId, officeId, status: 'active' }),
+        });
+      }
+    }
+    showToast('Updated');
+    loadTxnOfficeMatrix();
+  } catch (e) { showToast('Error', true); }
+}
+
+// ─── Document Registry ─────────────────────────────────────────────────────
+async function loadDocRegistry() {
+  const res = await fetch('/api/admin/document-registry');
+  const docs = await res.json();
+
+  const tbody = document.querySelector('#doc-registry-table tbody');
+  tbody.innerHTML = docs.map(d => `<tr>
+    <td><code>${d.doc_id}</code></td><td>${d.name}</td>
+    <td>${d.description || '—'}</td>
+    <td>${(d.alternatives || []).join(', ') || '—'}</td>
+    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteDocType('${d.doc_id}')">Delete</button></td>
+  </tr>`).join('');
+}
+
+async function addDocType() {
+  const res = await fetch('/api/admin/document-registry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      docId: document.getElementById('doc-id').value,
+      name: document.getElementById('doc-name').value,
+      description: document.getElementById('doc-desc').value || null,
+      alternatives: document.getElementById('doc-alts').value.split(',').map(s => s.trim()).filter(Boolean),
+    }),
+  });
+  if (res.ok) { showToast('Document type added'); loadDocRegistry(); }
+  else showToast('Error: ' + (await res.json()).error, true);
+}
+
+async function deleteDocType(docId) {
+  if (!confirm('Delete this document type?')) return;
+  await fetch(`/api/admin/document-registry/${docId}`, { method: 'DELETE' });
+  loadDocRegistry();
+}
+
+// ─── Transaction Flows ─────────────────────────────────────────────────────
+async function loadTxnFlows() {
+  const [flowsRes, docsRes, txnRes] = await Promise.all([
+    fetch('/api/admin/transaction-flows'),
+    fetch('/api/admin/document-registry'),
+    fetch('/api/admin/transaction-types'),
+  ]);
+  const flows = await flowsRes.json();
+  const docs = await docsRes.json();
+  const txns = (await txnRes.json()).filter(t => !t.office_id);
+
+  let html = '';
+  txns.forEach(t => {
+    const flow = flows.find(f => f.txn_type_id === t.id);
+    const requiredDocs = flow?.steps?.required_docs || [];
+    html += `<div style="margin-bottom: 16px; padding: 12px; border: 1px solid #eee; border-radius: 6px;">
+      <strong>${t.name}</strong>
+      <div style="margin-top: 8px;">`;
+    docs.forEach(d => {
+      const checked = requiredDocs.includes(d.doc_id) ? 'checked' : '';
+      html += `<label style="display:inline-block; margin-right:12px; font-weight:normal;"><input type="checkbox" ${checked} onchange="toggleFlowDoc(${t.id}, '${d.doc_id}', this.checked)" /> ${d.name}</label>`;
+    });
+    html += '</div></div>';
+  });
+  document.getElementById('txn-flows-container').innerHTML = html || '<p style="color:#718096;">No transaction types found.</p>';
+}
+
+async function toggleFlowDoc(txnTypeId, docId, checked) {
+  // Get current flow
+  const res = await fetch('/api/admin/transaction-flows');
+  const flows = await res.json();
+  const flow = flows.find(f => f.txn_type_id === txnTypeId);
+  let requiredDocs = flow?.steps?.required_docs || [];
+
+  if (checked && !requiredDocs.includes(docId)) {
+    requiredDocs.push(docId);
+  } else if (!checked) {
+    requiredDocs = requiredDocs.filter(id => id !== docId);
+  }
+
+  await fetch(`/api/admin/transaction-flows/${txnTypeId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ steps: { required_docs: requiredDocs } }),
+  });
+  showToast('Flow updated');
+}
+
+// ─── Performance Metrics ───────────────────────────────────────────────────
+let perfCharts = {};
+
+async function loadPerformanceMetrics() {
+  const days = document.getElementById('perf-days').value || 30;
+  const res = await fetch(`/api/admin/performance-metrics?days=${days}`);
+  const data = await res.json();
+
+  // Destroy existing charts
+  Object.values(perfCharts).forEach(c => c.destroy && c.destroy());
+  perfCharts = {};
+
+  // KPIs
+  const kpisEl = document.getElementById('perf-kpis');
+  const totalServed = data.dailyVolume.reduce((sum, d) => sum + d.customers_served, 0);
+  const avgWait = data.waitTimes?.avg_wait_minutes ?? '—';
+  const avgService = data.avgByTxn.length ? (data.avgByTxn.reduce((sum, t) => sum + parseFloat(t.avg_minutes), 0) / data.avgByTxn.length).toFixed(1) : '—';
+  kpisEl.innerHTML = `
+    <div class="card" style="text-align:center;margin:0;"><h3 style="color:#4299e1;font-size:24px;">${totalServed}</h3><p style="font-size:12px;color:#718096;">Total Served (${days}d)</p></div>
+    <div class="card" style="text-align:center;margin:0;"><h3 style="color:#48bb78;font-size:24px;">${avgService} min</h3><p style="font-size:12px;color:#718096;">Avg Service Time</p></div>
+    <div class="card" style="text-align:center;margin:0;"><h3 style="color:#ed8936;font-size:24px;">${avgWait} min</h3><p style="font-size:12px;color:#718096;">Avg Wait Time</p></div>
+  `;
+
+  // Chart: Avg by transaction type
+  if (data.avgByTxn.length) {
+    perfCharts.avgByTxn = new Chart(document.getElementById('chart-avg-by-txn'), {
+      type: 'bar',
+      data: {
+        labels: data.avgByTxn.map(t => t.txn_name),
+        datasets: [{ label: 'Avg Minutes', data: data.avgByTxn.map(t => t.avg_minutes), backgroundColor: '#4299e1' }]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Avg Service Time by Transaction' } } }
+    });
+  }
+
+  // Chart: Daily service times
+  if (data.dailyTimes.length) {
+    perfCharts.dailyTimes = new Chart(document.getElementById('chart-daily-times'), {
+      type: 'line',
+      data: {
+        labels: data.dailyTimes.map(d => d.day),
+        datasets: [{ label: 'Avg Minutes', data: data.dailyTimes.map(d => d.avg_minutes), borderColor: '#48bb78', fill: false, tension: 0.3 }]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Daily Avg Service Time' } } }
+    });
+  }
+
+  // Chart: Daily volume
+  if (data.dailyVolume.length) {
+    perfCharts.dailyVolume = new Chart(document.getElementById('chart-daily-volume'), {
+      type: 'bar',
+      data: {
+        labels: data.dailyVolume.map(d => d.day),
+        datasets: [{ label: 'Customers', data: data.dailyVolume.map(d => d.customers_served), backgroundColor: '#ed8936' }]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Customers Served Per Day' } } }
+    });
+  }
+
+  // Chart: Office comparison
+  if (data.officeMetrics.length) {
+    perfCharts.officeComp = new Chart(document.getElementById('chart-office-comparison'), {
+      type: 'bar',
+      data: {
+        labels: data.officeMetrics.map(o => o.office_name),
+        datasets: [
+          { label: 'Avg Service (min)', data: data.officeMetrics.map(o => o.avg_service_minutes), backgroundColor: '#4299e1' },
+          { label: 'Avg Wait (min)', data: data.officeMetrics.map(o => o.avg_wait_minutes), backgroundColor: '#ed8936' },
+        ]
+      },
+      options: { responsive: true, plugins: { title: { display: true, text: 'Office Comparison' } } }
+    });
+  }
+}
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+loadConfig();
+loadOffices();
+loadTxnTypes();
+loadClerks();
+loadHotbuttons();
+loadPrescreen();
+loadDurations();
+loadSkillsMatrix();
+loadTxnOfficeMatrix();
+loadDocRegistry();
+loadTxnFlows();
+loadPerformanceMetrics();
+showView('config');
+</script>
+</body>
+</html>
