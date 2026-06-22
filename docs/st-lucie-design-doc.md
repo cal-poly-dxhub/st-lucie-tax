@@ -140,6 +140,7 @@ The scheduling engine is a core technical component that calculates real-time ap
 - Clerk sends SMS pre-screening check-in questions via text if not completed online already, customer completes in lobby, system auto-queues on completion
 - Notes system for flagging special circumstances or providing context to the service clerk
 - Three-tier queue assignment: regular queue, priority queue (moves important customers up in line)
+- Schedule view which shows appointments and allows the clerk to move as needed
 
 ### 3.1.4 Queue
 
