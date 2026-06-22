@@ -519,15 +519,8 @@ describe("Lookup — QR code and name search", () => {
     const byLower = await lookupByName(db.client, "jas", OFFICE, DATE);
     expect(byLower.some((r) => r.firstName === "Jasmine")).toBe(true);
 
-    // Cancelled appointment excluded
-    await db.client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
-      bookResult.appointmentId,
-    ]);
-    const afterCancel = await lookupByName(db.client, "Jas", OFFICE, DATE);
-    expect(afterCancel.some((r) => r.firstName === "Jasmine")).toBe(false);
-
     // Case-insensitive partial name
-    const byFullNameLower = await lookupByName(db.client, "jas h", OFFICE, DATE);
+    const byFullNameLower = await lookupByName(db.client, "jasmine h", OFFICE, DATE);
     expect(
       byFullNameLower.some((r) => r.firstName === "Jasmine" && r.lastName === "Henderson"),
     ).toBe(true);
@@ -538,6 +531,13 @@ describe("Lookup — QR code and name search", () => {
     expect(byFullName.some((r) => r.firstName === "Jasmine" && r.lastName === "Henderson")).toBe(
       true,
     );
+
+    // Cancelled appointment excluded
+    await db.client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
+      bookResult.appointmentId,
+    ]);
+    const afterCancel = await lookupByName(db.client, "Jas", OFFICE, DATE);
+    expect(afterCancel.some((r) => r.firstName === "Jasmine")).toBe(false);
   });
 
   test("lookupByName respects timezone — appointment on 'today' in office tz", async () => {
