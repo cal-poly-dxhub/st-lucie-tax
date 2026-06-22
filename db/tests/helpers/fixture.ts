@@ -3,7 +3,6 @@ import type { Client } from "pg";
 import { connect } from "./client.js";
 
 export interface DbContext {
-  /** Transactional client for the current test. Rolled back in afterEach. */
   client: Client;
 }
 
