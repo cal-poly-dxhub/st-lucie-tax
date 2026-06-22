@@ -19,6 +19,7 @@ import { getClerkServiceRecord, sendToWrittenTest } from "../src/service-clerk.j
 import { completeAppointment } from "../src/complete.js";
 import { assignNextCustomer } from "../src/queue.js";
 import { clerkLogin, setClerkAvailability } from "../src/clerk-session.js";
+import { buildQueueSummonEmail } from "../src/email.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -52,6 +53,33 @@ async function sendEmail(input: {
       },
     }),
   );
+}
+
+// ─── Queue Summon Email ─────────────────────────────────────────────────────
+async function sendSummonEmail(queueId: number) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.id AS appointment_id, a.first_name, a.contact_email, q.assigned_desk, o.name AS office_name
+       FROM queue q
+       JOIN appointments a ON a.id = q.appointment_id
+       JOIN offices o ON o.id = q.office_id
+       WHERE q.id = $1`,
+      [queueId],
+    );
+    const row = rows[0];
+    if (!row?.contact_email) return;
+    const emailInput = buildQueueSummonEmail({
+      recipientEmail: row.contact_email,
+      firstName: row.first_name,
+      appointmentId: row.appointment_id,
+      deskNumber: row.assigned_desk,
+      officeName: row.office_name,
+      fromEmail: EMAIL,
+    });
+    await sendEmail(emailInput);
+  } catch (err) {
+    console.error("summon email failed:", err);
+  }
 }
 
 // ─── Lookup by QR code (backed entirely by src/) ─────────────────────────────
@@ -724,6 +752,7 @@ app.post("/api/clerk/summon-next", async (req, res) => {
     if (!clerkId || !officeId) return res.status(400).json({ error: "clerkId, officeId required" });
     const result = await assignNextCustomer(pool, officeId, clerkId);
     if (!result) return res.json({ ok: true, assigned: false });
+    await sendSummonEmail(result.queueId);
     res.json({ ok: true, assigned: true, queueId: result.queueId, deskNumber: result.deskNumber });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -804,6 +833,7 @@ app.post("/api/clerk/complete-and-next", async (req, res) => {
         durationSec: completeResult.durationSec,
         next: null,
       });
+    await sendSummonEmail(nextResult.queueId);
     const nextRecord = await getClerkServiceRecord(pool, nextResult.queueId);
     res.json({
       ok: true,
@@ -941,8 +971,496 @@ app.post("/api/sim/complete", async (req, res) => {
   }
 });
 
+// ─── Admin Dashboard ────────────────────────────────────────────────────────
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.resolve(__dirname, "admin.html"));
+});
+
+// ─── Admin API: Offices ─────────────────────────────────────────────────────
+app.get("/api/admin/offices", async (_req, res) => {
+  try {
+    const offices = await pool.query(
+      `SELECT id, name, address, total_desks, run_rate_pct FROM offices ORDER BY id`,
+    );
+    const hours = await pool.query(
+      `SELECT id, office_id, day_of_week, open_time::text, close_time::text FROM office_hours ORDER BY office_id, day_of_week`,
+    );
+    const lunches = await pool.query(
+      `SELECT id, office_id, shift_num, start_time::text, end_time::text FROM office_lunch_shifts ORDER BY office_id, shift_num`,
+    );
+    res.json({ offices: offices.rows, hours: hours.rows, lunches: lunches.rows });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/offices", async (req, res) => {
+  try {
+    const { name, address, totalDesks, runRatePct } = req.body;
+    if (!name || !totalDesks)
+      return res.status(400).json({ error: "name and totalDesks required" });
+    const { rows } = await pool.query(
+      `INSERT INTO offices (name, address, total_desks, run_rate_pct) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, address || null, totalDesks, runRatePct || 100],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/offices/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, address, totalDesks, runRatePct } = req.body;
+    await pool.query(
+      `UPDATE offices SET name = COALESCE($2, name), address = COALESCE($3, address),
+       total_desks = COALESCE($4, total_desks), run_rate_pct = COALESCE($5, run_rate_pct) WHERE id = $1`,
+      [id, name || null, address, totalDesks || null, runRatePct || null],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/offices/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await pool.query(`DELETE FROM offices WHERE id = $1`, [id]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Office Hours ────────────────────────────────────────────────
+app.post("/api/admin/office-hours", async (req, res) => {
+  try {
+    const { officeId, dayOfWeek, openTime, closeTime } = req.body;
+    await pool.query(
+      `INSERT INTO office_hours (office_id, day_of_week, open_time, close_time)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (office_id, day_of_week) DO UPDATE SET open_time = $3, close_time = $4`,
+      [officeId, dayOfWeek, openTime, closeTime],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/office-hours/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM office_hours WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Lunch Shifts ────────────────────────────────────────────────
+app.post("/api/admin/lunch-shifts", async (req, res) => {
+  try {
+    const { officeId, shiftNum, startTime, endTime } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO office_lunch_shifts (office_id, shift_num, start_time, end_time)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [officeId, shiftNum, startTime, endTime],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/lunch-shifts/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM office_lunch_shifts WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Transaction Types ───────────────────────────────────────────
+app.get("/api/admin/transaction-types", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, txn_type_id, office_id, name, description, avg_duration_min,
+              status, available_from::text, available_until::text,
+              is_online_eligible, online_redirect_url
+       FROM transaction_types ORDER BY office_id NULLS FIRST, id`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/transaction-types", async (req, res) => {
+  try {
+    const {
+      txnTypeId,
+      officeId,
+      name,
+      description,
+      avgDurationMin,
+      status,
+      availableFrom,
+      availableUntil,
+      isOnlineEligible,
+      onlineRedirectUrl,
+    } = req.body;
+    if (!txnTypeId || !name || !avgDurationMin)
+      return res.status(400).json({ error: "txnTypeId, name, avgDurationMin required" });
+    const { rows } = await pool.query(
+      `INSERT INTO transaction_types (txn_type_id, office_id, name, description, avg_duration_min, status, available_from, available_until, is_online_eligible, online_redirect_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [
+        txnTypeId,
+        officeId || null,
+        name,
+        description || null,
+        avgDurationMin,
+        status || "active",
+        availableFrom || null,
+        availableUntil || null,
+        isOnlineEligible || false,
+        onlineRedirectUrl || null,
+      ],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/transaction-types/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const {
+      name,
+      description,
+      avgDurationMin,
+      status,
+      availableFrom,
+      availableUntil,
+      isOnlineEligible,
+      onlineRedirectUrl,
+    } = req.body;
+    await pool.query(
+      `UPDATE transaction_types SET
+       name = COALESCE($2, name),
+       description = COALESCE($3, description),
+       avg_duration_min = COALESCE($4, avg_duration_min),
+       status = COALESCE($5, status),
+       available_from = $6,
+       available_until = $7,
+       is_online_eligible = COALESCE($8, is_online_eligible),
+       online_redirect_url = $9
+       WHERE id = $1`,
+      [
+        id,
+        name || null,
+        description,
+        avgDurationMin || null,
+        status || null,
+        availableFrom || null,
+        availableUntil || null,
+        isOnlineEligible,
+        onlineRedirectUrl || null,
+      ],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/transaction-types/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM transaction_types WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Clerks ──────────────────────────────────────────────────────
+app.get("/api/admin/clerks", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, first_name, last_name, email, status, skill_ids, office_ids FROM clerks ORDER BY id`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/clerks", async (req, res) => {
+  try {
+    const { firstName, lastName, email, status, skillIds, officeIds } = req.body;
+    if (!firstName || !lastName || !email)
+      return res.status(400).json({ error: "firstName, lastName, email required" });
+    const { rows } = await pool.query(
+      `INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [firstName, lastName, email, status || "active", skillIds || [], officeIds || []],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/clerks/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { firstName, lastName, email, status, skillIds, officeIds } = req.body;
+    await pool.query(
+      `UPDATE clerks SET
+       first_name = COALESCE($2, first_name),
+       last_name = COALESCE($3, last_name),
+       email = COALESCE($4, email),
+       status = COALESCE($5, status),
+       skill_ids = COALESCE($6, skill_ids),
+       office_ids = COALESCE($7, office_ids)
+       WHERE id = $1`,
+      [
+        id,
+        firstName || null,
+        lastName || null,
+        email || null,
+        status || null,
+        skillIds || null,
+        officeIds || null,
+      ],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/clerks/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM clerks WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/clerks/bulk-import", async (req, res) => {
+  try {
+    const { clerks: clerkRows } = req.body;
+    if (!Array.isArray(clerkRows) || !clerkRows.length)
+      return res.status(400).json({ error: "clerks array required" });
+    const inserted = [];
+    for (const c of clerkRows) {
+      const { rows } = await pool.query(
+        `INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (email) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+           status = EXCLUDED.status, skill_ids = EXCLUDED.skill_ids, office_ids = EXCLUDED.office_ids
+         RETURNING id`,
+        [
+          c.firstName,
+          c.lastName,
+          c.email,
+          c.status || "active",
+          c.skillIds || [],
+          c.officeIds || [],
+        ],
+      );
+      inserted.push(rows[0].id);
+    }
+    res.json({ ok: true, count: inserted.length, ids: inserted });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Hotbuttons ──────────────────────────────────────────────────
+app.get("/api/admin/hotbuttons", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, sort_order, label, prompt FROM hotbuttons ORDER BY sort_order`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/hotbuttons", async (req, res) => {
+  try {
+    const { sortOrder, label, prompt } = req.body;
+    if (!label || !prompt) return res.status(400).json({ error: "label and prompt required" });
+    const { rows } = await pool.query(
+      `INSERT INTO hotbuttons (sort_order, label, prompt) VALUES ($1, $2, $3) RETURNING id`,
+      [sortOrder || 0, label, prompt],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/hotbuttons/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { sortOrder, label, prompt } = req.body;
+    await pool.query(
+      `UPDATE hotbuttons SET sort_order = COALESCE($2, sort_order), label = COALESCE($3, label), prompt = COALESCE($4, prompt) WHERE id = $1`,
+      [id, sortOrder ?? null, label || null, prompt || null],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/hotbuttons/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM hotbuttons WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Prescreen Questions ─────────────────────────────────────────
+app.get("/api/admin/prescreen-questions", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT pq.id, pq.txn_type_id, pq.sort_order, pq.question_text, tt.name AS txn_name
+       FROM prescreen_questions pq
+       JOIN transaction_types tt ON tt.id = pq.txn_type_id
+       ORDER BY pq.txn_type_id, pq.sort_order`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/prescreen-questions", async (req, res) => {
+  try {
+    const { txnTypeId, sortOrder, questionText } = req.body;
+    if (!txnTypeId || !questionText)
+      return res.status(400).json({ error: "txnTypeId and questionText required" });
+    const { rows } = await pool.query(
+      `INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [txnTypeId, sortOrder || 1, questionText],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/prescreen-questions/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { sortOrder, questionText } = req.body;
+    await pool.query(
+      `UPDATE prescreen_questions SET sort_order = COALESCE($2, sort_order), question_text = COALESCE($3, question_text) WHERE id = $1`,
+      [id, sortOrder ?? null, questionText || null],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/prescreen-questions/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM prescreen_questions WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Duration Recommendations ────────────────────────────────────
+app.get("/api/admin/duration-recommendations", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT dr.id, dr.txn_type_id, tt.name AS txn_name, dr.current_avg_min,
+              dr.recommended_avg_min, dr.sample_size, dr.status, dr.created_at
+       FROM duration_recommendations dr
+       JOIN transaction_types tt ON tt.id = dr.txn_type_id
+       ORDER BY dr.created_at DESC`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/duration-recommendations/:id/approve", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { rows } = await pool.query(
+      `UPDATE duration_recommendations SET status = 'approved' WHERE id = $1 RETURNING txn_type_id, recommended_avg_min`,
+      [id],
+    );
+    if (!rows.length) return res.status(404).json({ error: "not found" });
+    await pool.query(`UPDATE transaction_types SET avg_duration_min = $2 WHERE id = $1`, [
+      rows[0].txn_type_id,
+      rows[0].recommended_avg_min,
+    ]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/duration-recommendations/:id/reject", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await pool.query(`UPDATE duration_recommendations SET status = 'rejected' WHERE id = $1`, [id]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Global Config ───────────────────────────────────────────────
+app.get("/api/admin/config", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT timezone, scheduling_block_padding, default_lookahead_days FROM config`,
+    );
+    res.json(rows[0] || {});
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/config", async (req, res) => {
+  try {
+    const { timezone, schedulingBlockPadding, defaultLookaheadDays } = req.body;
+    await pool.query(
+      `UPDATE config SET
+       timezone = COALESCE($1, timezone),
+       scheduling_block_padding = COALESCE($2, scheduling_block_padding),
+       default_lookahead_days = COALESCE($3, default_lookahead_days)`,
+      [timezone || null, schedulingBlockPadding ?? null, defaultLookaheadDays ?? null],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 const server = app.listen(3000, () => {
   console.log("Prototype server running at http://localhost:3000/prototype.html");
+  console.log("Admin dashboard at http://localhost:3000/admin");
 });
 
 server.on("error", (err) => {
