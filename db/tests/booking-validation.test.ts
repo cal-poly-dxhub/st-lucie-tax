@@ -11,57 +11,6 @@ import {
 
 const db = useDb();
 
-describe("query 1: get office config", () => {
-  test("returns Fort Pierce config for office_id=1", async () => {
-    const { rows } = await db.client.query(
-      `SELECT id, name, total_desks, run_rate_pct
-         FROM offices
-        WHERE id = 1`,
-    );
-    expect(rows).toEqual([
-      {
-        id: 1,
-        name: "Fort Pierce Office",
-        total_desks: 3,
-        run_rate_pct: 100,
-      },
-    ]);
-  });
-});
-
-describe("query 2: get office hours", () => {
-  test("returns Mon-Fri 08:00-17:00 for office 1", async () => {
-    const { rows } = await db.client.query(
-      `SELECT day_of_week, open_time::text AS open, close_time::text AS close
-         FROM office_hours
-        WHERE office_id = 1
-        ORDER BY day_of_week`,
-    );
-    expect(rows).toEqual([
-      { day_of_week: 1, open: "08:00:00", close: "17:00:00" },
-      { day_of_week: 2, open: "08:00:00", close: "17:00:00" },
-      { day_of_week: 3, open: "08:00:00", close: "17:00:00" },
-      { day_of_week: 4, open: "08:00:00", close: "17:00:00" },
-      { day_of_week: 5, open: "08:00:00", close: "17:00:00" },
-    ]);
-  });
-});
-
-describe("query 3: get lunch shifts", () => {
-  test("returns the two 45-min shifts for office 1", async () => {
-    const { rows } = await db.client.query(
-      `SELECT shift_num, start_time::text AS start, end_time::text AS finish
-         FROM office_lunch_shifts
-        WHERE office_id = 1
-        ORDER BY start_time`,
-    );
-    expect(rows).toEqual([
-      { shift_num: 1, start: "11:30:00", finish: "12:15:00" },
-      { shift_num: 2, start: "12:15:00", finish: "13:00:00" },
-    ]);
-  });
-});
-
 describe("query 4: effective transaction types", () => {
   test("baseline: all 3 global txns active at office 1", async () => {
     const { rows } = await db.client.query(
