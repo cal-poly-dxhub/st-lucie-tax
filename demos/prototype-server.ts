@@ -1402,6 +1402,255 @@ app.get("/api/admin/duration-recommendations", async (_req, res) => {
   }
 });
 
+// ─── Admin API: Skills Matrix ──────────────────────────────────────────────
+app.get("/api/admin/skills-matrix", async (_req, res) => {
+  try {
+    const { rows: clerks } = await pool.query(
+      `SELECT c.id, c.first_name, c.last_name, c.skill_ids, c.status
+       FROM clerks c ORDER BY c.id`,
+    );
+    const { rows: txnTypes } = await pool.query(
+      `SELECT id, name FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
+    );
+    res.json({ clerks, txnTypes });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/clerk-skills/:clerkId", async (req, res) => {
+  try {
+    const clerkId = parseInt(req.params.clerkId);
+    const { skillIds } = req.body;
+    if (!Array.isArray(skillIds)) return res.status(400).json({ error: "skillIds array required" });
+    await pool.query(`UPDATE clerks SET skill_ids = $2 WHERE id = $1`, [clerkId, skillIds]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Transaction-Office Matrix ──────────────────────────────────
+app.get("/api/admin/txn-office-matrix", async (_req, res) => {
+  try {
+    const { rows: offices } = await pool.query(`SELECT id, name FROM offices ORDER BY id`);
+    const { rows: globalTxns } = await pool.query(
+      `SELECT id, txn_type_id, name, status FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
+    );
+    const { rows: overrides } = await pool.query(
+      `SELECT id, txn_type_id, office_id, name, status, available_from::text, available_until::text
+       FROM transaction_types WHERE office_id IS NOT NULL ORDER BY office_id, txn_type_id`,
+    );
+    res.json({ offices, globalTxns, overrides });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/txn-office-override", async (req, res) => {
+  try {
+    const { txnTypeId, officeId, status, availableFrom, availableUntil } = req.body;
+    if (!txnTypeId || !officeId)
+      return res.status(400).json({ error: "txnTypeId and officeId required" });
+    // Look up the global transaction type to copy name/description
+    const { rows: globalRows } = await pool.query(
+      `SELECT name, description, avg_duration_min FROM transaction_types WHERE txn_type_id = $1 AND office_id IS NULL`,
+      [txnTypeId],
+    );
+    if (!globalRows.length)
+      return res.status(404).json({ error: "Global transaction type not found" });
+    const g = globalRows[0];
+    const { rows } = await pool.query(
+      `INSERT INTO transaction_types (txn_type_id, office_id, name, description, avg_duration_min, status, available_from, available_until)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (txn_type_id, office_id) DO UPDATE SET status = $6, available_from = $7, available_until = $8
+       RETURNING id`,
+      [
+        txnTypeId,
+        officeId,
+        g.name,
+        g.description,
+        g.avg_duration_min,
+        status || "active",
+        availableFrom || null,
+        availableUntil || null,
+      ],
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/txn-office-override/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM transaction_types WHERE id = $1 AND office_id IS NOT NULL`, [
+      parseInt(req.params.id),
+    ]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Document Registry ──────────────────────────────────────────
+app.get("/api/admin/document-registry", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT doc_id, name, description, alternatives FROM document_registry ORDER BY doc_id`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/admin/document-registry", async (req, res) => {
+  try {
+    const { docId, name, description, alternatives } = req.body;
+    if (!docId || !name) return res.status(400).json({ error: "docId and name required" });
+    await pool.query(
+      `INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES ($1, $2, $3, $4)`,
+      [docId, name, description || null, alternatives || []],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/document-registry/:docId", async (req, res) => {
+  try {
+    const docId = req.params.docId;
+    const { name, description, alternatives } = req.body;
+    await pool.query(
+      `UPDATE document_registry SET name = COALESCE($2, name), description = COALESCE($3, description), alternatives = COALESCE($4, alternatives) WHERE doc_id = $1`,
+      [docId, name || null, description, alternatives || null],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/admin/document-registry/:docId", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM document_registry WHERE doc_id = $1`, [req.params.docId]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Transaction Flows (document requirements per txn) ──────────
+app.get("/api/admin/transaction-flows", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT tf.id, tf.txn_type_id, tt.name AS txn_name, tf.steps
+       FROM transaction_flows tf
+       JOIN transaction_types tt ON tt.id = tf.txn_type_id
+       ORDER BY tf.txn_type_id`,
+    );
+    res.json(rows);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.put("/api/admin/transaction-flows/:txnTypeId", async (req, res) => {
+  try {
+    const txnTypeId = parseInt(req.params.txnTypeId);
+    const { steps } = req.body;
+    if (!steps) return res.status(400).json({ error: "steps required" });
+    await pool.query(
+      `INSERT INTO transaction_flows (txn_type_id, steps) VALUES ($1, $2)
+       ON CONFLICT (txn_type_id) DO UPDATE SET steps = $2`,
+      [txnTypeId, JSON.stringify(steps)],
+    );
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── Admin API: Performance Metrics ────────────────────────────────────────
+app.get("/api/admin/performance-metrics", async (req, res) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+
+    // Average service time per transaction type
+    const { rows: avgByTxn } = await pool.query(
+      `SELECT tt.name AS txn_name, tt.id AS txn_type_id,
+              ROUND(AVG(sh.duration_sec) / 60.0, 1) AS avg_minutes,
+              COUNT(*)::int AS sample_count
+       FROM service_history sh
+       JOIN service_history_txn_types sht ON sht.service_history_id = sh.id
+       JOIN transaction_types tt ON tt.id = sht.txn_type_id
+       WHERE sh.served_at >= NOW() - $1::interval
+       GROUP BY tt.id, tt.name
+       ORDER BY tt.name`,
+      [`${days} days`],
+    );
+
+    // Daily service times (for line chart)
+    const { rows: dailyTimes } = await pool.query(
+      `SELECT DATE(sh.served_at) AS day,
+              ROUND(AVG(sh.duration_sec) / 60.0, 1) AS avg_minutes,
+              COUNT(*)::int AS count
+       FROM service_history sh
+       WHERE sh.served_at >= NOW() - $1::interval
+       GROUP BY DATE(sh.served_at)
+       ORDER BY day`,
+      [`${days} days`],
+    );
+
+    // Customers served per day
+    const { rows: dailyVolume } = await pool.query(
+      `SELECT DATE(sh.served_at) AS day, COUNT(*)::int AS customers_served
+       FROM service_history sh
+       WHERE sh.served_at >= NOW() - $1::interval
+       GROUP BY DATE(sh.served_at)
+       ORDER BY day`,
+      [`${days} days`],
+    );
+
+    // Average wait time (time from check-in to serving)
+    const { rows: waitTimes } = await pool.query(
+      `SELECT ROUND(AVG(EXTRACT(EPOCH FROM (q.served_at - q.checked_in_at))) / 60.0, 1) AS avg_wait_minutes,
+              COUNT(*)::int AS sample_count
+       FROM queue q
+       WHERE q.status = 'done' AND q.served_at IS NOT NULL
+         AND q.checked_in_at >= NOW() - $1::interval`,
+      [`${days} days`],
+    );
+
+    // Per-office comparison
+    const { rows: officeMetrics } = await pool.query(
+      `SELECT o.name AS office_name, o.id AS office_id,
+              ROUND(AVG(sh.duration_sec) / 60.0, 1) AS avg_service_minutes,
+              COUNT(*)::int AS total_served,
+              ROUND(AVG(EXTRACT(EPOCH FROM (q.served_at - q.checked_in_at))) / 60.0, 1) AS avg_wait_minutes
+       FROM service_history sh
+       JOIN offices o ON o.id = sh.office_id
+       LEFT JOIN queue q ON q.appointment_id = sh.appointment_id AND q.served_at IS NOT NULL
+       WHERE sh.served_at >= NOW() - $1::interval
+       GROUP BY o.id, o.name
+       ORDER BY o.name`,
+      [`${days} days`],
+    );
+
+    res.json({
+      avgByTxn,
+      dailyTimes,
+      dailyVolume,
+      waitTimes: waitTimes[0] || { avg_wait_minutes: null, sample_count: 0 },
+      officeMetrics,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.post("/api/admin/duration-recommendations/:id/approve", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
