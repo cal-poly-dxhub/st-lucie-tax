@@ -1,84 +1,172 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lobby Display — St. Lucie Tax Collector</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a202c; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lobby Display — St. Lucie Tax Collector</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #1a202c;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+      }
 
-    .header { text-align: center; margin-bottom: 32px; }
-    .header h1 { color: #e2e8f0; font-size: 28px; margin-bottom: 4px; }
-    .header p { color: #718096; font-size: 14px; }
+      .header {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      .header h1 {
+        color: #e2e8f0;
+        font-size: 28px;
+        margin-bottom: 4px;
+      }
+      .header p {
+        color: #718096;
+        font-size: 14px;
+      }
 
-    .section-title { color: white; text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 24px; }
-    .section-title.up-next { font-size: 18px; opacity: 0.7; margin-top: 32px; }
+      .section-title {
+        color: white;
+        text-align: center;
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 24px;
+      }
+      .section-title.up-next {
+        font-size: 18px;
+        opacity: 0.7;
+        margin-top: 32px;
+      }
 
-    .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; max-width: 900px; width: 100%; }
-    .lobby-card { background: #2d3748; color: white; border-radius: 12px; padding: 24px; text-align: center; }
-    .lobby-card .number { font-size: 56px; font-weight: 700; }
-    .lobby-card .station { font-size: 16px; opacity: 0.8; margin-top: 8px; }
-    .lobby-card .name { font-size: 14px; opacity: 0.6; margin-top: 4px; }
-    .lobby-card.calling { background: #38a169; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+      .lobby-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+        max-width: 900px;
+        width: 100%;
+      }
+      .lobby-card {
+        background: #2d3748;
+        color: white;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+      }
+      .lobby-card .number {
+        font-size: 56px;
+        font-weight: 700;
+      }
+      .lobby-card .station {
+        font-size: 16px;
+        opacity: 0.8;
+        margin-top: 8px;
+      }
+      .lobby-card .name {
+        font-size: 14px;
+        opacity: 0.6;
+        margin-top: 4px;
+      }
+      .lobby-card.calling {
+        background: #38a169;
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
 
-    .waiting { text-align: center; color: #a0aec0; font-size: 40px; font-weight: 700; letter-spacing: 20px; margin-top: 16px; }
+      .waiting {
+        text-align: center;
+        color: #a0aec0;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        margin-top: 16px;
+      }
 
-    .empty { color: #a0aec0; text-align: center; font-size: 16px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>St. Lucie County Tax Collector</h1>
-    <p>Now Serving</p>
-  </div>
+      .empty {
+        color: #a0aec0;
+        text-align: center;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>St. Lucie County Tax Collector</h1>
+      <p>Now Serving</p>
+    </div>
 
-  <div class="lobby-grid" id="lobby-serving">
-    <p class="empty">No one being served</p>
-  </div>
+    <div class="lobby-grid" id="lobby-serving">
+      <p class="empty">No one being served</p>
+    </div>
 
-  <h2 class="section-title up-next">Up Next</h2>
-  <div class="waiting" id="lobby-waiting">&mdash;</div>
+    <h2 class="section-title up-next">Up Next</h2>
+    <div class="waiting" id="lobby-waiting">&mdash;</div>
 
-<script>
-async function loadLobbyDisplay() {
-  try {
-    const res = await fetch('/api/live-queue');
-    const { queue } = await res.json();
+    <script>
+      async function loadLobbyDisplay() {
+        try {
+          const res = await fetch("/api/live-queue");
+          const { queue } = await res.json();
 
-    const serving = queue.filter(q => q.status === 'serving');
-    const waiting = queue.filter(q => q.status === 'waiting');
+          const serving = queue.filter((q) => q.status === "serving");
+          const waiting = queue.filter((q) => q.status === "waiting");
 
-    const servingEl = document.getElementById('lobby-serving');
-    if (serving.length) {
-      servingEl.innerHTML = serving.map((q, i) => {
-        const num = (q.is_priority ? 'P' : '') + q.queue_number;
-        return '<div class="lobby-card' + (i === 0 ? ' calling' : '') + '">' +
-          '<div class="number">' + num + '</div>' +
-          '<div class="station">Desk ' + q.assigned_desk + '</div>' +
-          '<div class="name">Appt #' + q.appointment_id + '</div>' +
-        '</div>';
-      }).join('');
-    } else {
-      servingEl.innerHTML = '<p class="empty">No one being served</p>';
-    }
+          const servingEl = document.getElementById("lobby-serving");
+          if (serving.length) {
+            servingEl.innerHTML = serving
+              .map((q, i) => {
+                const num = (q.is_priority ? "P" : "") + q.queue_number;
+                return (
+                  '<div class="lobby-card' +
+                  (i === 0 ? " calling" : "") +
+                  '">' +
+                  '<div class="station">Desk ' +
+                  q.assigned_desk +
+                  "</div>" +
+                  '<div class="name">Appt #' +
+                  q.appointment_id +
+                  "</div>" +
+                  "</div>"
+                );
+              })
+              .join("");
+          } else {
+            servingEl.innerHTML = '<p class="empty">No one being served</p>';
+          }
 
-    const waitingEl = document.getElementById('lobby-waiting');
-    if (waiting.length) {
-      waitingEl.innerHTML = waiting.slice(0, 8).map(q =>
-        (q.is_priority ? 'P' : '') + q.queue_number
-      ).join(' &nbsp; ');
-    } else {
-      waitingEl.textContent = '—';
-    }
-  } catch (e) {
-    // silent — just shows stale data
-  }
-}
+          const waitingEl = document.getElementById("lobby-waiting");
+          if (waiting.length) {
+            waitingEl.innerHTML = waiting
+              .slice(0, 8)
+              .map((q) => q.appointment_id)
+              .join(" &nbsp; ");
+          } else {
+            waitingEl.textContent = "—";
+          }
+        } catch (e) {
+          // silent — just shows stale data
+        }
+      }
 
-loadLobbyDisplay();
-setInterval(loadLobbyDisplay, 3000);
-</script>
-</body>
+      loadLobbyDisplay();
+      setInterval(loadLobbyDisplay, 3000);
+    </script>
+  </body>
 </html>
