@@ -105,10 +105,13 @@ export async function raceTest(opts: {
   racerAParams: unknown[];
   racerBParams: unknown[];
 }) {
-  const setup = await connect();
-  const a = await connect();
-  const b = await connect();
+  let setup: Client | undefined;
+  let a: Client | undefined;
+  let b: Client | undefined;
   try {
+    setup = await connect();
+    a = await connect();
+    b = await connect();
     await clearOfficeDay(setup);
     await setup.query(BOOK_SQL, opts.preBookParams);
 
@@ -119,21 +122,21 @@ export async function raceTest(opts: {
     // completion so the lock is released for the other.
     const racerA = a.query(BOOK_SQL, opts.racerAParams).then(
       async (res) => {
-        await a.query("COMMIT");
+        await a!.query("COMMIT");
         return { ok: true as const, id: res.rows[0].id };
       },
       async (err) => {
-        await a.query("ROLLBACK");
+        await a!.query("ROLLBACK");
         return { ok: false as const, code: (err as { code: string }).code };
       },
     );
     const racerB = b.query(BOOK_SQL, opts.racerBParams).then(
       async (res) => {
-        await b.query("COMMIT");
+        await b!.query("COMMIT");
         return { ok: true as const, id: res.rows[0].id };
       },
       async (err) => {
-        await b.query("ROLLBACK");
+        await b!.query("ROLLBACK");
         return { ok: false as const, code: (err as { code: string }).code };
       },
     );
@@ -147,9 +150,9 @@ export async function raceTest(opts: {
 
     return { winnerId: winner?.id ?? null, loserCode: loser?.code ?? null };
   } finally {
-    await setup.end();
-    await a.end();
-    await b.end();
+    await setup?.end();
+    await a?.end();
+    await b?.end();
   }
 }
 
