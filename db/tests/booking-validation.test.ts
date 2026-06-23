@@ -85,48 +85,46 @@ describe("book_appointment: lock + recheck + insert", () => {
     });
   });
 
-  test("slot_in_past when slot start is before now_ts", async () => {
+  test("rejected when booking for today (same-day not allowed)", async () => {
     await clearOfficeDay(db.client);
 
-    // Frozen now = 09:30 on the seed date. A 09:00 slot is already in the
-    // past, booking is impossible.
+    // now is on the same date as the booking — must be rejected.
     await expect(
       db.client.query(
         BOOK_SQL,
         bookParams({
-          time: "09:00",
-          now: "2026-05-12 09:30",
+          date: "2026-05-12",
+          now: "2026-05-12 08:00",
         }),
       ),
     ).rejects.toMatchObject({ code: PG_ERROR.SLOT_IN_PAST });
   });
 
-  test("slot_in_past when slot start equals now_ts (strict <=)", async () => {
+  test("rejected when booking for a past date", async () => {
     await clearOfficeDay(db.client);
 
-    // We cannot
+    // Booking date is before now's date.
     await expect(
       db.client.query(
         BOOK_SQL,
         bookParams({
-          time: "09:00",
-          now: "2026-05-12 09:00",
+          date: "2026-05-11",
+          now: "2026-05-12 08:00",
         }),
       ),
     ).rejects.toMatchObject({ code: PG_ERROR.SLOT_IN_PAST });
   });
 
-  test("slot_in_past does not fire when slot is in the future", async () => {
+  test("succeeds when booking for the next day", async () => {
     await clearOfficeDay(db.client);
 
-    // Frozen now = 08:00, slot at 09:00 — comfortably in the future. The
-    // booking should succeed (sanity check that the gate doesn't over-fire).
+    // Booking date is tomorrow relative to now — allowed.
     const ok = await db.client.query(
       BOOK_SQL,
       bookParams({
-        time: "09:00",
-        now: "2026-05-12 08:00",
-        email: "future@x.com",
+        date: "2026-05-13",
+        now: "2026-05-12 23:59",
+        email: "tomorrow@x.com",
       }),
     );
     expect(ok.rows[0].id).toBeTypeOf("number");

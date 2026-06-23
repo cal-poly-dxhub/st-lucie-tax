@@ -436,7 +436,7 @@ BEGIN
   v_now_local := COALESCE(p_now_ts,
     (now() AT TIME ZONE (SELECT timezone FROM config)));
 
-  IF v_slot_start <= v_now_local THEN
+  IF p_date <= v_now_local::date THEN
     RAISE EXCEPTION 'slot_in_past' USING ERRCODE = 'P0004';
   END IF;
 
