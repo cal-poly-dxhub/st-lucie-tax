@@ -93,7 +93,7 @@ describe("assign_next_customer — skill-matched FIFO", () => {
     await db.client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
   });
 
-  test("any qualified clerk can pull — first come first served", async () => {
+  test("first qualified clerk to call summon gets the assignment", async () => {
     await loginClerk(db.client, MARIA, 1);
     await loginClerk(db.client, JAMES, 2);
 
@@ -115,7 +115,7 @@ describe("assign_next_customer — skill-matched FIFO", () => {
     });
   });
 
-  test("clerk pulls from queue when they have matching skills", async () => {
+  test("clerk with matching skills receives the queued customer", async () => {
     await loginClerk(db.client, MARIA, 1);
 
     const appt = await createAppointment(db.client, {
@@ -127,7 +127,7 @@ describe("assign_next_customer — skill-matched FIFO", () => {
     expect(result).not.toBeNull();
   });
 
-  test("clerk cannot pull txn they lack skills for", async () => {
+  test("returns null when clerk lacks required skills for queued customer", async () => {
     await loginClerk(db.client, ANGELA, 3); // Angela: road_test + id_card only
 
     const appt = await createAppointment(db.client, {
@@ -162,7 +162,7 @@ describe("assign_next_customer — skill-matched FIFO", () => {
     expect(rows[0].appointment_id).toBe(priority);
   });
 
-  test("clerk marked unavailable after assignment", async () => {
+  test("clerk session marked unavailable after receiving assignment", async () => {
     await loginClerk(db.client, JAMES, 2);
 
     const appt = await createAppointment(db.client, { txnTypes: [ID_CARD] });
@@ -178,13 +178,13 @@ describe("assign_next_customer — skill-matched FIFO", () => {
     expect(rows[0].is_available).toBe(false);
   });
 
-  test("returns null when queue is empty", async () => {
+  test("returns null when no customers are waiting in queue", async () => {
     await loginClerk(db.client, MARIA, 1);
     const result = await summonNext(db.client, MARIA);
     expect(result).toBeNull();
   });
 
-  test("multi-txn appointment routes to clerk with all required skills", async () => {
+  test("multi-skill appointment only assignable to clerk with all required skills", async () => {
     await loginClerk(db.client, JAMES, 2); // skills: id_card + license_original
     await loginClerk(db.client, ANGELA, 3); // skills: road_test + id_card
 

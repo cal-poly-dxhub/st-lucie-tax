@@ -43,12 +43,13 @@ function walkInParams(
 }
 
 describe("register_walk_in", () => {
-  test("happy path: creates appointment with is_walk_in=true", async () => {
+  test("creates walk-in appointment with scheduled status and today's date", async () => {
     const { rows } = await db.client.query(WALK_IN_SQL, walkInParams());
     expect(rows[0].id).toBeTypeOf("number");
 
     const check = await db.client.query(
-      `SELECT first_name, last_name, status, is_walk_in, is_priority, appointment_date, prescreen_completed
+      `SELECT first_name, last_name, status, is_walk_in, is_priority,
+              appointment_date::text AS appointment_date, prescreen_completed, confirmation_code
          FROM appointments WHERE id = $1`,
       [rows[0].id],
     );
@@ -59,10 +60,12 @@ describe("register_walk_in", () => {
       is_walk_in: true,
       is_priority: false,
       prescreen_completed: false,
+      appointment_date: DATE,
     });
+    expect(check.rows[0].confirmation_code).toMatch(/^[0-9A-Z]{8}$/);
   });
 
-  test("priority walk-in sets is_priority=true", async () => {
+  test("priority flag persisted when walk-in is marked priority", async () => {
     const { rows } = await db.client.query(
       WALK_IN_SQL,
       walkInParams({ priority: true, email: "vip@x.com" }),
@@ -129,5 +132,15 @@ describe("register_walk_in", () => {
       rows[0].id,
     ]);
     expect(queueCheck.rows).toHaveLength(0);
+  });
+
+  test("rejects nonexistent transaction type id", async () => {
+    await expect(
+      db.client.query(WALK_IN_SQL, walkInParams({ skills: [999] })),
+    ).rejects.toMatchObject({ code: "P0003" });
+  });
+
+  test("rejects empty transaction type array", async () => {
+    await expect(db.client.query(WALK_IN_SQL, walkInParams({ skills: [] }))).rejects.toThrow();
   });
 });
