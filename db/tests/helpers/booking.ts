@@ -4,6 +4,14 @@ import { TEST_DATE, TEST_FROZEN_NOW } from "../../../tests/config.js";
 
 export const ROAD_TEST = 1;
 export const ID_CARD = 2;
+export const CONFIRMATION_CODE_FORMAT = /^[0-9A-Z]{8}$/;
+
+export const PG_ERROR = {
+  CAPACITY_EXCEEDED: "P0001",
+  OFFICE_CLOSED: "P0002",
+  TXN_UNAVAILABLE: "P0003",
+  SLOT_IN_PAST: "P0004",
+} as const;
 
 export const BOOK_SQL = `
   SELECT id FROM book_appointment(

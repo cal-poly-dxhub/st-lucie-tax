@@ -10,6 +10,7 @@ import {
   ROAD_TEST,
   ID_CARD,
   tryBook,
+  PG_ERROR,
 } from "./helpers/booking.js";
 import { TEST_DATE as DATE, TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
 
@@ -747,7 +748,7 @@ describe("findAppointment: scheduling_block_padding", () => {
     // Try to book at 09:31 — inside the padded zone
     const result = await tryBook(db.client, bookParams({ time: "09:31", email: "pad-test@x.com" }));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("P0001");
+    if (!result.ok) expect(result.code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("booking after padding zone succeeds", async () => {

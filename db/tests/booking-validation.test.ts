@@ -7,22 +7,14 @@ import {
   tryBook,
   raceTest,
   ROAD_TEST,
+  CONFIRMATION_CODE_FORMAT,
+  PG_ERROR,
 } from "./helpers/booking.js";
 
 const db = useDb();
 
 describe("effective transaction types", () => {
-  test("baseline: all 3 global txns active at office 1", async () => {
-    const { rows } = await db.client.query(
-      `SELECT txn_type_id
-         FROM effective_transaction_types
-        WHERE office_id = 1 AND status = 'active'
-        ORDER BY global_id`,
-    );
-    expect(rows.map((r) => r.txn_type_id)).toEqual(["road_test", "id_card", "license_original"]);
-  });
-
-  test("hidden override at office 1 drops road_test there but not at office 2", async () => {
+  test("hidden override at office 1 drops road_test only at office 1", async () => {
     await db.client.query(
       `INSERT INTO transaction_types
          (txn_type_id, office_id, name, avg_duration_min, status)
@@ -51,86 +43,8 @@ describe("effective transaction types", () => {
   });
 });
 
-// office_txn_window CTE in booking-query.sql intersects per-skill availability
-// windows into one window per office. With concurrent-skill semantics, the
-// earliest the appt can start is the LATEST of the skills' available_from
-// values, and the latest it can end is the EARLIEST of available_until.
-// road_test currently starts at 09:00 in seed; this suite overrides it to
-// 09:30 so license_original (NULL = office-open) and road_test produce
-// distinct lower bounds.
-const OFFICE_TXN_WINDOW_SQL = `
-  SELECT ett.office_id,
-         MAX(ett.available_from)  AS earliest_start,
-         MIN(ett.available_until) AS latest_end
-    FROM effective_transaction_types ett
-   WHERE ett.global_id = ANY($1::int[])
-     AND ett.status    = 'active'
-   GROUP BY ett.office_id
-  HAVING COUNT(*) = cardinality($1::int[])
-   ORDER BY ett.office_id
-`;
-
-describe("office_txn_window: per-office intersected availability", () => {
-  test("multi-skill takes the LATEST available_from across skills", async () => {
-    // Push road_test from 09:00 → 09:30 globally. license_original stays NULL.
-    // Intersection: earliest_start = MAX(09:30, NULL) = 09:30, even though
-    // license_original alone would allow earlier slots.
-    await db.client.query(
-      `UPDATE transaction_types
-          SET available_from = '09:30'
-        WHERE txn_type_id = 'road_test'
-          AND office_id IS NULL`,
-    );
-
-    const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[1, 3]]);
-    expect(rows).toEqual([
-      { office_id: 1, earliest_start: "09:30:00", latest_end: "15:00:00" },
-      { office_id: 2, earliest_start: "09:30:00", latest_end: "15:00:00" },
-    ]);
-  });
-
-  test("multi-skill takes the EARLIEST available_until across skills", async () => {
-    // road_test until 15:00, license_original until 13:00 → MIN = 13:00.
-    await db.client.query(
-      `UPDATE transaction_types
-          SET available_until = '13:00'
-        WHERE txn_type_id = 'license_original'
-          AND office_id IS NULL`,
-    );
-
-    const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[1, 3]]);
-    expect(rows.map((r) => ({ office: r.office_id, end: r.latest_end }))).toEqual([
-      { office: 1, end: "13:00:00" },
-      { office: 2, end: "13:00:00" },
-    ]);
-  });
-
-  test("NULL available_from on a skill does not pull the intersection earlier", async () => {
-    // Single skill with no time window (id_card, NULL/NULL) returns NULLs —
-    // i.e. no extra constraint beyond office hours.
-    const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[2]]);
-    expect(rows).toEqual([
-      { office_id: 1, earliest_start: null, latest_end: null },
-      { office_id: 2, earliest_start: null, latest_end: null },
-    ]);
-  });
-
-  test("office is dropped when one of the requested skills is hidden there", async () => {
-    // Hide road_test at office 1 only. Office 1 disappears from the result
-    // because COUNT(*) for [1,3] = 1 ≠ 2 = cardinality.
-    await db.client.query(
-      `INSERT INTO transaction_types
-         (txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
-    );
-
-    const { rows } = await db.client.query(OFFICE_TXN_WINDOW_SQL, [[1, 3]]);
-    expect(rows.map((r) => r.office_id)).toEqual([2]);
-  });
-});
-
 describe("book_appointment: lock + recheck + insert", () => {
-  test("inserts appointment with scheduled status and confirmation code when slot has capacity", async () => {
+  test("inserts appointment with default scheduled status and confirmation code when slot has capacity", async () => {
     await clearOfficeDay(db.client);
 
     const { rows } = await db.client.query(BOOK_SQL, bookParams());
@@ -147,18 +61,18 @@ describe("book_appointment: lock + recheck + insert", () => {
       status: "scheduled",
       txn_type_ids: [ROAD_TEST],
     });
-    expect(check.rows[0].confirmation_code).toMatch(/^[0-9A-Z]{8}$/);
+    expect(check.rows[0].confirmation_code).toMatch(CONFIRMATION_CODE_FORMAT);
   });
 
   test("capacity_exceeded once the slot is full", async () => {
     await clearOfficeDay(db.client);
 
-    // Supply at 09:00 for road_test = 2. Book twice → ok. Third → reject.
+    // Supply at 09:00 for road_test = 2. Book first two and reject third.
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
     await expect(db.client.query(BOOK_SQL, bookParams({ email: "c@x.com" }))).rejects.toMatchObject(
-      { code: "P0001" },
+      { code: PG_ERROR.CAPACITY_EXCEEDED },
     );
   });
 
@@ -167,7 +81,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     // Office hours are 08:00-17:00. 07:30 is before open.
     await expect(db.client.query(BOOK_SQL, bookParams({ time: "07:30" }))).rejects.toMatchObject({
-      code: "P0002",
+      code: PG_ERROR.OFFICE_CLOSED,
     });
   });
 
@@ -175,7 +89,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     await clearOfficeDay(db.client);
 
     // Frozen now = 09:30 on the seed date. A 09:00 slot is already in the
-    // past — must be rejected before any capacity work.
+    // past, booking is impossible
     await expect(
       db.client.query(
         BOOK_SQL,
@@ -184,7 +98,7 @@ describe("book_appointment: lock + recheck + insert", () => {
           now: "2026-05-12 09:30",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P0004" });
+    ).rejects.toMatchObject({ code: PG_ERROR.SLOT_IN_PAST });
   });
 
   test("slot_in_past when slot start equals now_ts (strict <=)", async () => {
@@ -200,7 +114,7 @@ describe("book_appointment: lock + recheck + insert", () => {
           now: "2026-05-12 09:00",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P0004" });
+    ).rejects.toMatchObject({ code: PG_ERROR.SLOT_IN_PAST });
   });
 
   test("slot_in_past does not fire when slot is in the future", async () => {
@@ -224,7 +138,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     // road_test seed window is 09:00-15:00. 08:30 is before available_from.
     await expect(db.client.query(BOOK_SQL, bookParams({ time: "08:30" }))).rejects.toMatchObject({
-      code: "P0003",
+      code: PG_ERROR.TXN_UNAVAILABLE,
     });
   });
 
@@ -237,7 +151,86 @@ describe("book_appointment: lock + recheck + insert", () => {
        VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
-    await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject({ code: "P0003" });
+    await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject({
+      code: PG_ERROR.TXN_UNAVAILABLE,
+    });
+  });
+
+  test("multi-skill booking uses the LATEST available_from across skills", async () => {
+    await clearOfficeDay(db.client);
+
+    // Push road_test available_from to 09:30. license_original has no window (NULL).
+    // A multi-skill [1,3] booking at 09:00 must be rejected — road_test doesn't
+    // start until 09:30, so the intersection window starts at 09:30.
+    await db.client.query(
+      `UPDATE transaction_types
+          SET available_from = '09:30'
+        WHERE txn_type_id = 'road_test'
+          AND office_id IS NULL`,
+    );
+
+    const rejected = await tryBook(db.client, bookParams({ time: "09:00", skills: [1, 3] }));
+    expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
+
+    // But 09:30 (at the intersection boundary) should succeed.
+    const ok = await tryBook(
+      db.client,
+      bookParams({ time: "09:30", skills: [1, 3], email: "multi@x.com" }),
+    );
+    expect(ok.ok).toBe(true);
+  });
+
+  test("multi-skill booking uses the EARLIEST available_until across skills", async () => {
+    await clearOfficeDay(db.client);
+
+    // Set license_original available_until to 14:00. road_test stays at 15:00.
+    // A multi-skill [1,3] total duration = 30 + 20 = 50 min.
+    // Book at 13:11 → ends 14:01 → past license_original's 14:00 cutoff.
+    await db.client.query(
+      `UPDATE transaction_types
+          SET available_until = '14:00'
+        WHERE txn_type_id = 'license_original'
+          AND office_id IS NULL`,
+    );
+
+    const rejected = await tryBook(db.client, bookParams({ time: "13:11", skills: [1, 3] }));
+    expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
+
+    // Book at 13:10 → ends 14:00 exactly → should succeed (strict > gate).
+    const ok = await tryBook(
+      db.client,
+      bookParams({ time: "13:10", skills: [1, 3], email: "until@x.com" }),
+    );
+    expect(ok.ok).toBe(true);
+  });
+
+  test("NULL available_from on a skill does not restrict the other skill's window", async () => {
+    await clearOfficeDay(db.client);
+
+    // id_card has NULL available_from/until — no extra time constraint.
+    // road_test has available_from=09:00. A multi-skill [1,2] booking at 09:00
+    // should succeed — id_card's NULL doesn't push the window earlier or later.
+    const ok = await tryBook(
+      db.client,
+      bookParams({ time: "09:00", skills: [1, 2], email: "null-window@x.com" }),
+    );
+    expect(ok.ok).toBe(true);
+  });
+
+  test("txn_unavailable when one of the multi-skill txns is hidden at the office", async () => {
+    await clearOfficeDay(db.client);
+
+    // Hide road_test at office 1. A multi-skill [1,3] booking should fail
+    // because the office no longer offers one of the required skills.
+    await db.client.query(
+      `INSERT INTO transaction_types
+         (txn_type_id, office_id, name, avg_duration_min, status)
+       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
+    );
+
+    await expect(db.client.query(BOOK_SQL, bookParams({ skills: [1, 3] }))).rejects.toMatchObject({
+      code: PG_ERROR.TXN_UNAVAILABLE,
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -254,7 +247,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     // Both 09:00 appts run until 09:30 (avg_duration=30). At 09:15 they are
     // still in progress, so demand at 09:15 = 2 = supply. Booking must fail.
     const blocked = await tryBook(db.client, bookParams({ time: "09:15", email: "c@x.com" }));
-    expect(blocked).toEqual({ ok: false, code: "P0001" });
+    expect(blocked).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
 
     // At 09:30 the earlier appts have ended (end_at > slot uses strict >),
     // so the slot is open again.
@@ -295,7 +288,7 @@ describe("book_appointment: lock + recheck + insert", () => {
           email: "multi@x.com",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P0001" });
+    ).rejects.toMatchObject({ code: PG_ERROR.CAPACITY_EXCEEDED });
   });
 
   test("cancelled appts do not count toward demand", async () => {
@@ -322,7 +315,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await expect(db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }))).rejects.toMatchObject(
-      { code: "P0001" },
+      { code: PG_ERROR.CAPACITY_EXCEEDED },
     );
   });
 
@@ -336,7 +329,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     // runs 11:15-11:45, crossing the 11:30 lunch boundary. At 11:30 Maria
     // is on lunch → supply = 0 — multi-block recheck rejects the booking.
     const result = await tryBook(db.client, bookParams({ time: "11:15", email: "straddle@x.com" }));
-    expect(result).toEqual({ ok: false, code: "P0001" });
+    expect(result).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
   });
 
   // ---------------------------------------------------------------------------
@@ -359,7 +352,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     // 14:31 + 30 = 15:01 > available_until 15:00 → reject.
     await expect(
       db.client.query(BOOK_SQL, bookParams({ time: "14:31", email: "over@x.com" })),
-    ).rejects.toMatchObject({ code: "P0003" });
+    ).rejects.toMatchObject({ code: PG_ERROR.TXN_UNAVAILABLE });
   });
 
   test("boundary: appt starting exactly at available_from succeeds", async () => {
@@ -399,7 +392,7 @@ describe("book_appointment: lock + recheck + insert", () => {
           email: "past-close@x.com",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P0002" });
+    ).rejects.toMatchObject({ code: PG_ERROR.OFFICE_CLOSED });
   });
 
   test("boundary: clerk on lunch is excluded from supply during lunch window", async () => {
@@ -423,7 +416,7 @@ describe("book_appointment: lock + recheck + insert", () => {
         email: "l2@x.com",
       }),
     );
-    expect(second).toEqual({ ok: false, code: "P0001" });
+    expect(second).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
 
     // At 12:15: Maria's shift-1 lunch ended (end_time strict >, so 12:15 is
     // free for her). Angela is on shift-2 lunch (12:15-13:00) so she IS on
@@ -446,7 +439,7 @@ describe("book_appointment: lock + recheck + insert", () => {
         email: "l4@x.com",
       }),
     );
-    expect(overflow).toEqual({ ok: false, code: "P0001" });
+    expect(overflow).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
   });
 
   // ---------------------------------------------------------------------------
