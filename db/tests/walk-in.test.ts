@@ -1,14 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import {
-  BOOK_SQL,
-  bookParams,
-  clearOfficeDay,
-  CONFIRMATION_CODE_FORMAT,
-  PG_ERROR,
-} from "./helpers/booking.js";
+import { CONFIRMATION_CODE_FORMAT, PG_ERROR } from "./helpers/booking.js";
 import { TEST_DATE as DATE } from "../../tests/config.js";
-import { ROAD_TEST, ID_CARD } from "./helpers/seed-ids.js";
+import { ID_CARD } from "./helpers/seed-ids.js";
 
 const db = useDb();
 
@@ -50,13 +44,14 @@ function walkInParams(
 }
 
 describe("register_walk_in", () => {
-  test("creates walk-in appointment with scheduled status and today's date", async () => {
+  test("creates walk-in with scheduled status, today's date, and no time slot", async () => {
     const { rows } = await db.client.query(WALK_IN_SQL, walkInParams());
     expect(rows[0].id).toBeTypeOf("number");
 
     const check = await db.client.query(
       `SELECT first_name, last_name, status, is_walk_in, is_priority,
-              appointment_date::text AS appointment_date, prescreen_completed, confirmation_code
+              appointment_date::text AS appointment_date, appointment_time,
+              prescreen_completed, confirmation_code
          FROM appointments WHERE id = $1`,
       [rows[0].id],
     );
@@ -66,6 +61,7 @@ describe("register_walk_in", () => {
       status: "scheduled",
       is_walk_in: true,
       is_priority: false,
+      appointment_time: null,
       prescreen_completed: false,
       appointment_date: DATE,
     });

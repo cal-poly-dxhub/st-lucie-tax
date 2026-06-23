@@ -31,7 +31,7 @@ export interface NameLookupResult {
   officeId: number;
   firstName: string;
   lastName: string;
-  appointmentTime: string;
+  appointmentTime: string | null;
 }
 
 export async function lookupByName(
@@ -90,10 +90,6 @@ export interface WalkInInput {
   contactPhone: string;
   isPriority?: boolean;
   nowTs?: string;
-}
-
-export interface WalkInResult {
-  appointmentId: number;
 }
 
 export type WalkInError = "office_closed" | "txn_unavailable";

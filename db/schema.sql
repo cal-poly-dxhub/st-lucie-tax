@@ -135,7 +135,7 @@ CREATE TABLE appointments (
     txn_type_ids    INT[] NOT NULL CHECK (array_length(txn_type_ids, 1) > 0),
     required_doc_ids TEXT[] NOT NULL DEFAULT '{}',
     appointment_date DATE NOT NULL,
-    appointment_time TIME NOT NULL,
+    appointment_time TIME,
     confirmation_code TEXT NOT NULL DEFAULT random_base36(), -- Also used for QR Code generation
     identity_verified BOOLEAN NOT NULL DEFAULT FALSE,
     prescreen_completed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -280,7 +280,8 @@ SELECT a.id,
                      JOIN transaction_types tt ON tt.id = tid), 0)
            * interval '1 minute'))::timestamp
          AS end_at
-FROM appointments a;
+FROM appointments a
+WHERE a.is_walk_in = FALSE;
 
 -- =============================================================================
 -- Capacity validation
@@ -535,8 +536,6 @@ DECLARE
                   (now() AT TIME ZONE (SELECT timezone FROM config)));
   v_date        DATE := v_now_local::date;
   v_time        TIME := v_now_local::time;
-  v_duration    INT;
-  v_slot_end    TIMESTAMP;
   v_close_time  TIME;
   v_open_time   TIME;
   v_appt_id     INT;
@@ -555,14 +554,7 @@ BEGIN
     RAISE EXCEPTION 'office_closed' USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT SUM(ett.avg_duration_min)::int
-    INTO v_duration
-  FROM effective_transaction_types ett
-  WHERE ett.office_id = p_office_id
-    AND ett.global_id = ANY(p_txn_type_ids)
-    AND ett.status    = 'active';
-
-  IF v_duration IS NULL
+  IF cardinality(p_txn_type_ids) = 0
      OR (SELECT COUNT(*)
            FROM effective_transaction_types ett
           WHERE ett.office_id = p_office_id
@@ -577,13 +569,13 @@ BEGIN
     office_id,
     first_name, last_name, contact_email, contact_phone,
     txn_type_ids, required_doc_ids, prescreen_completed, prescreen_responses,
-    appointment_date, appointment_time,
+    appointment_date,
     status, is_walk_in, is_priority
   ) VALUES (
     p_office_id,
     p_first_name, p_last_name, p_contact_email, p_contact_phone,
     p_txn_type_ids, '{}', FALSE, '{}',
-    v_date, v_time,
+    v_date,
     'scheduled', TRUE, p_is_priority
   )
   RETURNING id INTO v_appt_id;
