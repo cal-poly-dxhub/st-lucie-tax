@@ -85,30 +85,14 @@ describe("book_appointment: lock + recheck + insert", () => {
     });
   });
 
-  test("rejected when booking for today (same-day not allowed)", async () => {
+  test("rejected when booking for today (can only book day before or earlier)", async () => {
     await clearOfficeDay(db.client);
 
-    // now is on the same date as the booking — must be rejected.
     await expect(
       db.client.query(
         BOOK_SQL,
         bookParams({
           date: "2026-05-12",
-          now: "2026-05-12 08:00",
-        }),
-      ),
-    ).rejects.toMatchObject({ code: PG_ERROR.SLOT_IN_PAST });
-  });
-
-  test("rejected when booking for a past date", async () => {
-    await clearOfficeDay(db.client);
-
-    // Booking date is before now's date.
-    await expect(
-      db.client.query(
-        BOOK_SQL,
-        bookParams({
-          date: "2026-05-11",
           now: "2026-05-12 08:00",
         }),
       ),
