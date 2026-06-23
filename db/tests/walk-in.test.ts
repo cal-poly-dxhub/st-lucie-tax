@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import { BOOK_SQL, bookParams, clearOfficeDay } from "./helpers/booking.js";
+import {
+  BOOK_SQL,
+  bookParams,
+  clearOfficeDay,
+  CONFIRMATION_CODE_FORMAT,
+  PG_ERROR,
+} from "./helpers/booking.js";
 import { TEST_DATE as DATE } from "../../tests/config.js";
 
 const db = useDb();
@@ -62,7 +68,7 @@ describe("register_walk_in", () => {
       prescreen_completed: false,
       appointment_date: DATE,
     });
-    expect(check.rows[0].confirmation_code).toMatch(/^[0-9A-Z]{8}$/);
+    expect(check.rows[0].confirmation_code).toMatch(CONFIRMATION_CODE_FORMAT);
   });
 
   test("priority flag persisted when walk-in is marked priority", async () => {
@@ -82,19 +88,19 @@ describe("register_walk_in", () => {
     // Use a Sunday timestamp.
     await expect(
       db.client.query(WALK_IN_SQL, walkInParams({ now: "2026-05-10 10:00" })),
-    ).rejects.toMatchObject({ code: "P0002" });
+    ).rejects.toMatchObject({ code: PG_ERROR.OFFICE_CLOSED });
   });
 
   test("office_closed when current time is before open", async () => {
     await expect(
       db.client.query(WALK_IN_SQL, walkInParams({ now: `${DATE} 07:00` })),
-    ).rejects.toMatchObject({ code: "P0002" });
+    ).rejects.toMatchObject({ code: PG_ERROR.OFFICE_CLOSED });
   });
 
   test("office_closed when current time is at or after close", async () => {
     await expect(
       db.client.query(WALK_IN_SQL, walkInParams({ now: `${DATE} 17:00` })),
-    ).rejects.toMatchObject({ code: "P0002" });
+    ).rejects.toMatchObject({ code: PG_ERROR.OFFICE_CLOSED });
   });
 
   test("txn_unavailable when transaction type is hidden at office", async () => {
@@ -105,7 +111,7 @@ describe("register_walk_in", () => {
     );
 
     await expect(db.client.query(WALK_IN_SQL, walkInParams())).rejects.toMatchObject({
-      code: "P0003",
+      code: PG_ERROR.TXN_UNAVAILABLE,
     });
   });
 
@@ -137,7 +143,7 @@ describe("register_walk_in", () => {
   test("rejects nonexistent transaction type id", async () => {
     await expect(
       db.client.query(WALK_IN_SQL, walkInParams({ skills: [999] })),
-    ).rejects.toMatchObject({ code: "P0003" });
+    ).rejects.toMatchObject({ code: PG_ERROR.TXN_UNAVAILABLE });
   });
 
   test("rejects empty transaction type array", async () => {

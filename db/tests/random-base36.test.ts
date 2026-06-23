@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
+import { CONFIRMATION_CODE_FORMAT } from "./helpers/booking.js";
 
 const db = useDb();
 
@@ -8,7 +9,7 @@ describe("random_base36", () => {
     const { rows } = await db.client.query(`SELECT random_base36() AS code`);
     const code = rows[0].code;
     expect(code).toHaveLength(8);
-    expect(code).toMatch(/^[0-9A-Z]{8}$/);
+    expect(code).toMatch(CONFIRMATION_CODE_FORMAT);
   });
 
   test("respects custom length", async () => {
@@ -36,7 +37,7 @@ describe("random_base36", () => {
     );
     const code = rows[0].confirmation_code;
     expect(code).toHaveLength(8);
-    expect(code).toMatch(/^[0-9A-Z]{8}$/);
+    expect(code).toMatch(CONFIRMATION_CODE_FORMAT);
   });
 
   test("unique constraint prevents duplicate confirmation_code", async () => {
