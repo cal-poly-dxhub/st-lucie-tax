@@ -8,6 +8,7 @@ import {
   PG_ERROR,
 } from "./helpers/booking.js";
 import { TEST_DATE as DATE } from "../../tests/config.js";
+import { ROAD_TEST, ID_CARD } from "./helpers/seed-ids.js";
 
 const db = useDb();
 
@@ -38,7 +39,7 @@ function walkInParams(
 ) {
   return [
     overrides.office ?? 1,
-    overrides.skills ?? [2], // id_card
+    overrides.skills ?? [ID_CARD],
     overrides.first ?? "Walk",
     overrides.last ?? "In",
     overrides.email ?? "walkin@example.com",
@@ -126,7 +127,7 @@ describe("register_walk_in", () => {
     // But a walk-in at the same time should succeed.
     const { rows } = await db.client.query(
       WALK_IN_SQL,
-      walkInParams({ skills: [1], now: `${DATE} 09:00` }),
+      walkInParams({ skills: [ROAD_TEST], now: `${DATE} 09:00` }),
     );
     expect(rows[0].id).toBeTypeOf("number");
   });

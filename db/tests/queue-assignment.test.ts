@@ -1,21 +1,13 @@
 import { describe, expect, test, beforeEach, afterAll, beforeAll } from "vitest";
 import { useDb } from "./helpers/fixture.js";
 import { connect } from "./helpers/client.js";
+import { MARIA, JAMES, ANGELA, ID_CARD, LICENSE_ORIGINAL } from "./helpers/seed-ids.js";
 import { Client } from "pg";
 
 const db = useDb();
 
 const OFFICE = 1;
 const DATE = "2026-05-12";
-
-// Clerk IDs from seed: Maria(1)={1,2,3}, James(2)={2,3}, Angela(3)={1,2}
-const MARIA = 1; // 3 skills (generalist)
-const JAMES = 2; // 2 skills: id_card, license_original
-const ANGELA = 3; // 2 skills: road_test, id_card
-
-// Transaction type IDs from seed
-const ID_CARD = 2;
-const LICENSE_ORIGINAL = 3;
 
 async function createAppointment(
   client: typeof db.client,
