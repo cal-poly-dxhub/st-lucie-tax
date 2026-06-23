@@ -20,6 +20,7 @@ export const BOOK_SQL = `
   )
 `;
 
+/* Returns booking param object with default values if none specified */
 export function bookParams(
   overrides: Partial<{
     office: number;
