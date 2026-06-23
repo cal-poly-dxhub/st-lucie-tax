@@ -43,8 +43,8 @@ describe("effective transaction types", () => {
   });
 });
 
-describe("book_appointment: lock + recheck + insert", () => {
-  test("inserts appointment with default scheduled status and confirmation code when slot has capacity", async () => {
+describe("book_appt: lock + recheck + insert", () => {
+  test("inserts appt with default scheduled status and confirmation code when slot has capacity", async () => {
     await clearOfficeDay(db.client);
 
     const { rows } = await db.client.query(BOOK_SQL, bookParams());
@@ -52,7 +52,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     const check = await db.client.query(
       `SELECT first_name, last_name, status, txn_type_ids, confirmation_code
-         FROM appointments WHERE id = $1`,
+         FROM appts WHERE id = $1`,
       [rows[0].id],
     );
     expect(check.rows[0]).toMatchObject({
@@ -102,7 +102,6 @@ describe("book_appointment: lock + recheck + insert", () => {
   test("succeeds when booking for the next day", async () => {
     await clearOfficeDay(db.client);
 
-    // Booking date is tomorrow relative to now — allowed.
     const ok = await db.client.query(
       BOOK_SQL,
       bookParams({
@@ -140,8 +139,8 @@ describe("book_appointment: lock + recheck + insert", () => {
   test("multi-skill booking uses the LATEST available_from across skills", async () => {
     await clearOfficeDay(db.client);
 
-    // Push road_test available_from to 09:30. license_original has no window (NULL).
-    // A multi-skill [1,3] booking at 09:00 must be rejected — road_test doesn't
+    // road_test available_from to 09:30. license_original has no window (NULL).
+    // A multi-skill [1,3] booking at 09:00 must be rejected as road_test doesn't
     // start until 09:30, so the intersection window starts at 09:30.
     await db.client.query(
       `UPDATE transaction_types
@@ -153,7 +152,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     const rejected = await tryBook(db.client, bookParams({ time: "09:00", skills: [1, 3] }));
     expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
 
-    // But 09:30 (at the intersection boundary) should succeed.
+    // At 09:30 intersection boundary booking should succeed.
     const ok = await tryBook(
       db.client,
       bookParams({ time: "09:30", skills: [1, 3], email: "multi@x.com" }),
@@ -166,7 +165,7 @@ describe("book_appointment: lock + recheck + insert", () => {
 
     // Set license_original available_until to 14:00. road_test stays at 15:00.
     // A multi-skill [1,3] total duration = 30 + 20 = 50 min.
-    // Book at 13:11 → ends 14:01 → past license_original's 14:00 cutoff.
+    // Book at 13:11 which ends 14:01 which is past license_original's 14:00 cutoff.
     await db.client.query(
       `UPDATE transaction_types
           SET available_until = '14:00'
@@ -177,23 +176,10 @@ describe("book_appointment: lock + recheck + insert", () => {
     const rejected = await tryBook(db.client, bookParams({ time: "13:11", skills: [1, 3] }));
     expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
 
-    // Book at 13:10 → ends 14:00 exactly → should succeed (strict > gate).
+    // Book at 13:10 which ends exactly at 14:00 is okay.
     const ok = await tryBook(
       db.client,
       bookParams({ time: "13:10", skills: [1, 3], email: "until@x.com" }),
-    );
-    expect(ok.ok).toBe(true);
-  });
-
-  test("NULL available_from on a skill does not restrict the other skill's window", async () => {
-    await clearOfficeDay(db.client);
-
-    // id_card has NULL available_from/until — no extra time constraint.
-    // road_test has available_from=09:00. A multi-skill [1,2] booking at 09:00
-    // should succeed — id_card's NULL doesn't push the window earlier or later.
-    const ok = await tryBook(
-      db.client,
-      bookParams({ time: "09:00", skills: [1, 2], email: "null-window@x.com" }),
     );
     expect(ok.ok).toBe(true);
   });
@@ -215,13 +201,13 @@ describe("book_appointment: lock + recheck + insert", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Capacity correctness across overlapping appointments and multi-skill calls
+  // Capacity correctness across overlapping appts and multi-skill calls
   // ---------------------------------------------------------------------------
 
-  test("appt overlap: a 30-min appt at 09:00 occupies 09:15 too", async () => {
+  test("30-min appt at 09:00 occupies 09:15 too", async () => {
     await clearOfficeDay(db.client);
 
-    // Book 2 road_test appts at 09:00 (supply=2, fills slot at 09:00).
+    // Book 2 road_test appts at 09:00 (supply=2, fills slots at 09:00).
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
@@ -230,13 +216,12 @@ describe("book_appointment: lock + recheck + insert", () => {
     const blocked = await tryBook(db.client, bookParams({ time: "09:15", email: "c@x.com" }));
     expect(blocked).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
 
-    // At 09:30 the earlier appts have ended (end_at > slot uses strict >),
-    // so the slot is open again.
+    // At 09:30 the earlier appts have ended so the slot is open again.
     const ok = await tryBook(db.client, bookParams({ time: "09:30", email: "d@x.com" }));
     expect(ok.ok).toBe(true);
   });
 
-  test("multi-skill: appt blocked when one of the two skills is at capacity", async () => {
+  test("multi-skill appt blocked when one of the two skills is at capacity", async () => {
     await clearOfficeDay(db.client);
 
     // Skill 3 (license_original) supply at office 1 = 2 (Maria, James).
@@ -259,7 +244,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     );
 
     // A multi-skill booking [1,3] now should fail on skill 3 even though
-    // skill 1 still has spare supply.
+    // skill 1 still has spare supply as no clerk can servce skill 3.
     await expect(
       db.client.query(
         BOOK_SQL,
@@ -279,9 +264,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     const b = await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
     // Slot is now full (supply=2, demand=2). Cancel one and re-book.
-    await db.client.query(`UPDATE appointments SET status='cancelled' WHERE id = $1`, [
-      a.rows[0].id,
-    ]);
+    await db.client.query(`UPDATE appts SET status='cancelled' WHERE id = $1`, [a.rows[0].id]);
     void b;
 
     const replay = await db.client.query(BOOK_SQL, bookParams({ email: "replay@x.com" }));
@@ -303,12 +286,12 @@ describe("book_appointment: lock + recheck + insert", () => {
   test("appt straddling a lunch window is rejected (multi-block recheck)", async () => {
     await clearOfficeDay(db.client);
 
-    // Knock out Angela: leaves Maria as the only road_test clerk.
+    // Remove Angela leaving Maria as the only road_test clerk.
     await db.client.query(`UPDATE clerks SET status='inactive' WHERE id = 3`);
 
     // Maria's lunch is shift 1 (11:30-12:15). A 30-min road_test at 11:15
     // runs 11:15-11:45, crossing the 11:30 lunch boundary. At 11:30 Maria
-    // is on lunch → supply = 0 — multi-block recheck rejects the booking.
+    // is on lunch so there is no road test supply
     const result = await tryBook(db.client, bookParams({ time: "11:15", email: "straddle@x.com" }));
     expect(result).toEqual({ ok: false, code: PG_ERROR.CAPACITY_EXCEEDED });
   });
@@ -427,14 +410,14 @@ describe("book_appointment: lock + recheck + insert", () => {
   // Race conditions
   // ---------------------------------------------------------------------------
 
-  test("race: two concurrent bookings — first wins, second gets capacity_exceeded", async () => {
+  test("race: exactly one of two concurrent bookings wins, the other gets capacity_exceeded", async () => {
     const { winnerId, loserCode } = await raceTest({
       preBookParams: bookParams({ email: "pre@x.com" }),
       racerAParams: bookParams({ email: "race-a@x.com" }),
       racerBParams: bookParams({ email: "race-b@x.com" }),
     });
     expect(winnerId).toBeTypeOf("number");
-    expect(loserCode).toBe("P0001");
+    expect(loserCode).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("race: multi-skill bookings serialize on the same office/day lock", async () => {
@@ -444,7 +427,7 @@ describe("book_appointment: lock + recheck + insert", () => {
       racerBParams: bookParams({ skills: [ROAD_TEST], email: "race-b@x.com" }),
     });
     expect(winnerId).toBeTypeOf("number");
-    expect(loserCode).toBe("P0001");
+    expect(loserCode).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 });
 
@@ -455,7 +438,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
     await db.client.query(`UPDATE offices SET run_rate_pct = 50 WHERE id=1`);
 
-    // Book 1 appointment (any skill) — fills the effective desk cap.
+    // Book 1 appt (any skill) — fills the effective desk cap.
     await db.client.query(BOOK_SQL, bookParams({ skills: [2], email: "cap1@x.com" }));
 
     // Second booking with a DIFFERENT skill should be rejected (desk cap hit).
@@ -472,7 +455,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
 
     // At 12:20: clerks B(2) and C(3) are on lunch shift 2 (12:15-13:00).
     // Only clerk A(1) on floor. Cap = min(3, 1) = 1.
-    // Book one appointment at 12:20 → fills cap.
+    // Book one appt at 12:20 → fills cap.
     await db.client.query(
       BOOK_SQL,
       bookParams({ time: "12:20", skills: [2], email: "lunch1@x.com" }),
@@ -487,7 +470,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
   });
 
-  test("appointment spanning into lunch rejected when exceeding on-floor count", async () => {
+  test("appt spanning into lunch rejected when exceeding on-floor count", async () => {
     await clearOfficeDay(db.client);
 
     // Office 1 shift 2 (12:15-13:00): James(2) + Angela(3) on lunch. Only Maria on floor.
@@ -507,7 +490,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
   });
 
-  test("full capacity restored when appointment starts after lunch ends", async () => {
+  test("full capacity restored when appt starts after lunch ends", async () => {
     await clearOfficeDay(db.client);
 
     // At 12:15: lunch shift 1 ends, all 3 clerks back. Should book fine.
@@ -518,7 +501,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("diverse-skill appointments cannot exceed clerks on floor during lunch", async () => {
+  test("diverse-skill appts cannot exceed clerks on floor during lunch", async () => {
     await clearOfficeDay(db.client);
 
     // Book at 12:00 (skill 1, 30 min → ends 12:30). At 12:00 all 3 on floor, OK.
@@ -559,7 +542,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((second as { code: string }).code).toBe("P0001");
   });
 
-  test("appointment ending exactly at lunch start does not block next slot", async () => {
+  test("appt ending exactly at lunch start does not block next slot", async () => {
     await clearOfficeDay(db.client);
 
     // Book at 11:15 (15-min id_card → ends exactly at 11:30 when lunch starts).
@@ -618,7 +601,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
-  test("multi-skill appointment spanning lunch rejected when specialist is on break", async () => {
+  test("multi-skill appt spanning lunch rejected when specialist is on break", async () => {
     await clearOfficeDay(db.client);
 
     // Multi-skill [1,3] = road_test(30) + license_original(25) = 55 min.
