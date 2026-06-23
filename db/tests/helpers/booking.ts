@@ -190,7 +190,7 @@ export async function fillSlotToCapacity(
   }
 }
 
-/* Default desk cap accounting for lunch shifts */
+// Default desk cap accounting for lunch shifts
 export function lunchAwareCap(office: number, slotMin: number): number {
   const inShift1 = slotMin >= 690 && slotMin < 735;
   const inShift2 = slotMin >= 735 && slotMin < 780;
