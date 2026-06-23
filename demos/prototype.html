@@ -49,6 +49,35 @@
         line-height: 34px;
       }
 
+      .subnav {
+        background: #2d4a7a;
+        padding: 6px 24px;
+        display: none;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .subnav.active {
+        display: flex;
+      }
+      .subnav button {
+        background: transparent;
+        color: rgba(255,255,255,0.7);
+        border: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .subnav button:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+      }
+      .subnav button.active {
+        background: rgba(255,255,255,0.2);
+        color: white;
+      }
+
       .view {
         display: none;
         max-width: 900px;
@@ -443,9 +472,7 @@
     <nav>
       <span class="title">St. Lucie Tax Collector</span>
       <button onclick="showView('confirmation')" id="nav-confirmation">Confirmation</button>
-      <button onclick="showView('checkin')" id="nav-checkin">Check-In Desk</button>
-      <button onclick="showView('walkin')" id="nav-walkin">Walk-In</button>
-      <button onclick="showView('queue')" id="nav-queue">Queue</button>
+      <button onclick="showView('checkin')" id="nav-checkin" class="nav-parent">Check-In Desk</button>
       <button onclick="showView('service')" id="nav-service">Service Clerk</button>
       <button onclick="showView('lobby')" id="nav-lobby">Lobby Display</button>
       <button onclick="window.open('office-view.html', '_blank')" id="nav-office">
@@ -455,6 +482,12 @@
         Admin
       </button>
     </nav>
+    <div class="subnav" id="subnav-checkin">
+      <button onclick="showSubView('checkin')" id="sub-checkin" class="active">Scan / Lookup</button>
+      <button onclick="showSubView('walkin')" id="sub-walkin">Walk-In</button>
+      <button onclick="showSubView('queue')" id="sub-queue">Queue</button>
+      <button onclick="showSubView('schedule')" id="sub-schedule">Schedule</button>
+    </div>
 
     <div id="toast" class="toast"></div>
 
@@ -555,27 +588,9 @@
 
     <!-- ========== CHECK-IN DESK ========== -->
     <div class="view" id="view-checkin">
-      <div class="card" style="display: flex; align-items: center; justify-content: space-between">
-        <div>
-          <h2>Check-In Desk</h2>
-          <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
-        </div>
-        <div
-          style="
-            flex-shrink: 0;
-            margin-left: 16px;
-            padding: 12px 24px;
-            background: #fefcbf;
-            border: 2px dashed #d69e2e;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 700;
-            color: #975a16;
-            text-align: center;
-          "
-        >
-          PLACEHOLDER: Schedule View / Adjustment Screen
-        </div>
+      <div class="card">
+        <h2>Check-In Desk</h2>
+        <p>Front-desk clerk scans QR, reviews docs, verifies identity, and assigns to queue.</p>
       </div>
 
       <div class="card">
@@ -1065,6 +1080,11 @@
       </div>
     </div>
 
+    <!-- ========== SCHEDULE (sub-page of Check-In Desk) ========== -->
+    <div class="view" id="view-schedule" style="max-width: 100%;">
+      <iframe src="check-in-schedule.html" style="width: 100%; height: calc(100vh - 120px); border: none; border-radius: 8px;"></iframe>
+    </div>
+
     <!-- ========== LOBBY DISPLAY ========== -->
     <div class="view" id="view-lobby">
       <div class="card">
@@ -1106,11 +1126,29 @@
     </div>
 
     <script>
+      const CHECKIN_SUBVIEWS = ['checkin', 'walkin', 'queue', 'schedule'];
+      let currentSubView = 'checkin';
+
       function showView(id) {
         document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
         document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
-        document.getElementById("view-" + id).classList.add("active");
+        document.querySelectorAll(".subnav").forEach((s) => s.classList.remove("active"));
+
+        if (id === 'checkin') {
+          document.getElementById("subnav-checkin").classList.add("active");
+          document.getElementById("view-" + currentSubView).classList.add("active");
+        } else {
+          document.getElementById("view-" + id).classList.add("active");
+        }
         document.getElementById("nav-" + id).classList.add("active");
+      }
+
+      function showSubView(id) {
+        currentSubView = id;
+        document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+        document.querySelectorAll(".subnav button").forEach((b) => b.classList.remove("active"));
+        document.getElementById("view-" + id).classList.add("active");
+        document.getElementById("sub-" + id).classList.add("active");
       }
 
       function showToast(msg, isError) {
