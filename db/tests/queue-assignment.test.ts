@@ -92,7 +92,7 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
     const appt = await createAppointment(db.client, { txnTypes: [ID_CARD] });
     await checkIn(db.client, appt);
 
-    // Maria pulls first — she's qualified, she gets it
+    // Maria pulls first and is qualified so she gets it
     const mariaResult = await summonNext(db.client, MARIA);
     expect(mariaResult).not.toBeNull();
 
@@ -105,18 +105,6 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
       assigned_desk: 1,
       status: "serving",
     });
-  });
-
-  test("clerk with matching skills receives the queued customer", async () => {
-    await loginClerk(db.client, MARIA, 1);
-
-    const appt = await createAppointment(db.client, {
-      txnTypes: [LICENSE_ORIGINAL],
-    });
-    await checkIn(db.client, appt);
-
-    const result = await summonNext(db.client, MARIA);
-    expect(result).not.toBeNull();
   });
 
   test("returns null when clerk lacks required skills for queued customer", async () => {
@@ -154,7 +142,7 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
     expect(rows[0].appointment_id).toBe(priority);
   });
 
-  test("clerk session marked unavailable after receiving assignment", async () => {
+  test("clerk session marked unavailable after customer assigned to them", async () => {
     await loginClerk(db.client, JAMES, 2);
 
     const appt = await createAppointment(db.client, { txnTypes: [ID_CARD] });
@@ -194,7 +182,7 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
   });
 });
 
-describe("assign_next_customer — concurrent clerk race", () => {
+describe("assign_next_customer with concurrent clerk summon race", () => {
   const clients: Client[] = [];
 
   beforeAll(async () => {
@@ -216,7 +204,7 @@ describe("assign_next_customer — concurrent clerk race", () => {
     await Promise.all(clients.map((cl) => cl.end()));
   });
 
-  test("10 clerks racing for 1 customer — exactly one wins", async () => {
+  test("10 clerks racing for 1 customer where exactly one wins", async () => {
     const setup = clients[0];
 
     await setup.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
@@ -270,7 +258,7 @@ describe("assign_next_customer — concurrent clerk race", () => {
   });
 });
 
-describe("check_in_to_queue — concurrent queue numbers", () => {
+describe("check_in_to_queue queue number concurrent assignment unique", () => {
   const clients: Client[] = [];
 
   beforeAll(async () => {
