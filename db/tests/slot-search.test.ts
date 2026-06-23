@@ -60,8 +60,7 @@ describe("findAppointment capacity checks", () => {
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
-    // Packing model finds 09:15 (end of the 15-min id_card at 09:00) or 09:30 (end of road_test)
-    expect(toMinutes(result!.slotTime)).toBeGreaterThan(9 * 60);
+    expect(result!.slotTime > "09:00:00").toBe(true);
   });
 });
 
@@ -262,7 +261,7 @@ describe("findAppointment: preferences", () => {
       }),
     );
     expect(result).not.toBeNull();
-    expect(toMinutes(result!.slotTime)).toBeLessThan(12 * 60);
+    expect(result!.slotTime < "12:00:00").toBe(true);
   });
 
   test("returns null when all morning slots are full (hard preference)", async () => {
@@ -317,7 +316,7 @@ describe("findAppointment: preferences", () => {
       }),
     );
     expect(result).not.toBeNull();
-    expect(toMinutes(result!.slotTime)).toBeGreaterThanOrEqual(12 * 60);
+    expect(result!.slotTime >= "12:00:00").toBe(true);
   });
 });
 
@@ -551,7 +550,7 @@ describe("findAppointment: CELL_QUERY correctness", () => {
     expect(booked).toBeGreaterThan(30);
     // Last booked time should be past morning (>= 11:00), proving the engine
     // doesn't get stuck in early morning slots.
-    expect(toMinutes(lastTime)).toBeGreaterThanOrEqual(11 * 60);
+    expect(lastTime >= "11:00:00").toBe(true);
   });
 });
 
@@ -575,7 +574,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
     );
     expect(result).not.toBeNull();
     expect(result!.officeId).toBe(1);
-    expect(toMinutes(result!.slotTime)).toBeLessThan(12 * 60);
+    expect(result!.slotTime < "12:00:00").toBe(true);
   });
 
   test("returns null when office 1 morning road-test slots are full on Tuesday", async () => {
@@ -775,8 +774,3 @@ describe("findAppointment: scheduling_block_padding", () => {
     expect(result.ok).toBe(true);
   });
 });
-
-function toMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
