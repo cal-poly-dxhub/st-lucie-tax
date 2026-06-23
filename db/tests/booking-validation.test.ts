@@ -434,7 +434,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Second booking with a DIFFERENT skill should be rejected (desk cap hit).
     const result = await tryBook(db.client, bookParams({ skills: [1], email: "cap2@x.com" }));
     expect(result.ok).toBe(false);
-    expect((result as { code: string }).code).toBe("P0001");
+    expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
 
     // Restore run_rate_pct.
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
@@ -457,7 +457,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "12:20", skills: [3], email: "lunch2@x.com" }),
     );
     expect(result.ok).toBe(false);
-    expect((result as { code: string }).code).toBe("P0001");
+    expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("appt spanning into lunch rejected when exceeding on-floor count", async () => {
@@ -477,7 +477,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "12:10", skills: [2], email: "span18@x.com" }),
     );
     expect(result.ok).toBe(false);
-    expect((result as { code: string }).code).toBe("P0001");
+    expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("full capacity restored when appt starts after lunch ends", async () => {
@@ -507,7 +507,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "12:15", skills: [2], email: "div22@x.com" }),
     );
     expect(result.ok).toBe(false);
-    expect((result as { code: string }).code).toBe("P0001");
+    expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("sequential bookings cannot saturate lunch period beyond on-floor count", async () => {
@@ -529,7 +529,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "12:00", skills: [3], email: "seq2@x.com" }),
     );
     expect(second.ok).toBe(false);
-    expect((second as { code: string }).code).toBe("P0001");
+    expect((second as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
   test("appt ending exactly at lunch start does not block next slot", async () => {
@@ -572,7 +572,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "12:20", skills: [3], email: "c20b@x.com" }),
     );
     expect(second.ok).toBe(false);
-    expect((second as { code: string }).code).toBe("P0001");
+    expect((second as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
 
     // At 09:00 (all 3 on floor): cap = min(1, 3) = 1. Still only 1 allowed.
     const third = await tryBook(
@@ -585,7 +585,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "09:00", skills: [2], email: "c20d@x.com" }),
     );
     expect(fourth.ok).toBe(false);
-    expect((fourth as { code: string }).code).toBe("P0001");
+    expect((fourth as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
 
     // Restore.
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
@@ -606,6 +606,6 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
       bookParams({ time: "11:00", skills: [1, 3], email: "c21@x.com" }),
     );
     expect(result.ok).toBe(false);
-    expect((result as { code: string }).code).toBe("P0001");
+    expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 });
