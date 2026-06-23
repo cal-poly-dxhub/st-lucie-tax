@@ -11,7 +11,7 @@ import {
 
 const db = useDb();
 
-describe("query 4: effective transaction types", () => {
+describe("effective transaction types", () => {
   test("baseline: all 3 global txns active at office 1", async () => {
     const { rows } = await db.client.query(
       `SELECT txn_type_id
