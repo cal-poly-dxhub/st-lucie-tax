@@ -862,21 +862,6 @@
       </div>
 
       <div class="card">
-        <h3>Pre-Screen</h3>
-        <p>
-          If not already completed, pre-screen will be sent to the customer and they'll be checked
-          in automatically upon completion.
-        </p>
-        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
-          <div class="toggle">
-            <input type="checkbox" id="walkin-prescreen-toggle" onchange="updateWalkinButtons()" />
-            <label for="walkin-prescreen-toggle">Pre-Screen Already Completed</label>
-          </div>
-          <span id="walkin-prescreen-badge" class="badge badge-red">Incomplete</span>
-        </div>
-      </div>
-
-      <div class="card">
         <h3>Notes & Queue Assignment</h3>
         <label>Notes for Service Clerk</label>
         <textarea
@@ -885,10 +870,10 @@
         ></textarea>
         <div id="walkin-buttons" style="display: flex; gap: 8px; margin-top: 12px">
           <button class="btn btn-primary" onclick="registerWalkIn(false)">
-            Send Pre-Screen & Check In
+            Check In to Queue
           </button>
           <button class="btn btn-warning" onclick="registerWalkIn(true)">
-            Send Pre-Screen & Priority
+            Priority
           </button>
         </div>
       </div>
@@ -1522,37 +1507,6 @@
         updateReadiness();
       }
 
-      // Pre-screen toggles
-      function setupPrescreenToggle(toggleId, badgeId) {
-        const toggle = document.getElementById(toggleId);
-        if (!toggle) return;
-        toggle.addEventListener("change", function () {
-          const badge = document.getElementById(badgeId);
-          if (this.checked) {
-            badge.className = "badge badge-green";
-            badge.textContent = "Completed";
-          } else {
-            badge.className = "badge badge-red";
-            badge.textContent = "Incomplete";
-          }
-        });
-      }
-      setupPrescreenToggle("walkin-prescreen-toggle", "walkin-prescreen-badge");
-
-      function updateWalkinButtons() {
-        const done = document.getElementById("walkin-prescreen-toggle").checked;
-        const container = document.getElementById("walkin-buttons");
-        if (done) {
-          container.innerHTML =
-            '<button class="btn btn-primary" onclick="registerWalkIn(false)">Check In to Queue</button>' +
-            '<button class="btn btn-warning" onclick="registerWalkIn(true)">Priority</button>';
-        } else {
-          container.innerHTML =
-            '<button class="btn btn-primary" onclick="registerWalkIn(false)">Send Pre-Screen & Check In</button>' +
-            '<button class="btn btn-warning" onclick="registerWalkIn(true)">Send Pre-Screen & Priority</button>';
-        }
-      }
-      updateWalkinButtons();
 
       // ─── Walk-in: dynamic docs based on transaction type ──────────────────────────
       const TXN_DOCS = {
@@ -1663,7 +1617,6 @@
           return;
         }
 
-        const prescreen = document.getElementById("walkin-prescreen-toggle").checked;
         const notes = document.getElementById("walkin-notes").value.trim();
 
         try {
@@ -1676,7 +1629,6 @@
               email,
               phone,
               txns,
-              prescreen,
               priority,
               notes,
             }),
@@ -1687,31 +1639,9 @@
             return;
           }
 
-          if (prescreen) {
-            showToast(
-              "Walk-in registered! Queue #" + data.queueNumber + (priority ? " (Priority)" : ""),
-            );
-          } else {
-            // Send prescreen with auto check-in flag
-            const psRes = await fetch("/api/send-prescreen", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                appointmentId: data.appointmentId,
-                autoCheckIn: true,
-                priority,
-              }),
-            });
-            const psData = await psRes.json();
-            if (psData.ok) {
-              showToast("Registered! Pre-screen sent — will auto check in upon completion");
-            } else {
-              showToast(
-                "Registered but failed to send pre-screen: " + (psData.error || "unknown"),
-                true,
-              );
-            }
-          }
+          showToast(
+            "Walk-in registered! Queue #" + data.queueNumber + (priority ? " (Priority)" : ""),
+          );
         } catch (e) {
           showToast("Server not running", true);
         }
