@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import { CONFIRMATION_CODE_FORMAT } from "./helpers/booking.js";
+import { CONFIRMATION_CODE_FORMAT, PG_ERROR } from "./helpers/booking.js";
 
 const db = useDb();
 
@@ -54,6 +54,6 @@ describe("random_base36", () => {
           txn_type_ids, appointment_date, appointment_time, confirmation_code
         ) VALUES (1, 'C', 'D', 'c@d.com', '555-0000', '{1}', '2026-07-01', '09:30', 'TESTCODE')`,
       ),
-    ).rejects.toMatchObject({ code: "23505" });
+    ).rejects.toMatchObject({ code: PG_ERROR.UNIQUE_VIOLATION });
   });
 });
