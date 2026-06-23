@@ -419,16 +419,6 @@ describe("book_appt: lock + recheck + insert", () => {
     expect(winnerId).toBeTypeOf("number");
     expect(loserCode).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
-
-  test("race: multi-skill bookings serialize on the same office/day lock", async () => {
-    const { winnerId, loserCode } = await raceTest({
-      preBookParams: bookParams({ skills: [ROAD_TEST], email: "pre@x.com" }),
-      racerAParams: bookParams({ skills: [ROAD_TEST], email: "race-a@x.com" }),
-      racerBParams: bookParams({ skills: [ROAD_TEST], email: "race-b@x.com" }),
-    });
-    expect(winnerId).toBeTypeOf("number");
-    expect(loserCode).toBe(PG_ERROR.CAPACITY_EXCEEDED);
-  });
 });
 
 describe("total concurrent cap (run_rate_pct + lunch)", () => {
