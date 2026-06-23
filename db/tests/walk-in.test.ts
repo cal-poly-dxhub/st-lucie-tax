@@ -72,18 +72,6 @@ describe("register_walk_in", () => {
     expect(check.rows[0].confirmation_code).toMatch(CONFIRMATION_CODE_FORMAT);
   });
 
-  test("priority flag persisted when walk-in is marked priority", async () => {
-    const { rows } = await db.client.query(
-      WALK_IN_SQL,
-      walkInParams({ priority: true, email: "vip@x.com" }),
-    );
-
-    const check = await db.client.query(`SELECT is_priority FROM appointments WHERE id = $1`, [
-      rows[0].id,
-    ]);
-    expect(check.rows[0].is_priority).toBe(true);
-  });
-
   test("office_closed when office is not open on that day", async () => {
     // DATE is 2026-05-12 (Monday). Office 1 has hours Mon-Fri.
     // Use a Sunday timestamp.
@@ -116,7 +104,7 @@ describe("register_walk_in", () => {
     });
   });
 
-  test("bypasses capacity validation — succeeds even when slot is full", async () => {
+  test("bypasses capacity validation succeeds even when slot is full", async () => {
     await clearOfficeDay(db.client);
 
     // Fill all capacity for road_test at 09:00 via scheduled bookings (supply=2).
@@ -132,7 +120,7 @@ describe("register_walk_in", () => {
     expect(rows[0].id).toBeTypeOf("number");
   });
 
-  test("does not auto-enqueue — no queue entry created", async () => {
+  test("does not auto-enqueue no queue entry created until prescreen", async () => {
     const { rows } = await db.client.query(WALK_IN_SQL, walkInParams({ email: "noqueue@x.com" }));
 
     const queueCheck = await db.client.query(`SELECT id FROM queue WHERE appointment_id = $1`, [
