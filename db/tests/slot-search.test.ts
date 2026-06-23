@@ -29,13 +29,15 @@ function baseInput(overrides: Partial<FindApptInput> = {}): FindApptInput {
   };
 }
 
-describe("findAppointment: basic capacity", () => {
+describe("findAppointment capacity checks", () => {
   test("returns earliest available slot when capacity exists", async () => {
     await clearOfficeDay(db.client);
+    await clearOfficeDay(db.client, 2);
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
-    expect(result!.officeId).toBeTypeOf("number");
+    expect(result!.slotDate).toBe("2026-05-12");
+    expect(result!.slotTime).toBe("09:00:00");
     expect(result!.available).toBeGreaterThan(0);
   });
 
