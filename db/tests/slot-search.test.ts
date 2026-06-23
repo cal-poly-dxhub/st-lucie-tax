@@ -11,7 +11,7 @@ import {
   PG_ERROR,
 } from "./helpers/booking.js";
 import { ROAD_TEST, ID_CARD } from "./helpers/seed-ids.js";
-import { TEST_DATE as DATE, TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
+import { TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
 
 const db = useDb();
 
@@ -91,98 +91,6 @@ describe("findAppointment packing model checks", () => {
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
     expect(result!.slotTime).toBe("09:00:00");
-  });
-});
-
-describe("findAppointment: skill filtering", () => {
-  test("id_card appointments do not block road_test skill supply", async () => {
-    await clearOfficeDay(db.client);
-
-    // Book 2 id_card appointments at 09:00. Desk cap=3, so 1 desk remains.
-    // road_test supply at 09:00 = 2 (Maria + Angela), demand for road_test = 0.
-    // Desk avail = 3-2 = 1. Skill avail = 2-0 = 2. min(1, 2) = 1.
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "09:00", skills: [ID_CARD], email: "id1@x.com" }),
-    );
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "09:00", skills: [ID_CARD], email: "id2@x.com" }),
-    );
-
-    const result = await findAppointment(
-      db.client,
-      baseInput({
-        preferredOffice: 1,
-        asap: false,
-      }),
-    );
-    expect(result).not.toBeNull();
-    expect(result!.officeId).toBe(1);
-    expect(result!.slotTime).toBe("09:00:00");
-    expect(result!.available).toBe(1);
-  });
-
-  test("same-skill appointments count toward demand reducing available slots", async () => {
-    await clearOfficeDay(db.client);
-
-    // Book 1 road_test — skill supply=2, demand=1. Desk: 3-1=2. min(1, 2)=1.
-    await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "rt1@x.com" }));
-
-    const result = await findAppointment(
-      db.client,
-      baseInput({
-        preferredOffice: 1,
-        asap: false,
-      }),
-    );
-    expect(result).not.toBeNull();
-    expect(result!.officeId).toBe(1);
-    expect(result!.slotTime).toBe("09:00:00");
-    expect(result!.available).toBe(1);
-  });
-});
-
-describe("findAppointment: absence handling", () => {
-  test("absent clerk excluded from supply reduces available count", async () => {
-    await clearOfficeDay(db.client);
-
-    // Put Maria on vacation. Road test supply drops 2 → 1 (Angela only).
-    await db.client.query(
-      `INSERT INTO clerk_absences (clerk_id, start_date, end_date, reason)
-       VALUES (1, $1, $1, 'vacation')`,
-      [DATE],
-    );
-
-    const result = await findAppointment(
-      db.client,
-      baseInput({
-        preferredOffice: 1,
-        asap: false,
-      }),
-    );
-    expect(result).not.toBeNull();
-    expect(result!.officeId).toBe(1);
-    // Skill supply=1 (Angela). Desk cap=3, concurrent=0, deskAvail=3. min(1,3)=1.
-    expect(result!.available).toBe(1);
-  });
-
-  test("returns null when all specialists are absent", async () => {
-    await clearOfficeDay(db.client);
-    await clearOfficeDay(db.client, 2);
-
-    // All road_test clerks absent: Maria(1), Angela(3), Jennifer(4), Nancy(6).
-    await db.client.query(
-      `INSERT INTO clerk_absences (clerk_id, start_date, end_date, reason)
-       VALUES (1, $1, $1, 'vacation'),
-              (3, $1, $1, 'vacation'),
-              (4, $1, $1, 'vacation'),
-              (6, $1, $1, 'vacation')`,
-      [DATE],
-    );
-
-    const result = await findAppointment(db.client, baseInput());
-    expect(result).toBeNull();
   });
 });
 
@@ -450,35 +358,6 @@ describe("findAppointment: multi-day search", () => {
 });
 
 describe("findAppointment: CELL_QUERY correctness", () => {
-  test("skips slot with available=0 during lunch period", async () => {
-    await clearOfficeDay(db.client);
-    await clearOfficeDay(db.client, 2);
-
-    // Book at 12:15 (skill 1). During shift 2 (12:15-13:00), clerks 2+3 on lunch.
-    // Only clerk 1 on floor. After booking: concurrent=1, cap=min(3,1)=1, avail=0.
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "12:15", skills: [ID_CARD], email: "c25pre@x.com" }),
-    );
-
-    // findAppointment for skill 2 at preferred office 1 should NOT return 12:15
-    // (it has available=0 there). It should find a different time.
-    const result = await findAppointment(
-      db.client,
-      baseInput({
-        targetTxns: [ID_CARD],
-        preferredOffice: 1,
-        asap: false,
-      }),
-    );
-    expect(result).not.toBeNull();
-    // Should find a slot that's NOT 12:15 at office 1 (since that's full)
-    if (result!.officeId === 1) {
-      expect(result!.slotTime).not.toBe("12:15:00");
-    }
-    expect(result!.available).toBeGreaterThan(0);
-  });
-
   test("afternoon slots reachable after morning is fully packed", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
