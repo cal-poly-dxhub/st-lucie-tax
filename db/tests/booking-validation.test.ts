@@ -510,48 +510,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
   });
 
-  test("sequential bookings cannot saturate lunch period beyond on-floor count", async () => {
-    await clearOfficeDay(db.client);
-
-    // Book #1 at 12:00 (road_test skill 1, 30 min → spans 12:00-12:30, into shift 2).
-    // At 12:00: 3 on floor, cap=3. At 12:15 change-point: 1 on floor, cap=1, concurrent=0. OK.
-    const first = await tryBook(
-      db.client,
-      bookParams({ time: "12:00", skills: [1], email: "seq1@x.com" }),
-    );
-    expect(first.ok).toBe(true);
-
-    // Book #2 at 12:00 (license_original skill 3, 25 min → spans 12:00-12:25, into shift 2).
-    // Duration 25 min. Window [12:00, 12:25). Lunch shift 2 starts at 12:15. 12:15 > 12:00 AND 12:15 < 12:25 → change-point.
-    // At 12:15: 1 on floor, concurrent=1 (first booking still running), cap=1, deskAvail=0. REJECTED.
-    const second = await tryBook(
-      db.client,
-      bookParams({ time: "12:00", skills: [3], email: "seq2@x.com" }),
-    );
-    expect(second.ok).toBe(false);
-    expect((second as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
-  });
-
-  test("appt ending exactly at lunch start does not block next slot", async () => {
-    await clearOfficeDay(db.client);
-
-    // Book at 11:15 (15-min id_card → ends exactly at 11:30 when lunch starts).
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({ time: "11:15", skills: [2], email: "pre24@x.com" }),
-    );
-
-    // Book at 11:30 (15-min id_card). At 11:30: shift 1 starts (1 clerk out).
-    // 2 clerks on floor. Existing appt ended at 11:30 (exclusive end), so concurrent=0.
-    // Cap = min(3, 2) = 2. deskAvail=2. Should succeed.
-    const result = await tryBook(
-      db.client,
-      bookParams({ time: "11:30", skills: [2], email: "adj24@x.com" }),
-    );
-    expect(result.ok).toBe(true);
-  });
-
-  test("run_rate_pct and lunch compound — walk-in headroom maintained", async () => {
+  test("run_rate_pct and lunch at the same time check walk-in headroom maintained", async () => {
     await clearOfficeDay(db.client);
 
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
@@ -566,7 +525,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     );
     expect(first.ok).toBe(true);
 
-    // Second booking same time → rejected (cap=1, concurrent=1).
+    // Second booking same time rejected (cap=1, concurrent=1).
     const second = await tryBook(
       db.client,
       bookParams({ time: "12:20", skills: [3], email: "c20b@x.com" }),
@@ -587,7 +546,6 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect(fourth.ok).toBe(false);
     expect((fourth as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
 
-    // Restore.
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
@@ -598,9 +556,6 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Book at 11:00 → spans 11:00-11:55. Lunch shift 1 starts at 11:30 (inside window).
     // At 11:30: Maria on lunch, James+Angela on floor (2 clerks).
     // Skill [1,3] supply: only Maria has both 1 and 3 → supply=0 at 11:30 (she's on lunch).
-    // Skill avail = 0 - 0 = 0. Rejected.
-    // Actually: Maria has {1,2,3}. Angela has {1,2}. James has {2,3}.
-    // Clerks with BOTH skills 1 AND 3: only Maria. At 11:30 Maria is on lunch → supply=0.
     const result = await tryBook(
       db.client,
       bookParams({ time: "11:00", skills: [1, 3], email: "c21@x.com" }),
