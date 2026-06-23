@@ -64,7 +64,7 @@ const db = useDb();
 
 const OFFICE = 1;
 const DATE = "2026-05-12";
-const FROZEN_NOW = "2026-05-12 06:00";
+const FROZEN_NOW = "2026-05-11 18:00";
 
 const ID_CARD = 2;
 
