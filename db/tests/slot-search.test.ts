@@ -7,11 +7,10 @@ import {
   clearOfficeDay,
   fillSlotToCapacity,
   fillAllSlots,
-  ROAD_TEST,
-  ID_CARD,
   tryBook,
   PG_ERROR,
 } from "./helpers/booking.js";
+import { ROAD_TEST, ID_CARD } from "./helpers/seed-ids.js";
 import { TEST_DATE as DATE, TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
 
 const db = useDb();

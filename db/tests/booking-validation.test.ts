@@ -6,10 +6,10 @@ import {
   clearOfficeDay,
   tryBook,
   raceTest,
-  ROAD_TEST,
   CONFIRMATION_CODE_FORMAT,
   PG_ERROR,
 } from "./helpers/booking.js";
+import { ROAD_TEST, ID_CARD, LICENSE_ORIGINAL } from "./helpers/seed-ids.js";
 
 const db = useDb();
 
@@ -52,7 +52,7 @@ describe("book_appt: lock + recheck + insert", () => {
 
     const check = await db.client.query(
       `SELECT first_name, last_name, status, txn_type_ids, confirmation_code
-         FROM appts WHERE id = $1`,
+         FROM appointments WHERE id = $1`,
       [rows[0].id],
     );
     expect(check.rows[0]).toMatchObject({
@@ -149,13 +149,16 @@ describe("book_appt: lock + recheck + insert", () => {
           AND office_id IS NULL`,
     );
 
-    const rejected = await tryBook(db.client, bookParams({ time: "09:00", skills: [1, 3] }));
+    const rejected = await tryBook(
+      db.client,
+      bookParams({ time: "09:00", skills: [ROAD_TEST, LICENSE_ORIGINAL] }),
+    );
     expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
 
     // At 09:30 intersection boundary booking should succeed.
     const ok = await tryBook(
       db.client,
-      bookParams({ time: "09:30", skills: [1, 3], email: "multi@x.com" }),
+      bookParams({ time: "09:30", skills: [ROAD_TEST, LICENSE_ORIGINAL], email: "multi@x.com" }),
     );
     expect(ok.ok).toBe(true);
   });
@@ -173,13 +176,16 @@ describe("book_appt: lock + recheck + insert", () => {
           AND office_id IS NULL`,
     );
 
-    const rejected = await tryBook(db.client, bookParams({ time: "13:11", skills: [1, 3] }));
+    const rejected = await tryBook(
+      db.client,
+      bookParams({ time: "13:11", skills: [ROAD_TEST, LICENSE_ORIGINAL] }),
+    );
     expect(rejected).toEqual({ ok: false, code: PG_ERROR.TXN_UNAVAILABLE });
 
     // Book at 13:10 which ends exactly at 14:00 is okay.
     const ok = await tryBook(
       db.client,
-      bookParams({ time: "13:10", skills: [1, 3], email: "until@x.com" }),
+      bookParams({ time: "13:10", skills: [ROAD_TEST, LICENSE_ORIGINAL], email: "until@x.com" }),
     );
     expect(ok.ok).toBe(true);
   });
@@ -195,7 +201,9 @@ describe("book_appt: lock + recheck + insert", () => {
        VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
     );
 
-    await expect(db.client.query(BOOK_SQL, bookParams({ skills: [1, 3] }))).rejects.toMatchObject({
+    await expect(
+      db.client.query(BOOK_SQL, bookParams({ skills: [ROAD_TEST, LICENSE_ORIGINAL] })),
+    ).rejects.toMatchObject({
       code: PG_ERROR.TXN_UNAVAILABLE,
     });
   });
@@ -230,7 +238,7 @@ describe("book_appt: lock + recheck + insert", () => {
       BOOK_SQL,
       bookParams({
         time: "09:00",
-        skills: [3],
+        skills: [LICENSE_ORIGINAL],
         email: "lo-a@x.com",
       }),
     );
@@ -238,7 +246,7 @@ describe("book_appt: lock + recheck + insert", () => {
       BOOK_SQL,
       bookParams({
         time: "09:00",
-        skills: [3],
+        skills: [LICENSE_ORIGINAL],
         email: "lo-b@x.com",
       }),
     );
@@ -250,7 +258,7 @@ describe("book_appt: lock + recheck + insert", () => {
         BOOK_SQL,
         bookParams({
           time: "09:00",
-          skills: [1, 3],
+          skills: [ROAD_TEST, LICENSE_ORIGINAL],
           email: "multi@x.com",
         }),
       ),
@@ -264,7 +272,9 @@ describe("book_appt: lock + recheck + insert", () => {
     const b = await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
     // Slot is now full (supply=2, demand=2). Cancel one and re-book.
-    await db.client.query(`UPDATE appts SET status='cancelled' WHERE id = $1`, [a.rows[0].id]);
+    await db.client.query(`UPDATE appointments SET status='cancelled' WHERE id = $1`, [
+      a.rows[0].id,
+    ]);
     void b;
 
     const replay = await db.client.query(BOOK_SQL, bookParams({ email: "replay@x.com" }));
@@ -336,7 +346,7 @@ describe("book_appt: lock + recheck + insert", () => {
       BOOK_SQL,
       bookParams({
         time: "16:45",
-        skills: [2],
+        skills: [ID_CARD],
         email: "late@x.com",
       }),
     );
@@ -352,7 +362,7 @@ describe("book_appt: lock + recheck + insert", () => {
         BOOK_SQL,
         bookParams({
           time: "16:41",
-          skills: [3],
+          skills: [LICENSE_ORIGINAL],
           email: "past-close@x.com",
         }),
       ),
@@ -429,10 +439,13 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await db.client.query(`UPDATE offices SET run_rate_pct = 50 WHERE id=1`);
 
     // Book 1 appt (any skill) — fills the effective desk cap.
-    await db.client.query(BOOK_SQL, bookParams({ skills: [2], email: "cap1@x.com" }));
+    await db.client.query(BOOK_SQL, bookParams({ skills: [ID_CARD], email: "cap1@x.com" }));
 
     // Second booking with a DIFFERENT skill should be rejected (desk cap hit).
-    const result = await tryBook(db.client, bookParams({ skills: [1], email: "cap2@x.com" }));
+    const result = await tryBook(
+      db.client,
+      bookParams({ skills: [ROAD_TEST], email: "cap2@x.com" }),
+    );
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
 
@@ -448,13 +461,13 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Book one appt at 12:20 → fills cap.
     await db.client.query(
       BOOK_SQL,
-      bookParams({ time: "12:20", skills: [2], email: "lunch1@x.com" }),
+      bookParams({ time: "12:20", skills: [ID_CARD], email: "lunch1@x.com" }),
     );
 
     // Second booking at same time with different skill → rejected (only 1 clerk on floor).
     const result = await tryBook(
       db.client,
-      bookParams({ time: "12:20", skills: [3], email: "lunch2@x.com" }),
+      bookParams({ time: "12:20", skills: [LICENSE_ORIGINAL], email: "lunch2@x.com" }),
     );
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
@@ -467,14 +480,14 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Book at 12:00 (30-min road_test, ends 12:30). At 12:00: 3 on floor, OK.
     await db.client.query(
       BOOK_SQL,
-      bookParams({ time: "12:00", skills: [1], email: "pre18@x.com" }),
+      bookParams({ time: "12:00", skills: [ROAD_TEST], email: "pre18@x.com" }),
     );
 
     // Try booking at 12:10 (15-min id_card, ends 12:25). Spans into shift 2.
     // At 12:15 change-point: 1 on floor (Maria), 1 existing still running → concurrent=1, cap=1, deskAvail=0.
     const result = await tryBook(
       db.client,
-      bookParams({ time: "12:10", skills: [2], email: "span18@x.com" }),
+      bookParams({ time: "12:10", skills: [ID_CARD], email: "span18@x.com" }),
     );
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
@@ -486,7 +499,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // At 12:15: lunch shift 1 ends, all 3 clerks back. Should book fine.
     const result = await tryBook(
       db.client,
-      bookParams({ time: "12:15", skills: [2], email: "postlunch@x.com" }),
+      bookParams({ time: "12:15", skills: [ID_CARD], email: "postlunch@x.com" }),
     );
     expect(result.ok).toBe(true);
   });
@@ -497,14 +510,14 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Book at 12:00 (skill 1, 30 min → ends 12:30). At 12:00 all 3 on floor, OK.
     await db.client.query(
       BOOK_SQL,
-      bookParams({ time: "12:00", skills: [1], email: "pre22@x.com" }),
+      bookParams({ time: "12:00", skills: [ROAD_TEST], email: "pre22@x.com" }),
     );
 
     // Try booking skill 2 at 12:15. At 12:15: shift 2 starts (clerks 2,3 on lunch).
     // Only clerk 1 on floor. Existing appt from 12:00 still running → concurrent=1, cap=1, rejected.
     const result = await tryBook(
       db.client,
-      bookParams({ time: "12:15", skills: [2], email: "div22@x.com" }),
+      bookParams({ time: "12:15", skills: [ID_CARD], email: "div22@x.com" }),
     );
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
@@ -521,14 +534,14 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // First booking should succeed (fills the single slot).
     const first = await tryBook(
       db.client,
-      bookParams({ time: "12:20", skills: [2], email: "c20a@x.com" }),
+      bookParams({ time: "12:20", skills: [ID_CARD], email: "c20a@x.com" }),
     );
     expect(first.ok).toBe(true);
 
     // Second booking same time rejected (cap=1, concurrent=1).
     const second = await tryBook(
       db.client,
-      bookParams({ time: "12:20", skills: [3], email: "c20b@x.com" }),
+      bookParams({ time: "12:20", skills: [LICENSE_ORIGINAL], email: "c20b@x.com" }),
     );
     expect(second.ok).toBe(false);
     expect((second as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
@@ -536,12 +549,12 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // At 09:00 (all 3 on floor): cap = min(1, 3) = 1. Still only 1 allowed.
     const third = await tryBook(
       db.client,
-      bookParams({ time: "09:00", skills: [1], email: "c20c@x.com" }),
+      bookParams({ time: "09:00", skills: [ROAD_TEST], email: "c20c@x.com" }),
     );
     expect(third.ok).toBe(true);
     const fourth = await tryBook(
       db.client,
-      bookParams({ time: "09:00", skills: [2], email: "c20d@x.com" }),
+      bookParams({ time: "09:00", skills: [ID_CARD], email: "c20d@x.com" }),
     );
     expect(fourth.ok).toBe(false);
     expect((fourth as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
@@ -558,7 +571,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     // Skill [1,3] supply: only Maria has both 1 and 3 → supply=0 at 11:30 (she's on lunch).
     const result = await tryBook(
       db.client,
-      bookParams({ time: "11:00", skills: [1, 3], email: "c21@x.com" }),
+      bookParams({ time: "11:00", skills: [ROAD_TEST, LICENSE_ORIGINAL], email: "c21@x.com" }),
     );
     expect(result.ok).toBe(false);
     expect((result as { code: string }).code).toBe(PG_ERROR.CAPACITY_EXCEEDED);
