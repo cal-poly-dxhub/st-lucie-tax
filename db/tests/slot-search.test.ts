@@ -7,6 +7,7 @@ import {
   clearOfficeDay,
   fillSlotToCapacity,
   fillAllSlots,
+  fillMorningSlots,
   tryBook,
   PG_ERROR,
 } from "./helpers/booking.js";
@@ -147,29 +148,9 @@ describe("findAppointment preferences", () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill all morning road_test at both offices.
-    // Supply=2 per slot (09:00-11:00), supply=1 at 11:30 (one clerk on lunch).
-    for (const office of [1, 2]) {
-      for (const time of ["09:00", "09:30", "10:00", "10:30", "11:00"]) {
-        await db.client.query(
-          BOOK_SQL,
-          bookParams({ office, time, email: `morn-${office}-${time}-a@x.com` }),
-        );
-        await db.client.query(
-          BOOK_SQL,
-          bookParams({ office, time, email: `morn-${office}-${time}-b@x.com` }),
-        );
-      }
-      // 11:30: one road_test clerk on lunch → supply=1.
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office,
-          time: "11:30",
-          email: `morn-${office}-1130@x.com`,
-        }),
-      );
-    }
+    // Fill all morning road_test at both offices to skill supply.
+    await fillMorningSlots(db.client, { office: 1 });
+    await fillMorningSlots(db.client, { office: 2 });
 
     const result = await findAppointment(
       db.client,
@@ -238,7 +219,7 @@ describe("findAppointment preferredDow across multiple days", () => {
     expect(result).toBeNull();
   });
 
-  test("preferred DOW full with days>1 still returns null (hard preference)", async () => {
+  test("preferred DOW full with days>1 still returns null", async () => {
     // Prefer Wednesday (DOW=3). Search window: Tue(12)–Thu(14), days=3.
     // Fill Wednesday (May 13) completely. Hard preference → null.
     await clearOfficeDay(db.client, 1, "2026-05-13");
@@ -270,7 +251,7 @@ describe("findAppointment preferredDow across multiple days", () => {
     expect(result).toBeNull();
   });
 
-  test("preferred DOW is a closed day with days>1 returns null (hard preference)", async () => {
+  test("preferred DOW is a closed day with days>1 returns null", async () => {
     // Prefer Sunday (DOW=0). Start Saturday May 16, days=3 → Sat(closed), Sun(closed), Mon(open).
     // Hard preference for Sunday → only Sunday is considered → office closed → null.
     const result = await findAppointment(
@@ -285,7 +266,7 @@ describe("findAppointment preferredDow across multiple days", () => {
     expect(result).toBeNull();
   });
 
-  test("preferred DOW outside window returns null (hard preference)", async () => {
+  test("preferred DOW outside window returns null", async () => {
     // Prefer Friday (DOW=5). Window: Tue(12)–Thu(14). Friday isn't in range.
     // Hard preference → only Friday is considered → not in window → null.
     await clearOfficeDay(db.client);
@@ -303,7 +284,7 @@ describe("findAppointment preferredDow across multiple days", () => {
   });
 });
 
-describe("findAppointment: multi-day search", () => {
+describe("findAppointment multi-day search", () => {
   test("finds a slot on day 2 when first day is completely full", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
@@ -400,21 +381,9 @@ describe("findAppointment: combined preferences — full scenario", () => {
     await db.client.query(`UPDATE clerks SET status = 'active' WHERE id = 1`); // Maria only
 
     // Road test: 09:00-15:00, 30 min, 1 desk, 1 clerk.
-    // Morning slots: 09:00, 09:30, 10:00, 10:30, 11:00, 11:30.
-    // Maria is on lunch shift 1 (11:30-12:15) but 11:30 is still < noon so it's "morning".
-    // With 1 desk, booking at 11:30 will fail (Maria on lunch → supply=0). Skip it.
+    // Maria is on lunch shift 1 (11:30-12:15), so skip 11:30 (supply=0).
     // Slots where Maria is available and slot is morning: 09:00-11:00 (5 slots).
-    for (const time of ["09:00", "09:30", "10:00", "10:30", "11:00"]) {
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office: 1,
-          time,
-          skills: [ROAD_TEST],
-          email: `combo-full-${time}@x.com`,
-        }),
-      );
-    }
+    await fillMorningSlots(db.client, { office: 1, supply: 1, lunchSupply: 0 });
 
     const result = await findAppointment(
       db.client,
@@ -434,41 +403,8 @@ describe("findAppointment: combined preferences — full scenario", () => {
     await clearOfficeDay(db.client);
 
     // Default setup: office 1 has 3 desks, 2 road_test clerks (Maria + Angela).
-    // road_test supply=2, desk cap=3.
-    // Morning road_test slots (30 min, available_from=09:00, morning < 12:00):
-    //   09:00, 09:30, 10:00, 10:30, 11:00 — supply=2 (both on floor)
-    //   11:30 — Maria on lunch (shift 1: 11:30-12:15), supply=1 (Angela only)
-    // Fill 2 per slot for 09:00-11:00, then 1 at 11:30 to exhaust all morning capacity.
-    for (const time of ["09:00", "09:30", "10:00", "10:30", "11:00"]) {
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office: 1,
-          time,
-          skills: [ROAD_TEST],
-          email: `combo-a-${time}@x.com`,
-        }),
-      );
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office: 1,
-          time,
-          skills: [ROAD_TEST],
-          email: `combo-b-${time}@x.com`,
-        }),
-      );
-    }
-    // 11:30: Maria on lunch → road_test supply=1 (Angela). Fill that 1 slot.
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({
-        office: 1,
-        time: "11:30",
-        skills: [ROAD_TEST],
-        email: `combo-a-1130@x.com`,
-      }),
-    );
+    // Morning road_test supply=2 (09:00-11:00), supply=1 at 11:30 (Maria on lunch).
+    await fillMorningSlots(db.client, { office: 1 });
 
     const result = await findAppointment(
       db.client,
@@ -489,35 +425,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
     await clearOfficeDay(db.client, 2);
 
     // Fill all morning road_test at office 1 (supply=2 for 09:00-11:00, supply=1 at 11:30).
-    for (const time of ["09:00", "09:30", "10:00", "10:30", "11:00"]) {
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office: 1,
-          time,
-          skills: [ROAD_TEST],
-          email: `nobleed-a-${time}@x.com`,
-        }),
-      );
-      await db.client.query(
-        BOOK_SQL,
-        bookParams({
-          office: 1,
-          time,
-          skills: [ROAD_TEST],
-          email: `nobleed-b-${time}@x.com`,
-        }),
-      );
-    }
-    await db.client.query(
-      BOOK_SQL,
-      bookParams({
-        office: 1,
-        time: "11:30",
-        skills: [ROAD_TEST],
-        email: `nobleed-a-1130@x.com`,
-      }),
-    );
+    await fillMorningSlots(db.client, { office: 1 });
 
     // Office 2 has wide-open capacity, and office 1 afternoon is open.
     // But with all preferences hard-filtered (office=1, morning, dow=2, days=1),
