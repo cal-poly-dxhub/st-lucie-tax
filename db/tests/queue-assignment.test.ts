@@ -75,11 +75,11 @@ describe("check_in_to_queue", () => {
   test("rejects duplicate check-in for the same appointment", async () => {
     const appt = await createAppointment(db.client, { txnTypes: [ID_CARD] });
     await checkIn(db.client, appt);
-    await expect(checkIn(db.client, appt)).rejects.toThrow(/unique|duplicate/i);
+    await expect(checkIn(db.client, appt)).rejects.toMatchObject({ code: "23505" });
   });
 });
 
-describe("assign_next_customer — skill-matched FIFO", () => {
+describe("assign_next_customer FIFO based on clerk skill match", () => {
   beforeEach(async () => {
     await db.client.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
     await db.client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
