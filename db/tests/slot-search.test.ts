@@ -94,7 +94,7 @@ describe("findAppointment packing model checks", () => {
   });
 });
 
-describe("findAppointment: preferences", () => {
+describe("findAppointment preferences", () => {
   test("preferred office is tried first", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
@@ -111,7 +111,7 @@ describe("findAppointment: preferences", () => {
     expect(result!.officeId).toBe(2);
   });
 
-  test("returns null when preferred office is full (hard preference)", async () => {
+  test("returns null when preferred office is full", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
@@ -143,7 +143,7 @@ describe("findAppointment: preferences", () => {
     expect(result!.slotTime < "12:00:00").toBe(true);
   });
 
-  test("returns null when all morning slots are full (hard preference)", async () => {
+  test("returns null when all morning slots are full", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
@@ -179,7 +179,6 @@ describe("findAppointment: preferences", () => {
       }),
     );
 
-    // Morning is full — hard preference means null, not fallback to afternoon.
     expect(result).toBeNull();
   });
 
@@ -199,7 +198,7 @@ describe("findAppointment: preferences", () => {
   });
 });
 
-describe("findAppointment: preferredDow across multiple days", () => {
+describe("findAppointment preferredDow across multiple days", () => {
   // startDate = 2026-05-12 (Tuesday, DOW=2). Office hours Mon(1)–Fri(5).
 
   test("returns preferred DOW when capacity is available", async () => {
@@ -223,21 +222,8 @@ describe("findAppointment: preferredDow across multiple days", () => {
   test("returns null when preferred DOW is full (days=1 on that DOW)", async () => {
     // startDate = Wednesday (May 13), days=1, preferDow=3.
     // Fill Wednesday completely. Engine should return null, not bleed.
-    for (const office of [1, 2]) {
-      await db.client.query(
-        `DELETE FROM documents
-          WHERE appointment_id IN (
-            SELECT id FROM appointments
-            WHERE office_id=$1 AND appointment_date='2026-05-13'
-          )`,
-        [office],
-      );
-      await db.client.query(
-        `DELETE FROM appointments
-          WHERE office_id=$1 AND appointment_date='2026-05-13'`,
-        [office],
-      );
-    }
+    await clearOfficeDay(db.client, 1, "2026-05-13");
+    await clearOfficeDay(db.client, 2, "2026-05-13");
     await fillAllSlots(db.client, { date: "2026-05-13" });
 
     const result = await findAppointment(
@@ -255,21 +241,8 @@ describe("findAppointment: preferredDow across multiple days", () => {
   test("preferred DOW full with days>1 still returns null (hard preference)", async () => {
     // Prefer Wednesday (DOW=3). Search window: Tue(12)–Thu(14), days=3.
     // Fill Wednesday (May 13) completely. Hard preference → null.
-    for (const office of [1, 2]) {
-      await db.client.query(
-        `DELETE FROM documents
-          WHERE appointment_id IN (
-            SELECT id FROM appointments
-            WHERE office_id=$1 AND appointment_date='2026-05-13'
-          )`,
-        [office],
-      );
-      await db.client.query(
-        `DELETE FROM appointments
-          WHERE office_id=$1 AND appointment_date='2026-05-13'`,
-        [office],
-      );
-    }
+    await clearOfficeDay(db.client, 1, "2026-05-13");
+    await clearOfficeDay(db.client, 2, "2026-05-13");
     await fillAllSlots(db.client, { date: "2026-05-13" });
 
     const result = await findAppointment(
@@ -339,17 +312,8 @@ describe("findAppointment: multi-day search", () => {
     await fillAllSlots(db.client, {});
 
     // Clear May 13.
-    await db.client.query(
-      `DELETE FROM documents
-        WHERE appointment_id IN (
-          SELECT id FROM appointments
-          WHERE appointment_date='2026-05-13'
-        )`,
-    );
-    await db.client.query(
-      `DELETE FROM appointments
-        WHERE appointment_date='2026-05-13'`,
-    );
+    await clearOfficeDay(db.client, 1, "2026-05-13");
+    await clearOfficeDay(db.client, 2, "2026-05-13");
 
     const result = await findAppointment(db.client, baseInput({ days: 2 }));
     expect(result).not.toBeNull();
