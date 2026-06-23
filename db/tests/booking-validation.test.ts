@@ -89,7 +89,7 @@ describe("book_appointment: lock + recheck + insert", () => {
     await clearOfficeDay(db.client);
 
     // Frozen now = 09:30 on the seed date. A 09:00 slot is already in the
-    // past, booking is impossible
+    // past, booking is impossible.
     await expect(
       db.client.query(
         BOOK_SQL,
@@ -104,8 +104,7 @@ describe("book_appointment: lock + recheck + insert", () => {
   test("slot_in_past when slot start equals now_ts (strict <=)", async () => {
     await clearOfficeDay(db.client);
 
-    // Equality fails the gate: book_appointment uses `slot_start <= now_ts`
-    // so callers can't bypass any lead-time policy by booking "right now".
+    // We cannot
     await expect(
       db.client.query(
         BOOK_SQL,

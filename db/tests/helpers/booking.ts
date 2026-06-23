@@ -28,7 +28,7 @@ export const BOOK_SQL = `
   )
 `;
 
-/* Returns booking param object with default values if none specified */
+// Returns booking param object with default values if none specified
 export function bookParams(
   overrides: Partial<{
     office: number;
@@ -57,7 +57,7 @@ export function bookParams(
   ];
 }
 
-/* Deletes all appointments from an office on a given date */
+// Deletes all appointments from an office on a given date
 export async function clearOfficeDay(client: Client, office = 1) {
   await client.query(
     `DELETE FROM documents
@@ -74,7 +74,7 @@ export async function clearOfficeDay(client: Client, office = 1) {
   );
 }
 
-/* Attempt to book a given appointment and rollback if fails so that test can continue */
+// Attempt to book a given appointment and rollback if fails so that test can continue
 export async function tryBook(
   client: Client,
   params: unknown[],
@@ -99,7 +99,7 @@ export async function tryBook(
   }
 }
 
-/* Tries to book the same appt from two clients to ensure locks work */
+// Tries to book the same appt from two clients to ensure locks work
 export async function raceTest(opts: {
   preBookParams: unknown[];
   racerAParams: unknown[];
@@ -153,7 +153,7 @@ export async function raceTest(opts: {
   }
 }
 
-/* Fills a slot to desk capacity at the given offices */
+// Fills a slot to desk capacity at the given offices
 export async function fillSlotToCapacity(
   client: Client,
   opts: {
@@ -199,7 +199,7 @@ export function lunchAwareCap(office: number, slotMin: number): number {
   return inShift1 ? 1 : inShift2 ? 2 : 3;
 }
 
-/* Fills all road_test slots (09:00-14:30) at the given offices to desk cap */
+// Fills all road_test slots (09:00-14:30) at the given offices to desk cap
 export async function fillAllSlots(
   client: Client,
   opts: {
