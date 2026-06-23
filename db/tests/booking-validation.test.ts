@@ -130,14 +130,14 @@ describe("office_txn_window: per-office intersected availability", () => {
 });
 
 describe("book_appointment: lock + recheck + insert", () => {
-  test("happy path inserts and returns the new appointment id", async () => {
+  test("inserts appointment with scheduled status and confirmation code when slot has capacity", async () => {
     await clearOfficeDay(db.client);
 
     const { rows } = await db.client.query(BOOK_SQL, bookParams());
     expect(rows[0].id).toBeTypeOf("number");
 
     const check = await db.client.query(
-      `SELECT first_name, last_name, status, txn_type_ids
+      `SELECT first_name, last_name, status, txn_type_ids, confirmation_code
          FROM appointments WHERE id = $1`,
       [rows[0].id],
     );
@@ -147,6 +147,7 @@ describe("book_appointment: lock + recheck + insert", () => {
       status: "scheduled",
       txn_type_ids: [ROAD_TEST],
     });
+    expect(check.rows[0].confirmation_code).toMatch(/^[0-9A-Z]{8}$/);
   });
 
   test("capacity_exceeded once the slot is full", async () => {
@@ -473,10 +474,8 @@ describe("book_appointment: lock + recheck + insert", () => {
   });
 });
 
-// ─── Cases 16–24: Total concurrent cap (run_rate_pct + lunch) ─────────────────
-
 describe("total concurrent cap (run_rate_pct + lunch)", () => {
-  test("Case 16: run_rate_pct caps total concurrent with diverse skills", async () => {
+  test("run_rate_pct caps total concurrent even with diverse skills", async () => {
     await clearOfficeDay(db.client);
 
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
@@ -494,7 +493,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
-  test("Case 17: lunch reduces effective cap below effective_desks", async () => {
+  test("lunch reduces effective cap below effective_desks", async () => {
     await clearOfficeDay(db.client);
 
     // At 12:20: clerks B(2) and C(3) are on lunch shift 2 (12:15-13:00).
@@ -514,7 +513,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
   });
 
-  test("Case 18: appointment spanning into lunch rejected when exceeding on-floor count", async () => {
+  test("appointment spanning into lunch rejected when exceeding on-floor count", async () => {
     await clearOfficeDay(db.client);
 
     // Office 1 shift 2 (12:15-13:00): James(2) + Angela(3) on lunch. Only Maria on floor.
@@ -534,7 +533,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
   });
 
-  test("Case 19: appointment starting after lunch ends — full capacity restored", async () => {
+  test("full capacity restored when appointment starts after lunch ends", async () => {
     await clearOfficeDay(db.client);
 
     // At 12:15: lunch shift 1 ends, all 3 clerks back. Should book fine.
@@ -545,7 +544,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("Case 22: diverse-skill appointments cannot exceed clerks on floor during lunch", async () => {
+  test("diverse-skill appointments cannot exceed clerks on floor during lunch", async () => {
     await clearOfficeDay(db.client);
 
     // Book at 12:00 (skill 1, 30 min → ends 12:30). At 12:00 all 3 on floor, OK.
@@ -564,7 +563,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((result as { code: string }).code).toBe("P0001");
   });
 
-  test("Case 23: sequential bookings cannot saturate lunch period beyond on-floor count", async () => {
+  test("sequential bookings cannot saturate lunch period beyond on-floor count", async () => {
     await clearOfficeDay(db.client);
 
     // Book #1 at 12:00 (road_test skill 1, 30 min → spans 12:00-12:30, into shift 2).
@@ -586,7 +585,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect((second as { code: string }).code).toBe("P0001");
   });
 
-  test("Case 24: appointment ending exactly at lunch start does not block", async () => {
+  test("appointment ending exactly at lunch start does not block next slot", async () => {
     await clearOfficeDay(db.client);
 
     // Book at 11:15 (15-min id_card → ends exactly at 11:30 when lunch starts).
@@ -605,7 +604,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("Case 20: run_rate_pct + lunch compound — walk-in headroom maintained", async () => {
+  test("run_rate_pct and lunch compound — walk-in headroom maintained", async () => {
     await clearOfficeDay(db.client);
 
     // Set run_rate_pct=50 → effective_desks = floor(3*50/100) = 1.
@@ -645,7 +644,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await db.client.query(`UPDATE offices SET run_rate_pct = 100 WHERE id=1`);
   });
 
-  test("Case 21: multi-skill appointment spanning lunch — duration summed correctly", async () => {
+  test("multi-skill appointment spanning lunch rejected when specialist is on break", async () => {
     await clearOfficeDay(db.client);
 
     // Multi-skill [1,3] = road_test(30) + license_original(25) = 55 min.
