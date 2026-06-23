@@ -217,6 +217,8 @@ CREATE TABLE clerk_sessions (
     logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     logged_out_at   TIMESTAMPTZ
 );
+CREATE UNIQUE INDEX idx_clerk_session_active
+    ON clerk_sessions (clerk_id, office_id) WHERE logged_out_at IS NULL;
 
 CREATE TABLE clerk_schedules (
     id              SERIAL PRIMARY KEY,
