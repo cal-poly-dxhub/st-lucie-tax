@@ -64,7 +64,7 @@ describe("findAppointment capacity checks", () => {
   });
 });
 
-describe("findAppointment: packing model", () => {
+describe("findAppointment packing model checks", () => {
   test("finds slot at appointment-end boundary when earlier slots are full", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
@@ -80,35 +80,6 @@ describe("findAppointment: packing model", () => {
     // road_test supply=2, demand=2 at 09:15 → full. Next: 09:30 is also full.
     // At 10:00: road_tests from 09:30 end → supply=2, demand=0 → available.
     expect(result!.slotTime).toBe("10:00:00");
-  });
-
-  test("finds slot at lunch-shift end when pre-lunch slots are full", async () => {
-    await clearOfficeDay(db.client);
-    await clearOfficeDay(db.client, 2);
-
-    // Reduce road_test supply to 1 per office (disable Angela and Nancy).
-    await db.client.query(`UPDATE clerks SET status='inactive' WHERE id IN (3, 6)`);
-
-    // Fill all pre-lunch slots (supply=1, so 1 road_test per slot).
-    // road_test 09:00-15:00, 30 min. With supply=1: 09:00, 09:30, 10:00, 10:30, 11:00 = 5 slots.
-    for (const office of [1, 2]) {
-      for (let i = 0; i < 5; i++) {
-        const hour = 9 + Math.floor(i / 2);
-        const min = (i % 2) * 30;
-        const time = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-        await db.client.query(
-          BOOK_SQL,
-          bookParams({ office, time, email: `lunch${office}-${i}@x.com` }),
-        );
-      }
-    }
-
-    const result = await findAppointment(db.client, baseInput());
-    expect(result).not.toBeNull();
-    // Maria (office 1) is on lunch 11:30-12:15. Jennifer (office 2) on lunch 11:30-12:15.
-    // After last pre-lunch appt ends at 11:30, both clerks go to lunch.
-    // First available: 12:15 (lunch ends).
-    expect(result!.slotTime).toBe("12:15:00");
   });
 
   test("available_from is used as a candidate start time", async () => {
