@@ -54,6 +54,6 @@ describe("random_base36", () => {
           txn_type_ids, appointment_date, appointment_time, confirmation_code
         ) VALUES (1, 'C', 'D', 'c@d.com', '555-0000', '{1}', '2026-07-01', '09:30', 'TESTCODE')`,
       ),
-    ).rejects.toThrow(/unique/i);
+    ).rejects.toMatchObject({ code: "23505" });
   });
 });
