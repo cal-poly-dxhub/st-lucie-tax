@@ -6,6 +6,7 @@ import { ROAD_TEST, ID_CARD } from "./seed-ids.js";
 export const CONFIRMATION_CODE_FORMAT = /^[0-9A-Z]{8}$/;
 
 export const PG_ERROR = {
+  UNIQUE_VIOLATION: "23505",
   CAPACITY_EXCEEDED: "P0001",
   OFFICE_CLOSED: "P0002",
   TXN_UNAVAILABLE: "P0003",
@@ -57,19 +58,19 @@ export function bookParams(
 }
 
 // Deletes all appointments from an office on a given date
-export async function clearOfficeDay(client: Client, office = 1) {
+export async function clearOfficeDay(client: Client, office = 1, date = TEST_DATE) {
   await client.query(
     `DELETE FROM documents
       WHERE appointment_id IN (
         SELECT id FROM appointments
         WHERE office_id=$1 AND appointment_date=$2
       )`,
-    [office, TEST_DATE],
+    [office, date],
   );
   await client.query(
     `DELETE FROM appointments
       WHERE office_id=$1 AND appointment_date=$2`,
-    [office, TEST_DATE],
+    [office, date],
   );
 }
 
@@ -104,10 +105,13 @@ export async function raceTest(opts: {
   racerAParams: unknown[];
   racerBParams: unknown[];
 }) {
-  const setup = await connect();
-  const a = await connect();
-  const b = await connect();
+  let setup: Client | undefined;
+  let a: Client | undefined;
+  let b: Client | undefined;
   try {
+    setup = await connect();
+    a = await connect();
+    b = await connect();
     await clearOfficeDay(setup);
     await setup.query(BOOK_SQL, opts.preBookParams);
 
@@ -118,21 +122,21 @@ export async function raceTest(opts: {
     // completion so the lock is released for the other.
     const racerA = a.query(BOOK_SQL, opts.racerAParams).then(
       async (res) => {
-        await a.query("COMMIT");
+        await a!.query("COMMIT");
         return { ok: true as const, id: res.rows[0].id };
       },
       async (err) => {
-        await a.query("ROLLBACK");
+        await a!.query("ROLLBACK");
         return { ok: false as const, code: (err as { code: string }).code };
       },
     );
     const racerB = b.query(BOOK_SQL, opts.racerBParams).then(
       async (res) => {
-        await b.query("COMMIT");
+        await b!.query("COMMIT");
         return { ok: true as const, id: res.rows[0].id };
       },
       async (err) => {
-        await b.query("ROLLBACK");
+        await b!.query("ROLLBACK");
         return { ok: false as const, code: (err as { code: string }).code };
       },
     );
@@ -146,9 +150,9 @@ export async function raceTest(opts: {
 
     return { winnerId: winner?.id ?? null, loserCode: loser?.code ?? null };
   } finally {
-    await setup.end();
-    await a.end();
-    await b.end();
+    await setup?.end();
+    await a?.end();
+    await b?.end();
   }
 }
 
@@ -187,6 +191,48 @@ export async function fillSlotToCapacity(
         await client.query("ROLLBACK TO SAVEPOINT fill_slot");
       }
     }
+  }
+}
+
+// Fills morning road_test slots (09:00–11:30) at an office to skill supply.
+// Supply=2 for 09:00–11:00 (both clerks), supply=1 at 11:30 (one on lunch).
+export async function fillMorningSlots(
+  client: Client,
+  opts: {
+    office?: number;
+    supply?: number;
+    lunchSupply?: number;
+    skills?: number[];
+  } = {},
+) {
+  const office = opts.office ?? 1;
+  const supply = opts.supply ?? 2;
+  const lunchSupply = opts.lunchSupply ?? 1;
+  const skills = opts.skills ?? [ROAD_TEST];
+
+  for (const time of ["09:00", "09:30", "10:00", "10:30", "11:00"]) {
+    for (let i = 0; i < supply; i++) {
+      await client.query(
+        BOOK_SQL,
+        bookParams({
+          office,
+          time,
+          skills,
+          email: `morning-${office}-${time}-${i}@x.com`,
+        }),
+      );
+    }
+  }
+  for (let i = 0; i < lunchSupply; i++) {
+    await client.query(
+      BOOK_SQL,
+      bookParams({
+        office,
+        time: "11:30",
+        skills,
+        email: `morning-${office}-1130-${i}@x.com`,
+      }),
+    );
   }
 }
 
