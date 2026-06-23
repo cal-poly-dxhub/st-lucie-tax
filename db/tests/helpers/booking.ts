@@ -6,6 +6,7 @@ import { ROAD_TEST, ID_CARD } from "./seed-ids.js";
 export const CONFIRMATION_CODE_FORMAT = /^[0-9A-Z]{8}$/;
 
 export const PG_ERROR = {
+  UNIQUE_VIOLATION: "23505",
   CAPACITY_EXCEEDED: "P0001",
   OFFICE_CLOSED: "P0002",
   TXN_UNAVAILABLE: "P0003",
