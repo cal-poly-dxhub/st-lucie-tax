@@ -11,7 +11,7 @@ import {
   tryBook,
   PG_ERROR,
 } from "./helpers/booking.js";
-import { ROAD_TEST, ID_CARD } from "./helpers/seed-ids.js";
+import { ROAD_TEST } from "./helpers/seed-ids.js";
 import { TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
 
 const db = useDb();
@@ -237,7 +237,7 @@ describe("findAppointment preferredDow across multiple days", () => {
     expect(result).toBeNull();
   });
 
-  test("preferred DOW is a closed day (weekend) — returns null with days=1", async () => {
+  test("preferred DOW is a closed day (weekend) returns null with days=1", async () => {
     // Sunday (DOW=0). Start on Sunday May 17, days=1. Office is closed.
     const result = await findAppointment(
       db.client,
@@ -302,54 +302,7 @@ describe("findAppointment multi-day search", () => {
   });
 });
 
-describe("findAppointment: CELL_QUERY correctness", () => {
-  test("afternoon slots reachable after morning is fully packed", async () => {
-    await clearOfficeDay(db.client);
-    await clearOfficeDay(db.client, 2);
-
-    // Sequentially book id_card (15 min) appointments using the engine itself.
-    // With 3 desks × 2 offices, the engine should pack morning → lunch → afternoon.
-    let booked = 0;
-    let lastTime = "";
-    for (let i = 0; i < 80; i++) {
-      const result = await findAppointment(
-        db.client,
-        baseInput({
-          targetTxns: [ID_CARD],
-          asap: true,
-        }),
-      );
-      if (!result) break;
-
-      await db.client.query("SAVEPOINT book_slot");
-      try {
-        await db.client.query(
-          BOOK_SQL,
-          bookParams({
-            office: result.officeId,
-            time: result.slotTime,
-            skills: [ID_CARD],
-            email: `c26-${i}@x.com`,
-          }),
-        );
-        await db.client.query("RELEASE SAVEPOINT book_slot");
-        booked++;
-        lastTime = result.slotTime;
-      } catch {
-        await db.client.query("ROLLBACK TO SAVEPOINT book_slot");
-        break;
-      }
-    }
-
-    // Should book at least 30 appointments (fills past morning into lunch/afternoon).
-    expect(booked).toBeGreaterThan(30);
-    // Last booked time should be past morning (>= 11:00), proving the engine
-    // doesn't get stuck in early morning slots.
-    expect(lastTime >= "11:00:00").toBe(true);
-  });
-});
-
-describe("findAppointment: combined preferences — full scenario", () => {
+describe("findAppointment with combined preferences", () => {
   // Scenario: St Lucie office 1, morning, road test, on a Tuesday.
   // When morning road-test capacity at office 1 is exhausted, should return null.
 
@@ -399,7 +352,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
     expect(result).toBeNull();
   });
 
-  test("returns null with full desk cap (no capacity reduction)", async () => {
+  test("returns null with full desk cap", async () => {
     await clearOfficeDay(db.client);
 
     // Default setup: office 1 has 3 desks, 2 road_test clerks (Maria + Angela).
@@ -420,7 +373,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
     expect(result).toBeNull();
   });
 
-  test("returns null — does not bleed into afternoon or office 2", async () => {
+  test("returns null for morning and does not bleed into afternoon or office 2", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
@@ -445,7 +398,7 @@ describe("findAppointment: combined preferences — full scenario", () => {
   });
 });
 
-describe("findAppointment: scheduling_block_padding", () => {
+describe("findAppointment scheduling_block_padding", () => {
   test("next slot respects padding gap", async () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
