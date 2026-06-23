@@ -4,11 +4,11 @@ import { Client, type ClientConfig } from "pg";
 process.loadEnvFile(resolve(import.meta.dirname, "../../../.env"));
 
 export const dbConfig: ClientConfig = {
-  host: process.env.PGHOST ?? "localhost",
-  port: Number(process.env.PGPORT ?? 5432),
-  user: process.env.PGUSER ?? "stlucie",
-  password: process.env.PGPASSWORD ?? "localdev",
-  database: process.env.PGDATABASE ?? "stlucie",
+  host: process.env.PGHOST,
+  port: 5432,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DB,
 };
 
 export async function connect(): Promise<Client> {
