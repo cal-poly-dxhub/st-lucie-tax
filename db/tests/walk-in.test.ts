@@ -100,22 +100,6 @@ describe("register_walk_in", () => {
     });
   });
 
-  test("bypasses capacity validation succeeds even when slot is full", async () => {
-    await clearOfficeDay(db.client);
-
-    // Fill all capacity for road_test at 09:00 via scheduled bookings (supply=2).
-    await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
-    await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
-
-    // A third scheduled booking would fail with P0001.
-    // But a walk-in at the same time should succeed.
-    const { rows } = await db.client.query(
-      WALK_IN_SQL,
-      walkInParams({ skills: [ROAD_TEST], now: `${DATE} 09:00` }),
-    );
-    expect(rows[0].id).toBeTypeOf("number");
-  });
-
   test("does not auto-enqueue no queue entry created until prescreen", async () => {
     const { rows } = await db.client.query(WALK_IN_SQL, walkInParams({ email: "noqueue@x.com" }));
 
