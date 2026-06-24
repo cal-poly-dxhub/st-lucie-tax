@@ -22,6 +22,32 @@ export async function getPrescreenQuestions(
   return camelRows<PrescreenQuestion>(rows);
 }
 
+export async function createPrescreenQuestion(
+  db: Queryable,
+  txnTypeId: number,
+  sortOrder: number,
+  questionText: string,
+): Promise<PrescreenQuestion> {
+  const { rows } = await db.query(
+    `INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text)
+     VALUES ($1, $2, $3)
+     RETURNING id, txn_type_id, sort_order, question_text`,
+    [txnTypeId, sortOrder, questionText],
+  );
+  return camelRows<PrescreenQuestion>(rows)[0];
+}
+
+export async function createPrescreenQuestions(
+  db: Queryable,
+  txnTypeId: number,
+  questions: { sortOrder: number; questionText: string }[],
+): Promise<PrescreenQuestion[]> {
+  await db.query(`DELETE FROM prescreen_questions WHERE txn_type_id = $1`, [txnTypeId]);
+  return Promise.all(
+    questions.map((q) => createPrescreenQuestion(db, txnTypeId, q.sortOrder, q.questionText)),
+  );
+}
+
 export async function savePrescreenResponses(
   db: Queryable,
   appointmentId: number,
