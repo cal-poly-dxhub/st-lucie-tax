@@ -58,7 +58,7 @@ export async function computeDurationUpdates(
   return updates;
 }
 
-// Fetches config, computes above-threshold updates, skips existing pending recommendations, and persists new ones
+// Fetches config, computes above-threshold updates, and overwrites any existing pending recommendation
 export async function generateDurationRecommendations(db: Queryable): Promise<Recommendation[]> {
   const { rows: configRows } = await db.query<{
     duration_lookback_days: number;
@@ -76,16 +76,13 @@ export async function generateDurationRecommendations(db: Queryable): Promise<Re
   const recommendations: Recommendation[] = [];
 
   for (const update of updates) {
-    const { rows: existing } = await db.query<{ id: number }>(
-      `SELECT id FROM duration_recommendations
-       WHERE txn_type_id = $1 AND status = 'pending'`,
-      [update.txnTypeId],
-    );
-    if (existing.length > 0) continue;
-
     await db.query(
       `INSERT INTO duration_recommendations (txn_type_id, current_avg_min, recommended_avg_min, sample_size)
-       VALUES ($1, $2, $3, $4)`,
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (txn_type_id) WHERE status = 'pending'
+       DO UPDATE SET current_avg_min = EXCLUDED.current_avg_min,
+                     recommended_avg_min = EXCLUDED.recommended_avg_min,
+                     sample_size = EXCLUDED.sample_size`,
       [update.txnTypeId, update.currentAvgMin, update.recommendedAvgMin, update.sampleSize],
     );
 

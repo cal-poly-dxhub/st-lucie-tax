@@ -213,6 +213,8 @@ CREATE TABLE duration_recommendations (
                     CHECK (status IN ('pending', 'approved', 'rejected')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE UNIQUE INDEX idx_duration_recommendations_pending
+    ON duration_recommendations (txn_type_id) WHERE status = 'pending';
 
 CREATE TABLE clerk_sessions (
     id              SERIAL PRIMARY KEY,
