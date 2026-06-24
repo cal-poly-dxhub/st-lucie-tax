@@ -23,11 +23,17 @@ $$ LANGUAGE plpgsql;
 -- =============================================================================
 CREATE TABLE config (
     timezone                 TEXT NOT NULL DEFAULT 'America/New_York',
-    scheduling_block_padding INT  NOT NULL DEFAULT 0
+    scheduling_block_padding INT  NOT NULL DEFAULT 0 -- Amount of time forced between appointments
                              CHECK (scheduling_block_padding >= 0
                                 AND scheduling_block_padding <= 30),
     default_lookahead_days   INT  NOT NULL DEFAULT 14
-                             CHECK (default_lookahead_days BETWEEN 1 AND 365)
+                             CHECK (default_lookahead_days BETWEEN 1 AND 365),
+    duration_lookback_days   INT  NOT NULL DEFAULT 30 -- Number of days considered for average duration computation
+                             CHECK (duration_lookback_days BETWEEN 1 AND 365),
+    duration_min_samples     INT  NOT NULL DEFAULT 10 -- Minimum number of txns complete for a given type for updating duration
+                             CHECK (duration_min_samples BETWEEN 1 AND 1000),
+    duration_threshold_pct   INT  NOT NULL DEFAULT 1 -- How far a new average must be from the old to generate a reccomendation
+                             CHECK (duration_threshold_pct BETWEEN 1 AND 100)
 );
 CREATE UNIQUE INDEX idx_config_singleton ON config ((TRUE));
 
