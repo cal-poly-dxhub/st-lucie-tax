@@ -72,7 +72,6 @@
     <button onclick="showView('clerks')" id="nav-clerks">Clerks</button>
     <button onclick="showView('hotbuttons')" id="nav-hotbuttons">Hotbuttons</button>
     <button onclick="showView('prescreen')" id="nav-prescreen">Pre-Screen</button>
-    <button onclick="showView('skills')" id="nav-skills">Skills</button>
     <button onclick="showView('documents')" id="nav-documents">Documents</button>
     <button onclick="showView('durations')" id="nav-durations">Duration Engine</button>
     <button onclick="window.location.href='/prototype.html'" style="margin-left:auto; background:#4a5568;">Back to Prototype</button>
@@ -110,6 +109,7 @@
         <thead><tr><th>ID</th><th>Name</th><th>Address</th><th>Desks</th><th>Run Rate %</th><th>Actions</th></tr></thead>
         <tbody></tbody>
       </table>
+      <p style="font-size: 11px; color: #a0aec0; margin-top: 8px;">Click Desks or Run Rate values to edit inline.</p>
     </div>
 
     <div class="card">
@@ -124,39 +124,10 @@
     </div>
 
     <div class="card">
-      <h3>Office Hours</h3>
-      <table id="hours-table">
-        <thead><tr><th>Office</th><th>Day</th><th>Open</th><th>Close</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="form-row" style="margin-top: 12px;">
-        <div><label>Office</label><select id="hours-office"></select></div>
-        <div><label>Day</label>
-          <select id="hours-day">
-            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
-            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option>
-            <option value="6">Saturday</option>
-          </select>
-        </div>
-        <div><label>Open</label><input type="time" id="hours-open" value="08:00"></div>
-        <div><label>Close</label><input type="time" id="hours-close" value="17:00"></div>
-        <button class="btn btn-success" onclick="addHours()">Add/Update</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Lunch Shifts</h3>
-      <table id="lunch-table">
-        <thead><tr><th>Office</th><th>Shift #</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="form-row" style="margin-top: 12px;">
-        <div><label>Office</label><select id="lunch-office"></select></div>
-        <div><label>Shift #</label><input type="number" id="lunch-shift" value="1" min="1"></div>
-        <div><label>Start</label><input type="time" id="lunch-start" value="11:30"></div>
-        <div><label>End</label><input type="time" id="lunch-end" value="12:00"></div>
-        <button class="btn btn-success" onclick="addLunch()">Add</button>
-      </div>
+      <h3>Weekly Schedule</h3>
+      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Hours and lunch breaks by office. Click a cell to edit.</p>
+      <div id="schedule-matrix"></div>
+      <p style="font-size: 11px; color: #a0aec0; margin-top: 8px;">Click any cell to edit hours and lunch. "Clear" removes hours for that day.</p>
     </div>
   </div>
 
@@ -168,6 +139,7 @@
         <thead><tr><th>ID</th><th>Slug</th><th>Name</th><th>Duration</th><th>Status</th><th>Hours</th><th>Online</th><th>Actions</th></tr></thead>
         <tbody></tbody>
       </table>
+      <p style="font-size: 11px; color: #a0aec0; margin-top: 8px;">Click Edit to modify a row, then Save to apply changes.</p>
     </div>
 
     <div class="card">
@@ -199,14 +171,6 @@
     </div>
   </div>
 
-  <!-- ========== SKILLS ========== -->
-  <div class="view" id="view-skills">
-    <div class="card">
-      <h2>Skill Assignment Matrix</h2>
-      <p style="font-size: 13px; color: #718096; margin-bottom: 12px;">Assign transaction-type skills to clerks. Check the boxes to indicate which transaction types each clerk can handle.</p>
-      <div id="skills-matrix"></div>
-    </div>
-  </div>
 
   <!-- ========== DOCUMENTS ========== -->
   <div class="view" id="view-documents">
@@ -244,10 +208,13 @@
   <div class="view" id="view-clerks">
     <div class="card">
       <h2>Clerk Management</h2>
-      <table id="clerks-table">
-        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Skills</th><th>Offices</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div style="overflow-x:auto;">
+        <table id="clerks-table">
+          <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p style="font-size: 11px; color: #a0aec0; margin-top: 8px;">Toggle office checkboxes directly. Click "Skills" to expand skill assignments.</p>
     </div>
 
     <div class="card">
@@ -267,12 +234,6 @@
       <button class="btn btn-success" onclick="addClerk()">Add Clerk</button>
     </div>
 
-    <div class="card">
-      <h3>Bulk Import (CSV format)</h3>
-      <p style="font-size: 12px; color: #718096; margin-bottom: 8px;">Paste CSV: firstName,lastName,email,status,skillIds,officeIds (one per line)</p>
-      <textarea id="clerk-csv" rows="4" placeholder="Jane,Doe,jane@county.gov,active,1|2|3,1&#10;John,Smith,john@county.gov,active,1|2,1|2"></textarea>
-      <button class="btn btn-primary" onclick="bulkImportClerks()">Import</button>
-    </div>
   </div>
 
   <!-- ========== HOTBUTTONS ========== -->
@@ -402,34 +363,183 @@ async function loadOffices() {
   const data = await res.json();
   officesData = data.offices;
 
-  // Offices table
+  // Offices table — desks & run rate are inline-editable
   const tbody = document.querySelector('#offices-table tbody');
   tbody.innerHTML = data.offices.map(o => `<tr>
     <td>${o.id}</td><td>${o.name}</td><td>${o.address || '—'}</td>
-    <td>${o.total_desks}</td><td>${o.run_rate_pct}%</td>
+    <td><input type="number" class="inline-input" style="width:60px;" value="${o.total_desks}" min="1"
+        onchange="updateOfficeField(${o.id}, 'totalDesks', parseInt(this.value))" /></td>
+    <td><input type="number" class="inline-input" style="width:70px;" value="${o.run_rate_pct}" min="1" max="199"
+        onchange="updateOfficeField(${o.id}, 'runRatePct', parseInt(this.value))" />%</td>
     <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteOffice(${o.id})">Delete</button></td>
   </tr>`).join('');
 
-  // Hours table
-  const htbody = document.querySelector('#hours-table tbody');
-  htbody.innerHTML = data.hours.map(h => {
-    const officeName = data.offices.find(o => o.id === h.office_id)?.name || h.office_id;
-    return `<tr><td>${officeName}</td><td>${DAYS[h.day_of_week]}</td><td>${h.open_time}</td><td>${h.close_time}</td>
-    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteHours(${h.id})">Delete</button></td></tr>`;
-  }).join('');
+  // Schedule matrix: days as rows, offices as columns, cells show hours + lunch
+  renderScheduleMatrix(data);
 
-  // Lunch table
-  const ltbody = document.querySelector('#lunch-table tbody');
-  ltbody.innerHTML = data.lunches.map(l => {
-    const officeName = data.offices.find(o => o.id === l.office_id)?.name || l.office_id;
-    return `<tr><td>${officeName}</td><td>${l.shift_num}</td><td>${l.start_time}</td><td>${l.end_time}</td>
-    <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteLunch(${l.id})">Delete</button></td></tr>`;
-  }).join('');
+}
 
-  // Populate office selectors
-  const opts = data.offices.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
-  document.getElementById('hours-office').innerHTML = opts;
-  document.getElementById('lunch-office').innerHTML = opts;
+let scheduleData = null;
+
+function renderScheduleMatrix(data) {
+  scheduleData = data;
+  const FULL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const container = document.getElementById('schedule-matrix');
+  if (!data.offices.length) { container.innerHTML = '<p style="color:#718096;">No offices yet.</p>'; return; }
+
+  let html = '<table><thead><tr><th>Day</th>';
+  data.offices.forEach(o => { html += `<th style="text-align:center;">${o.name}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  for (let day = 0; day < 7; day++) {
+    html += `<tr><td style="font-weight:600;">${FULL_DAYS[day]}</td>`;
+    data.offices.forEach(o => {
+      const h = data.hours.find(hr => hr.office_id === o.id && hr.day_of_week === day);
+      const lunches = data.lunches.filter(l => l.office_id === o.id);
+      const cellId = `cell-${o.id}-${day}`;
+      if (h) {
+        let lunchLabel = '';
+        if (lunches.length) {
+          lunchLabel = `<br><span style="font-size:11px;color:#718096;">Lunch: ${lunches.map(l => l.start_time + '–' + l.end_time).join(', ')}</span>`;
+        }
+        html += `<td id="${cellId}" style="text-align:center;cursor:pointer;" onclick="editScheduleCell(${o.id}, ${day})">
+          <span style="font-size:13px;">${h.open_time}–${h.close_time}</span>${lunchLabel}
+        </td>`;
+      } else {
+        html += `<td id="${cellId}" style="text-align:center;cursor:pointer;" onclick="editScheduleCell(${o.id}, ${day})">
+          <span style="color:#a0aec0;font-size:12px;">Closed</span>
+        </td>`;
+      }
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function editScheduleCell(officeId, day) {
+  const cellId = `cell-${officeId}-${day}`;
+  const cell = document.getElementById(cellId);
+  if (!cell || cell.dataset.editing) return;
+  cell.dataset.editing = 'true';
+  cell.onclick = null;
+
+  const h = scheduleData.hours.find(hr => hr.office_id === officeId && hr.day_of_week === day);
+  const lunches = scheduleData.lunches.filter(l => l.office_id === officeId);
+  const openVal = h ? h.open_time : '08:00';
+  const closeVal = h ? h.close_time : '17:00';
+
+  let lunchRows = '';
+  lunches.forEach((l, i) => {
+    lunchRows += `
+      <div style="display:flex;gap:2px;align-items:center;">
+        <span style="font-size:10px;color:#718096;">#${l.shift_num}</span>
+        <input type="time" value="${l.start_time}" class="lunch-start-${officeId}-${day}" data-id="${l.id}" data-shift="${l.shift_num}" style="width:auto;margin:0;padding:2px 4px;font-size:11px;">
+        <span style="font-size:11px;">–</span>
+        <input type="time" value="${l.end_time}" class="lunch-end-${officeId}-${day}" data-id="${l.id}" style="width:auto;margin:0;padding:2px 4px;font-size:11px;">
+        <button type="button" class="btn btn-danger btn-sm" style="padding:2px 5px;font-size:10px;" onclick="this.parentElement.remove()">×</button>
+      </div>`;
+  });
+
+  const nextShift = lunches.length ? Math.max(...lunches.map(l => l.shift_num)) + 1 : 1;
+
+  cell.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:center;padding:4px;">
+      <div style="display:flex;gap:2px;align-items:center;">
+        <input type="time" value="${openVal}" id="edit-open-${officeId}-${day}" style="width:auto;margin:0;padding:2px 4px;font-size:12px;">
+        <span style="font-size:11px;">–</span>
+        <input type="time" value="${closeVal}" id="edit-close-${officeId}-${day}" style="width:auto;margin:0;padding:2px 4px;font-size:12px;">
+      </div>
+      <div id="lunch-list-${officeId}-${day}" style="display:flex;flex-direction:column;gap:3px;">
+        ${lunchRows}
+      </div>
+      <button class="btn btn-sm" style="background:#e2e8f0;font-size:10px;padding:2px 6px;" onclick="addLunchRow(${officeId}, ${day}, ${nextShift})">+ Lunch shift</button>
+      <div style="display:flex;gap:4px;margin-top:2px;">
+        <button class="btn btn-primary btn-sm" onclick="saveScheduleCell(${officeId}, ${day})">Save</button>
+        ${h ? `<button class="btn btn-danger btn-sm" onclick="clearScheduleCell(${officeId}, ${day}, ${h.id})">Clear</button>` : ''}
+        <button class="btn btn-sm" style="background:#e2e8f0;" onclick="loadOffices()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function addLunchRow(officeId, day, shiftNum) {
+  const list = document.getElementById(`lunch-list-${officeId}-${day}`);
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:2px;align-items:center;';
+  row.innerHTML = `
+    <span style="font-size:10px;color:#718096;">#${shiftNum}</span>
+    <input type="time" value="11:30" class="lunch-start-${officeId}-${day}" data-id="new" data-shift="${shiftNum}" style="width:auto;margin:0;padding:2px 4px;font-size:11px;">
+    <span style="font-size:11px;">–</span>
+    <input type="time" value="12:00" class="lunch-end-${officeId}-${day}" data-id="new" style="width:auto;margin:0;padding:2px 4px;font-size:11px;">
+    <button class="btn btn-danger btn-sm" style="padding:2px 5px;font-size:10px;" onclick="this.parentElement.remove()">×</button>`;
+  list.appendChild(row);
+}
+
+
+async function saveScheduleCell(officeId, day) {
+  const open = document.getElementById(`edit-open-${officeId}-${day}`).value;
+  const close = document.getElementById(`edit-close-${officeId}-${day}`).value;
+
+  if (!open || !close) { showToast('Open and close times required', true); return; }
+
+  // Save or create hours
+  const hoursRes = await fetch('/api/admin/office-hours', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ officeId, dayOfWeek: day, openTime: open, closeTime: close }),
+  });
+  if (!hoursRes.ok) { showToast('Error saving hours', true); return; }
+
+  // Delete all existing lunch shifts for this office, then re-create from DOM
+  const originalLunches = scheduleData.lunches.filter(l => l.office_id === officeId);
+  for (const l of originalLunches) {
+    await fetch('/api/admin/lunch-shifts/' + l.id, { method: 'DELETE' });
+  }
+
+  // Create whatever lunch shifts remain in the DOM
+  const starts = document.querySelectorAll(`.lunch-start-${officeId}-${day}`);
+  const ends = document.querySelectorAll(`.lunch-end-${officeId}-${day}`);
+  for (let i = 0; i < starts.length; i++) {
+    const startVal = starts[i].value;
+    const endVal = ends[i].value;
+    const shiftNum = parseInt(starts[i].dataset.shift);
+    if (!startVal || !endVal) continue;
+
+    await fetch('/api/admin/lunch-shifts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ officeId, shiftNum, startTime: startVal, endTime: endVal }),
+    });
+  }
+
+  showToast('Schedule updated');
+  loadOffices();
+}
+
+async function clearScheduleCell(officeId, day, hoursId) {
+  if (!confirm('Remove hours for this day?')) { loadOffices(); return; }
+  await fetch('/api/admin/office-hours/' + hoursId, { method: 'DELETE' });
+  showToast('Hours removed');
+  loadOffices();
+}
+
+async function updateOfficeField(officeId, field, value) {
+  const office = officesData.find(o => o.id === officeId);
+  if (!office) return;
+  const body = {
+    name: office.name,
+    address: office.address,
+    totalDesks: office.total_desks,
+    runRatePct: office.run_rate_pct,
+  };
+  body[field] = value;
+  const res = await fetch('/api/admin/offices/' + officeId, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) showToast('Updated');
+  else showToast('Error updating office', true);
 }
 
 async function addOffice() {
@@ -453,45 +563,6 @@ async function deleteOffice(id) {
   loadOffices();
 }
 
-async function addHours() {
-  const res = await fetch('/api/admin/office-hours', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      officeId: parseInt(document.getElementById('hours-office').value),
-      dayOfWeek: parseInt(document.getElementById('hours-day').value),
-      openTime: document.getElementById('hours-open').value,
-      closeTime: document.getElementById('hours-close').value,
-    }),
-  });
-  if (res.ok) { showToast('Hours saved'); loadOffices(); }
-  else showToast('Error', true);
-}
-
-async function deleteHours(id) {
-  await fetch('/api/admin/office-hours/' + id, { method: 'DELETE' });
-  loadOffices();
-}
-
-async function addLunch() {
-  const res = await fetch('/api/admin/lunch-shifts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      officeId: parseInt(document.getElementById('lunch-office').value),
-      shiftNum: parseInt(document.getElementById('lunch-shift').value),
-      startTime: document.getElementById('lunch-start').value,
-      endTime: document.getElementById('lunch-end').value,
-    }),
-  });
-  if (res.ok) { showToast('Lunch shift added'); loadOffices(); }
-  else showToast('Error', true);
-}
-
-async function deleteLunch(id) {
-  await fetch('/api/admin/lunch-shifts/' + id, { method: 'DELETE' });
-  loadOffices();
-}
 
 // ─── Transaction Types ──────────────────────────────────────────────────────
 async function loadTxnTypes() {
@@ -502,19 +573,68 @@ async function loadTxnTypes() {
   tbody.innerHTML = txnTypesData.map(t => {
     const statusBadge = t.status === 'active' ? 'badge-green' : t.status === 'hidden' ? 'badge-gray' : 'badge-yellow';
     const hours = (t.available_from || t.available_until) ? `${t.available_from || '—'} – ${t.available_until || '—'}` : '—';
-    return `<tr>
-      <td>${t.id}</td><td>${t.txn_type_id}</td><td>${t.name}</td>
-      <td>${t.avg_duration_min} min</td>
-      <td><span class="badge ${statusBadge}">${t.status}</span></td>
-      <td>${hours}</td>
-      <td>${t.is_online_eligible ? '<span class="badge badge-blue">Yes</span>' : '—'}</td>
-      <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteTxnType(${t.id})">Delete</button></td>
+    return `<tr id="txn-row-${t.id}">
+      <td>${t.id}</td>
+      <td>${t.txn_type_id}</td>
+      <td class="txn-display">${t.name}</td>
+      <td class="txn-display">${t.avg_duration_min} min</td>
+      <td class="txn-display"><span class="badge ${statusBadge}">${t.status}</span></td>
+      <td class="txn-display">${hours}</td>
+      <td class="txn-display">${t.is_online_eligible ? '<span class="badge badge-blue">Yes</span>' : '—'}</td>
+      <td class="actions">
+        <button class="btn btn-primary btn-sm" onclick="editTxnRow(${t.id})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTxnType(${t.id})">Delete</button>
+      </td>
     </tr>`;
   }).join('');
 
   // Populate prescreen txn selector
   const globalTxns = txnTypesData.filter(t => !t.office_id);
   document.getElementById('ps-txn').innerHTML = globalTxns.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function editTxnRow(id) {
+  const t = txnTypesData.find(x => x.id === id);
+  if (!t) return;
+  const row = document.getElementById('txn-row-' + id);
+  const statusOpts = ['active', 'internal', 'hidden'].map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s}</option>`).join('');
+  row.innerHTML = `
+    <td>${t.id}</td>
+    <td>${t.txn_type_id}</td>
+    <td><input type="text" class="inline-input" style="width:130px;" value="${t.name}" id="txn-edit-name-${id}" /></td>
+    <td><input type="number" class="inline-input" style="width:60px;" value="${t.avg_duration_min}" min="1" id="txn-edit-dur-${id}" /> min</td>
+    <td><select class="inline-input" style="width:90px;" id="txn-edit-status-${id}">${statusOpts}</select></td>
+    <td>
+      <input type="time" class="inline-input" style="width:auto;" value="${t.available_from || ''}" id="txn-edit-from-${id}" />
+      –
+      <input type="time" class="inline-input" style="width:auto;" value="${t.available_until || ''}" id="txn-edit-until-${id}" />
+    </td>
+    <td><select class="inline-input" style="width:60px;" id="txn-edit-online-${id}">
+      <option value="false" ${!t.is_online_eligible ? 'selected' : ''}>No</option>
+      <option value="true" ${t.is_online_eligible ? 'selected' : ''}>Yes</option>
+    </select></td>
+    <td class="actions">
+      <button class="btn btn-success btn-sm" onclick="saveTxnRow(${id})">Save</button>
+      <button class="btn btn-sm" style="background:#e2e8f0;" onclick="loadTxnTypes()">Cancel</button>
+    </td>`;
+}
+
+async function saveTxnRow(id) {
+  const body = {
+    name: document.getElementById('txn-edit-name-' + id).value,
+    avgDurationMin: parseInt(document.getElementById('txn-edit-dur-' + id).value),
+    status: document.getElementById('txn-edit-status-' + id).value,
+    availableFrom: document.getElementById('txn-edit-from-' + id).value || null,
+    availableUntil: document.getElementById('txn-edit-until-' + id).value || null,
+    isOnlineEligible: document.getElementById('txn-edit-online-' + id).value === 'true',
+  };
+  const res = await fetch('/api/admin/transaction-types/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) { showToast('Saved'); loadTxnTypes(); }
+  else showToast('Error saving transaction type', true);
 }
 
 async function addTxnType() {
@@ -545,21 +665,96 @@ async function deleteTxnType(id) {
 }
 
 // ─── Clerks ─────────────────────────────────────────────────────────────────
+let clerksData = [];
+let clerkTxnTypes = [];
+
 async function loadClerks() {
-  const res = await fetch('/api/admin/clerks');
-  const clerks = await res.json();
+  const [clerksRes, txnRes, officesRes] = await Promise.all([
+    fetch('/api/admin/clerks'),
+    fetch('/api/admin/transaction-types'),
+    fetch('/api/admin/offices'),
+  ]);
+  clerksData = await clerksRes.json();
+  clerkTxnTypes = (await txnRes.json()).filter(t => !t.office_id);
+  const offices = (await officesRes.json()).offices;
+
+  const thead = document.querySelector('#clerks-table thead tr');
+  thead.innerHTML = '<th>ID</th><th>Name</th><th>Email</th><th>Status</th>' +
+    offices.map(o => `<th style="text-align:center;font-size:12px;">${o.name}</th>`).join('') +
+    '<th>Actions</th>';
 
   const tbody = document.querySelector('#clerks-table tbody');
-  tbody.innerHTML = clerks.map(c => {
+  tbody.innerHTML = clerksData.map(c => {
     const statusBadge = c.status === 'active' ? 'badge-green' : c.status === 'inactive' ? 'badge-red' : 'badge-yellow';
+    const officeCells = offices.map(o => {
+      const checked = (c.office_ids || []).includes(o.id) ? 'checked' : '';
+      return `<td style="text-align:center;"><input type="checkbox" ${checked} onchange="toggleClerkOffice(${c.id}, ${o.id}, this.checked)" /></td>`;
+    }).join('');
     return `<tr>
       <td>${c.id}</td><td>${c.first_name} ${c.last_name}</td><td>${c.email}</td>
       <td><span class="badge ${statusBadge}">${c.status}</span></td>
-      <td>${(c.skill_ids || []).join(', ') || '—'}</td>
-      <td>${(c.office_ids || []).join(', ') || '—'}</td>
-      <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteClerk(${c.id})">Delete</button></td>
+      ${officeCells}
+      <td class="actions">
+        <button class="btn btn-primary btn-sm" onclick="toggleSkillsPanel(${c.id})">Skills</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteClerk(${c.id})">Delete</button>
+      </td>
+    </tr>
+    <tr id="skills-panel-${c.id}" style="display:none;">
+      <td colspan="${5 + offices.length}" style="background:#f7fafc;padding:12px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${clerkTxnTypes.map(t => {
+            const checked = (c.skill_ids || []).includes(t.id) ? 'checked' : '';
+            return `<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;font-size:12px;margin:0;"><input type="checkbox" ${checked} onchange="toggleClerkSkill(${c.id}, ${t.id}, this.checked)" />${t.name}</label>`;
+          }).join('')}
+        </div>
+      </td>
     </tr>`;
   }).join('');
+}
+
+function toggleSkillsPanel(clerkId) {
+  const panel = document.getElementById('skills-panel-' + clerkId);
+  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
+async function toggleClerkOffice(clerkId, officeId, checked) {
+  const clerk = clerksData.find(c => c.id === clerkId);
+  if (!clerk) return;
+
+  let officeIds = [...(clerk.office_ids || [])];
+  if (checked && !officeIds.includes(officeId)) {
+    officeIds.push(officeId);
+  } else if (!checked) {
+    officeIds = officeIds.filter(id => id !== officeId);
+  }
+
+  const res = await fetch(`/api/admin/clerks/${clerkId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ officeIds }),
+  });
+  if (res.ok) { showToast('Offices updated'); clerk.office_ids = officeIds; }
+  else showToast('Error updating offices', true);
+}
+
+async function toggleClerkSkill(clerkId, txnTypeId, checked) {
+  const clerk = clerksData.find(c => c.id === clerkId);
+  if (!clerk) return;
+
+  let skillIds = [...(clerk.skill_ids || [])];
+  if (checked && !skillIds.includes(txnTypeId)) {
+    skillIds.push(txnTypeId);
+  } else if (!checked) {
+    skillIds = skillIds.filter(id => id !== txnTypeId);
+  }
+
+  const res = await fetch(`/api/admin/clerk-skills/${clerkId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skillIds }),
+  });
+  if (res.ok) { showToast('Skill updated'); clerk.skill_ids = skillIds; }
+  else showToast('Error updating skill', true);
 }
 
 async function addClerk() {
@@ -587,28 +782,6 @@ async function deleteClerk(id) {
   loadClerks();
 }
 
-async function bulkImportClerks() {
-  const csv = document.getElementById('clerk-csv').value.trim();
-  if (!csv) { showToast('Paste CSV data first', true); return; }
-  const rows = csv.split('\n').filter(l => l.trim());
-  const clerks = rows.map(line => {
-    const [firstName, lastName, email, status, skills, offices] = line.split(',').map(s => s.trim());
-    return {
-      firstName, lastName, email,
-      status: status || 'active',
-      skillIds: (skills || '').split('|').map(s => parseInt(s)).filter(n => !isNaN(n)),
-      officeIds: (offices || '').split('|').map(s => parseInt(s)).filter(n => !isNaN(n)),
-    };
-  });
-  const res = await fetch('/api/admin/clerks/bulk-import', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clerks }),
-  });
-  const data = await res.json();
-  if (res.ok) { showToast(`Imported ${data.count} clerks`); loadClerks(); }
-  else showToast('Error: ' + data.error, true);
-}
 
 // ─── Hotbuttons ─────────────────────────────────────────────────────────────
 async function loadHotbuttons() {
@@ -709,55 +882,6 @@ async function rejectDuration(id) {
   loadDurations();
 }
 
-// ─── Skills Matrix ─────────────────────────────────────────────────────────
-async function loadSkillsMatrix() {
-  const res = await fetch('/api/admin/skills-matrix');
-  const data = await res.json();
-
-  if (!data.clerks.length || !data.txnTypes.length) {
-    document.getElementById('skills-matrix').innerHTML = '<p style="color:#718096;">No clerks or transaction types found.</p>';
-    return;
-  }
-
-  let html = '<table><thead><tr><th>Clerk</th><th>Status</th>';
-  data.txnTypes.forEach(t => { html += `<th style="text-align:center;">${t.name}</th>`; });
-  html += '</tr></thead><tbody>';
-
-  data.clerks.forEach(c => {
-    const statusBadge = c.status === 'active' ? 'badge-green' : c.status === 'inactive' ? 'badge-red' : 'badge-yellow';
-    html += `<tr><td>${c.first_name} ${c.last_name}</td><td><span class="badge ${statusBadge}">${c.status}</span></td>`;
-    data.txnTypes.forEach(t => {
-      const checked = (c.skill_ids || []).includes(t.id) ? 'checked' : '';
-      html += `<td style="text-align:center;"><input type="checkbox" ${checked} onchange="toggleSkill(${c.id}, ${t.id}, this.checked)" /></td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  document.getElementById('skills-matrix').innerHTML = html;
-}
-
-async function toggleSkill(clerkId, txnTypeId, checked) {
-  // Get current skills from the matrix data
-  const res = await fetch('/api/admin/skills-matrix');
-  const data = await res.json();
-  const clerk = data.clerks.find(c => c.id === clerkId);
-  if (!clerk) return;
-
-  let skillIds = [...(clerk.skill_ids || [])];
-  if (checked && !skillIds.includes(txnTypeId)) {
-    skillIds.push(txnTypeId);
-  } else if (!checked) {
-    skillIds = skillIds.filter(id => id !== txnTypeId);
-  }
-
-  const updateRes = await fetch(`/api/admin/clerk-skills/${clerkId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ skillIds }),
-  });
-  if (updateRes.ok) showToast('Skill updated');
-  else showToast('Error updating skill', true);
-}
 
 // ─── Transaction-Office Matrix ─────────────────────────────────────────────
 async function loadTxnOfficeMatrix() {
@@ -979,7 +1103,6 @@ loadClerks();
 loadHotbuttons();
 loadPrescreen();
 loadDurations();
-loadSkillsMatrix();
 loadTxnOfficeMatrix();
 loadDocRegistry();
 loadTxnFlows();

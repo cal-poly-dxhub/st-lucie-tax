@@ -658,7 +658,7 @@
                 Customer Record
               </h3>
               <div style="font-size: 12px; opacity: 0.8; margin-top: 2px">
-                Appt <span id="rec-appt-id">—</span> · <span id="rec-office-id">—</span> ·
+                <span id="rec-appt-id">—</span> · <span id="rec-office-id">—</span> ·
                 <span id="rec-status" class="badge badge-blue" style="font-size: 10px">—</span>
               </div>
             </div>
@@ -1673,7 +1673,7 @@
           }
           renderRecord(data);
           showToast(
-            "Loaded " + data.firstName + " " + data.lastName + " (#" + data.appointmentId + ")",
+            "Loaded " + data.firstName + " " + data.lastName + " (" + data.confirmationCode + ")",
           );
         } catch (e) {
           showToast("Failed to connect to server. Is it running?", true);
@@ -1738,7 +1738,7 @@
           }
           renderRecord(data);
           showToast(
-            "Loaded " + data.firstName + " " + data.lastName + " (#" + data.appointmentId + ")",
+            "Loaded " + data.firstName + " " + data.lastName + " (" + data.confirmationCode + ")",
           );
         } catch (e) {
           showToast("Failed to load appointment", true);
@@ -1778,7 +1778,7 @@
         document.getElementById("checkin-record").style.display = "";
 
         document.getElementById("rec-name").textContent = data.firstName + " " + data.lastName;
-        document.getElementById("rec-appt-id").textContent = "#" + data.appointmentId;
+        document.getElementById("rec-appt-id").textContent = data.confirmationCode;
         document.getElementById("rec-office-id").textContent = data.officeId;
         document.getElementById("rec-status").textContent = data.status;
 

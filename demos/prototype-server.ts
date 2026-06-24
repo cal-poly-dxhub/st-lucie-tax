@@ -234,6 +234,7 @@ app.post("/api/lookup", async (req, res) => {
     res.json({
       found: true,
       appointmentId: match.appointmentId,
+      confirmationCode,
       officeId: match.officeId,
       status: match.status,
       firstName: info.firstName,
@@ -257,7 +258,7 @@ app.post("/api/lookup-by-id", async (req, res) => {
     if (!appointmentId) return res.status(400).json({ error: "appointmentId required" });
 
     const { rows: apptRows } = await pool.query(
-      `SELECT office_id, status FROM appointments WHERE id = $1`,
+      `SELECT office_id, status, confirmation_code FROM appointments WHERE id = $1`,
       [appointmentId],
     );
     if (!apptRows.length) return res.json({ found: false });
@@ -270,6 +271,7 @@ app.post("/api/lookup-by-id", async (req, res) => {
     res.json({
       found: true,
       appointmentId,
+      confirmationCode: apptRows[0].confirmation_code,
       officeId: apptRows[0].office_id,
       status: apptRows[0].status,
       firstName: info.firstName,
@@ -1164,7 +1166,11 @@ app.post("/api/admin/lunch-shifts", async (req, res) => {
 
 app.delete("/api/admin/lunch-shifts/:id", async (req, res) => {
   try {
-    await pool.query(`DELETE FROM office_lunch_shifts WHERE id = $1`, [parseInt(req.params.id)]);
+    const id = parseInt(req.params.id);
+    await pool.query(`UPDATE clerk_schedules SET lunch_shift_id = NULL WHERE lunch_shift_id = $1`, [
+      id,
+    ]);
+    await pool.query(`DELETE FROM office_lunch_shifts WHERE id = $1`, [id]);
     res.json({ ok: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
