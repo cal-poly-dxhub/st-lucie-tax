@@ -27,6 +27,16 @@ export type BookApptResult =
   | { ok: true; appointmentId: number; confirmationCode: string }
   | { ok: false; error: BookApptError };
 
+export async function cancelAppointment(db: Queryable, appointmentId: number): Promise<void> {
+  const { rowCount } = await db.query(
+    `UPDATE appointments SET status = 'cancelled' WHERE id = $1 AND status != 'cancelled'`,
+    [appointmentId],
+  );
+  if (rowCount === 0) {
+    throw new Error(`Appointment ${appointmentId} not found or already cancelled`);
+  }
+}
+
 export const PG_ERROR_MAP: Record<string, BookApptError> = {
   P0001: "capacity_exceeded",
   P0002: "office_closed",

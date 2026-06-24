@@ -9,13 +9,19 @@ import {
   registerWalkIn,
   setAppointmentPriority,
 } from "../../src/check-in.js";
-import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
-import { uploadDocument, getRequiredDocsStatus } from "../../src/documents.js";
+import {
+  getPrescreenQuestions,
+  savePrescreenResponses,
+  createPrescreenQuestions,
+} from "../../src/prescreen.js";
+import { uploadDocument, getRequiredDocsStatus, validateDocument } from "../../src/documents.js";
 import { setIdentityVerified } from "../../src/identity.js";
 import { getAppointmentInfo } from "../../src/check-in.js";
 import { assignNextCustomer } from "../../src/queue.js";
 import { completeAppointment } from "../../src/complete.js";
 import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.js";
+import { cancelAppointment } from "../../src/book-appt.js";
+import { clerkLogin } from "../../src/clerk-session.js";
 import { SESv2Client } from "@aws-sdk/client-sesv2";
 import type { S3Client } from "@aws-sdk/client-s3";
 
@@ -72,21 +78,14 @@ const MARIA = 1; // skills: {1,2,3}
 const JAMES = 2; // skills: {2,3}
 
 async function loginClerk(clerkId: number, desk: number) {
-  await db.client.query(
-    `INSERT INTO clerk_sessions (clerk_id, office_id, desk_number, is_available)
-     VALUES ($1, $2, $3, TRUE)`,
-    [clerkId, OFFICE, desk],
-  );
+  await clerkLogin(db.client, clerkId, OFFICE, desk);
 }
 
 async function addPrescreenQuestions(txnTypeId: number) {
-  await db.client.query(`DELETE FROM prescreen_questions WHERE txn_type_id = $1`, [txnTypeId]);
-  await db.client.query(
-    `INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text)
-     VALUES ($1, 1, 'Do you have corrective lenses?'),
-            ($1, 2, 'Have you had a seizure in the last 2 years?')`,
-    [txnTypeId],
-  );
+  await createPrescreenQuestions(db.client, txnTypeId, [
+    { sortOrder: 1, questionText: "Do you have corrective lenses?" },
+    { sortOrder: 2, questionText: "Have you had a seizure in the last 2 years?" },
+  ]);
 }
 
 describe("Flow A: Scheduled Appointment — end to end", () => {
@@ -153,29 +152,38 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(ses.send).toHaveBeenCalledTimes(1);
 
     // ─── 4. Pre-visit: upload documents (web path — AI reviewed) ───
-    await vi.mocked(uploadDocument)(null as unknown as S3Client, "test-bucket", db.client, {
-      appointmentId,
-      docId: "photo_id",
-      name: "drivers_license.jpg",
-      fileBuffer: Buffer.from("fake-image"),
-      contentType: "image/jpeg",
-      aiReviewStatus: "accept",
-      aiReviewNotes: "Document verified by AI",
-    });
+    const doc1 = await vi.mocked(uploadDocument)(
+      null as unknown as S3Client,
+      "test-bucket",
+      db.client,
+      {
+        appointmentId,
+        docId: "photo_id",
+        name: "drivers_license.jpg",
+        fileBuffer: Buffer.from("fake-image"),
+        contentType: "image/jpeg",
+        aiReviewStatus: "accept",
+        aiReviewNotes: "Document verified by AI",
+      },
+    );
 
-    await vi.mocked(uploadDocument)(null as unknown as S3Client, "test-bucket", db.client, {
-      appointmentId,
-      docId: "proof_address",
-      name: "utility_bill.pdf",
-      fileBuffer: Buffer.from("fake-pdf"),
-      contentType: "application/pdf",
-      aiReviewStatus: "accept",
-      aiReviewNotes: null,
-    });
+    const doc2 = await vi.mocked(uploadDocument)(
+      null as unknown as S3Client,
+      "test-bucket",
+      db.client,
+      {
+        appointmentId,
+        docId: "proof_address",
+        name: "utility_bill.pdf",
+        fileBuffer: Buffer.from("fake-pdf"),
+        contentType: "application/pdf",
+        aiReviewStatus: "accept",
+        aiReviewNotes: null,
+      },
+    );
 
-    await db.client.query(`UPDATE documents SET clerk_validated = TRUE WHERE appointment_id = $1`, [
-      appointmentId,
-    ]);
+    await validateDocument(db.client, doc1.documentId);
+    await validateDocument(db.client, doc2.documentId);
 
     // ─── 5. Pre-visit: complete prescreen questions ───
     await addPrescreenQuestions(ID_CARD);
@@ -193,9 +201,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     expect(lookup!.appointmentId).toBe(appointmentId);
 
     // ─── 7. Verify clerk view — appointment info + doc status ───
-    await db.client.query(`UPDATE appointments SET identity_verified = TRUE WHERE id = $1`, [
-      appointmentId,
-    ]);
+    await setIdentityVerified(db.client, appointmentId);
 
     const info = await getAppointmentInfo(db.client, appointmentId);
     expect(info.prescreenCompleted).toBe(true);
@@ -533,9 +539,7 @@ describe("Lookup — QR code and name search", () => {
     );
 
     // Cancelled appointment excluded
-    await db.client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [
-      bookResult.appointmentId,
-    ]);
+    await cancelAppointment(db.client, bookResult.appointmentId);
     const afterCancel = await lookupByName(db.client, "Jas", OFFICE, DATE);
     expect(afterCancel.some((r) => r.firstName === "Jasmine")).toBe(false);
   });
