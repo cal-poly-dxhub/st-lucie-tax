@@ -530,8 +530,8 @@
           <div>
             <label>Docs Status</label>
             <select id="cfg-docs">
-              <option value="mixed" selected>1 accepted, 1 rejected, 1 pending</option>
-              <option value="all-accepted">All accepted</option>
+              <option value="mixed" selected>2 uploaded, 1 pending</option>
+              <option value="all-accepted">All uploaded</option>
               <option value="all-pending">All pending upload</option>
               <option value="none">No docs uploaded</option>
             </select>
@@ -1181,14 +1181,12 @@
             {
               icon: "✅",
               name: "Out-of-State Title (Original)",
-              status:
-                'AI Review: <span class="badge badge-green">Accepted</span> — Clear scan, all fields visible',
+              status: '<span class="badge badge-green">Uploaded</span>',
             },
             {
-              icon: "❌",
+              icon: "📄",
               name: "Photo ID (Driver License)",
-              status:
-                'AI Review: <span class="badge badge-red">Rejected</span> — Image is blurry, please re-upload',
+              status: '<span class="badge badge-green">Uploaded</span>',
             },
             {
               icon: "⏳",
@@ -1200,17 +1198,17 @@
             {
               icon: "✅",
               name: "Out-of-State Title (Original)",
-              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+              status: '<span class="badge badge-green">Uploaded</span>',
             },
             {
               icon: "✅",
               name: "Photo ID (Driver License)",
-              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+              status: '<span class="badge badge-green">Uploaded</span>',
             },
             {
               icon: "✅",
               name: "Proof of FL Insurance",
-              status: 'AI Review: <span class="badge badge-green">Accepted</span>',
+              status: '<span class="badge badge-green">Uploaded</span>',
             },
           ],
           "all-pending": [
@@ -1745,30 +1743,6 @@
         }
       }
 
-      // AI note: short human-readable explanation of the AI decision.
-      // NOTE: src/ does not generate or store ai_review_notes, and the seed leaves
-      // them null. This renders the stored note when present, otherwise a templated
-      // explanation derived from the AI status so the demo always shows reasoning.
-      function aiNote(doc) {
-        if (doc.aiReviewNotes) return doc.aiReviewNotes;
-        if (!doc.uploaded) return "Not yet uploaded by customer.";
-        switch (doc.aiReviewStatus) {
-          case "accept":
-            return "Passed — document type matched, all expected fields detected and legible, not expired.";
-          case "reject":
-            return "Failed — image quality too low or a required field could not be read. Customer should re-scan.";
-          default:
-            return "Uploaded — awaiting AI review.";
-        }
-      }
-
-      function aiBadge(doc) {
-        if (!doc.uploaded) return '<span class="badge badge-yellow">Not uploaded</span>';
-        if (doc.aiReviewStatus === "accept")
-          return '<span class="badge badge-green">Accepted</span>';
-        if (doc.aiReviewStatus === "reject") return '<span class="badge badge-red">Rejected</span>';
-        return '<span class="badge badge-yellow">Pending review</span>';
-      }
 
       let recordData = null;
 
@@ -1847,11 +1821,11 @@
         }
 
         const docs = data.docs || [];
-        const accepted = docs.filter((d) => d.aiReviewStatus === "accept").length;
+        const validated = docs.filter((d) => d.clerkValidated).length;
         const docSummary = document.getElementById("rec-doc-summary");
-        docSummary.textContent = accepted + "/" + docs.length + " docs";
+        docSummary.textContent = validated + "/" + docs.length + " docs";
         docSummary.className =
-          "badge " + (accepted === docs.length ? "badge-green" : "badge-yellow");
+          "badge " + (validated === docs.length ? "badge-green" : "badge-yellow");
 
         const container = document.getElementById("rec-docs");
         container.innerHTML = "";
@@ -1871,17 +1845,13 @@
             doc.name +
             "</div>" +
             '<div class="doc-status">' +
-            aiBadge(doc) +
-            ' <span class="badge ' +
+            '<span class="badge ' +
             (doc.clerkValidated ? "badge-green" : "badge-gray") +
             '" id="' +
             docId +
             '-badge">' +
             (doc.clerkValidated ? "Clerk ✓" : "Clerk pending") +
             "</span>" +
-            '<div style="font-size: 11px; color: #718096; margin-top: 2px;">🤖 ' +
-            aiNote(doc) +
-            "</div>" +
             "</div>" +
             "</div>" +
             '<div style="display: flex; gap: 4px; flex-shrink: 0;">' +
