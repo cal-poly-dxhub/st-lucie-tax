@@ -18,7 +18,7 @@ export interface FindApptResult {
   available: number;
 }
 
-/* Search for the first open slot with capacity. Returns null if nothing in the window matches preferences */
+// Search for the first open slot with capacity. Returns null if nothing in the window matches preferences
 export async function findAppointment(
   db: Queryable,
   input: FindApptInput,
@@ -60,7 +60,7 @@ interface AppointmentStart {
   slotTime: string; // 'HH:MM:SS'
 }
 
-/* Build possible appointment start times using the packing model */
+// Build possible appointment start times using the packing model
 async function buildPossibleStartTimes(
   db: Queryable,
   input: FindApptInput,
@@ -277,7 +277,7 @@ interface AppointmentConfig {
   paddingMin: number;
 }
 
-/* Return the length and padding aronud an appointment */
+// Return the length and padding aronud an appointment
 async function getAppointmentConfig(
   db: Queryable,
   targetTxns: number[],
@@ -300,7 +300,7 @@ async function getAppointmentConfig(
   };
 }
 
-/* Returns all offices and their hours which can handle all required transactions */
+// Returns all offices and their hours which can handle all required transactions
 async function getEligibleOfficeHours(
   db: Queryable,
   targetTxns: number[],
@@ -357,7 +357,7 @@ interface StartTimeInput {
   nowTs?: string;
 }
 
-/* Validates appointment time is actually bookable */
+// Validates appointment time is actually bookable
 async function validateAppointmentTime(
   db: Queryable,
   c: StartTimeInput,
