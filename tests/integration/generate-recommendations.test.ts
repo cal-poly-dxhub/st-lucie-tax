@@ -76,17 +76,38 @@ describe("generateDurationRecommendations", () => {
     expect(results).toHaveLength(0);
   });
 
-  test("skips if pending recommendation already exists", async () => {
+  test("overwrites pending recommendation with fresher data", async () => {
+    // First run: 12 samples at 30 min
     for (let i = 0; i < 12; i++) {
       await insertServiceHistory(TXN_TYPE_ID_CARD, 1800, i + 1);
     }
-
-    // First run creates recommendation
     const first = await generateDurationRecommendations(db.client);
     expect(first).toHaveLength(1);
+    expect(first[0].recommendedAvgMin).toBe(30);
 
-    // Second run skips because pending already exists
+    // Add more samples pushing the average toward 24 min (1440 sec)
+    await db.client.query(`DELETE FROM service_history_txn_types`);
+    await db.client.query(`DELETE FROM service_history`);
+    for (let i = 0; i < 12; i++) {
+      await insertServiceHistory(TXN_TYPE_ID_CARD, 1440, i + 1);
+    }
+
     const second = await generateDurationRecommendations(db.client);
-    expect(second).toHaveLength(0);
+    expect(second).toHaveLength(1);
+    expect(second[0].recommendedAvgMin).toBe(24);
+
+    // Verify only one pending row exists with the updated value
+    const { rows } = await db.client.query<{
+      status: string;
+      recommended_avg_min: number;
+      count: string;
+    }>(
+      `SELECT status, recommended_avg_min, COUNT(*)::text AS count FROM duration_recommendations WHERE txn_type_id = $1 GROUP BY status, recommended_avg_min`,
+      [TXN_TYPE_ID_CARD],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("pending");
+    expect(rows[0].recommended_avg_min).toBe(24);
+    expect(rows[0].count).toBe("1");
   });
 });
