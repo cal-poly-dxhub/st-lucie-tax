@@ -136,13 +136,7 @@ export class OfficeInfraStack extends Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
       enforceSSL: true,
-      cors: [
-        {
-          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
-          allowedOrigins: ["*"], // tightened to CloudFront domains post-PoC
-          allowedHeaders: ["*"],
-        },
-      ],
+      cors: [], // populated after CloudFront distributions are created
       lifecycleRules: [{ expiration: Duration.days(config.envName === "prod" ? 365 : 30) }],
       removalPolicy: config.dbRemovalPolicy,
       autoDeleteObjects: config.envName !== "prod",
@@ -166,10 +160,12 @@ export class OfficeInfraStack extends Stack {
       PGUSER: "stlucie",
       PGDATABASE: "stlucie",
       PGSSL: "true",
-      // pg reads PGPASSWORD; injected from the secret below.
+      NODE_ENV: "production",
       EMAIL: config.senderEmail,
       DOCUMENTS_BUCKET: documentsBucket.bucketName,
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
+      COGNITO_USER_POOL_ID: userPool.userPoolId,
+      COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
     };
 
     const vpcSubnets: ec2.SubnetSelection = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
@@ -206,11 +202,11 @@ export class OfficeInfraStack extends Stack {
     }
     documentsBucket.grantReadWrite(appointmentFn); // presign + inline upload
     emailQueue.grantSendMessages(queueFn); // summon emails
-    // Both functions send transactional email directly (confirmations/prescreen
-    // from appointment; the queue worker drains summons). SES has no resource
-    // policy, so grant the SendEmail action.
+    const sesIdentityArn = `arn:aws:ses:${this.region}:${this.account}:identity/${config.senderEmail}`;
     for (const fn of [appointmentFn, queueFn]) {
-      fn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: ["*"] }));
+      fn.addToRolePolicy(
+        new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: [sesIdentityArn] }),
+      );
     }
 
     // Workers are small event-driven handlers (not the HTTP server), so they
@@ -242,7 +238,7 @@ export class OfficeInfraStack extends Stack {
     proxy.grantConnect(emailWorker, "stlucie");
     dbSecret.grantRead(emailWorker);
     emailWorker.addToRolePolicy(
-      new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: ["*"] }),
+      new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: [sesIdentityArn] }),
     );
     emailWorker.addEventSource(new SqsEventSource(emailQueue, { batchSize: 5 }));
 
@@ -266,11 +262,6 @@ export class OfficeInfraStack extends Stack {
 
     const appointmentApi = new apigwv2.HttpApi(this, "AppointmentApi", {
       defaultAuthorizer: authorizer,
-      corsPreflight: {
-        allowOrigins: ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.ANY],
-        allowHeaders: ["*"],
-      },
     });
     appointmentApi.addRoutes({
       path: "/{proxy+}",
@@ -280,11 +271,6 @@ export class OfficeInfraStack extends Stack {
 
     const queueApi = new apigwv2.HttpApi(this, "QueueApi", {
       defaultAuthorizer: authorizer,
-      corsPreflight: {
-        allowOrigins: ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.ANY],
-        allowHeaders: ["*"],
-      },
     });
     queueApi.addRoutes({
       path: "/{proxy+}",
@@ -350,6 +336,41 @@ export class OfficeInfraStack extends Stack {
           { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
         ],
       });
+    }
+
+    // ── CORS: restrict to actual CloudFront origins (+localhost for dev) ─────
+    const allowedOrigins = surfaces.map(
+      (s) => `https://${distributions[s].distributionDomainName}`,
+    );
+    if (config.envName !== "prod") {
+      allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
+    }
+
+    // S3 documents bucket CORS
+    const cfnBucket = documentsBucket.node.defaultChild as s3.CfnBucket;
+    cfnBucket.addPropertyOverride("CorsConfiguration", {
+      CorsRules: [
+        {
+          AllowedMethods: ["PUT", "GET"],
+          AllowedOrigins: allowedOrigins,
+          AllowedHeaders: ["*"],
+        },
+      ],
+    });
+
+    // API Gateway CORS
+    const appointmentStage = appointmentApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    appointmentStage.addPropertyOverride("AccessLogSettings", undefined);
+    const queueStage = queueApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    queueStage.addPropertyOverride("AccessLogSettings", undefined);
+
+    for (const api of [appointmentApi, queueApi]) {
+      const cfnApi = api.node.defaultChild as apigwv2.CfnApi;
+      cfnApi.corsConfiguration = {
+        allowOrigins: allowedOrigins,
+        allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowHeaders: ["Authorization", "Content-Type"],
+      };
     }
 
     // ── Outputs ───────────────────────────────────────────────────────────────

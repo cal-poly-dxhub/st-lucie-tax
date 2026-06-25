@@ -13,3 +13,11 @@ export function camelRows<T>(rows: Record<string, unknown>[]): T[] {
       ) as T,
   );
 }
+
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

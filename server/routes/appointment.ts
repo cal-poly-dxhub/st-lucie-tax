@@ -12,10 +12,8 @@ import { getRequiredDocsStatus, validateDocument, uploadDocument } from "../../s
 import { setIdentityVerified } from "../../src/identity.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
 import { buildPrescreenLinkEmail, sendEmail } from "../../src/email.js";
+import { sendError } from "../middleware/errors.js";
 
-// Appointment domain: citizen/booking path. Config reads, scheduling,
-// document review/upload, prescreen, identity, and check-in into the queue.
-// Deployed as AppointmentFn. Promoted from demos/prototype-server.ts.
 const router = Router();
 
 // ─── GET /api/config ─────────────────────────────────────────────────────────
@@ -51,7 +49,7 @@ router.get("/config", async (_req, res) => {
     });
     res.json(data);
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -80,7 +78,7 @@ router.get("/schedule/appointments", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -139,7 +137,7 @@ router.post("/schedule/reschedule", async (req, res) => {
 
     res.json(result);
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -171,9 +169,7 @@ router.post("/lookup", async (req, res) => {
       docs,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("lookup error:", msg);
-    res.status(500).json({ error: msg });
+    sendError(res, err, "lookup");
   }
 });
 
@@ -208,7 +204,7 @@ router.post("/lookup-by-id", async (req, res) => {
       docs,
     });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -223,7 +219,7 @@ router.post("/search-name", async (req, res) => {
     const results = await lookupByName(pool, query, officeId, date);
     res.json(results);
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -235,7 +231,7 @@ router.post("/verify-identity", async (req, res) => {
     await setIdentityVerified(pool, appointmentId);
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -247,7 +243,7 @@ router.post("/validate-document", async (req, res) => {
     await validateDocument(pool, documentId);
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -255,26 +251,36 @@ router.post("/validate-document", async (req, res) => {
 // Promoted to exercise src/documents.ts uploadDocument against the configured
 // S3 bucket. For large files the production path is a presigned PUT (see
 // /api/upload-url); this inline path stays for the demo's small samples.
+const ALLOWED_CONTENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
 router.post("/upload-document", async (req, res) => {
   try {
     const { appointmentId, docId, name, contentType, dataBase64 } = req.body ?? {};
     if (!appointmentId || !name || !dataBase64) {
       return res.status(400).json({ error: "appointmentId, name, dataBase64 required" });
     }
+    const resolvedType = contentType ?? "application/octet-stream";
+    if (!ALLOWED_CONTENT_TYPES.has(resolvedType)) {
+      return res.status(400).json({ error: "File type not allowed. Accepted: pdf, jpg, png" });
+    }
     if (!DOCUMENTS_BUCKET) {
       return res.status(503).json({ error: "DOCUMENTS_BUCKET not configured" });
     }
     const fileBuffer = Buffer.from(dataBase64, "base64");
+    if (fileBuffer.length > MAX_FILE_SIZE) {
+      return res.status(400).json({ error: "File exceeds 5MB limit" });
+    }
     const result = await uploadDocument(s3, DOCUMENTS_BUCKET, pool, {
       appointmentId,
       docId: docId ?? null,
       name,
       fileBuffer,
-      contentType: contentType ?? "application/octet-stream",
+      contentType: resolvedType,
     });
     res.json({ ok: true, ...result });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -290,7 +296,7 @@ router.post("/check-in", async (req, res) => {
     const result = await checkInToQueue(pool, officeId, appointmentId, notes || undefined);
     res.json({ ok: true, queueId: result.queueId, queueNumber: result.queueNumber });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -361,7 +367,7 @@ router.post("/walk-in", async (req, res) => {
     const result = await checkInToQueue(pool, officeId, appointmentId, notes || undefined);
     res.json({ ok: true, appointmentId, queueId: result.queueId, queueNumber: result.queueNumber });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -406,7 +412,7 @@ router.post("/send-prescreen", async (req, res) => {
 
     res.json({ ok: true, prescreenUrl, sentTo: toEmail });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -432,7 +438,7 @@ router.get("/prescreen/:confirmationCode", async (req, res) => {
       questions,
     });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
@@ -463,7 +469,7 @@ router.post("/prescreen/:confirmationCode/submit", async (req, res) => {
 
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "appointment");
   }
 });
 
