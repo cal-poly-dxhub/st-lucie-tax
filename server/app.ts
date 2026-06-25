@@ -3,6 +3,7 @@ import { SERVICE } from "./config.js";
 import appointmentRouter from "./routes/appointment.js";
 import queueRouter from "./routes/queue.js";
 import adminRouter from "./routes/admin.js";
+import { requireAuth } from "./middleware/auth.js";
 
 // The same app is deployed as two Lambdas distinguished by SERVICE:
 //   SERVICE=appointment → AppointmentFn (citizen/booking + admin config)
@@ -18,10 +19,10 @@ const mountQueue = SERVICE === "queue" || SERVICE === "all";
 
 if (mountAppointment) {
   app.use("/api", appointmentRouter);
-  app.use("/api/admin", adminRouter);
+  app.use("/api/admin", requireAuth("admin"), adminRouter);
 }
 if (mountQueue) {
-  app.use("/api", queueRouter);
+  app.use("/api", requireAuth("checkin_clerk", "service_clerk"), queueRouter);
 }
 
 app.get("/healthz", (_req, res) => res.json({ ok: true, service: SERVICE }));

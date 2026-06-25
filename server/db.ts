@@ -8,9 +8,10 @@ const { Pool } = pg;
 // locally (docker-compose) PGSSL is unset and we connect without TLS.
 function sslConfig(): pg.PoolConfig["ssl"] {
   if (process.env.PGSSL !== "true") return false;
-  // RDS/RDS Proxy present Amazon CA certs that are in the Node trust store.
-  // Allow opting out of verification only via explicit env for debugging.
-  return { rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== "false" };
+  if (process.env.PGSSL_REJECT_UNAUTHORIZED === "false" && process.env.NODE_ENV !== "production") {
+    return { rejectUnauthorized: false };
+  }
+  return { rejectUnauthorized: true };
 }
 
 // Resolve the DB password. In production PGPASSWORD_SECRET_ARN points at the

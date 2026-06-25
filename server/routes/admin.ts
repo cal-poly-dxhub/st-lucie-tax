@@ -1,15 +1,10 @@
 import { Router } from "express";
 import { pool, withTransaction } from "../db.js";
+import { sendError } from "../middleware/errors.js";
 
-// Admin domain: configuration CRUD for the admin dashboard. Low-volume,
-// admin-only (gated by the Cognito `admin` group at the API Gateway authorizer
-// in the deployed architecture). Mounted under /api/admin. Promoted from
-// demos/prototype-server.ts. Behind the appointment fault domain since config
-// primarily drives scheduling.
 const router = Router();
 
-const fail = (res: import("express").Response, err: unknown) =>
-  res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+const fail = (res: import("express").Response, err: unknown) => sendError(res, err, "admin");
 
 // ─── Offices ─────────────────────────────────────────────────────────────────
 router.get("/offices", async (_req, res) => {
@@ -601,7 +596,7 @@ router.put("/transaction-flows/:txnTypeId", async (req, res) => {
 // ─── Performance Metrics ─────────────────────────────────────────────────────
 router.get("/performance-metrics", async (req, res) => {
   try {
-    const days = parseInt(req.query.days as string) || 30;
+    const days = Math.min(parseInt(req.query.days as string) || 30, 365);
     const interval = `${days} days`;
 
     const { rows: avgByTxn } = await pool.query(

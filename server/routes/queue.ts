@@ -5,10 +5,8 @@ import { clerkLogin, setClerkAvailability } from "../../src/clerk-session.js";
 import { assignNextCustomer } from "../../src/queue.js";
 import { getClerkServiceRecord, sendToWrittenTest } from "../../src/service-clerk.js";
 import { completeAppointment } from "../../src/complete.js";
+import { sendError } from "../middleware/errors.js";
 
-// Queue domain: in-office path. Clerk sessions, queue assignment, service
-// records, completion, and the lobby display feed. Deployed as QueueFn,
-// isolated from AppointmentFn. Promoted from demos/prototype-server.ts.
 const router = Router();
 
 // ─── GET /api/clerks (list clerks for an office, with skills) ────────────────
@@ -27,7 +25,7 @@ router.get("/clerks", async (req, res) => {
     );
     res.json({ clerks: rows });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -49,7 +47,7 @@ router.post("/clerk/login", async (req, res) => {
     if (!result.ok) return res.json({ ok: false, error: result.error });
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -61,7 +59,7 @@ router.post("/clerk/availability", async (req, res) => {
     await setClerkAvailability(pool, clerkId, officeId, available);
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -75,7 +73,7 @@ router.post("/clerk/summon-next", async (req, res) => {
     await sendSummonEmail(result.queueId);
     res.json({ ok: true, assigned: true, queueId: result.queueId, deskNumber: result.deskNumber });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -117,7 +115,7 @@ router.get("/clerk/serving", async (req, res) => {
 
     res.json({ serving: true, record: { ...record, prescreenWithText } });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -130,7 +128,7 @@ router.post("/clerk/complete", async (req, res) => {
     const result = await completeAppointment(pool, { officeId, queueId, clerkId });
     res.json({ ok: true, durationSec: result.durationSec });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -162,7 +160,7 @@ router.post("/clerk/complete-and-next", async (req, res) => {
       next: nextRecord,
     });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
@@ -175,39 +173,31 @@ router.post("/clerk/send-to-test", async (req, res) => {
     await sendToWrittenTest(pool, queueId, testStationId);
     res.json({ ok: true });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
 // ─── GET /api/live-queue (lobby display feed) ────────────────────────────────
+// Minimal PII: only confirmation code and desk number for the public lobby display.
 router.get("/live-queue", async (_req, res) => {
   try {
     const queue = await pool.query(`
-      SELECT q.id, q.appointment_id, q.queue_number, q.status, q.assigned_desk, q.notes,
-             q.checked_in_at, q.served_at,
-             a.first_name, a.last_name, a.is_priority, a.txn_type_ids
+      SELECT q.id, q.queue_number, q.status, q.assigned_desk,
+             a.confirmation_code
       FROM queue q
       JOIN appointments a ON a.id = q.appointment_id
       WHERE q.status IN ('waiting', 'serving', 'testing')
-      ORDER BY
-        CASE WHEN a.is_priority THEN 0 ELSE 1 END,
-        q.checked_in_at
+      ORDER BY q.checked_in_at
     `);
     const clerks = await pool.query(`
-      SELECT cs.clerk_id, cs.desk_number, cs.is_available,
-             c.first_name || ' ' || LEFT(c.last_name, 1) || '.' AS name,
-             c.skill_ids
+      SELECT cs.desk_number, cs.is_available
       FROM clerk_sessions cs
-      JOIN clerks c ON c.id = cs.clerk_id
       WHERE cs.logged_out_at IS NULL
       ORDER BY cs.desk_number
     `);
-    const txnTypes = await pool.query(
-      `SELECT id, name FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
-    );
-    res.json({ queue: queue.rows, clerks: clerks.rows, txnTypes: txnTypes.rows });
+    res.json({ queue: queue.rows, clerks: clerks.rows });
   } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    sendError(res, err, "queue");
   }
 });
 
