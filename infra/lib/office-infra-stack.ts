@@ -118,7 +118,7 @@ export class OfficeInfraStack extends Stack {
     });
 
     const dbInitFn = new lambdaNode.NodejsFunction(this, "DbInitFn", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(repoRoot, "server/workers/db-init-worker.ts"),
       handler: "handler",
       projectRoot: repoRoot,
@@ -141,7 +141,7 @@ export class OfficeInfraStack extends Stack {
         SCHEMA_BUCKET: schemaAsset.s3BucketName,
         SCHEMA_KEY: schemaAsset.s3ObjectKey,
       },
-      bundling: { format: lambdaNode.OutputFormat.ESM, target: "node20" },
+      bundling: { format: lambdaNode.OutputFormat.ESM, target: "node22" },
     });
     proxy.grantConnect(dbInitFn, "stlucie");
     dbSecret.grantRead(dbInitFn);
@@ -261,7 +261,7 @@ export class OfficeInfraStack extends Stack {
     const workerEnv = { ...commonEnv, PGPASSWORD_SECRET_ARN: dbSecret.secretArn };
     const makeWorker = (id: string, entry: string, timeout: Duration) =>
       new lambdaNode.NodejsFunction(this, id, {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         entry: path.join(repoRoot, entry),
         handler: "handler",
         projectRoot: repoRoot,
@@ -276,7 +276,7 @@ export class OfficeInfraStack extends Stack {
           removalPolicy: config.dbRemovalPolicy,
         }),
         environment: workerEnv,
-        bundling: { format: lambdaNode.OutputFormat.ESM, target: "node20" },
+        bundling: { format: lambdaNode.OutputFormat.ESM, target: "node22" },
       });
 
     // Email worker drains the SQS queue (decouples SES latency from summons).
