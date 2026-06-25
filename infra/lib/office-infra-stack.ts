@@ -17,7 +17,6 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
-import * as apigwv2_authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as cr from "aws-cdk-lib/custom-resources";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
@@ -297,50 +296,46 @@ export class OfficeInfraStack extends Stack {
       targets: [new targets.LambdaFunction(durationRecFn)],
     });
 
-    // ── API Gateway: one HTTP API per fault domain, each with its own authorizer
-    const appointmentAuthorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer(
-      "ApptAuthorizer",
-      userPool,
-      { userPoolClients: [userPoolClient] },
-    );
-    const queueAuthorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer(
-      "QueueAuthorizer",
-      userPool,
-      { userPoolClients: [userPoolClient] },
+    // ── API Gateway: single HTTP API, path-based routing to two Lambdas ────────
+    // Auth is enforced at the application layer (server/middleware/auth.ts) so
+    // public routes (prescreen, config, lobby) work without API-level authorizers.
+    const httpApi = new apigwv2.HttpApi(this, "HttpApi");
+
+    const queueIntegration = new apigwv2_integrations.HttpLambdaIntegration("QueueInt", queueFn);
+    const appointmentIntegration = new apigwv2_integrations.HttpLambdaIntegration(
+      "AppointmentInt",
+      appointmentFn,
     );
 
-    const appointmentApi = new apigwv2.HttpApi(this, "AppointmentApi", {
-      defaultAuthorizer: appointmentAuthorizer,
-    });
-    appointmentApi.addRoutes({
-      path: "/{proxy+}",
-      methods: [apigwv2.HttpMethod.ANY],
-      integration: new apigwv2_integrations.HttpLambdaIntegration("AppointmentInt", appointmentFn),
-    });
+    // Queue-domain routes → QueueFn
+    for (const path of [
+      "/api/clerk/{proxy+}",
+      "/api/clerks",
+      "/api/live-queue",
+      "/api/seed-queue",
+    ]) {
+      httpApi.addRoutes({
+        path,
+        methods: [apigwv2.HttpMethod.ANY],
+        integration: queueIntegration,
+      });
+    }
 
-    const queueApi = new apigwv2.HttpApi(this, "QueueApi", {
-      defaultAuthorizer: queueAuthorizer,
-    });
-    queueApi.addRoutes({
+    // Everything else → AppointmentFn (catch-all must come last)
+    httpApi.addRoutes({
       path: "/{proxy+}",
       methods: [apigwv2.HttpMethod.ANY],
-      integration: new apigwv2_integrations.HttpLambdaIntegration("QueueInt", queueFn),
+      integration: appointmentIntegration,
     });
 
     // Stage-level throttling protects the DB and the downstream chatbot module.
-    for (const [, api] of [
-      ["AppointmentStage", appointmentApi],
-      ["QueueStage", queueApi],
-    ] as const) {
-      const stage = api.defaultStage?.node.defaultChild as apigwv2.CfnStage;
-      stage.defaultRouteSettings = {
-        throttlingRateLimit: config.apiRateLimit,
-        throttlingBurstLimit: config.apiBurstLimit,
-      };
-    }
+    const apiStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    apiStage.defaultRouteSettings = {
+      throttlingRateLimit: config.apiRateLimit,
+      throttlingBurstLimit: config.apiBurstLimit,
+    };
 
-    // ── WAF: REGIONAL scope protects API Gateways (CLOUDFRONT scope requires
-    // us-east-1, which would need a cross-region stack). ──────────────────────
+    // ── WAF: REGIONAL scope protects API Gateway ─────────────────────────────
     const webAcl = new wafv2.CfnWebACL(this, "WebAcl", {
       defaultAction: { allow: {} },
       scope: "REGIONAL",
@@ -364,46 +359,34 @@ export class OfficeInfraStack extends Stack {
       ],
     });
 
-    // Attach WAF to both API Gateway stages.
-    for (const [id, api] of [
-      ["ApptWafAssoc", appointmentApi],
-      ["QueueWafAssoc", queueApi],
-    ] as const) {
-      new wafv2.CfnWebACLAssociation(this, id, {
-        webAclArn: webAcl.attrArn,
-        resourceArn: `arn:aws:apigateway:${this.region}::/apis/${api.httpApiId}/stages/${api.defaultStage!.stageName}`,
-      });
-    }
+    new wafv2.CfnWebACLAssociation(this, "ApiWafAssoc", {
+      webAclArn: webAcl.attrArn,
+      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${httpApi.httpApiId}/stages/${httpApi.defaultStage!.stageName}`,
+    });
 
-    // ── Frontends: per-surface S3 + CloudFront ───────────────────────────────
+    // ── Frontend: single S3 + CloudFront distribution ──────────────────────────
+    const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: config.dbRemovalPolicy,
+      autoDeleteObjects: config.envName !== "prod",
+    });
 
-    const surfaces = ["admin", "checkin", "service-clerk", "lobby"];
-    const distributions: Record<string, cloudfront.Distribution> = {};
-    for (const surface of surfaces) {
-      const bucket = new s3.Bucket(this, `Frontend-${surface}`, {
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        encryption: s3.BucketEncryption.S3_MANAGED,
-        enforceSSL: true,
-        removalPolicy: config.dbRemovalPolicy,
-        autoDeleteObjects: config.envName !== "prod",
-      });
-      distributions[surface] = new cloudfront.Distribution(this, `Dist-${surface}`, {
-        defaultRootObject: "index.html",
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        },
-        errorResponses: [
-          { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
-          { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
-        ],
-      });
-    }
+    const distribution = new cloudfront.Distribution(this, "FrontendDist", {
+      defaultRootObject: "index.html",
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      errorResponses: [
+        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
+        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
+      ],
+    });
 
-    // ── CORS: restrict to actual CloudFront origins (+localhost for dev) ─────
-    const allowedOrigins = surfaces.map(
-      (s) => `https://${distributions[s].distributionDomainName}`,
-    );
+    // ── CORS: restrict to CloudFront origin (+localhost for dev) ─────────────
+    const allowedOrigins = [`https://${distribution.distributionDomainName}`];
     if (config.envName !== "prod") {
       allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
     }
@@ -421,30 +404,22 @@ export class OfficeInfraStack extends Stack {
     });
 
     // API Gateway CORS
-    const appointmentStage = appointmentApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
-    appointmentStage.addPropertyOverride("AccessLogSettings", undefined);
-    const queueStage = queueApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
-    queueStage.addPropertyOverride("AccessLogSettings", undefined);
-
-    for (const api of [appointmentApi, queueApi]) {
-      const cfnApi = api.node.defaultChild as apigwv2.CfnApi;
-      cfnApi.corsConfiguration = {
-        allowOrigins: allowedOrigins,
-        allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowHeaders: ["Authorization", "Content-Type"],
-      };
-    }
+    const cfnApi = httpApi.node.defaultChild as apigwv2.CfnApi;
+    cfnApi.corsConfiguration = {
+      allowOrigins: allowedOrigins,
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowHeaders: ["Authorization", "Content-Type"],
+    };
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    new CfnOutput(this, "AppointmentApiUrl", { value: appointmentApi.apiEndpoint });
-    new CfnOutput(this, "QueueApiUrl", { value: queueApi.apiEndpoint });
+    new CfnOutput(this, "ApiUrl", { value: httpApi.apiEndpoint });
     new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, "DocumentsBucketName", { value: documentsBucket.bucketName });
-    for (const surface of surfaces) {
-      new CfnOutput(this, `Frontend-${surface}-Url`, {
-        value: `https://${distributions[surface].distributionDomainName}`,
-      });
-    }
+    new CfnOutput(this, "FrontendBucketName", { value: frontendBucket.bucketName });
+    new CfnOutput(this, "FrontendUrl", {
+      value: `https://${distribution.distributionDomainName}`,
+    });
+    new CfnOutput(this, "DistributionId", { value: distribution.distributionId });
   }
 }

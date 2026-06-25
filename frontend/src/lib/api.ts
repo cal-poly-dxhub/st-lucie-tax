@@ -1,5 +1,6 @@
-// API client + response shapes — mirrors server/routes/*.ts.
-// All requests go through the Vite proxy to the official server (port 3000).
+import { getIdToken } from "./auth";
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 export interface DocStatus {
   id: number | null;
@@ -147,10 +148,16 @@ export interface ScheduleAppointment {
   duration_min: number;
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getIdToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function post<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
+  const res = await fetch(`${API_BASE}${url}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -159,7 +166,8 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}${url}`, { headers });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
   return data as T;
