@@ -401,12 +401,31 @@ export class OfficeInfraStack extends Stack {
       { originPath: `/${apiStage.stageName}` },
     );
 
+    // SPA fallback: rewrite paths without file extensions to /index.html so
+    // client-side routing works. This runs only on the default (S3) behavior —
+    // API responses pass through unmodified.
+    const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var req = event.request;
+  if (req.uri !== '/' && !req.uri.includes('.')) req.uri = '/index.html';
+  return req;
+}
+`),
+    });
+
     const distribution = new cloudfront.Distribution(this, "FrontendDist", {
       defaultRootObject: "index.html",
       webAclId: webAcl.attrArn,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        functionAssociations: [
+          {
+            function: spaRewrite,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       additionalBehaviors: {
         "/api/*": {
@@ -417,10 +436,6 @@ export class OfficeInfraStack extends Stack {
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         },
       },
-      errorResponses: [
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
-      ],
     });
 
     // ── CORS ────────────────────────────────────────────────────────────────
