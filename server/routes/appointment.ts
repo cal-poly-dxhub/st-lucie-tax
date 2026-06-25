@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { CreateEmailIdentityCommand } from "@aws-sdk/client-sesv2";
 import { pool, withTransaction } from "../db.js";
 import { ses, s3, EMAIL, BASE_URL, DEFAULT_DATE, DOCUMENTS_BUCKET } from "../config.js";
 import {
@@ -546,14 +545,21 @@ router.post("/set-demo-email", async (req, res) => {
 
     await pool.query(`UPDATE appointments SET contact_email = $1`, [email]);
 
+    let sesNote = "Check inbox for SES verification email";
     try {
+      const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
       await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
     } catch (sesErr: unknown) {
       const code = (sesErr as { name?: string }).name;
-      if (code !== "AlreadyExistsException") throw sesErr;
+      if (code === "AlreadyExistsException") {
+        sesNote = "Email already verified in SES";
+      } else {
+        console.error("SES verify failed (non-fatal):", sesErr);
+        sesNote = "Email updated but SES verification failed — verify manually if needed";
+      }
     }
 
-    res.json({ ok: true, email, note: "Check inbox for SES verification email" });
+    res.json({ ok: true, email, note: sesNote });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
   }
