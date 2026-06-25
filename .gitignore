@@ -36,8 +36,7 @@ coverage/
 cdk.context.json
 
 # AI agent artifacts
-.agents/reviews/
-.agents/scratchpad/
+.agents/
 .kiro
 .reviews/
 .claude
