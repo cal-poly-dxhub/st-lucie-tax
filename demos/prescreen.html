@@ -1,170 +1,298 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pre-Screen Questions — St. Lucie Tax Collector</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; padding: 16px; }
-    .container { max-width: 500px; margin: 0 auto; }
-    .header { background: #1a365d; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center; }
-    .header h1 { font-size: 18px; margin-bottom: 4px; }
-    .header p { font-size: 13px; opacity: 0.8; }
-    .card { background: white; border-radius: 0 0 12px 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .greeting { font-size: 15px; margin-bottom: 16px; color: #333; }
-    .question { padding: 14px 0; border-bottom: 1px solid #eee; }
-    .question:last-child { border-bottom: none; }
-    .question label { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; font-size: 14px; color: #333; line-height: 1.4; }
-    .question input[type="radio"] { margin-top: 3px; flex-shrink: 0; }
-    .q-text { flex: 1; }
-    .q-options { display: flex; gap: 16px; margin-top: 8px; padding-left: 0; }
-    .q-options label { font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-    .q-num { font-size: 12px; font-weight: 700; color: #4299e1; min-width: 20px; }
-    .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 20px; }
-    .btn-primary { background: #4299e1; color: white; }
-    .btn-primary:hover { background: #3182ce; }
-    .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
-    .done { text-align: center; padding: 40px 20px; }
-    .done h2 { color: #276749; margin-bottom: 8px; }
-    .done p { color: #718096; font-size: 14px; }
-    .error { text-align: center; padding: 40px 20px; color: #e53e3e; }
-    .already-done { background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px; padding: 16px; text-align: center; margin-bottom: 16px; }
-    .already-done p { color: #276749; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>St. Lucie County Tax Collector</h1>
-      <p>Pre-Screen Questions</p>
-    </div>
-    <div class="card" id="content">
-      <p style="color: #718096; text-align: center;">Loading...</p>
-    </div>
-  </div>
-
-<script>
-const qrCode = window.location.pathname.split('/prescreen/')[1];
-const urlParams = new URLSearchParams(window.location.search);
-const autoCheckIn = urlParams.get('autoCheckIn') === '1';
-const priority = urlParams.get('priority') === '1';
-
-async function load() {
-  const content = document.getElementById('content');
-  if (!qrCode) {
-    content.innerHTML = '<div class="error"><p>Invalid link. No appointment code found.</p></div>';
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/prescreen/' + qrCode);
-    if (!res.ok) {
-      const err = await res.json();
-      content.innerHTML = '<div class="error"><p>' + (err.error || 'Appointment not found.') + '</p></div>';
-      return;
-    }
-    const data = await res.json();
-
-    if (data.prescreenCompleted) {
-      content.innerHTML = '<div class="done"><h2>Already Completed</h2><p>Your pre-screen questions have already been submitted. You\'re all set for your appointment!</p></div>';
-      return;
-    }
-
-    if (!data.questions || data.questions.length === 0) {
-      content.innerHTML = '<div class="done"><h2>No Questions Required</h2><p>No pre-screen questions are required for your appointment type.</p></div>';
-      return;
-    }
-
-    let html = '<p class="greeting">Hi <strong>' + data.firstName + '</strong>, please answer the following questions before your appointment.</p>';
-
-    data.questions.forEach((q, i) => {
-      html += '<div class="question">' +
-        '<div style="display: flex; gap: 10px; align-items: flex-start;">' +
-          '<span class="q-num">' + (i + 1) + '.</span>' +
-          '<div class="q-text">' + q.questionText +
-            '<div class="q-options">' +
-              '<label><input type="radio" name="q_' + q.id + '" value="yes" required> Yes</label>' +
-              '<label><input type="radio" name="q_' + q.id + '" value="no" required> No</label>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    });
-
-    html += '<button class="btn btn-primary" id="submit-btn" onclick="submitPrescreen()">Submit Answers</button>';
-    content.innerHTML = html;
-  } catch (e) {
-    content.innerHTML = '<div class="error"><p>Could not connect to server.</p></div>';
-  }
-}
-
-async function submitPrescreen() {
-  const btn = document.getElementById('submit-btn');
-  const form = document.getElementById('content');
-  const radios = form.querySelectorAll('input[type="radio"]');
-
-  // Collect responses
-  const responses = {};
-  const questionNames = new Set();
-  radios.forEach(r => questionNames.add(r.name));
-
-  let allAnswered = true;
-  questionNames.forEach(name => {
-    const checked = form.querySelector('input[name="' + name + '"]:checked');
-    if (!checked) {
-      allAnswered = false;
-    } else {
-      responses[name.replace('q_', '')] = checked.value === 'yes';
-    }
-  });
-
-  if (!allAnswered) {
-    alert('Please answer all questions before submitting.');
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
-
-  try {
-    const res = await fetch('/api/prescreen/' + qrCode + '/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ responses, autoCheckIn, priority }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      let msg;
-      if (data.checkedIn) {
-        msg = '<div class="done">' +
-          '<h2 style="font-size: 48px; margin-bottom: 12px;">&#10003;</h2>' +
-          '<h2>Pre-Screen Complete!</h2>' +
-          '<p style="font-size: 18px; font-weight: 700; color: #2d3748; margin-top: 16px;">You\'re checked in — your number is</p>' +
-          '<p style="font-size: 64px; font-weight: 800; color: #2b6cb0; margin: 8px 0;">' + data.queueNumber + '</p>' +
-          '<p style="color: #718096;">Please have a seat. You\'ll be called when it\'s your turn.</p>' +
-        '</div>';
-      } else {
-        msg = '<div class="done">' +
-          '<h2 style="font-size: 32px; margin-bottom: 12px;">&#10003;</h2>' +
-          '<h2>Pre-Screen Complete!</h2>' +
-          '<p>Thank you. Your answers have been submitted. You can close this page.</p>' +
-        '</div>';
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pre-Screen Questions — St. Lucie Tax Collector</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-      document.getElementById('content').innerHTML = msg;
-    } else {
-      alert('Error: ' + (data.error || 'Unknown error'));
-      btn.disabled = false;
-      btn.textContent = 'Submit Answers';
-    }
-  } catch (e) {
-    alert('Server error. Please try again.');
-    btn.disabled = false;
-    btn.textContent = 'Submit Answers';
-  }
-}
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+        min-height: 100vh;
+        padding: 16px;
+      }
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+      }
+      .header {
+        background: #1a365d;
+        color: white;
+        padding: 20px;
+        border-radius: 12px 12px 0 0;
+        text-align: center;
+      }
+      .header h1 {
+        font-size: 18px;
+        margin-bottom: 4px;
+      }
+      .header p {
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .card {
+        background: white;
+        border-radius: 0 0 12px 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .greeting {
+        font-size: 15px;
+        margin-bottom: 16px;
+        color: #333;
+      }
+      .question {
+        padding: 14px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .question:last-child {
+        border-bottom: none;
+      }
+      .question label {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #333;
+        line-height: 1.4;
+      }
+      .question input[type="radio"] {
+        margin-top: 3px;
+        flex-shrink: 0;
+      }
+      .q-text {
+        flex: 1;
+      }
+      .q-options {
+        display: flex;
+        gap: 16px;
+        margin-top: 8px;
+        padding-left: 0;
+      }
+      .q-options label {
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .q-num {
+        font-size: 12px;
+        font-weight: 700;
+        color: #4299e1;
+        min-width: 20px;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+      .btn-primary {
+        background: #4299e1;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #3182ce;
+      }
+      .btn-primary:disabled {
+        background: #a0aec0;
+        cursor: not-allowed;
+      }
+      .done {
+        text-align: center;
+        padding: 40px 20px;
+      }
+      .done h2 {
+        color: #276749;
+        margin-bottom: 8px;
+      }
+      .done p {
+        color: #718096;
+        font-size: 14px;
+      }
+      .error {
+        text-align: center;
+        padding: 40px 20px;
+        color: #e53e3e;
+      }
+      .already-done {
+        background: #f0fff4;
+        border: 1px solid #9ae6b4;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+      .already-done p {
+        color: #276749;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>St. Lucie County Tax Collector</h1>
+        <p>Pre-Screen Questions</p>
+      </div>
+      <div class="card" id="content">
+        <p style="color: #718096; text-align: center">Loading...</p>
+      </div>
+    </div>
 
-load();
-</script>
-</body>
+    <script>
+      const qrCode = window.location.pathname.split("/prescreen/")[1];
+      const urlParams = new URLSearchParams(window.location.search);
+      const autoCheckIn = urlParams.get("autoCheckIn") === "1";
+      const priority = urlParams.get("priority") === "1";
+
+      async function load() {
+        const content = document.getElementById("content");
+        if (!qrCode) {
+          content.innerHTML =
+            '<div class="error"><p>Invalid link. No appointment code found.</p></div>';
+          return;
+        }
+
+        try {
+          const res = await fetch("/api/prescreen/" + qrCode);
+          if (!res.ok) {
+            const err = await res.json();
+            content.innerHTML =
+              '<div class="error"><p>' + (err.error || "Appointment not found.") + "</p></div>";
+            return;
+          }
+          const data = await res.json();
+
+          if (data.prescreenCompleted) {
+            content.innerHTML =
+              '<div class="done"><h2>Already Completed</h2><p>Your pre-screen questions have already been submitted. You\'re all set for your appointment!</p></div>';
+            return;
+          }
+
+          if (!data.questions || data.questions.length === 0) {
+            content.innerHTML =
+              '<div class="done"><h2>No Questions Required</h2><p>No pre-screen questions are required for your appointment type.</p></div>';
+            return;
+          }
+
+          let html =
+            '<p class="greeting">Hi <strong>' +
+            data.firstName +
+            "</strong>, please answer the following questions before your appointment.</p>";
+
+          data.questions.forEach((q, i) => {
+            html +=
+              '<div class="question">' +
+              '<div style="display: flex; gap: 10px; align-items: flex-start;">' +
+              '<span class="q-num">' +
+              (i + 1) +
+              ".</span>" +
+              '<div class="q-text">' +
+              q.questionText +
+              '<div class="q-options">' +
+              '<label><input type="radio" name="q_' +
+              q.id +
+              '" value="yes" required> Yes</label>' +
+              '<label><input type="radio" name="q_' +
+              q.id +
+              '" value="no" required> No</label>' +
+              "</div>" +
+              "</div>" +
+              "</div>" +
+              "</div>";
+          });
+
+          html +=
+            '<button class="btn btn-primary" id="submit-btn" onclick="submitPrescreen()">Submit Answers</button>';
+          content.innerHTML = html;
+        } catch (e) {
+          content.innerHTML = '<div class="error"><p>Could not connect to server.</p></div>';
+        }
+      }
+
+      async function submitPrescreen() {
+        const btn = document.getElementById("submit-btn");
+        const form = document.getElementById("content");
+        const radios = form.querySelectorAll('input[type="radio"]');
+
+        // Collect responses
+        const responses = {};
+        const questionNames = new Set();
+        radios.forEach((r) => questionNames.add(r.name));
+
+        let allAnswered = true;
+        questionNames.forEach((name) => {
+          const checked = form.querySelector('input[name="' + name + '"]:checked');
+          if (!checked) {
+            allAnswered = false;
+          } else {
+            responses[name.replace("q_", "")] = checked.value === "yes";
+          }
+        });
+
+        if (!allAnswered) {
+          alert("Please answer all questions before submitting.");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Submitting...";
+
+        try {
+          const res = await fetch("/api/prescreen/" + qrCode + "/submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ responses, autoCheckIn, priority }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            let msg;
+            if (data.checkedIn) {
+              msg =
+                '<div class="done">' +
+                '<h2 style="font-size: 48px; margin-bottom: 12px;">&#10003;</h2>' +
+                "<h2>Pre-Screen Complete!</h2>" +
+                '<p style="font-size: 18px; font-weight: 700; color: #2d3748; margin-top: 16px;">You\'re checked in — your place in the queue</p>' +
+                '<p style="font-size: 64px; font-weight: 800; color: #2b6cb0; margin: 8px 0;">' +
+                data.queueNumber +
+                "</p>" +
+                "<p style=\"color: #718096;\">Please have a seat. You'll be called when it's your turn.</p>" +
+                "</div>";
+            } else {
+              msg =
+                '<div class="done">' +
+                '<h2 style="font-size: 32px; margin-bottom: 12px;">&#10003;</h2>' +
+                "<h2>Pre-Screen Complete!</h2>" +
+                "<p>Thank you. Your answers have been submitted. You can close this page.</p>" +
+                "</div>";
+            }
+            document.getElementById("content").innerHTML = msg;
+          } else {
+            alert("Error: " + (data.error || "Unknown error"));
+            btn.disabled = false;
+            btn.textContent = "Submit Answers";
+          }
+        } catch (e) {
+          alert("Server error. Please try again.");
+          btn.disabled = false;
+          btn.textContent = "Submit Answers";
+        }
+      }
+
+      load();
+    </script>
+  </body>
 </html>
