@@ -354,10 +354,11 @@ export class OfficeInfraStack extends Stack {
       throttlingBurstLimit: config.apiBurstLimit,
     };
 
-    // ── WAF: REGIONAL scope protects API Gateway ─────────────────────────────
+    // ── WAF: CLOUDFRONT scope protects the distribution (covers both the
+    // S3 frontend and the API origin behind /api/*). ──────────────────────────
     const webAcl = new wafv2.CfnWebACL(this, "WebAcl", {
       defaultAction: { allow: {} },
-      scope: "REGIONAL",
+      scope: "CLOUDFRONT",
       visibilityConfig: {
         cloudWatchMetricsEnabled: true,
         metricName: "office-web-acl",
@@ -378,11 +379,6 @@ export class OfficeInfraStack extends Stack {
       ],
     });
 
-    new wafv2.CfnWebACLAssociation(this, "ApiWafAssoc", {
-      webAclArn: webAcl.attrArn,
-      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${httpApi.httpApiId}/stages/${apiStage.stageName}`,
-    });
-
     // ── Frontend: single S3 + CloudFront distribution ──────────────────────────
     const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -392,11 +388,26 @@ export class OfficeInfraStack extends Stack {
       autoDeleteObjects: config.envName !== "prod",
     });
 
+    const apiOrigin = new origins.HttpOrigin(
+      `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`,
+      { originPath: `/${apiStage.stageName}` },
+    );
+
     const distribution = new cloudfront.Distribution(this, "FrontendDist", {
       defaultRootObject: "index.html",
+      webAclId: webAcl.attrArn,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      additionalBehaviors: {
+        "/api/*": {
+          origin: apiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        },
       },
       errorResponses: [
         { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
@@ -431,7 +442,9 @@ export class OfficeInfraStack extends Stack {
     };
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    new CfnOutput(this, "ApiUrl", { value: apiStage.url });
+    new CfnOutput(this, "ApiUrl", {
+      value: `https://${distribution.distributionDomainName}/api`,
+    });
     new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, "DocumentsBucketName", { value: documentsBucket.bucketName });
