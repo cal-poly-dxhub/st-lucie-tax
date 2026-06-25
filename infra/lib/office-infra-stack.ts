@@ -119,6 +119,7 @@ export class OfficeInfraStack extends Stack {
 
     const dbInitFn = new lambdaNode.NodejsFunction(this, "DbInitFn", {
       runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
       entry: path.join(repoRoot, "server/workers/db-init-worker.ts"),
       handler: "handler",
       projectRoot: repoRoot,
@@ -217,6 +218,7 @@ export class OfficeInfraStack extends Stack {
     const makeFn = (id: string, service: "appointment" | "queue", reserved: number) =>
       new lambda.DockerImageFunction(this, id, {
         code: dockerCode,
+        architecture: lambda.Architecture.ARM_64,
         vpc,
         vpcSubnets,
         securityGroups: [lambdaSg],
@@ -262,6 +264,7 @@ export class OfficeInfraStack extends Stack {
     const makeWorker = (id: string, entry: string, timeout: Duration) =>
       new lambdaNode.NodejsFunction(this, id, {
         runtime: lambda.Runtime.NODEJS_22_X,
+        architecture: lambda.Architecture.ARM_64,
         entry: path.join(repoRoot, entry),
         handler: "handler",
         projectRoot: repoRoot,
