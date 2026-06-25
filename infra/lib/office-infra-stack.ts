@@ -67,12 +67,12 @@ export class OfficeInfraStack extends Stack {
 
     const dbSg = new ec2.SecurityGroup(this, "DbSg", {
       vpc,
-      description: "RDS Postgres — only reachable from the proxy",
+      description: "RDS Postgres - only reachable from the proxy",
       allowAllOutbound: false,
     });
     const proxySg = new ec2.SecurityGroup(this, "ProxySg", {
       vpc,
-      description: "RDS Proxy — reachable from Lambdas",
+      description: "RDS Proxy - reachable from Lambdas",
       allowAllOutbound: true,
     });
     const lambdaSg = new ec2.SecurityGroup(this, "LambdaSg", {
@@ -80,8 +80,8 @@ export class OfficeInfraStack extends Stack {
       description: "Lambda functions",
       allowAllOutbound: true,
     });
-    proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda → Proxy");
-    dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy → RDS");
+    proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda -> Proxy");
+    dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy -> RDS");
 
     const db = new rds.DatabaseInstance(this, "Db", {
       engine: PG_ENGINE,
