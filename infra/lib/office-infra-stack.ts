@@ -142,7 +142,11 @@ export class OfficeInfraStack extends Stack {
         SCHEMA_BUCKET: schemaAsset.s3BucketName,
         SCHEMA_KEY: schemaAsset.s3ObjectKey,
       },
-      bundling: { format: lambdaNode.OutputFormat.ESM, target: "node22" },
+      bundling: {
+        format: lambdaNode.OutputFormat.ESM,
+        target: "node22",
+        banner: 'import{createRequire}from"module";const require=createRequire(import.meta.url);',
+      },
     });
     proxy.grantConnect(dbInitFn, "stlucie");
     dbSecret.grantRead(dbInitFn);
@@ -279,7 +283,11 @@ export class OfficeInfraStack extends Stack {
           removalPolicy: config.dbRemovalPolicy,
         }),
         environment: workerEnv,
-        bundling: { format: lambdaNode.OutputFormat.ESM, target: "node22" },
+        bundling: {
+          format: lambdaNode.OutputFormat.ESM,
+          target: "node22",
+          banner: 'import{createRequire}from"module";const require=createRequire(import.meta.url);',
+        },
       });
 
     // Email worker drains the SQS queue (decouples SES latency from summons).
