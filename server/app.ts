@@ -18,7 +18,7 @@ const mountAppointment = SERVICE === "appointment" || SERVICE === "all";
 const mountQueue = SERVICE === "queue" || SERVICE === "all";
 
 if (mountAppointment) {
-  app.use("/api", appointmentRouter);
+  app.use("/api", requireAuth(), appointmentRouter);
   app.use("/api/admin", requireAuth("admin"), adminRouter);
 }
 if (mountQueue) {
