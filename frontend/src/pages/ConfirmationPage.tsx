@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Send, QrCode } from "lucide-react";
+import { Send, QrCode, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/toast-context";
 import { Badge, Button, Card, SectionLabel } from "@/components/ui";
@@ -11,6 +11,23 @@ export function ConfirmationPage() {
   const [docs, setDocs] = useState("mixed");
   const [code, setCode] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [email, setEmail] = useState("");
+  const [settingEmail, setSettingEmail] = useState(false);
+
+  async function handleSetEmail() {
+    if (!email.trim()) return;
+    setSettingEmail(true);
+    try {
+      const res = await api.setDemoEmail(email.trim());
+      if (res.ok) {
+        notify("success", `Email set to ${res.email}. ${res.note}`);
+      }
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Failed to set email.");
+    } finally {
+      setSettingEmail(false);
+    }
+  }
 
   async function sendConfirmation() {
     setSending(true);
@@ -101,6 +118,29 @@ export function ConfirmationPage() {
               <option value="none">No docs uploaded</option>
             </select>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-display text-base font-semibold text-civic-700 mb-2">
+          Your Email Address
+        </h3>
+        <p className="text-sm text-civic-500 mb-3">
+          Set your email to receive confirmation, prescreen, and summon emails during the demo.
+          SES verification will be triggered automatically.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSetEmail()}
+            className="flex-1 rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
+          />
+          <Button variant="civic" loading={settingEmail} onClick={handleSetEmail}>
+            <Mail size={16} /> Set Email
+          </Button>
         </div>
       </Card>
 

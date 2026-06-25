@@ -199,6 +199,9 @@ export const api = {
   sendConfirmation: (cfg: { prescreen: boolean; identity: boolean; docs: string }) =>
     post<{ ok: boolean; confirmationCode?: string; error?: string }>("/api/send-confirmation", cfg),
 
+  setDemoEmail: (email: string) =>
+    post<{ ok: boolean; email: string; note: string }>("/api/set-demo-email", { email }),
+
   // Queue / Clerk
   clerks: (officeId: number) => get<{ clerks: Clerk[] }>(`/api/clerks?officeId=${officeId}`),
 
