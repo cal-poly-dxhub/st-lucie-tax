@@ -3,7 +3,11 @@ import { pool } from "../db.js";
 import { sendSummonEmail } from "../notify.js";
 import { clerkLogin, setClerkAvailability } from "../../src/clerk-session.js";
 import { assignNextCustomer } from "../../src/queue.js";
-import { getClerkServiceRecord, sendToWrittenTest } from "../../src/service-clerk.js";
+import {
+  getClerkServiceRecord,
+  sendToWrittenTest,
+  completeWrittenTest,
+} from "../../src/service-clerk.js";
 import { completeAppointment } from "../../src/complete.js";
 import { sendError } from "../middleware/errors.js";
 
@@ -167,35 +171,100 @@ router.post("/clerk/complete-and-next", async (req, res) => {
 // ─── POST /api/clerk/send-to-test ────────────────────────────────────────────
 router.post("/clerk/send-to-test", async (req, res) => {
   try {
-    const { queueId, testStationId } = req.body;
-    if (!queueId || !testStationId)
-      return res.status(400).json({ error: "queueId and testStationId required" });
-    await sendToWrittenTest(pool, queueId, testStationId);
+    const { queueId, testStationId, clerkId, officeId } = req.body;
+    if (!queueId || !testStationId || !clerkId || !officeId)
+      return res.status(400).json({ error: "queueId, testStationId, clerkId, officeId required" });
+    await sendToWrittenTest(pool, { queueId, testStationId, clerkId, officeId });
     res.json({ ok: true });
   } catch (err: unknown) {
     sendError(res, err, "queue");
   }
 });
 
-// ─── GET /api/live-queue (lobby display feed) ────────────────────────────────
-// Minimal PII: only confirmation code and desk number for the public lobby display.
+// ─── POST /api/clerk/complete-test ──────────────────────────────────────────
+router.post("/clerk/complete-test", async (req, res) => {
+  try {
+    const { queueId } = req.body;
+    if (!queueId) return res.status(400).json({ error: "queueId required" });
+    await completeWrittenTest(pool, queueId);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "queue");
+  }
+});
+
+// ─── POST /api/clerk/record-step ────────────────────────────────────────────
+router.post("/clerk/record-step", async (req, res) => {
+  try {
+    const { queueId, step } = req.body;
+    if (!queueId || !step) return res.status(400).json({ error: "queueId and step required" });
+    const { rows } = await pool.query(
+      `UPDATE queue SET steps = COALESCE(steps, '{}'::jsonb) || jsonb_build_object($2::text, 'true'::jsonb)
+       WHERE id = $1
+       RETURNING steps`,
+      [queueId, step],
+    );
+    if (!rows.length) return res.status(404).json({ error: "Queue entry not found" });
+    res.json({ ok: true, steps: rows[0].steps });
+  } catch (err: unknown) {
+    sendError(res, err, "queue");
+  }
+});
+
+// ─── POST /api/seed-queue (demo helper) ─────────────────────────────────────
+router.post("/seed-queue", async (req, res) => {
+  try {
+    const { rows: appointments } = await pool.query(
+      `SELECT a.id, a.office_id FROM appointments a
+       WHERE a.status = 'scheduled'
+         AND NOT EXISTS (SELECT 1 FROM queue q WHERE q.appointment_id = a.id)
+       ORDER BY a.appointment_time
+       LIMIT 5`,
+    );
+    const seeded = [];
+    for (const appt of appointments) {
+      const { rows } = await pool.query(
+        `INSERT INTO queue (appointment_id, office_id, queue_number, status, checked_in_at)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(queue_number), 0) + 1 FROM queue WHERE office_id = $2), 'waiting', NOW())
+         RETURNING id, queue_number`,
+        [appt.id, appt.office_id],
+      );
+      await pool.query(`UPDATE appointments SET status = 'scheduled' WHERE id = $1`, [appt.id]);
+      seeded.push(rows[0]);
+    }
+    res.json({ ok: true, seeded });
+  } catch (err: unknown) {
+    sendError(res, err, "queue");
+  }
+});
+
+// ─── GET /api/live-queue ────────────────────────────────────────────────────
 router.get("/live-queue", async (_req, res) => {
   try {
     const queue = await pool.query(`
       SELECT q.id, q.queue_number, q.status, q.assigned_desk,
-             a.confirmation_code
+             a.confirmation_code, a.is_priority, a.first_name, a.last_name,
+             a.txn_type_ids, q.checked_in_at
       FROM queue q
       JOIN appointments a ON a.id = q.appointment_id
       WHERE q.status IN ('waiting', 'serving', 'testing')
-      ORDER BY q.checked_in_at
+      ORDER BY
+        CASE WHEN a.is_priority THEN 0 ELSE 1 END,
+        q.checked_in_at
     `);
     const clerks = await pool.query(`
-      SELECT cs.desk_number, cs.is_available
+      SELECT cs.desk_number, cs.is_available,
+             c.first_name || ' ' || c.last_name AS name
       FROM clerk_sessions cs
+      JOIN clerks c ON c.id = cs.clerk_id
       WHERE cs.logged_out_at IS NULL
       ORDER BY cs.desk_number
     `);
-    res.json({ queue: queue.rows, clerks: clerks.rows });
+    const txnTypes = await pool.query(
+      `SELECT id, txn_type_id AS slug, name, avg_duration_min AS duration, status
+       FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
+    );
+    res.json({ queue: queue.rows, clerks: clerks.rows, txnTypes: txnTypes.rows });
   } catch (err: unknown) {
     sendError(res, err, "queue");
   }

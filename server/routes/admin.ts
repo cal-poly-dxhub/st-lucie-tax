@@ -736,4 +736,49 @@ router.put("/config", async (req, res) => {
   }
 });
 
+// ─── Clerk Performance Comparison ───────────────────────────────────────────
+router.get("/clerk-performance", async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days as string) || 30, 365);
+    const interval = `${days} days`;
+
+    const { rows } = await pool.query(
+      `SELECT c.id AS clerk_id,
+              c.first_name, c.last_name,
+              COUNT(*)::int AS total_served,
+              ROUND(AVG(sh.duration_sec) / 60.0, 1) AS avg_minutes,
+              ROUND(MIN(sh.duration_sec) / 60.0, 1) AS min_minutes,
+              ROUND(MAX(sh.duration_sec) / 60.0, 1) AS max_minutes
+       FROM service_history sh
+       JOIN clerks c ON c.id = sh.clerk_id
+       WHERE sh.served_at >= NOW() - $1::interval
+         AND sh.clerk_id IS NOT NULL
+       GROUP BY c.id, c.first_name, c.last_name
+       ORDER BY avg_minutes`,
+      [interval],
+    );
+
+    const { rows: byTxn } = await pool.query(
+      `SELECT c.id AS clerk_id,
+              c.first_name, c.last_name,
+              tt.name AS txn_name, tt.id AS txn_type_id,
+              COUNT(*)::int AS count,
+              ROUND(AVG(sh.duration_sec) / 60.0, 1) AS avg_minutes
+       FROM service_history sh
+       JOIN clerks c ON c.id = sh.clerk_id
+       JOIN service_history_txn_types sht ON sht.service_history_id = sh.id
+       JOIN transaction_types tt ON tt.id = sht.txn_type_id
+       WHERE sh.served_at >= NOW() - $1::interval
+         AND sh.clerk_id IS NOT NULL
+       GROUP BY c.id, c.first_name, c.last_name, tt.id, tt.name
+       ORDER BY c.last_name, tt.name`,
+      [interval],
+    );
+
+    res.json({ summary: rows, byTransactionType: byTxn });
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
 export default router;
