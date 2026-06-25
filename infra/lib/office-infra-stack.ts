@@ -80,8 +80,8 @@ export class OfficeInfraStack extends Stack {
       description: "Lambda functions",
       allowAllOutbound: true,
     });
-    proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda -> Proxy");
-    dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy -> RDS");
+    proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda to Proxy");
+    dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy to RDS");
 
     const db = new rds.DatabaseInstance(this, "Db", {
       engine: PG_ENGINE,
