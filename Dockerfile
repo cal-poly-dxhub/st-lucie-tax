@@ -8,7 +8,7 @@ FROM --platform=linux/arm64 public.ecr.aws/lambda/nodejs:22 AS build
 RUN npm install -g npm@11
 WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
-RUN npm ci --omit=optional
+RUN npm ci --omit=optional --ignore-scripts
 COPY src ./src
 COPY server ./server
 # Compile TS → dist/ (ESM, .js import specifiers already present in source).
@@ -21,7 +21,7 @@ COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt
 
 WORKDIR /var/task
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --omit=optional
+RUN npm ci --omit=dev --omit=optional --ignore-scripts
 COPY --from=build /build/dist ./dist
 
 # LWA configuration: the server listens on PORT and LWA polls /healthz to know
