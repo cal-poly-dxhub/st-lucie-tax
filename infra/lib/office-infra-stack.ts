@@ -41,7 +41,7 @@ export class OfficeInfraStack extends Stack {
 
     // ── Network ──────────────────────────────────────────────────────────────
     const vpc = new ec2.Vpc(this, "Vpc", {
-      maxAzs: 2,
+      maxAzs: config.maxAzs,
       natGateways: config.natGateways,
       subnetConfiguration: [
         { name: "public", subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
