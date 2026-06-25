@@ -100,7 +100,7 @@ export class OfficeInfraStack extends Stack {
       storageEncrypted: true,
       allocatedStorage: 20,
       maxAllocatedStorage: 100,
-      backupRetention: Duration.days(config.envName === "prod" ? 7 : 1),
+      backupRetention: Duration.days(1),
     });
 
     const proxy = new rds.DatabaseProxy(this, "DbProxy", {
@@ -186,9 +186,9 @@ export class OfficeInfraStack extends Stack {
       versioned: true,
       enforceSSL: true,
       cors: [], // populated after CloudFront distributions are created
-      lifecycleRules: [{ expiration: Duration.days(config.envName === "prod" ? 365 : 30) }],
+      lifecycleRules: [{ expiration: Duration.days(30) }],
       removalPolicy: config.dbRemovalPolicy,
-      autoDeleteObjects: config.envName !== "prod",
+      autoDeleteObjects: true,
     });
 
     // ── Async: SQS email queue + worker ───────────────────────────────────────
@@ -393,7 +393,7 @@ export class OfficeInfraStack extends Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       removalPolicy: config.dbRemovalPolicy,
-      autoDeleteObjects: config.envName !== "prod",
+      autoDeleteObjects: true,
     });
 
     const apiOrigin = new origins.HttpOrigin(
@@ -442,10 +442,11 @@ function handler(event) {
     // API requests now go through CloudFront (same-origin), so API Gateway
     // CORS is unnecessary. S3 documents bucket still needs CORS for presigned
     // upload PUTs from the browser.
-    const allowedOrigins = [`https://${distribution.distributionDomainName}`];
-    if (config.envName !== "prod") {
-      allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
-    }
+    const allowedOrigins = [
+      `https://${distribution.distributionDomainName}`,
+      "http://localhost:3000",
+      "http://localhost:5173",
+    ];
 
     const cfnBucket = documentsBucket.node.defaultChild as s3.CfnBucket;
     cfnBucket.addPropertyOverride("CorsConfiguration", {
