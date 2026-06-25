@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { Construct } from "constructs";
-import { Stack, StackProps, Duration, CfnOutput, CustomResource } from "aws-cdk-lib";
+import { Stack, StackProps, Duration, CfnOutput } from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as lambda from "aws-cdk-lib/aws-lambda";
@@ -18,7 +18,6 @@ import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as iam from "aws-cdk-lib/aws-iam";
-import * as cr from "aws-cdk-lib/custom-resources";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { EnvConfig, PG_ENGINE } from "./env-config";
 
@@ -152,12 +151,10 @@ export class OfficeInfraStack extends Stack {
     dbSecret.grantRead(dbInitFn);
     schemaAsset.grantRead(dbInitFn);
 
-    const dbInitProvider = new cr.Provider(this, "DbInitProvider", {
-      onEventHandler: dbInitFn,
-    });
-    new CustomResource(this, "DbInit", {
-      serviceToken: dbInitProvider.serviceToken,
-    });
+    // DbInitFn is deployed but NOT run at deploy time. Apply the schema by
+    // invoking it manually once the DB/proxy are up:
+    //   aws lambda invoke --function-name <name> /dev/stdout
+    new CfnOutput(this, "DbInitFnName", { value: dbInitFn.functionName });
 
     // ── Auth: Cognito user pool + persona groups ──────────────────────────────
     const userPool = new cognito.UserPool(this, "UserPool", {
