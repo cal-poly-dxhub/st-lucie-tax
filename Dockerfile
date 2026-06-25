@@ -5,6 +5,7 @@
 # QueueFn; the SERVICE env var (set per-function in CDK) selects which routers
 # mount.
 FROM public.ecr.aws/lambda/nodejs:22 AS build
+RUN npm install -g npm@11
 WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
@@ -14,6 +15,7 @@ COPY server ./server
 RUN npx tsc -p tsconfig.json
 
 FROM public.ecr.aws/lambda/nodejs:22
+RUN npm install -g npm@11
 # Lambda Web Adapter extension.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 
