@@ -14,6 +14,7 @@ export interface EnvConfig {
   dbMultiAz: boolean;
   dbDeletionProtection: boolean;
   dbRemovalPolicy: RemovalPolicy;
+  maxAzs: number;
   natGateways: number;
   // Reserved concurrency keeps the two fault domains from starving each other.
   appointmentReservedConcurrency: number;
@@ -35,10 +36,11 @@ export function envConfig(envName: string): EnvConfig {
       return {
         ...base,
         dbInstanceSize: ec2.InstanceSize.SMALL,
-        dbMultiAz: true,
+        dbMultiAz: false,
         dbDeletionProtection: true,
         dbRemovalPolicy: RemovalPolicy.RETAIN,
-        natGateways: 2,
+        maxAzs: 1,
+        natGateways: 1,
         appointmentReservedConcurrency: 20,
         queueReservedConcurrency: 20,
         apiRateLimit: 50,
@@ -51,6 +53,7 @@ export function envConfig(envName: string): EnvConfig {
         dbMultiAz: false,
         dbDeletionProtection: false,
         dbRemovalPolicy: RemovalPolicy.DESTROY,
+        maxAzs: 1,
         natGateways: 1,
         appointmentReservedConcurrency: 10,
         queueReservedConcurrency: 10,
@@ -64,6 +67,7 @@ export function envConfig(envName: string): EnvConfig {
         dbMultiAz: false,
         dbDeletionProtection: false,
         dbRemovalPolicy: RemovalPolicy.DESTROY,
+        maxAzs: 1,
         natGateways: 1,
         appointmentReservedConcurrency: 5,
         queueReservedConcurrency: 5,
