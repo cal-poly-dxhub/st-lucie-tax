@@ -17,6 +17,7 @@ export interface ClerkServiceRecord {
   docs: DocStatus[];
   notes: string | null;
   isPriority: boolean;
+  steps: Record<string, boolean>;
 }
 
 export async function getClerkServiceRecord(
@@ -27,6 +28,7 @@ export async function getClerkServiceRecord(
     queue_id: number;
     queue_number: number;
     notes: string | null;
+    steps: Record<string, boolean>;
     appointment_id: number;
     first_name: string;
     last_name: string;
@@ -42,6 +44,7 @@ export async function getClerkServiceRecord(
     `SELECT q.id AS queue_id,
             q.queue_number,
             q.notes,
+            q.steps,
             a.id AS appointment_id,
             a.first_name,
             a.last_name,
@@ -105,21 +108,78 @@ export async function getClerkServiceRecord(
     docs,
     notes: r.notes,
     isPriority: r.is_priority,
+    steps: r.steps ?? {},
   };
+}
+
+export interface SendToWrittenTestInput {
+  queueId: number;
+  testStationId: number;
+  clerkId: number;
+  officeId: number;
 }
 
 export async function sendToWrittenTest(
   db: Queryable,
-  queueId: number,
-  testStationId: number,
+  input: SendToWrittenTestInput,
 ): Promise<void> {
-  const { rowCount } = await db.query(
+  const { queueId, testStationId, clerkId, officeId } = input;
+
+  const qRow = await db.query<{ appointment_id: number; status: string }>(
+    `SELECT appointment_id, status FROM queue WHERE id = $1`,
+    [queueId],
+  );
+  if (qRow.rows.length === 0) throw new Error(`Queue entry ${queueId} not found`);
+  if (qRow.rows[0].status !== "serving")
+    throw new Error(`Queue entry ${queueId} not in serving status`);
+
+  const { appointment_id: appointmentId } = qRow.rows[0];
+
+  await db.query(
     `UPDATE queue
-     SET status = 'testing', assigned_desk = $2
-     WHERE id = $1 AND status = 'serving'`,
+     SET status = 'testing', assigned_desk = $2, assigned_clerk_id = NULL
+     WHERE id = $1`,
     [queueId, testStationId],
   );
-  if (rowCount === 0) {
-    throw new Error(`Queue entry ${queueId} not found or not in serving status`);
+
+  const shRes = await db.query<{ id: number }>(
+    `INSERT INTO service_history (office_id, appointment_id, clerk_id, duration_sec)
+     SELECT $1, $2, $4, EXTRACT(EPOCH FROM (NOW() - served_at))::int
+     FROM queue WHERE id = $3
+     RETURNING id`,
+    [officeId, appointmentId, queueId, clerkId],
+  );
+  const { id: serviceHistoryId } = shRes.rows[0];
+
+  const txnRow = await db.query<{ txn_type_ids: number[] }>(
+    `SELECT txn_type_ids FROM appointments WHERE id = $1`,
+    [appointmentId],
+  );
+  const txnTypeIds = txnRow.rows[0].txn_type_ids;
+  if (txnTypeIds.length > 0) {
+    const values = txnTypeIds.map((tid, i) => `($1, $${i + 2})`).join(", ");
+    await db.query(
+      `INSERT INTO service_history_txn_types (service_history_id, txn_type_id) VALUES ${values}`,
+      [serviceHistoryId, ...txnTypeIds],
+    );
   }
+
+  await db.query(
+    `UPDATE clerk_sessions SET is_available = TRUE
+     WHERE clerk_id = $1 AND office_id = $2 AND logged_out_at IS NULL`,
+    [clerkId, officeId],
+  );
+}
+
+export async function completeWrittenTest(db: Queryable, queueId: number): Promise<void> {
+  const { rowCount } = await db.query(
+    `UPDATE queue
+     SET status = 'waiting', is_returning = TRUE, assigned_desk = NULL, served_at = NULL
+     WHERE id = $1 AND status = 'testing'`,
+    [queueId],
+  );
+  if (rowCount === 0) {
+    throw new Error(`Queue entry ${queueId} not found or not in testing status`);
+  }
+  // TODO: expose via public API so customer can self-submit in the future
 }

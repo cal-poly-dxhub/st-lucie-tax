@@ -31,11 +31,11 @@ export async function completeAppointment(
   await db.query(`UPDATE appointments SET status = 'completed' WHERE id = $1`, [appointmentId]);
 
   const shRes = await db.query<{ id: number; duration_sec: number }>(
-    `INSERT INTO service_history (office_id, appointment_id, duration_sec)
-     SELECT $1, $2, EXTRACT(EPOCH FROM (NOW() - served_at))::int
+    `INSERT INTO service_history (office_id, appointment_id, clerk_id, duration_sec)
+     SELECT $1, $2, $4, EXTRACT(EPOCH FROM (NOW() - served_at))::int
      FROM queue WHERE id = $3
      RETURNING id, duration_sec`,
-    [officeId, appointmentId, queueId],
+    [officeId, appointmentId, queueId, clerkId],
   );
   const { id: serviceHistoryId, duration_sec: durationSec } = shRes.rows[0];
 

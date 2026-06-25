@@ -939,10 +939,10 @@ app.post("/api/clerk/complete-and-next", async (req, res) => {
 // ─── Service Clerk: send to written test ────────────────────────────────────
 app.post("/api/clerk/send-to-test", async (req, res) => {
   try {
-    const { queueId, testStationId } = req.body;
-    if (!queueId || !testStationId)
-      return res.status(400).json({ error: "queueId and testStationId required" });
-    await sendToWrittenTest(pool, queueId, testStationId);
+    const { queueId, testStationId, clerkId, officeId } = req.body;
+    if (!queueId || !testStationId || !clerkId || !officeId)
+      return res.status(400).json({ error: "queueId, testStationId, clerkId, officeId required" });
+    await sendToWrittenTest(pool, { queueId, testStationId, clerkId, officeId });
     res.json({ ok: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

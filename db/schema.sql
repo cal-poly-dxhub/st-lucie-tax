@@ -186,13 +186,16 @@ CREATE TABLE queue (
     served_at       TIMESTAMPTZ,
     assigned_clerk_id INT REFERENCES clerks(id),
     assigned_desk   INT,
-    notes           TEXT
+    is_returning    BOOLEAN NOT NULL DEFAULT FALSE,
+    notes           TEXT,
+    steps           JSONB NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE service_history (
     id              SERIAL PRIMARY KEY,
     office_id       INT NOT NULL REFERENCES offices(id),
     appointment_id  INT REFERENCES appointments(id),
+    clerk_id        INT REFERENCES clerks(id),
     duration_sec    INT NOT NULL CHECK (duration_sec >= 0),
     served_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -656,7 +659,7 @@ BEGIN
   WHERE q.office_id = p_office_id
     AND q.status = 'waiting'
     AND a.txn_type_ids <@ v_clerk_skills
-  ORDER BY a.is_priority DESC, q.checked_in_at ASC
+  ORDER BY q.is_returning DESC, a.is_priority DESC, q.checked_in_at ASC
   LIMIT 1
   FOR UPDATE OF q SKIP LOCKED;
 

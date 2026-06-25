@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { CreateEmailIdentityCommand } from "@aws-sdk/client-sesv2";
 import { pool, withTransaction } from "../db.js";
 import { ses, s3, EMAIL, BASE_URL, DEFAULT_DATE, DOCUMENTS_BUCKET } from "../config.js";
 import {
@@ -371,6 +372,68 @@ router.post("/walk-in", async (req, res) => {
   }
 });
 
+// ─── POST /api/send-confirmation (demo: create appointment + send email) ────
+router.post("/send-confirmation", async (req, res) => {
+  try {
+    const { prescreen, identity, docs } = req.body;
+
+    const docConfigs: Record<string, string[]> = {
+      mixed: ["learner_permit", "photo_id"],
+      "all-accepted": ["learner_permit", "photo_id", "vision_cert"],
+      "all-pending": [],
+      none: [],
+    };
+    const uploadedDocs = docConfigs[docs as string] ?? [];
+    const allRequiredDocs = ["learner_permit", "photo_id", "vision_cert"];
+
+    const result = await withTransaction(async (client) => {
+      const { rows: txnRows } = await client.query(
+        `SELECT id FROM transaction_types WHERE txn_type_id = 'road_test' AND office_id IS NULL LIMIT 1`,
+      );
+      const txnTypeId = txnRows[0]?.id ?? 1;
+
+      const { rows } = await client.query(
+        `INSERT INTO appointments (
+          office_id, first_name, last_name, contact_email, contact_phone,
+          txn_type_ids, required_doc_ids, appointment_date, appointment_time,
+          status, prescreen_completed, identity_verified
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING id, confirmation_code`,
+        [
+          1,
+          "Jane",
+          "Smith",
+          EMAIL,
+          "",
+          [txnTypeId],
+          allRequiredDocs,
+          DEFAULT_DATE,
+          "09:30",
+          "scheduled",
+          !!prescreen,
+          !!identity,
+        ],
+      );
+      const appointmentId = rows[0].id;
+      const confirmationCode = rows[0].confirmation_code;
+
+      for (const docId of uploadedDocs) {
+        await client.query(
+          `INSERT INTO documents (appointment_id, doc_id, name, s3_key, ai_review_status)
+           VALUES ($1, $2, $3, $4, 'accept')`,
+          [appointmentId, docId, docId.replace(/_/g, " "), `demo/${docId}.pdf`],
+        );
+      }
+
+      return { confirmationCode };
+    });
+
+    res.json({ ok: true, confirmationCode: result.confirmationCode });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
 // ─── POST /api/send-prescreen ────────────────────────────────────────────────
 router.post("/send-prescreen", async (req, res) => {
   try {
@@ -468,6 +531,29 @@ router.post("/prescreen/:confirmationCode/submit", async (req, res) => {
     }
 
     res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/set-demo-email ────────────────────────────────────────────────
+// Updates the contact_email on all appointments to the provided address and
+// triggers SES email identity verification so the address can receive emails.
+router.post("/set-demo-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "email required" });
+
+    await pool.query(`UPDATE appointments SET contact_email = $1`, [email]);
+
+    try {
+      await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+    } catch (sesErr: unknown) {
+      const code = (sesErr as { name?: string }).name;
+      if (code !== "AlreadyExistsException") throw sesErr;
+    }
+
+    res.json({ ok: true, email, note: "Check inbox for SES verification email" });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
   }
