@@ -311,7 +311,14 @@ export class OfficeInfraStack extends Stack {
     // ── API Gateway: single HTTP API, path-based routing to two Lambdas ────────
     // Auth is enforced at the application layer (server/middleware/auth.ts) so
     // public routes (prescreen, config, lobby) work without API-level authorizers.
-    const httpApi = new apigwv2.HttpApi(this, "HttpApi");
+    const httpApi = new apigwv2.HttpApi(this, "HttpApi", {
+      createDefaultStage: false,
+    });
+    const apiStage = new apigwv2.HttpStage(this, "ApiStage", {
+      httpApi,
+      stageName: "api",
+      autoDeploy: true,
+    });
 
     const queueIntegration = new apigwv2_integrations.HttpLambdaIntegration("QueueInt", queueFn);
     const appointmentIntegration = new apigwv2_integrations.HttpLambdaIntegration(
@@ -341,8 +348,8 @@ export class OfficeInfraStack extends Stack {
     });
 
     // Stage-level throttling protects the DB and the downstream chatbot module.
-    const apiStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
-    apiStage.defaultRouteSettings = {
+    const cfnStage = apiStage.node.defaultChild as apigwv2.CfnStage;
+    cfnStage.defaultRouteSettings = {
       throttlingRateLimit: config.apiRateLimit,
       throttlingBurstLimit: config.apiBurstLimit,
     };
@@ -373,7 +380,7 @@ export class OfficeInfraStack extends Stack {
 
     new wafv2.CfnWebACLAssociation(this, "ApiWafAssoc", {
       webAclArn: webAcl.attrArn,
-      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${httpApi.httpApiId}/stages/${httpApi.defaultStage!.stageName}`,
+      resourceArn: `arn:aws:apigateway:${this.region}::/apis/${httpApi.httpApiId}/stages/${apiStage.stageName}`,
     });
 
     // ── Frontend: single S3 + CloudFront distribution ──────────────────────────
@@ -424,7 +431,7 @@ export class OfficeInfraStack extends Stack {
     };
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    new CfnOutput(this, "ApiUrl", { value: httpApi.apiEndpoint });
+    new CfnOutput(this, "ApiUrl", { value: apiStage.url });
     new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, "DocumentsBucketName", { value: documentsBucket.bucketName });
