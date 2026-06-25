@@ -128,7 +128,10 @@ export class OfficeInfraStack extends Stack {
       securityGroups: [lambdaSg],
       memorySize: 256,
       timeout: Duration.minutes(5),
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: new logs.LogGroup(this, "DbInitFnLogs", {
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: config.dbRemovalPolicy,
+      }),
       environment: {
         PGHOST: proxy.endpoint,
         PGPORT: "5432",
@@ -220,7 +223,10 @@ export class OfficeInfraStack extends Stack {
         memorySize: 512,
         timeout: Duration.seconds(29), // under API Gateway's 30s integration cap
         reservedConcurrentExecutions: reserved,
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `${id}Logs`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: config.dbRemovalPolicy,
+        }),
         environment: {
           ...commonEnv,
           SERVICE: service,
@@ -265,7 +271,10 @@ export class OfficeInfraStack extends Stack {
         securityGroups: [lambdaSg],
         memorySize: 256,
         timeout,
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `${id}Logs`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: config.dbRemovalPolicy,
+        }),
         environment: workerEnv,
         bundling: { format: lambdaNode.OutputFormat.ESM, target: "node20" },
       });
