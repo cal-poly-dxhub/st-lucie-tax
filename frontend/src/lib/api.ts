@@ -1,4 +1,4 @@
-// API client + response shapes — mirrors server/routes/check-in.ts.
+// API client + response shapes — mirrors server/routes/*.ts.
 // All requests go through the Vite proxy to the official server (port 3000).
 
 export interface DocStatus {
@@ -50,10 +50,101 @@ export interface TxnType {
   status: string;
 }
 
+export interface LunchShift {
+  id: number;
+  office_id: number;
+  shift_num: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface OfficeHours {
+  office_id: number;
+  day_of_week: number;
+  open_time: string;
+  close_time: string;
+}
+
 export interface ConfigResponse {
   offices: Office[];
   txnTypes: TxnType[];
+  lunchShifts: LunchShift[];
+  officeHours: OfficeHours[];
   demoDate: string;
+}
+
+export interface Clerk {
+  id: number;
+  first_name: string;
+  last_name: string;
+  skill_ids: number[];
+  skill_names: string[];
+}
+
+export interface QueueEntry {
+  id: number;
+  queue_number: number;
+  status: string;
+  assigned_desk: number | null;
+  confirmation_code: string;
+  is_priority?: boolean;
+  first_name?: string;
+  last_name?: string;
+  txn_type_ids?: number[];
+  checked_in_at?: string;
+}
+
+export interface ClerkSession {
+  desk_number: number;
+  is_available: boolean;
+  name?: string;
+}
+
+export interface LiveQueueResponse {
+  queue: QueueEntry[];
+  clerks: ClerkSession[];
+  txnTypes?: TxnType[];
+}
+
+export interface ServiceRecord {
+  queueId: number;
+  queueNumber: number;
+  firstName: string;
+  lastName: string;
+  isPriority: boolean;
+  identityVerified: boolean;
+  prescreenCompleted: boolean;
+  txnTypes: { id: number; name: string }[];
+  docs: DocStatus[];
+  notes: string | null;
+  prescreenResponses: Record<string, boolean>;
+  prescreenWithText?: { questionId: string; questionText: string; answer: boolean }[];
+  steps: Record<string, boolean>;
+}
+
+export interface PrescreenQuestion {
+  id: number;
+  questionText: string;
+}
+
+export interface PrescreenData {
+  appointmentId: number;
+  firstName: string;
+  lastName: string;
+  prescreenCompleted: boolean;
+  questions: PrescreenQuestion[];
+}
+
+export interface ScheduleAppointment {
+  id: number;
+  office_id: number;
+  appointment_date: string;
+  start_time: string;
+  txn_type_ids: number[];
+  first_name: string;
+  last_name: string;
+  status: string;
+  duration_min: number;
 }
 
 async function post<T>(url: string, body: unknown): Promise<T> {
@@ -98,8 +189,96 @@ export const api = {
       priority,
     }),
 
-  sendPrescreen: (appointmentId: number) =>
+  sendPrescreen: (appointmentId: number, autoCheckIn?: boolean, priority?: boolean) =>
     post<{ ok: boolean; prescreenUrl: string; sentTo: string }>("/api/send-prescreen", {
       appointmentId,
+      autoCheckIn,
+      priority,
     }),
+
+  sendConfirmation: (cfg: { prescreen: boolean; identity: boolean; docs: string }) =>
+    post<{ ok: boolean; confirmationCode?: string; error?: string }>("/api/send-confirmation", cfg),
+
+  // Queue / Clerk
+  clerks: (officeId: number) => get<{ clerks: Clerk[] }>(`/api/clerks?officeId=${officeId}`),
+
+  clerkLogin: (clerkId: number, officeId: number, deskNumber: number) =>
+    post<{ ok: boolean; error?: string }>("/api/clerk/login", { clerkId, officeId, deskNumber }),
+
+  clerkAvailability: (clerkId: number, officeId: number, available: boolean) =>
+    post<{ ok: boolean }>("/api/clerk/availability", { clerkId, officeId, available }),
+
+  clerkSummonNext: (clerkId: number, officeId: number) =>
+    post<{ ok: boolean; assigned: boolean; queueId?: number; deskNumber?: number }>(
+      "/api/clerk/summon-next",
+      { clerkId, officeId },
+    ),
+
+  clerkServing: (clerkId: number, officeId: number) =>
+    get<{ serving: boolean; record?: ServiceRecord }>(
+      `/api/clerk/serving?clerkId=${clerkId}&officeId=${officeId}`,
+    ),
+
+  clerkComplete: (queueId: number, clerkId: number, officeId: number) =>
+    post<{ ok: boolean; durationSec: number }>("/api/clerk/complete", {
+      queueId,
+      clerkId,
+      officeId,
+    }),
+
+  clerkCompleteAndNext: (queueId: number, clerkId: number, officeId: number) =>
+    post<{ ok: boolean; durationSec: number; next: ServiceRecord | null }>(
+      "/api/clerk/complete-and-next",
+      { queueId, clerkId, officeId },
+    ),
+
+  clerkRecordStep: (queueId: number, step: string) =>
+    post<{ ok: boolean; steps: Record<string, boolean> }>("/api/clerk/record-step", {
+      queueId,
+      step,
+    }),
+
+  liveQueue: () => get<LiveQueueResponse>("/api/live-queue"),
+
+  seedQueue: () => post<{ ok: boolean; seeded: unknown[] }>("/api/seed-queue", {}),
+
+  walkIn: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    txns: string[];
+    officeId: number;
+    priority: boolean;
+    notes: string;
+  }) => post<{ ok: boolean; appointmentId?: number; queueNumber?: number }>("/api/walk-in", data),
+
+  // Schedule
+  scheduleAppointments: (officeId: number, startDate: string, endDate: string) =>
+    get<ScheduleAppointment[]>(
+      `/api/schedule/appointments?officeId=${officeId}&startDate=${startDate}&endDate=${endDate}`,
+    ),
+
+  reschedule: (appointmentId: number, newDate: string, newTime: string, force: boolean) =>
+    post<{ success: boolean; error?: string }>("/api/schedule/reschedule", {
+      appointmentId,
+      newDate,
+      newTime,
+      force,
+    }),
+
+  // Prescreen (customer-facing)
+  prescreenLoad: (confirmationCode: string) =>
+    get<PrescreenData>(`/api/prescreen/${confirmationCode}`),
+
+  prescreenSubmit: (
+    confirmationCode: string,
+    responses: Record<string, boolean>,
+    autoCheckIn: boolean,
+    priority: boolean,
+  ) =>
+    post<{ ok: boolean; checkedIn?: boolean; queueNumber?: number }>(
+      `/api/prescreen/${confirmationCode}/submit`,
+      { responses, autoCheckIn, priority },
+    ),
 };
