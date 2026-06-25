@@ -415,13 +415,15 @@ export class OfficeInfraStack extends Stack {
       ],
     });
 
-    // ── CORS: restrict to CloudFront origin (+localhost for dev) ─────────────
+    // ── CORS ────────────────────────────────────────────────────────────────
+    // API requests now go through CloudFront (same-origin), so API Gateway
+    // CORS is unnecessary. S3 documents bucket still needs CORS for presigned
+    // upload PUTs from the browser.
     const allowedOrigins = [`https://${distribution.distributionDomainName}`];
     if (config.envName !== "prod") {
       allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
     }
 
-    // S3 documents bucket CORS
     const cfnBucket = documentsBucket.node.defaultChild as s3.CfnBucket;
     cfnBucket.addPropertyOverride("CorsConfiguration", {
       CorsRules: [
@@ -432,14 +434,6 @@ export class OfficeInfraStack extends Stack {
         },
       ],
     });
-
-    // API Gateway CORS
-    const cfnApi = httpApi.node.defaultChild as apigwv2.CfnApi;
-    cfnApi.corsConfiguration = {
-      allowOrigins: allowedOrigins,
-      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowHeaders: ["Authorization", "Content-Type"],
-    };
 
     // ── Outputs ───────────────────────────────────────────────────────────────
     new CfnOutput(this, "ApiUrl", {
