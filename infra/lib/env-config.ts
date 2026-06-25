@@ -77,7 +77,7 @@ export function envConfig(envName: string): EnvConfig {
   }
 }
 
-// PostgreSQL engine version pinned to match local docker (postgres:16).
+// PostgreSQL engine version pinned to match local docker (postgres:17).
 export const PG_ENGINE = rds.DatabaseInstanceEngine.postgres({
-  version: rds.PostgresEngineVersion.VER_16_6,
+  version: rds.PostgresEngineVersion.VER_17_9,
 });
