@@ -27,7 +27,7 @@ export interface EnvConfig {
 export function envConfig(envName: string): EnvConfig {
   const base = {
     envName,
-    senderEmail: process.env.SENDER_EMAIL ?? "no-reply@tcslc.com",
+    senderEmail: process.env.SENDER_EMAIL!,
   };
 
   switch (envName) {
