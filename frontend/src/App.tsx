@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, Outlet } from "react-router-dom";
 import { ToastProvider } from "@/components/Toast";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { LoginPage } from "@/pages/LoginPage";
 import { CheckInDesk } from "@/pages/CheckInDesk";
 import { WalkIn } from "@/pages/WalkIn";
 import { QueuePage } from "@/pages/QueuePage";
@@ -10,6 +12,7 @@ import { PrescreenPage } from "@/pages/PrescreenPage";
 import { ConfirmationPage } from "@/pages/ConfirmationPage";
 
 function NavBar() {
+  const { user, signOut } = useAuth();
   const link =
     "rounded-md px-3 py-2 text-sm font-semibold text-civic-200 transition-colors hover:bg-white/10 hover:text-white";
   const active = "!bg-civic-500/80 !text-white";
@@ -41,9 +44,30 @@ function NavBar() {
         <NavLink to="/lobby" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
           Lobby Display
         </NavLink>
+        {user && (
+          <button
+            onClick={signOut}
+            className="ml-auto rounded-md px-3 py-2 text-sm font-medium text-civic-300 hover:text-white"
+          >
+            Sign Out
+          </button>
+        )}
       </div>
     </nav>
   );
+}
+
+function RequireAuth() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-civic-400">
+        Loading...
+      </div>
+    );
+  }
+  if (!user) return <LoginPage />;
+  return <Outlet />;
 }
 
 function Layout() {
@@ -58,24 +82,28 @@ function Layout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <Routes>
-          {/* Full-screen pages without nav */}
-          <Route path="/lobby" element={<LobbyDisplay />} />
-          <Route path="/prescreen/:code" element={<PrescreenPage />} />
+      <AuthProvider>
+        <ToastProvider>
+          <Routes>
+            {/* Public pages — no auth required */}
+            <Route path="/lobby" element={<LobbyDisplay />} />
+            <Route path="/prescreen/:code" element={<PrescreenPage />} />
 
-          {/* Pages with nav bar */}
-          <Route element={<Layout />}>
-            <Route index element={<Navigate to="/check-in" replace />} />
-            <Route path="/confirmation" element={<ConfirmationPage />} />
-            <Route path="/check-in" element={<CheckInDesk />} />
-            <Route path="/walk-in" element={<WalkIn />} />
-            <Route path="/queue" element={<QueuePage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
-            <Route path="/service" element={<ServiceClerk />} />
-          </Route>
-        </Routes>
-      </ToastProvider>
+            {/* Staff pages — require Cognito auth */}
+            <Route element={<RequireAuth />}>
+              <Route element={<Layout />}>
+                <Route index element={<Navigate to="/check-in" replace />} />
+                <Route path="/confirmation" element={<ConfirmationPage />} />
+                <Route path="/check-in" element={<CheckInDesk />} />
+                <Route path="/walk-in" element={<WalkIn />} />
+                <Route path="/queue" element={<QueuePage />} />
+                <Route path="/schedule" element={<SchedulePage />} />
+                <Route path="/service" element={<ServiceClerk />} />
+              </Route>
+            </Route>
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
