@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { Construct } from "constructs";
-import { Stack, StackProps, Duration, CfnOutput } from "aws-cdk-lib";
+import { Stack, StackProps, Duration, CfnOutput, CustomResource } from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as lambda from "aws-cdk-lib/aws-lambda";
@@ -8,6 +8,7 @@ import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as s3assets from "aws-cdk-lib/aws-s3-assets";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -18,6 +19,7 @@ import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as apigwv2_authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as cr from "aws-cdk-lib/custom-resources";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { EnvConfig, PG_ENGINE } from "./env-config";
 
@@ -52,8 +54,9 @@ export class OfficeInfraStack extends Stack {
     // Gateway endpoint for S3 keeps doc traffic off NAT.
     vpc.addGatewayEndpoint("S3Endpoint", { service: ec2.GatewayVpcEndpointAwsService.S3 });
     // Interface endpoints for the AWS APIs Lambdas call, avoiding NAT egress.
+    // SES v2 SDK calls egress through NAT (no VPC endpoint available for the
+    // SES API; the CDK SES constant is SMTP-only and not used by the SDK).
     for (const [name, svc] of [
-      ["Ses", ec2.InterfaceVpcEndpointAwsService.SES],
       ["Secrets", ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER],
       ["Sqs", ec2.InterfaceVpcEndpointAwsService.SQS],
     ] as const) {
@@ -108,6 +111,45 @@ export class OfficeInfraStack extends Stack {
       securityGroups: [proxySg],
       requireTLS: true,
       iamAuth: false,
+    });
+
+    // ── Schema init: apply db/schema.sql on first deploy via custom resource ─
+    const schemaAsset = new s3assets.Asset(this, "SchemaAsset", {
+      path: path.join(repoRoot, "db", "schema.sql"),
+    });
+
+    const dbInitFn = new lambdaNode.NodejsFunction(this, "DbInitFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(repoRoot, "server/workers/db-init-worker.ts"),
+      handler: "handler",
+      projectRoot: repoRoot,
+      depsLockFilePath: path.join(repoRoot, "package-lock.json"),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSg],
+      memorySize: 256,
+      timeout: Duration.minutes(5),
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      environment: {
+        PGHOST: proxy.endpoint,
+        PGPORT: "5432",
+        PGUSER: "stlucie",
+        PGDATABASE: "stlucie",
+        PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
+        SCHEMA_BUCKET: schemaAsset.s3BucketName,
+        SCHEMA_KEY: schemaAsset.s3ObjectKey,
+      },
+      bundling: { format: lambdaNode.OutputFormat.ESM, target: "node20" },
+    });
+    proxy.grantConnect(dbInitFn, "stlucie");
+    dbSecret.grantRead(dbInitFn);
+    schemaAsset.grantRead(dbInitFn);
+
+    const dbInitProvider = new cr.Provider(this, "DbInitProvider", {
+      onEventHandler: dbInitFn,
+    });
+    new CustomResource(this, "DbInit", {
+      serviceToken: dbInitProvider.serviceToken,
     });
 
     // ── Auth: Cognito user pool + persona groups ──────────────────────────────
@@ -255,13 +297,20 @@ export class OfficeInfraStack extends Stack {
       targets: [new targets.LambdaFunction(durationRecFn)],
     });
 
-    // ── API Gateway: one HTTP API per fault domain, Cognito JWT authorizer ────
-    const authorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer("Authorizer", userPool, {
-      userPoolClients: [userPoolClient],
-    });
+    // ── API Gateway: one HTTP API per fault domain, each with its own authorizer
+    const appointmentAuthorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer(
+      "ApptAuthorizer",
+      userPool,
+      { userPoolClients: [userPoolClient] },
+    );
+    const queueAuthorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer(
+      "QueueAuthorizer",
+      userPool,
+      { userPoolClients: [userPoolClient] },
+    );
 
     const appointmentApi = new apigwv2.HttpApi(this, "AppointmentApi", {
-      defaultAuthorizer: authorizer,
+      defaultAuthorizer: appointmentAuthorizer,
     });
     appointmentApi.addRoutes({
       path: "/{proxy+}",
@@ -270,7 +319,7 @@ export class OfficeInfraStack extends Stack {
     });
 
     const queueApi = new apigwv2.HttpApi(this, "QueueApi", {
-      defaultAuthorizer: authorizer,
+      defaultAuthorizer: queueAuthorizer,
     });
     queueApi.addRoutes({
       path: "/{proxy+}",
@@ -290,10 +339,11 @@ export class OfficeInfraStack extends Stack {
       };
     }
 
-    // ── Frontends: per-surface S3 + CloudFront, WAF on the bundle ─────────────
+    // ── WAF: REGIONAL scope protects API Gateways (CLOUDFRONT scope requires
+    // us-east-1, which would need a cross-region stack). ──────────────────────
     const webAcl = new wafv2.CfnWebACL(this, "WebAcl", {
       defaultAction: { allow: {} },
-      scope: "CLOUDFRONT",
+      scope: "REGIONAL",
       visibilityConfig: {
         cloudWatchMetricsEnabled: true,
         metricName: "office-web-acl",
@@ -314,6 +364,19 @@ export class OfficeInfraStack extends Stack {
       ],
     });
 
+    // Attach WAF to both API Gateway stages.
+    for (const [id, api] of [
+      ["ApptWafAssoc", appointmentApi],
+      ["QueueWafAssoc", queueApi],
+    ] as const) {
+      new wafv2.CfnWebACLAssociation(this, id, {
+        webAclArn: webAcl.attrArn,
+        resourceArn: `arn:aws:apigateway:${this.region}::/apis/${api.httpApiId}/stages/${api.defaultStage!.stageName}`,
+      });
+    }
+
+    // ── Frontends: per-surface S3 + CloudFront ───────────────────────────────
+
     const surfaces = ["admin", "checkin", "service-clerk", "lobby"];
     const distributions: Record<string, cloudfront.Distribution> = {};
     for (const surface of surfaces) {
@@ -326,7 +389,6 @@ export class OfficeInfraStack extends Stack {
       });
       distributions[surface] = new cloudfront.Distribution(this, `Dist-${surface}`, {
         defaultRootObject: "index.html",
-        webAclId: webAcl.attrArn,
         defaultBehavior: {
           origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

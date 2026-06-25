@@ -131,3 +131,11 @@
 .animate-pulse-ring {
   animation: pulse-ring 2s ease-out infinite;
 }
+
+@keyframes lobby-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+.animate-lobby-pulse {
+  animation: lobby-pulse 1.5s infinite;
+}
