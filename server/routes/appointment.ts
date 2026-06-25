@@ -13,6 +13,7 @@ import { setIdentityVerified } from "../../src/identity.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
 import { buildPrescreenLinkEmail, sendEmail } from "../../src/email.js";
 import { sendError } from "../middleware/errors.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -538,7 +539,7 @@ router.post("/prescreen/:confirmationCode/submit", async (req, res) => {
 // ─── POST /api/set-demo-email ────────────────────────────────────────────────
 // Updates the contact_email on all appointments to the provided address and
 // triggers SES email identity verification so the address can receive emails.
-router.post("/set-demo-email", async (req, res) => {
+router.post("/set-demo-email", requireAuth("admin"), async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "email required" });
