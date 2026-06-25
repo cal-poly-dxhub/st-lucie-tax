@@ -4,22 +4,23 @@
 # unchanged from local dev. The same image backs both AppointmentFn and
 # QueueFn; the SERVICE env var (set per-function in CDK) selects which routers
 # mount.
-FROM --platform=linux/arm64 public.ecr.aws/lambda/nodejs:22 AS build
+FROM --platform=linux/arm64 node:22-slim AS build
 WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
 COPY src ./src
 COPY server ./server
-# Compile TS → dist/ (ESM, .js import specifiers already present in source).
 RUN npx tsc -p tsconfig.json
 
-FROM --platform=linux/arm64 public.ecr.aws/lambda/nodejs:22
-# Lambda Web Adapter extension.
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
-
-WORKDIR /var/task
+FROM --platform=linux/arm64 node:22-slim AS deps
+WORKDIR /deps
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
+
+FROM --platform=linux/arm64 public.ecr.aws/lambda/nodejs:22
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+WORKDIR /var/task
+COPY --from=deps /deps/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
 
 # LWA configuration: the server listens on PORT and LWA polls /healthz to know
