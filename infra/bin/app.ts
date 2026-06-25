@@ -6,23 +6,19 @@ import * as cdk from "aws-cdk-lib";
 import { OfficeInfraStack } from "../lib/office-infra-stack";
 import { envConfig } from "../lib/env-config";
 
-// Single CDK app → single stack per environment. Select with `-c env=dev`.
-// Each environment gets its own VPC/RDS/Cognito/Lambdas/frontends so dev,
-// test, and prod are fully isolated.
+// Single CDK app → single stack. One VPC/RDS/Cognito/Lambdas/frontends.
 const app = new cdk.App();
 
-const envName = (app.node.tryGetContext("env") as string) ?? "dev";
-const config = envConfig(envName);
+const config = envConfig();
 
-new OfficeInfraStack(app, `OfficeInfra-${envName}`, {
+new OfficeInfraStack(app, "OfficeInfra", {
   config,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION,
   },
-  description: `St. Lucie office operations infrastructure (${envName})`,
+  description: "St. Lucie office operations infrastructure",
   tags: {
     Project: "st-lucie-tax",
-    Environment: envName,
   },
 });
