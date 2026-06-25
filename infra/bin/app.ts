@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { config as loadEnv } from "dotenv";
+import * as path from "node:path";
+loadEnv({ path: path.join(__dirname, "..", "..", ".env") });
 import * as cdk from "aws-cdk-lib";
 import { OfficeInfraStack } from "../lib/office-infra-stack";
 import { envConfig } from "../lib/env-config";
