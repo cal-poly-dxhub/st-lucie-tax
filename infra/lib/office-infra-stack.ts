@@ -1,0 +1,367 @@
+import * as path from "node:path";
+import { Construct } from "constructs";
+import { Stack, StackProps, Duration, CfnOutput } from "aws-cdk-lib";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as rds from "aws-cdk-lib/aws-rds";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
+import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as events from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as wafv2 from "aws-cdk-lib/aws-wafv2";
+import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as apigwv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import * as apigwv2_authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import * as iam from "aws-cdk-lib/aws-iam";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import { EnvConfig, PG_ENGINE } from "./env-config";
+
+export interface OfficeInfraStackProps extends StackProps {
+  config: EnvConfig;
+}
+
+// One stack, two Lambdas. Holds the whole environment: network, data
+// (RDS + Proxy + Secrets), auth (Cognito), compute (AppointmentFn + QueueFn
+// behind separate HTTP APIs), async (SQS email worker + nightly
+// duration-recommendation schedule), and the static frontends (S3 + CloudFront
+// + WAF). The appointment and queue domains are deployed as independent
+// functions with their own reserved concurrency so a failure in one cannot
+// take down the other.
+export class OfficeInfraStack extends Stack {
+  constructor(scope: Construct, id: string, props: OfficeInfraStackProps) {
+    super(scope, id, props);
+    const { config } = props;
+    const repoRoot = path.join(__dirname, "..", "..");
+
+    // ── Network ──────────────────────────────────────────────────────────────
+    const vpc = new ec2.Vpc(this, "Vpc", {
+      maxAzs: 2,
+      natGateways: config.natGateways,
+      subnetConfiguration: [
+        { name: "public", subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
+        { name: "app", subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
+        { name: "data", subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
+      ],
+    });
+
+    // Gateway endpoint for S3 keeps doc traffic off NAT.
+    vpc.addGatewayEndpoint("S3Endpoint", { service: ec2.GatewayVpcEndpointAwsService.S3 });
+    // Interface endpoints for the AWS APIs Lambdas call, avoiding NAT egress.
+    for (const [name, svc] of [
+      ["Ses", ec2.InterfaceVpcEndpointAwsService.SES],
+      ["Secrets", ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER],
+      ["Sqs", ec2.InterfaceVpcEndpointAwsService.SQS],
+    ] as const) {
+      vpc.addInterfaceEndpoint(`${name}Endpoint`, { service: svc });
+    }
+
+    // ── Data: RDS Postgres + RDS Proxy + Secrets ──────────────────────────────
+    const dbSecret = new rds.DatabaseSecret(this, "DbSecret", { username: "stlucie" });
+
+    const dbSg = new ec2.SecurityGroup(this, "DbSg", {
+      vpc,
+      description: "RDS Postgres — only reachable from the proxy",
+      allowAllOutbound: false,
+    });
+    const proxySg = new ec2.SecurityGroup(this, "ProxySg", {
+      vpc,
+      description: "RDS Proxy — reachable from Lambdas",
+      allowAllOutbound: true,
+    });
+    const lambdaSg = new ec2.SecurityGroup(this, "LambdaSg", {
+      vpc,
+      description: "Lambda functions",
+      allowAllOutbound: true,
+    });
+    proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda → Proxy");
+    dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy → RDS");
+
+    const db = new rds.DatabaseInstance(this, "Db", {
+      engine: PG_ENGINE,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.BURSTABLE4_GRAVITON,
+        config.dbInstanceSize,
+      ),
+      credentials: rds.Credentials.fromSecret(dbSecret),
+      databaseName: "stlucie",
+      securityGroups: [dbSg],
+      multiAz: config.dbMultiAz,
+      deletionProtection: config.dbDeletionProtection,
+      removalPolicy: config.dbRemovalPolicy,
+      storageEncrypted: true,
+      allocatedStorage: 20,
+      maxAllocatedStorage: 100,
+      backupRetention: Duration.days(config.envName === "prod" ? 7 : 1),
+    });
+
+    const proxy = new rds.DatabaseProxy(this, "DbProxy", {
+      proxyTarget: rds.ProxyTarget.fromInstance(db),
+      secrets: [dbSecret],
+      vpc,
+      securityGroups: [proxySg],
+      requireTLS: true,
+      iamAuth: false,
+    });
+
+    // ── Auth: Cognito user pool + persona groups ──────────────────────────────
+    const userPool = new cognito.UserPool(this, "UserPool", {
+      selfSignUpEnabled: false, // staff accounts are admin-created
+      signInAliases: { email: true },
+      removalPolicy: config.dbRemovalPolicy,
+    });
+    const userPoolClient = userPool.addClient("WebClient", {
+      authFlows: { userSrp: true },
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL],
+      },
+    });
+    for (const group of ["admin", "checkin_clerk", "service_clerk"]) {
+      new cognito.CfnUserPoolGroup(this, `Group-${group}`, {
+        userPoolId: userPool.userPoolId,
+        groupName: group,
+      });
+    }
+
+    // ── Storage: documents + per-surface frontend buckets ─────────────────────
+    const documentsBucket = new s3.Bucket(this, "DocumentsBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      versioned: true,
+      enforceSSL: true,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+          allowedOrigins: ["*"], // tightened to CloudFront domains post-PoC
+          allowedHeaders: ["*"],
+        },
+      ],
+      lifecycleRules: [{ expiration: Duration.days(config.envName === "prod" ? 365 : 30) }],
+      removalPolicy: config.dbRemovalPolicy,
+      autoDeleteObjects: config.envName !== "prod",
+    });
+
+    // ── Async: SQS email queue + worker ───────────────────────────────────────
+    const emailDlq = new sqs.Queue(this, "EmailDlq", { retentionPeriod: Duration.days(14) });
+    const emailQueue = new sqs.Queue(this, "EmailQueue", {
+      visibilityTimeout: Duration.seconds(60),
+      deadLetterQueue: { queue: emailDlq, maxReceiveCount: 3 },
+    });
+
+    // ── Compute: shared container image, two functions ────────────────────────
+    const dockerCode = lambda.DockerImageCode.fromImageAsset(repoRoot, {
+      file: "Dockerfile",
+    });
+
+    const commonEnv: Record<string, string> = {
+      PGHOST: proxy.endpoint,
+      PGPORT: "5432",
+      PGUSER: "stlucie",
+      PGDATABASE: "stlucie",
+      PGSSL: "true",
+      // pg reads PGPASSWORD; injected from the secret below.
+      EMAIL: config.senderEmail,
+      DOCUMENTS_BUCKET: documentsBucket.bucketName,
+      EMAIL_QUEUE_URL: emailQueue.queueUrl,
+    };
+
+    const vpcSubnets: ec2.SubnetSelection = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
+
+    const makeFn = (id: string, service: "appointment" | "queue", reserved: number) =>
+      new lambda.DockerImageFunction(this, id, {
+        code: dockerCode,
+        vpc,
+        vpcSubnets,
+        securityGroups: [lambdaSg],
+        memorySize: 512,
+        timeout: Duration.seconds(29), // under API Gateway's 30s integration cap
+        reservedConcurrentExecutions: reserved,
+        logRetention: logs.RetentionDays.ONE_MONTH,
+        environment: {
+          ...commonEnv,
+          SERVICE: service,
+          // Resolve the DB password from Secrets Manager at init.
+          PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
+        },
+      });
+
+    const appointmentFn = makeFn(
+      "AppointmentFn",
+      "appointment",
+      config.appointmentReservedConcurrency,
+    );
+    const queueFn = makeFn("QueueFn", "queue", config.queueReservedConcurrency);
+
+    // Grants — least privilege per function.
+    for (const fn of [appointmentFn, queueFn]) {
+      proxy.grantConnect(fn, "stlucie");
+      dbSecret.grantRead(fn);
+    }
+    documentsBucket.grantReadWrite(appointmentFn); // presign + inline upload
+    emailQueue.grantSendMessages(queueFn); // summon emails
+    // Both functions send transactional email directly (confirmations/prescreen
+    // from appointment; the queue worker drains summons). SES has no resource
+    // policy, so grant the SendEmail action.
+    for (const fn of [appointmentFn, queueFn]) {
+      fn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: ["*"] }));
+    }
+
+    // Workers are small event-driven handlers (not the HTTP server), so they
+    // use esbuild-bundled NodejsFunctions instead of the LWA container image.
+    const workerEnv = { ...commonEnv, PGPASSWORD_SECRET_ARN: dbSecret.secretArn };
+    const makeWorker = (id: string, entry: string, timeout: Duration) =>
+      new lambdaNode.NodejsFunction(this, id, {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        entry: path.join(repoRoot, entry),
+        handler: "handler",
+        projectRoot: repoRoot,
+        depsLockFilePath: path.join(repoRoot, "package-lock.json"),
+        vpc,
+        vpcSubnets,
+        securityGroups: [lambdaSg],
+        memorySize: 256,
+        timeout,
+        logRetention: logs.RetentionDays.ONE_MONTH,
+        environment: workerEnv,
+        bundling: { format: lambdaNode.OutputFormat.ESM, target: "node20" },
+      });
+
+    // Email worker drains the SQS queue (decouples SES latency from summons).
+    const emailWorker = makeWorker(
+      "EmailWorker",
+      "server/workers/email-worker.ts",
+      Duration.seconds(30),
+    );
+    proxy.grantConnect(emailWorker, "stlucie");
+    dbSecret.grantRead(emailWorker);
+    emailWorker.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: ["*"] }),
+    );
+    emailWorker.addEventSource(new SqsEventSource(emailQueue, { batchSize: 5 }));
+
+    // Nightly duration-recommendation batch.
+    const durationRecFn = makeWorker(
+      "DurationRecFn",
+      "server/workers/duration-rec-worker.ts",
+      Duration.minutes(2),
+    );
+    proxy.grantConnect(durationRecFn, "stlucie");
+    dbSecret.grantRead(durationRecFn);
+    new events.Rule(this, "NightlyDurationRec", {
+      schedule: events.Schedule.cron({ hour: "7", minute: "0" }), // ~3am ET
+      targets: [new targets.LambdaFunction(durationRecFn)],
+    });
+
+    // ── API Gateway: one HTTP API per fault domain, Cognito JWT authorizer ────
+    const authorizer = new apigwv2_authorizers.HttpUserPoolAuthorizer("Authorizer", userPool, {
+      userPoolClients: [userPoolClient],
+    });
+
+    const appointmentApi = new apigwv2.HttpApi(this, "AppointmentApi", {
+      defaultAuthorizer: authorizer,
+      corsPreflight: {
+        allowOrigins: ["*"],
+        allowMethods: [apigwv2.CorsHttpMethod.ANY],
+        allowHeaders: ["*"],
+      },
+    });
+    appointmentApi.addRoutes({
+      path: "/{proxy+}",
+      methods: [apigwv2.HttpMethod.ANY],
+      integration: new apigwv2_integrations.HttpLambdaIntegration("AppointmentInt", appointmentFn),
+    });
+
+    const queueApi = new apigwv2.HttpApi(this, "QueueApi", {
+      defaultAuthorizer: authorizer,
+      corsPreflight: {
+        allowOrigins: ["*"],
+        allowMethods: [apigwv2.CorsHttpMethod.ANY],
+        allowHeaders: ["*"],
+      },
+    });
+    queueApi.addRoutes({
+      path: "/{proxy+}",
+      methods: [apigwv2.HttpMethod.ANY],
+      integration: new apigwv2_integrations.HttpLambdaIntegration("QueueInt", queueFn),
+    });
+
+    // Stage-level throttling protects the DB and the downstream chatbot module.
+    for (const [, api] of [
+      ["AppointmentStage", appointmentApi],
+      ["QueueStage", queueApi],
+    ] as const) {
+      const stage = api.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+      stage.defaultRouteSettings = {
+        throttlingRateLimit: config.apiRateLimit,
+        throttlingBurstLimit: config.apiBurstLimit,
+      };
+    }
+
+    // ── Frontends: per-surface S3 + CloudFront, WAF on the bundle ─────────────
+    const webAcl = new wafv2.CfnWebACL(this, "WebAcl", {
+      defaultAction: { allow: {} },
+      scope: "CLOUDFRONT",
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: "office-web-acl",
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        {
+          name: "RateLimit",
+          priority: 0,
+          action: { block: {} },
+          statement: { rateBasedStatement: { limit: 2000, aggregateKeyType: "IP" } },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "rate-limit",
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
+    });
+
+    const surfaces = ["admin", "checkin", "service-clerk", "lobby"];
+    const distributions: Record<string, cloudfront.Distribution> = {};
+    for (const surface of surfaces) {
+      const bucket = new s3.Bucket(this, `Frontend-${surface}`, {
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        enforceSSL: true,
+        removalPolicy: config.dbRemovalPolicy,
+        autoDeleteObjects: config.envName !== "prod",
+      });
+      distributions[surface] = new cloudfront.Distribution(this, `Dist-${surface}`, {
+        defaultRootObject: "index.html",
+        webAclId: webAcl.attrArn,
+        defaultBehavior: {
+          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        },
+        errorResponses: [
+          { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html" },
+          { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
+        ],
+      });
+    }
+
+    // ── Outputs ───────────────────────────────────────────────────────────────
+    new CfnOutput(this, "AppointmentApiUrl", { value: appointmentApi.apiEndpoint });
+    new CfnOutput(this, "QueueApiUrl", { value: queueApi.apiEndpoint });
+    new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
+    new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
+    new CfnOutput(this, "DocumentsBucketName", { value: documentsBucket.bucketName });
+    for (const surface of surfaces) {
+      new CfnOutput(this, `Frontend-${surface}-Url`, {
+        value: `https://${distributions[surface].distributionDomainName}`,
+      });
+    }
+  }
+}

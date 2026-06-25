@@ -1,0 +1,23 @@
+# Build context for the Lambda container image is the repo root. Exclude
+# everything not needed to compile + run the server, and critically exclude
+# infra/cdk.out (which would recursively copy the build context into itself).
+infra
+node_modules
+**/node_modules
+dist
+build
+cdk.out
+**/cdk.out
+.git
+.claude
+.reviews
+coverage
+demos
+frontend
+tests
+docs
+*.md
+.env
+.env.*
+*.log
+.DS_Store
