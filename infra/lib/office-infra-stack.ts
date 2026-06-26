@@ -317,7 +317,7 @@ export class OfficeInfraStack extends Stack {
     });
     const apiStage = new apigwv2.HttpStage(this, "ApiStage", {
       httpApi,
-      stageName: "api",
+      stageName: "$default",
       autoDeploy: true,
     });
 
@@ -391,7 +391,6 @@ export class OfficeInfraStack extends Stack {
 
     const apiOrigin = new origins.HttpOrigin(
       `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`,
-      { originPath: `/${apiStage.stageName}` },
     );
 
     // SPA fallback: rewrite paths without file extensions to /index.html so

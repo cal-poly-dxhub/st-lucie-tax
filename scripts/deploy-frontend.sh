@@ -25,7 +25,6 @@ for o in outputs:
 
 BUCKET=$(get_output FrontendBucketName)
 DIST_ID=$(get_output DistributionId)
-API_URL=$(get_output ApiUrl)
 USER_POOL_ID=$(get_output UserPoolId)
 CLIENT_ID=$(get_output UserPoolClientId)
 
@@ -35,12 +34,11 @@ if [ -z "$BUCKET" ] || [ -z "$DIST_ID" ]; then
 fi
 
 echo "==> Building frontend..."
-echo "    API_URL=${API_URL}"
 echo "    USER_POOL_ID=${USER_POOL_ID}"
 echo "    CLIENT_ID=${CLIENT_ID}"
 
 cd "${REPO_ROOT}/frontend"
-VITE_API_URL="$API_URL" \
+VITE_API_URL="" \
 VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID" \
 VITE_COGNITO_CLIENT_ID="$CLIENT_ID" \
   npm run build
