@@ -1,16 +1,14 @@
-import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 import { RemovalPolicy } from "aws-cdk-lib";
 
 // Single-environment sizing. Cheap, Single-AZ, data destroyed on teardown.
-// The shape mirrors the architecture doc: small RDS for PostgreSQL behind
-// RDS Proxy, serverless-first.
+// Aurora Serverless v2 behind RDS Proxy.
 export interface EnvConfig {
   // Sender + reply address used by SES. Must be a verified SES identity.
   senderEmail: string;
-  // RDS
-  dbInstanceSize: ec2.InstanceSize;
-  dbMultiAz: boolean;
+  // Aurora Serverless v2 capacity (ACUs)
+  dbMinCapacity: number;
+  dbMaxCapacity: number;
   dbDeletionProtection: boolean;
   dbRemovalPolicy: RemovalPolicy;
   maxAzs: number;
@@ -27,8 +25,8 @@ export interface EnvConfig {
 export function envConfig(): EnvConfig {
   return {
     senderEmail: process.env.SENDER_EMAIL!,
-    dbInstanceSize: ec2.InstanceSize.MICRO,
-    dbMultiAz: false,
+    dbMinCapacity: 0.5,
+    dbMaxCapacity: 2,
     dbDeletionProtection: false,
     dbRemovalPolicy: RemovalPolicy.DESTROY,
     maxAzs: 2,
@@ -40,7 +38,6 @@ export function envConfig(): EnvConfig {
   };
 }
 
-// PostgreSQL engine version pinned to match local docker (postgres:17).
-export const PG_ENGINE = rds.DatabaseInstanceEngine.postgres({
-  version: rds.PostgresEngineVersion.VER_17_9,
+export const PG_ENGINE = rds.DatabaseClusterEngine.auroraPostgres({
+  version: rds.AuroraPostgresEngineVersion.VER_17_4,
 });
