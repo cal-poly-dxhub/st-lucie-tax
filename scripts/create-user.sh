@@ -19,7 +19,7 @@ aws cognito-idp admin-create-user \
   --username "$EMAIL" \
   --temporary-password "Temp1234!" \
   --user-attributes Name=email,Value="$EMAIL" Name=email_verified,Value=true \
-  --message-action SUPPRESS
+  --message-action SUPPRESS 2>&1 || echo "  (user may already exist, continuing)"
 
 echo "==> Setting permanent password..."
 aws cognito-idp admin-set-user-password \
