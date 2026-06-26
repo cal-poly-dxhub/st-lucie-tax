@@ -11,7 +11,9 @@ import {
 import { getRequiredDocsStatus, validateDocument, uploadDocument } from "../../src/documents.js";
 import { setIdentityVerified } from "../../src/identity.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
-import { buildPrescreenLinkEmail, sendEmail } from "../../src/email.js";
+import { buildPrescreenLinkEmail, buildQrConfirmationEmail, sendEmail } from "../../src/email.js";
+import { findAppointment } from "../../src/find-appt.js";
+import { bookAppointment } from "../../src/book-appt.js";
 import { sendError } from "../middleware/errors.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -531,6 +533,140 @@ router.post("/prescreen/:confirmationCode/submit", async (req, res) => {
     }
 
     res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/demo-book ────────────────────────────────────────────────────
+// Demo self-service: find the best slot, book it, verify email in SES, and
+// send the confirmation email — all in one call.
+router.post("/demo-book", async (req, res) => {
+  try {
+    const { firstName, lastName, email, txnTypeIds, officeId, preferredTime, preferredDow } =
+      req.body;
+    if (!firstName || !lastName || !email || !txnTypeIds?.length) {
+      return res
+        .status(400)
+        .json({ error: "firstName, lastName, email, and txnTypeIds are required" });
+    }
+
+    // Determine required docs for the selected transactions
+    const { rows: txnRows } = await pool.query<{ id: number; txn_type_id: string }>(
+      `SELECT id, txn_type_id FROM transaction_types
+       WHERE id = ANY($1::int[]) AND office_id IS NULL`,
+      [txnTypeIds],
+    );
+    const txnDocMap: Record<string, string[]> = {
+      road_test: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+      id_card: ["birth_cert", "proof_address", "ssn_proof"],
+      license_original: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+    };
+    const seen = new Set<string>();
+    const requiredDocs: string[] = [];
+    for (const row of txnRows) {
+      for (const d of txnDocMap[row.txn_type_id] || []) {
+        if (!seen.has(d)) {
+          seen.add(d);
+          requiredDocs.push(d);
+        }
+      }
+    }
+
+    // Find the best available slot
+    const startDate = new Date(DEFAULT_DATE + "T00:00:00Z");
+    startDate.setUTCDate(startDate.getUTCDate() + 1); // search from day after demo date
+
+    const slot = await findAppointment(pool, {
+      targetTxns: txnTypeIds,
+      asap: !preferredTime && preferredDow == null,
+      preferredOffice: officeId ?? null,
+      preferredDow: preferredDow ?? null,
+      preferredTime: preferredTime ?? null,
+      startDate,
+      days: 30,
+      nowTs: DEFAULT_DATE + " 08:00",
+    });
+
+    if (!slot) {
+      return res.status(409).json({ error: "no_available_slots" });
+    }
+
+    // Book the appointment
+    const bookResult = await bookAppointment(pool, {
+      officeId: slot.officeId,
+      date: slot.slotDate,
+      time: slot.slotTime,
+      txnTypeIds,
+      requiredDocIds: requiredDocs,
+      firstName,
+      lastName,
+      contactEmail: email,
+      contactPhone: "",
+      nowTs: DEFAULT_DATE + " 08:00",
+    });
+
+    if (!bookResult.ok) {
+      return res.status(409).json({ error: bookResult.error });
+    }
+
+    // Get office name for the email
+    const { rows: officeRows } = await pool.query<{ name: string }>(
+      `SELECT name FROM offices WHERE id = $1`,
+      [slot.officeId],
+    );
+    const officeName = officeRows[0]?.name ?? "St. Lucie County";
+
+    // Format date/time for email
+    const apptDate = new Date(slot.slotDate + "T00:00:00");
+    const dateStr = apptDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+    const [h, m] = slot.slotTime.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+    // Verify email in SES (non-fatal if already verified)
+    try {
+      const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
+      await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+    } catch (sesErr: unknown) {
+      const code = (sesErr as { name?: string }).name;
+      if (code !== "AlreadyExistsException") {
+        console.error("SES verify failed (non-fatal):", sesErr);
+      }
+    }
+
+    // Build and send confirmation email with QR code
+    const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(bookResult.confirmationCode)}`;
+    const emailInput = buildQrConfirmationEmail({
+      recipientEmail: email,
+      firstName,
+      confirmationCode: bookResult.confirmationCode,
+      appointmentDate: dateStr,
+      appointmentTime: timeStr,
+      officeName,
+      qrCodeDataUrl: qrDataUrl,
+      fromEmail: EMAIL,
+    });
+    await sendEmail(ses, emailInput);
+
+    res.json({
+      ok: true,
+      appointmentId: bookResult.appointmentId,
+      confirmationCode: bookResult.confirmationCode,
+      officeId: slot.officeId,
+      officeName,
+      date: slot.slotDate,
+      time: slot.slotTime,
+      dateFormatted: dateStr,
+      timeFormatted: timeStr,
+    });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
   }

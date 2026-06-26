@@ -207,6 +207,27 @@ export const api = {
   sendConfirmation: (cfg: { prescreen: boolean; identity: boolean; docs: string }) =>
     post<{ ok: boolean; confirmationCode?: string; error?: string }>("/api/send-confirmation", cfg),
 
+  demoBook: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    txnTypeIds: number[];
+    officeId?: number;
+    preferredTime?: "morning" | "afternoon" | null;
+    preferredDow?: number | null;
+  }) =>
+    post<{
+      ok: boolean;
+      appointmentId: number;
+      confirmationCode: string;
+      officeId: number;
+      officeName: string;
+      date: string;
+      time: string;
+      dateFormatted: string;
+      timeFormatted: string;
+    }>("/api/demo-book", data),
+
   setDemoEmail: (email: string) =>
     post<{ ok: boolean; email: string; note: string }>("/api/set-demo-email", { email }),
 

@@ -1,225 +1,280 @@
-import { useState } from "react";
-import { Send, QrCode, Mail } from "lucide-react";
-import { api } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Calendar, Send } from "lucide-react";
+import { api, type ConfigResponse } from "@/lib/api";
 import { useToast } from "@/components/toast-context";
 import { Badge, Button, Card, SectionLabel } from "@/components/ui";
 
+interface BookingResult {
+  confirmationCode: string;
+  officeName: string;
+  dateFormatted: string;
+  timeFormatted: string;
+}
+
 export function ConfirmationPage() {
   const notify = useToast();
-  const [prescreen, setPrescreen] = useState("true");
-  const [identity, setIdentity] = useState("false");
-  const [docs, setDocs] = useState("mixed");
-  const [code, setCode] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const [config, setConfig] = useState<ConfigResponse | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [settingEmail, setSettingEmail] = useState(false);
+  const [selectedTxns, setSelectedTxns] = useState<number[]>([]);
+  const [officeId, setOfficeId] = useState<number | undefined>(undefined);
+  const [preferredTime, setPreferredTime] = useState<"morning" | "afternoon" | "">("");
+  const [booking, setBooking] = useState(false);
+  const [result, setResult] = useState<BookingResult | null>(null);
 
-  async function handleSetEmail() {
-    if (!email.trim()) return;
-    setSettingEmail(true);
-    try {
-      const res = await api.setDemoEmail(email.trim());
-      if (res.ok) {
-        notify("success", `Email set to ${res.email}. ${res.note}`);
-      }
-    } catch (err) {
-      notify("error", err instanceof Error ? err.message : "Failed to set email.");
-    } finally {
-      setSettingEmail(false);
-    }
+  useEffect(() => {
+    api.config().then((cfg) => {
+      setConfig(cfg);
+      if (cfg.offices[0]) setOfficeId(cfg.offices[0].id);
+    });
+  }, []);
+
+  function toggleTxn(id: number) {
+    setSelectedTxns((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   }
 
-  async function sendConfirmation() {
-    setSending(true);
+  async function handleBook() {
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      notify("error", "Please fill in your name and email.");
+      return;
+    }
+    if (!selectedTxns.length) {
+      notify("error", "Please select at least one transaction type.");
+      return;
+    }
+
+    setBooking(true);
     try {
-      const res = await api.sendConfirmation({
-        prescreen: prescreen === "true",
-        identity: identity === "true",
-        docs,
+      const res = await api.demoBook({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        txnTypeIds: selectedTxns,
+        officeId,
+        preferredTime: preferredTime || null,
       });
-      if (res.ok && res.confirmationCode) {
-        setCode(res.confirmationCode);
-        notify("success", "Confirmation email sent!");
-      } else {
-        notify("error", res.error ?? "Failed to send confirmation.");
-      }
+      setResult({
+        confirmationCode: res.confirmationCode,
+        officeName: res.officeName,
+        dateFormatted: res.dateFormatted,
+        timeFormatted: res.timeFormatted,
+      });
+      notify("success", "Appointment booked! Confirmation email sent.");
     } catch (err) {
-      notify("error", err instanceof Error ? err.message : "Server not running.");
+      const msg = err instanceof Error ? err.message : "Booking failed.";
+      if (msg.includes("no_available_slots")) {
+        notify("error", "No available slots in the next 30 days. Try a different transaction type or office.");
+      } else {
+        notify("error", msg);
+      }
     } finally {
-      setSending(false);
+      setBooking(false);
     }
   }
 
-  const docLabels: Record<string, { icon: string; name: string; status: string }[]> = {
-    mixed: [
-      { icon: "✅", name: "Out-of-State Title (Original)", status: "Uploaded" },
-      { icon: "📄", name: "Photo ID (Driver License)", status: "Uploaded" },
-      { icon: "⏳", name: "Proof of FL Insurance", status: "Pending upload" },
-    ],
-    "all-accepted": [
-      { icon: "✅", name: "Out-of-State Title (Original)", status: "Uploaded" },
-      { icon: "✅", name: "Photo ID (Driver License)", status: "Uploaded" },
-      { icon: "✅", name: "Proof of FL Insurance", status: "Uploaded" },
-    ],
-    "all-pending": [
-      { icon: "⏳", name: "Out-of-State Title (Original)", status: "Pending upload" },
-      { icon: "⏳", name: "Photo ID (Driver License)", status: "Pending upload" },
-      { icon: "⏳", name: "Proof of FL Insurance", status: "Pending upload" },
-    ],
-    none: [],
-  };
+  function handleReset() {
+    setResult(null);
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setSelectedTxns([]);
+    setPreferredTime("");
+  }
+
+  if (!config) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-8">
+        <p className="text-civic-400">Loading...</p>
+      </main>
+    );
+  }
+
+  if (result) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-8 space-y-6">
+        <Card className="overflow-hidden">
+          <div className="bg-gradient-to-r from-civic-700 to-civic-500 px-6 py-5 text-white">
+            <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-civic-100/80">
+              Appointment Confirmed
+            </div>
+            <h2 className="font-display text-2xl font-bold">
+              {firstName} {lastName}
+            </h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 text-sm">
+                <p>
+                  <span className="font-semibold text-civic-600">Confirmation Code:</span>{" "}
+                  <span className="font-mono">{result.confirmationCode}</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-civic-600">Date:</span>{" "}
+                  {result.dateFormatted}
+                </p>
+                <p>
+                  <span className="font-semibold text-civic-600">Time:</span>{" "}
+                  {result.timeFormatted}
+                </p>
+                <p>
+                  <span className="font-semibold text-civic-600">Office:</span>{" "}
+                  {result.officeName}
+                </p>
+                <p>
+                  <span className="font-semibold text-civic-600">Email Sent To:</span>{" "}
+                  {email}
+                </p>
+                <p>
+                  <span className="font-semibold text-civic-600">Status:</span>{" "}
+                  <Badge tone="go">Confirmed</Badge>
+                </p>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(result.confirmationCode)}`}
+                  alt="QR Code"
+                  className="h-[150px] w-[150px]"
+                />
+                <p className="mt-2 font-mono text-xs text-civic-500">
+                  {result.confirmationCode}
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-civic-100 pt-4">
+              <p className="text-sm text-civic-500">
+                A confirmation email has been sent. Present the QR code or confirmation code at
+                check-in.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <Button variant="civic" onClick={handleReset}>
+            <Calendar size={16} /> Book Another Appointment
+          </Button>
+        </Card>
+      </main>
+    );
+  }
+
+  const activeTxns = config.txnTypes.filter((t) => t.status === "active");
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8 space-y-6">
       <Card className="p-6">
-        <h2 className="font-display text-xl font-bold text-civic-800">Appointment Confirmed</h2>
+        <h2 className="font-display text-xl font-bold text-civic-800">Schedule an Appointment</h2>
         <p className="mt-1 text-sm text-civic-500">
-          Customer has booked via AI chatbot. Configure demo state below.
+          Enter your details below. The system will find the best available slot and send a
+          confirmation email automatically.
         </p>
       </Card>
 
-      <Card className="p-6">
-        <h3 className="font-display text-base font-semibold text-civic-700 mb-4">
-          Jane Smith — Demo Configuration
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-3">
+      <Card className="p-6 space-y-4">
+        <h3 className="font-display text-base font-semibold text-civic-700">Your Information</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <SectionLabel>Pre-Screen</SectionLabel>
-            <select
-              value={prescreen}
-              onChange={(e) => setPrescreen(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="true">Completed</option>
-              <option value="false">Not completed</option>
-            </select>
+            <SectionLabel>First Name</SectionLabel>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Jane"
+              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
+            />
           </div>
           <div>
-            <SectionLabel>Identity Verified</SectionLabel>
-            <select
-              value={identity}
-              onChange={(e) => setIdentity(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="false">Not verified</option>
-              <option value="true">Verified</option>
-            </select>
-          </div>
-          <div>
-            <SectionLabel>Docs Status</SectionLabel>
-            <select
-              value={docs}
-              onChange={(e) => setDocs(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="mixed">2 uploaded, 1 pending</option>
-              <option value="all-accepted">All uploaded</option>
-              <option value="all-pending">All pending upload</option>
-              <option value="none">No docs uploaded</option>
-            </select>
+            <SectionLabel>Last Name</SectionLabel>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Smith"
+              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
+            />
           </div>
         </div>
-      </Card>
-
-      <Card className="p-6">
-        <h3 className="font-display text-base font-semibold text-civic-700 mb-2">
-          Your Email Address
-        </h3>
-        <p className="text-sm text-civic-500 mb-3">
-          Set your email to receive confirmation, prescreen, and summon emails during the demo.
-          SES verification will be triggered automatically.
-        </p>
-        <div className="flex gap-2">
+        <div>
+          <SectionLabel>Email Address</SectionLabel>
           <input
             type="email"
-            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSetEmail()}
-            className="flex-1 rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
+            placeholder="you@example.com"
+            className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
           />
-          <Button variant="civic" loading={settingEmail} onClick={handleSetEmail}>
-            <Mail size={16} /> Set Email
-          </Button>
+          <p className="mt-1 text-xs text-civic-400">
+            Confirmation email will be sent here automatically.
+          </p>
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-civic-700 to-civic-500 px-6 py-5 text-white">
-          <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-civic-100/80">
-            Appointment Summary
-          </div>
-          <h2 className="font-display text-2xl font-bold">Jane Smith</h2>
+      <Card className="p-6 space-y-4">
+        <h3 className="font-display text-base font-semibold text-civic-700">
+          Transaction Type(s)
+        </h3>
+        <p className="text-sm text-civic-500">Select one or more services you need.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {activeTxns.map((t) => (
+            <label
+              key={t.id}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                selectedTxns.includes(t.id)
+                  ? "border-civic-500 bg-civic-50"
+                  : "border-civic-200 hover:border-civic-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selectedTxns.includes(t.id)}
+                onChange={() => toggleTxn(t.id)}
+                className="h-4 w-4 rounded border-civic-300 text-civic-600 focus:ring-civic-500"
+              />
+              <div>
+                <div className="text-sm font-medium text-ink">{t.name}</div>
+                <div className="text-xs text-civic-400">{t.duration} min</div>
+              </div>
+            </label>
+          ))}
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 text-sm">
-              <p><span className="font-semibold text-civic-600">Transaction:</span> Road Test</p>
-              <p><span className="font-semibold text-civic-600">Date:</span> Tuesday, June 24, 2026</p>
-              <p><span className="font-semibold text-civic-600">Time:</span> 9:30 AM</p>
-              <p><span className="font-semibold text-civic-600">Office:</span> Port St. Lucie (Crosstown Pkwy)</p>
-              <p><span className="font-semibold text-civic-600">Est. Duration:</span> 25 min</p>
-              <p>
-                <span className="font-semibold text-civic-600">Pre-Screen:</span>{" "}
-                <Badge tone={prescreen === "true" ? "go" : "stop"}>
-                  {prescreen === "true" ? "Completed" : "Not completed"}
-                </Badge>
-              </p>
-              <p>
-                <span className="font-semibold text-civic-600">Identity:</span>{" "}
-                <Badge tone={identity === "true" ? "go" : "warn"}>
-                  {identity === "true" ? "Verified" : "Not verified"}
-                </Badge>
-              </p>
-            </div>
-            <div className="flex flex-col items-center justify-center">
-              {code ? (
-                <>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(code)}`}
-                    alt="QR Code"
-                    className="h-[120px] w-[120px]"
-                  />
-                  <p className="mt-2 font-mono text-xs text-civic-500">{code}</p>
-                </>
-              ) : (
-                <div className="flex flex-col items-center text-civic-300">
-                  <QrCode size={48} />
-                  <p className="mt-2 text-xs">Send confirmation to generate QR</p>
-                </div>
-              )}
-            </div>
-          </div>
+      </Card>
 
-          <div className="border-t border-civic-100 pt-4">
-            <SectionLabel>Document Status</SectionLabel>
-            <div className="mt-2 space-y-2">
-              {(docLabels[docs] ?? []).map((d, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-lg border border-civic-100 px-3 py-2">
-                  <span className="text-lg">{d.icon}</span>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-ink">{d.name}</div>
-                    <div className="text-xs text-civic-400">{d.status}</div>
-                  </div>
-                </div>
+      <Card className="p-6 space-y-4">
+        <h3 className="font-display text-base font-semibold text-civic-700">Preferences</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <SectionLabel>Office</SectionLabel>
+            <select
+              value={officeId}
+              onChange={(e) => setOfficeId(Number(e.target.value))}
+              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
+            >
+              {config.offices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
               ))}
-              {docs === "none" && (
-                <p className="text-sm text-civic-400">No documents uploaded yet.</p>
-              )}
-            </div>
+            </select>
+          </div>
+          <div>
+            <SectionLabel>Preferred Time</SectionLabel>
+            <select
+              value={preferredTime}
+              onChange={(e) => setPreferredTime(e.target.value as "" | "morning" | "afternoon")}
+              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">No preference (ASAP)</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+            </select>
           </div>
         </div>
       </Card>
 
       <Card className="p-6">
-        <h3 className="font-display text-base font-semibold text-civic-700 mb-2">
-          Send Confirmation Email
-        </h3>
-        <p className="text-sm text-civic-500 mb-4">
-          Creates Jane's appointment in DB with the configured status and sends confirmation email.
-        </p>
-        <Button variant="civic" loading={sending} onClick={sendConfirmation}>
-          <Send size={16} /> Send Confirmation Email
+        <Button variant="civic" loading={booking} onClick={handleBook}>
+          <Send size={16} /> Find Slot & Book Appointment
         </Button>
       </Card>
     </main>

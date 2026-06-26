@@ -24,7 +24,7 @@ function NavBar() {
           St. Lucie Tax Collector
         </span>
         <NavLink to="/confirmation" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
-          Confirmation
+          Book Appt
         </NavLink>
         <NavLink to="/check-in" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
           Check-In
