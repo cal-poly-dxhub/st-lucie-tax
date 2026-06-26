@@ -573,9 +573,9 @@ router.post("/demo-book", async (req, res) => {
       }
     }
 
-    // Find the best available slot
-    const startDate = new Date(DEFAULT_DATE + "T00:00:00Z");
-    startDate.setUTCDate(startDate.getUTCDate() + 1); // search from day after demo date
+    // Find the best available slot — search from tomorrow onward
+    const startDate = new Date();
+    startDate.setUTCDate(startDate.getUTCDate() + 1);
 
     const slot = await findAppointment(pool, {
       targetTxns: txnTypeIds,
@@ -585,7 +585,6 @@ router.post("/demo-book", async (req, res) => {
       preferredTime: preferredTime ?? null,
       startDate,
       days: 30,
-      nowTs: DEFAULT_DATE + " 08:00",
     });
 
     if (!slot) {
@@ -603,7 +602,6 @@ router.post("/demo-book", async (req, res) => {
       lastName,
       contactEmail: email,
       contactPhone: "",
-      nowTs: DEFAULT_DATE + " 08:00",
     });
 
     if (!bookResult.ok) {

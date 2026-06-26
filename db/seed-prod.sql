@@ -99,7 +99,7 @@ INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids)
     ('Nancy',    'Robinson', 'nancy.robinson@stlucie.gov', 'active', '{1,2}',   '{2}');
 
 -- =============================================================================
--- Clerk Schedules (weekdays 2026-05-12 through 2026-05-22)
+-- Clerk Schedules (weekdays, full year from today)
 -- All 3 Fort Pierce clerks scheduled every weekday at office 1
 -- All 3 St. Lucie West clerks scheduled every weekday at office 2
 -- =============================================================================
@@ -113,7 +113,7 @@ SELECT c.id, 1, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series('2026-05-12'::date, '2026-05-22'::date, '1 day') d
+    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 1 AND 3;
@@ -128,7 +128,7 @@ SELECT c.id, 2, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series('2026-05-12'::date, '2026-05-22'::date, '1 day') d
+    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 4 AND 6;
