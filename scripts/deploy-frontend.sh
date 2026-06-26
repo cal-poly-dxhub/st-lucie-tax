@@ -2,11 +2,10 @@
 set -euo pipefail
 
 # Deploy the frontend to S3 and invalidate the CloudFront cache.
-# Usage: ./scripts/deploy-frontend.sh <env>
-#   env: dev | test | prod (default: dev)
+# Usage: ./scripts/deploy-frontend.sh [stack-name]
+#   stack-name: CloudFormation stack name (default: OfficeInfra)
 
-ENV="${1:-dev}"
-STACK_NAME="OfficeInfra-${ENV}"
+STACK_NAME="${1:-OfficeInfra}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "==> Fetching stack outputs for ${STACK_NAME}..."
