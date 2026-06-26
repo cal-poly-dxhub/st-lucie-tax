@@ -61,12 +61,12 @@ export class OfficeInfraStack extends Stack {
       vpc.addInterfaceEndpoint(`${name}Endpoint`, { service: svc });
     }
 
-    // ── Data: RDS Postgres + RDS Proxy + Secrets ──────────────────────────────
+    // ── Data: Aurora Serverless v2 + RDS Proxy + Secrets ────────────────────────
     const dbSecret = new rds.DatabaseSecret(this, "DbSecret", { username: "stlucie" });
 
     const dbSg = new ec2.SecurityGroup(this, "DbSg", {
       vpc,
-      description: "RDS Postgres - only reachable from the proxy",
+      description: "Aurora Serverless v2 - only reachable from the proxy",
       allowAllOutbound: false,
     });
     const proxySg = new ec2.SecurityGroup(this, "ProxySg", {
@@ -82,28 +82,24 @@ export class OfficeInfraStack extends Stack {
     proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda to Proxy");
     dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy to RDS");
 
-    const db = new rds.DatabaseInstance(this, "Db", {
+    const dbCluster = new rds.DatabaseCluster(this, "Db", {
       engine: PG_ENGINE,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.BURSTABLE4_GRAVITON,
-        config.dbInstanceSize,
-      ),
       credentials: rds.Credentials.fromSecret(dbSecret),
-      databaseName: "stlucie",
+      defaultDatabaseName: "stlucie",
       securityGroups: [dbSg],
-      multiAz: config.dbMultiAz,
       deletionProtection: config.dbDeletionProtection,
       removalPolicy: config.dbRemovalPolicy,
       storageEncrypted: true,
-      allocatedStorage: 20,
-      maxAllocatedStorage: 100,
-      backupRetention: Duration.days(1),
+      backup: { retention: Duration.days(1) },
+      serverlessV2MinCapacity: config.dbMinCapacity,
+      serverlessV2MaxCapacity: config.dbMaxCapacity,
+      writer: rds.ClusterInstance.serverlessV2("writer"),
     });
 
     const proxy = new rds.DatabaseProxy(this, "DbProxy", {
-      proxyTarget: rds.ProxyTarget.fromInstance(db),
+      proxyTarget: rds.ProxyTarget.fromCluster(dbCluster),
       secrets: [dbSecret],
       vpc,
       securityGroups: [proxySg],
