@@ -59,6 +59,7 @@ export function bookParams(
 
 // Deletes all appointments from an office on a given date
 export async function clearOfficeDay(client: Client, office = 1, date = TEST_DATE) {
+  await client.query("BEGIN");
   await client.query(
     `DELETE FROM documents
       WHERE appointment_id IN (
@@ -72,6 +73,7 @@ export async function clearOfficeDay(client: Client, office = 1, date = TEST_DAT
       WHERE office_id=$1 AND appointment_date=$2`,
     [office, date],
   );
+  await client.query("COMMIT");
 }
 
 // Attempt to book a given appointment and rollback if fails so that test can continue
