@@ -152,6 +152,27 @@ export class OfficeInfraStack extends Stack {
     //   aws lambda invoke --function-name <name> /dev/stdout
     new CfnOutput(this, "DbInitFnName", { value: dbInitFn.functionName });
 
+    // ── SSM Bastion: tiny instance for local port-forward to Aurora ────────────
+    const bastionSg = new ec2.SecurityGroup(this, "BastionSg", {
+      vpc,
+      description: "SSM bastion - outbound to Aurora only",
+      allowAllOutbound: true,
+    });
+    dbSg.addIngressRule(bastionSg, ec2.Port.tcp(5432), "Bastion to RDS");
+
+    const bastion = new ec2.Instance(this, "SsmBastion", {
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.NANO),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023({
+        cpuType: ec2.AmazonLinuxCpuType.ARM_64,
+      }),
+      securityGroup: bastionSg,
+      ssmSessionPermissions: true,
+    });
+
+    new CfnOutput(this, "BastionInstanceId", { value: bastion.instanceId });
+
     // ── Auth: Cognito user pool + persona groups ──────────────────────────────
     const userPool = new cognito.UserPool(this, "UserPool", {
       selfSignUpEnabled: false, // staff accounts are admin-created
