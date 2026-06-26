@@ -20,14 +20,21 @@ export function ConfirmationPage() {
   const [selectedTxns, setSelectedTxns] = useState<number[]>([]);
   const [officeId, setOfficeId] = useState<number | undefined>(undefined);
   const [preferredTime, setPreferredTime] = useState<"morning" | "afternoon" | "">("");
+  const [preferredDow, setPreferredDow] = useState<string>("");
   const [booking, setBooking] = useState(false);
   const [result, setResult] = useState<BookingResult | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.config().then((cfg) => {
-      setConfig(cfg);
-      if (cfg.offices[0]) setOfficeId(cfg.offices[0].id);
-    });
+    api
+      .config()
+      .then((cfg) => {
+        setConfig(cfg);
+        if (cfg.offices[0]) setOfficeId(cfg.offices[0].id);
+      })
+      .catch((err) => {
+        setLoadError(err instanceof Error ? err.message : "Failed to load configuration");
+      });
   }, []);
 
   function toggleTxn(id: number) {
@@ -53,6 +60,7 @@ export function ConfirmationPage() {
         txnTypeIds: selectedTxns,
         officeId,
         preferredTime: preferredTime || null,
+        preferredDow: preferredDow ? Number(preferredDow) : null,
       });
       setResult({
         confirmationCode: res.confirmationCode,
@@ -80,12 +88,20 @@ export function ConfirmationPage() {
     setEmail("");
     setSelectedTxns([]);
     setPreferredTime("");
+    setPreferredDow("");
   }
 
   if (!config) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <p className="text-civic-400">Loading...</p>
+        {loadError ? (
+          <Card className="p-6">
+            <p className="text-red-600 font-medium">Failed to load configuration</p>
+            <p className="text-sm text-civic-500 mt-1">{loadError}</p>
+          </Card>
+        ) : (
+          <p className="text-civic-400">Loading...</p>
+        )}
       </main>
     );
   }
@@ -159,7 +175,7 @@ export function ConfirmationPage() {
     );
   }
 
-  const activeTxns = config.txnTypes.filter((t) => t.status === "active");
+  const activeTxns = config.txnTypes.filter((t) => t.status !== "hidden");
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8 space-y-6">
@@ -242,9 +258,9 @@ export function ConfirmationPage() {
 
       <Card className="p-6 space-y-4">
         <h3 className="font-display text-base font-semibold text-civic-700">Preferences</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <SectionLabel>Office</SectionLabel>
+            <SectionLabel>Preferred Office</SectionLabel>
             <select
               value={officeId}
               onChange={(e) => setOfficeId(Number(e.target.value))}
@@ -264,9 +280,24 @@ export function ConfirmationPage() {
               onChange={(e) => setPreferredTime(e.target.value as "" | "morning" | "afternoon")}
               className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
             >
-              <option value="">No preference (ASAP)</option>
+              <option value="">No preference</option>
               <option value="morning">Morning</option>
               <option value="afternoon">Afternoon</option>
+            </select>
+          </div>
+          <div>
+            <SectionLabel>Preferred Day</SectionLabel>
+            <select
+              value={preferredDow}
+              onChange={(e) => setPreferredDow(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">No preference</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
             </select>
           </div>
         </div>
