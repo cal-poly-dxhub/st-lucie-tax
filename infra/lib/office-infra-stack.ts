@@ -454,7 +454,7 @@ function handler(event) {
 
     // ── Outputs ───────────────────────────────────────────────────────────────
     new CfnOutput(this, "ApiUrl", {
-      value: `https://${distribution.distributionDomainName}/api`,
+      value: "",
     });
     new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
