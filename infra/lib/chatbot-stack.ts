@@ -65,23 +65,40 @@ export class ChatbotStack extends Stack {
     });
 
     // ── Knowledge Base: Bedrock KB with S3 Vectors ──────────────────────────
-    const kbVectorBucket = new s3.Bucket(this, "KbVectorBucket", {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      enforceSSL: true,
-      removalPolicy: RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
+    // S3 Vectors is a separate service (namespace: s3vectors) with its own
+    // bucket and index types. No CloudFormation resources exist — use SDK calls.
+    const kbVectorBucketName = `st-lucie-tax-vectors-${this.account}-${this.region}`;
+    const kbIndexName = "st-lucie-tax-index";
+
+    const vectorBucket = new cr.AwsCustomResource(this, "VectorBucket", {
+      installLatestAwsSdk: true,
+      onCreate: {
+        service: "S3Vectors",
+        action: "createVectorBucket",
+        parameters: { vectorBucketName: kbVectorBucketName },
+        physicalResourceId: cr.PhysicalResourceId.of(kbVectorBucketName),
+      },
+      onDelete: {
+        service: "S3Vectors",
+        action: "deleteVectorBucket",
+        parameters: { vectorBucketName: kbVectorBucketName },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ["s3vectors:CreateVectorBucket", "s3vectors:DeleteVectorBucket"],
+          resources: ["*"],
+        }),
+      ]),
     });
 
-    // Create the S3 Vectors index via SDK (no CloudFormation resource exists).
     // Titan Embed Text v2 produces 1024-dimension vectors.
-    const kbIndexName = "st-lucie-tax-index";
     const vectorIndex = new cr.AwsCustomResource(this, "VectorIndex", {
+      installLatestAwsSdk: true,
       onCreate: {
         service: "S3Vectors",
         action: "createIndex",
         parameters: {
-          vectorBucketName: kbVectorBucket.bucketName,
+          vectorBucketName: kbVectorBucketName,
           indexName: kbIndexName,
           dataType: "float32",
           dimension: 1024,
@@ -93,19 +110,20 @@ export class ChatbotStack extends Stack {
         service: "S3Vectors",
         action: "deleteIndex",
         parameters: {
-          vectorBucketName: kbVectorBucket.bucketName,
+          vectorBucketName: kbVectorBucketName,
           indexName: kbIndexName,
         },
       },
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
           actions: ["s3vectors:CreateIndex", "s3vectors:DeleteIndex"],
-          resources: [kbVectorBucket.bucketArn, `${kbVectorBucket.bucketArn}/*`],
+          resources: ["*"],
         }),
       ]),
     });
+    vectorIndex.node.addDependency(vectorBucket);
 
-    const indexArn = `arn:aws:s3vectors:${this.region}:${this.account}:vector-bucket/${kbVectorBucket.bucketName}/index/${kbIndexName}`;
+    const vectorBucketArn = `arn:aws:s3vectors:${this.region}:${this.account}:vector-bucket/${kbVectorBucketName}`;
 
     const kbRole = new iam.Role(this, "KbRole", {
       assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
@@ -128,8 +146,9 @@ export class ChatbotStack extends Stack {
                 "s3vectors:PutVectors",
                 "s3vectors:DeleteVectors",
                 "s3vectors:ListVectors",
+                "s3vectors:GetIndex",
               ],
-              resources: [kbVectorBucket.bucketArn, `${kbVectorBucket.bucketArn}/*`],
+              resources: [`${vectorBucketArn}/*`],
             }),
           ],
         }),
@@ -149,9 +168,8 @@ export class ChatbotStack extends Stack {
       storageConfiguration: {
         type: "S3_VECTORS",
         s3VectorsConfiguration: {
-          vectorBucketArn: kbVectorBucket.bucketArn,
+          vectorBucketArn,
           indexName: kbIndexName,
-          indexArn,
         },
       },
     });
