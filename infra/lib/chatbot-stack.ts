@@ -123,7 +123,7 @@ export class ChatbotStack extends Stack {
     });
     vectorIndex.node.addDependency(vectorBucket);
 
-    const vectorBucketArn = `arn:aws:s3vectors:${this.region}:${this.account}:vector-bucket/${kbVectorBucketName}`;
+    const vectorBucketArn = `arn:aws:s3:::${kbVectorBucketName}`;
 
     const kbRole = new iam.Role(this, "KbRole", {
       assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
