@@ -9,6 +9,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3assets from "aws-cdk-lib/aws-s3-assets";
+import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -33,13 +34,21 @@ export interface OfficeInfraStackProps extends StackProps {
 // functions with their own reserved concurrency so a failure in one cannot
 // take down the other.
 export class OfficeInfraStack extends Stack {
+  public readonly vpc: ec2.Vpc;
+  public readonly proxy: rds.DatabaseProxy;
+  public readonly dbSecret: rds.DatabaseSecret;
+  public readonly lambdaSg: ec2.SecurityGroup;
+  public readonly distribution: cloudfront.Distribution;
+  public readonly frontendBucket: s3.Bucket;
+  public readonly httpApiUrl: string;
+
   constructor(scope: Construct, id: string, props: OfficeInfraStackProps) {
     super(scope, id, props);
     const { config } = props;
     const repoRoot = path.join(__dirname, "..", "..");
 
     // ── Network ──────────────────────────────────────────────────────────────
-    const vpc = new ec2.Vpc(this, "Vpc", {
+    const vpc = (this.vpc = new ec2.Vpc(this, "Vpc", {
       maxAzs: config.maxAzs,
       natGateways: config.natGateways,
       subnetConfiguration: [
@@ -47,7 +56,7 @@ export class OfficeInfraStack extends Stack {
         { name: "app", subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
         { name: "data", subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
       ],
-    });
+    }));
 
     // Gateway endpoint for S3 keeps doc traffic off NAT.
     vpc.addGatewayEndpoint("S3Endpoint", { service: ec2.GatewayVpcEndpointAwsService.S3 });
@@ -62,7 +71,9 @@ export class OfficeInfraStack extends Stack {
     }
 
     // ── Data: Aurora Serverless v2 + RDS Proxy + Secrets ────────────────────────
-    const dbSecret = new rds.DatabaseSecret(this, "DbSecret", { username: "stlucie" });
+    const dbSecret = (this.dbSecret = new rds.DatabaseSecret(this, "DbSecret", {
+      username: "stlucie",
+    }));
 
     const dbSg = new ec2.SecurityGroup(this, "DbSg", {
       vpc,
@@ -74,11 +85,11 @@ export class OfficeInfraStack extends Stack {
       description: "RDS Proxy - reachable from Lambdas",
       allowAllOutbound: true,
     });
-    const lambdaSg = new ec2.SecurityGroup(this, "LambdaSg", {
+    const lambdaSg = (this.lambdaSg = new ec2.SecurityGroup(this, "LambdaSg", {
       vpc,
       description: "Lambda functions",
       allowAllOutbound: true,
-    });
+    }));
     proxySg.addIngressRule(lambdaSg, ec2.Port.tcp(5432), "Lambda to Proxy");
     dbSg.addIngressRule(proxySg, ec2.Port.tcp(5432), "Proxy to RDS");
 
@@ -98,14 +109,14 @@ export class OfficeInfraStack extends Stack {
       writer: rds.ClusterInstance.serverlessV2("writer"),
     });
 
-    const proxy = new rds.DatabaseProxy(this, "DbProxy", {
+    const proxy = (this.proxy = new rds.DatabaseProxy(this, "DbProxy", {
       proxyTarget: rds.ProxyTarget.fromCluster(dbCluster),
       secrets: [dbSecret],
       vpc,
       securityGroups: [proxySg],
       requireTLS: true,
       iamAuth: false,
-    });
+    }));
 
     // ── Schema init: apply db/schema.sql on first deploy via custom resource ─
     const schemaAsset = new s3assets.Asset(this, "SchemaAsset", {
@@ -402,13 +413,13 @@ export class OfficeInfraStack extends Stack {
     });
 
     // ── Frontend: single S3 + CloudFront distribution ──────────────────────────
-    const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
+    const frontendBucket = (this.frontendBucket = new s3.Bucket(this, "FrontendBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       removalPolicy: config.dbRemovalPolicy,
       autoDeleteObjects: true,
-    });
+    }));
 
     const apiOrigin = new origins.HttpOrigin(
       `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`,
@@ -421,13 +432,17 @@ export class OfficeInfraStack extends Stack {
       code: cloudfront.FunctionCode.fromInline(`
 function handler(event) {
   var req = event.request;
-  if (req.uri !== '/' && !req.uri.includes('.')) req.uri = '/index.html';
+  var uri = req.uri;
+  if (uri.includes('.')) return req;
+  if (uri.startsWith('/chat')) { req.uri = '/chat/index.html'; return req; }
+  if (uri.startsWith('/admin')) { req.uri = '/admin/index.html'; return req; }
+  if (uri !== '/') req.uri = '/index.html';
   return req;
 }
 `),
     });
 
-    const distribution = new cloudfront.Distribution(this, "FrontendDist", {
+    const distribution = (this.distribution = new cloudfront.Distribution(this, "FrontendDist", {
       defaultRootObject: "index.html",
       webAclId: webAcl.attrArn,
       defaultBehavior: {
@@ -449,6 +464,16 @@ function handler(event) {
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         },
       },
+    }));
+
+    this.httpApiUrl = `https://${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`;
+
+    new s3deploy.BucketDeployment(this, "OfficeFrontendDeploy", {
+      sources: [s3deploy.Source.asset(path.join(repoRoot, "frontend", "dist"))],
+      destinationBucket: frontendBucket,
+      destinationKeyPrefix: "",
+      distribution,
+      distributionPaths: ["/*"],
     });
 
     // ── CORS ────────────────────────────────────────────────────────────────

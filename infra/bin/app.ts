@@ -4,14 +4,14 @@ import * as path from "node:path";
 loadEnv({ path: path.join(__dirname, "..", "..", ".env") });
 import * as cdk from "aws-cdk-lib";
 import { OfficeInfraStack } from "../lib/office-infra-stack";
+import { ChatbotStack } from "../lib/chatbot-stack";
 import { envConfig } from "../lib/env-config";
 
-// Single CDK app → single stack. One VPC/RDS/Cognito/Lambdas/frontends.
 const app = new cdk.App();
 
 const config = envConfig();
 
-new OfficeInfraStack(app, "OfficeInfra", {
+const officeStack = new OfficeInfraStack(app, "OfficeInfra", {
   config,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
@@ -21,4 +21,22 @@ new OfficeInfraStack(app, "OfficeInfra", {
   tags: {
     Project: "st-lucie-tax",
   },
+});
+
+new ChatbotStack(app, "Chatbot", {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+  },
+  description: "St. Lucie AI chatbot infrastructure",
+  tags: {
+    Project: "st-lucie-tax",
+  },
+  vpc: officeStack.vpc,
+  proxy: officeStack.proxy,
+  dbSecret: officeStack.dbSecret,
+  lambdaSg: officeStack.lambdaSg,
+  distribution: officeStack.distribution,
+  frontendBucket: officeStack.frontendBucket,
+  officeApiUrl: officeStack.httpApiUrl,
 });
