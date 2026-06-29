@@ -26,6 +26,8 @@ export interface ChatbotStackProps extends StackProps {
   lambdaSg: ec2.SecurityGroup;
   officeApiUrl: string;
   webAclArn: string;
+  userPoolId: string;
+  userPoolClientId: string;
 }
 
 export class ChatbotStack extends Stack {
@@ -302,6 +304,14 @@ export class ChatbotStack extends Stack {
       }),
     );
 
+    // ── Origin secret: CloudFront-only access ──────────────────────────────
+    // A shared secret header injected by CloudFront and validated by the
+    // Lambdas. Prevents direct API Gateway URL access (bypassing WAF).
+    const originSecret = process.env.ORIGIN_SECRET || "stlucie-cf-origin-2026";
+
+    chatbotFn.addEnvironment("ORIGIN_SECRET", originSecret);
+    adminFn.addEnvironment("ORIGIN_SECRET", originSecret);
+
     // ── API: Chatbot REST API ────────────────────────────────────────────────
     const chatbotApi = new apigateway.RestApi(this, "ChatbotApi", {
       restApiName: "st-lucie-chatbot",
@@ -311,22 +321,12 @@ export class ChatbotStack extends Stack {
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
       },
-      apiKeySourceType: apigateway.ApiKeySourceType.HEADER,
     });
 
     chatbotApi.root.addProxy({
       defaultIntegration: new apigateway.LambdaIntegration(chatbotFn),
       anyMethod: true,
-      defaultMethodOptions: { apiKeyRequired: true },
     });
-
-    const chatbotApiKey = chatbotApi.addApiKey("ChatbotApiKey");
-    const chatbotUsagePlan = chatbotApi.addUsagePlan("ChatbotUsagePlan", {
-      throttle: { rateLimit: 50, burstLimit: 100 },
-      quota: { limit: 10000, period: apigateway.Period.DAY },
-    });
-    chatbotUsagePlan.addApiKey(chatbotApiKey);
-    chatbotUsagePlan.addApiStage({ stage: chatbotApi.deploymentStage });
 
     // ── API: Admin REST API ──────────────────────────────────────────────────
     const adminApi = new apigateway.RestApi(this, "AdminApi", {
@@ -336,27 +336,21 @@ export class ChatbotStack extends Stack {
         throttlingRateLimit: 50,
         throttlingBurstLimit: 100,
       },
-      apiKeySourceType: apigateway.ApiKeySourceType.HEADER,
     });
 
     adminApi.root.addProxy({
       defaultIntegration: new apigateway.LambdaIntegration(adminFn),
       anyMethod: true,
-      defaultMethodOptions: { apiKeyRequired: true },
     });
-
-    const adminApiKey = adminApi.addApiKey("AdminApiKey");
-    const adminUsagePlan = adminApi.addUsagePlan("AdminUsagePlan", {
-      throttle: { rateLimit: 50, burstLimit: 100 },
-      quota: { limit: 10000, period: apigateway.Period.DAY },
-    });
-    adminUsagePlan.addApiKey(adminApiKey);
-    adminUsagePlan.addApiStage({ stage: adminApi.deploymentStage });
 
     // ── CloudFront: single distribution for all SPAs + APIs ─────────────────
     const officeApiOrigin = new origins.HttpOrigin(props.officeApiUrl.replace("https://", ""));
-    const chatbotApiOrigin = new origins.RestApiOrigin(chatbotApi);
-    const adminApiOrigin = new origins.RestApiOrigin(adminApi);
+    const chatbotApiOrigin = new origins.RestApiOrigin(chatbotApi, {
+      customHeaders: { "x-origin-secret": originSecret },
+    });
+    const adminApiOrigin = new origins.RestApiOrigin(adminApi, {
+      customHeaders: { "x-origin-secret": originSecret },
+    });
 
     const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
       code: cloudfront.FunctionCode.fromInline(`
@@ -453,6 +447,22 @@ function handler(event) {
       distributionPaths: ["/admin/*"],
     });
 
+    // Runtime config — frontends fetch this on load instead of baking values at build time.
+    new s3deploy.BucketDeployment(this, "RuntimeConfig", {
+      sources: [
+        s3deploy.Source.jsonData("config.json", {
+          userPoolId: props.userPoolId,
+          userPoolClientId: props.userPoolClientId,
+          apiUrl: "/api",
+          chatbotApiUrl: "/api/chat",
+          adminApiUrl: "/api/admin",
+        }),
+      ],
+      destinationBucket: frontendBucket,
+      distribution,
+      distributionPaths: ["/config.json"],
+    });
+
     // ── Monitoring ───────────────────────────────────────────────────────────
     const alarmEmail = process.env.ALARM_EMAIL || "";
     const alarmTopic = new sns.Topic(this, "AlarmTopic", {
@@ -506,14 +516,8 @@ function handler(event) {
     new CfnOutput(this, "ChatbotApiUrl", {
       value: chatbotApi.url,
     });
-    new CfnOutput(this, "ChatbotApiKeyId", {
-      value: chatbotApiKey.keyId,
-    });
     new CfnOutput(this, "AdminApiUrl", {
       value: adminApi.url,
-    });
-    new CfnOutput(this, "AdminApiKeyId", {
-      value: adminApiKey.keyId,
     });
     new CfnOutput(this, "DocBucketName", {
       value: docBucket.bucketName,

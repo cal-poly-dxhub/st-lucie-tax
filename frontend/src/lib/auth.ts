@@ -4,15 +4,30 @@ import {
   AuthenticationDetails,
   CognitoUserSession,
 } from "amazon-cognito-identity-js";
+import { getRuntimeConfig } from "./runtime-config";
 
-const USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "";
-const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID ?? "";
+let pool: CognitoUserPool | null = null;
+let _configured: boolean | null = null;
 
-export const authConfigured = !!(USER_POOL_ID && CLIENT_ID);
+async function getPool(): Promise<CognitoUserPool | null> {
+  if (_configured !== null) return pool;
+  const config = await getRuntimeConfig();
+  if (config.userPoolId && config.userPoolClientId) {
+    pool = new CognitoUserPool({
+      UserPoolId: config.userPoolId,
+      ClientId: config.userPoolClientId,
+    });
+    _configured = true;
+  } else {
+    _configured = false;
+  }
+  return pool;
+}
 
-const pool = authConfigured
-  ? new CognitoUserPool({ UserPoolId: USER_POOL_ID, ClientId: CLIENT_ID })
-  : null;
+export async function authConfigured(): Promise<boolean> {
+  await getPool();
+  return _configured!;
+}
 
 export interface AuthUser {
   email: string;
@@ -29,10 +44,11 @@ function parseIdToken(session: CognitoUserSession): AuthUser {
   };
 }
 
-export function getCurrentUser(): Promise<AuthUser | null> {
-  if (!pool) return Promise.resolve(null);
-  const cognitoUser = pool.getCurrentUser();
-  if (!cognitoUser) return Promise.resolve(null);
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  const p = await getPool();
+  if (!p) return null;
+  const cognitoUser = p.getCurrentUser();
+  if (!cognitoUser) return null;
   return new Promise((resolve) => {
     cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
       if (err || !session?.isValid()) {
@@ -44,27 +60,30 @@ export function getCurrentUser(): Promise<AuthUser | null> {
   });
 }
 
-export function signIn(email: string, password: string): Promise<AuthUser> {
-  if (!pool) return Promise.reject(new Error("Cognito not configured"));
-  const user = new CognitoUser({ Username: email, Pool: pool });
+export async function signIn(email: string, password: string): Promise<AuthUser> {
+  const p = await getPool();
+  if (!p) throw new Error("Cognito not configured");
+  const user = new CognitoUser({ Username: email, Pool: p });
   const authDetails = new AuthenticationDetails({ Username: email, Password: password });
   return new Promise((resolve, reject) => {
     user.authenticateUser(authDetails, {
       onSuccess: (session) => resolve(parseIdToken(session)),
       onFailure: (err) => reject(err),
-      newPasswordRequired: (_userAttributes) => {
+      newPasswordRequired: () => {
         reject(new Error("NEW_PASSWORD_REQUIRED"));
       },
     });
   });
 }
 
-export function signOut(): void {
-  if (!pool) return;
-  const user = pool.getCurrentUser();
+export async function signOut(): Promise<void> {
+  const p = await getPool();
+  if (!p) return;
+  const user = p.getCurrentUser();
   if (user) user.signOut();
 }
 
-export function getIdToken(): Promise<string | null> {
-  return getCurrentUser().then((u) => u?.idToken ?? null);
+export async function getIdToken(): Promise<string | null> {
+  const u = await getCurrentUser();
+  return u?.idToken ?? null;
 }

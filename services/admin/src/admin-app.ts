@@ -35,14 +35,21 @@ export const app = express();
 
 app.use(express.json());
 
+// Origin-secret gate: reject direct API Gateway access (must come through CloudFront).
+const ORIGIN_SECRET = process.env.ORIGIN_SECRET;
+if (ORIGIN_SECRET) {
+  app.use((req, res, next) => {
+    if (req.method === "OPTIONS") return next();
+    if (req.headers["x-origin-secret"] === ORIGIN_SECRET) return next();
+    res.status(403).json({ error: "Forbidden" });
+  });
+}
+
 // Open CORS — admin SPA lives on a different CloudFront distribution from the
 // API. Same shape as the chatbot service.
 app.use((_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, x-api-key, X-Api-Key",
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   next();
 });

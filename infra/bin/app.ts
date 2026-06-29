@@ -38,4 +38,6 @@ new ChatbotStack(app, "Chatbot", {
   lambdaSg: backOfficeStack.lambdaSg,
   officeApiUrl: backOfficeStack.httpApiUrl,
   webAclArn: backOfficeStack.webAclArn,
+  userPoolId: backOfficeStack.userPoolId,
+  userPoolClientId: backOfficeStack.userPoolClientId,
 });

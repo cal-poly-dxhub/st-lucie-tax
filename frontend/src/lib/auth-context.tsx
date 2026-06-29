@@ -23,14 +23,21 @@ const DEV_USER: AuthUser = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(authConfigured ? null : DEV_USER);
-  const [loading, setLoading] = useState(authConfigured);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authConfigured) return;
-    getCurrentUser()
-      .then(setUser)
-      .finally(() => setLoading(false));
+    (async () => {
+      const configured = await authConfigured();
+      if (!configured) {
+        setUser(DEV_USER);
+        setLoading(false);
+        return;
+      }
+      const current = await getCurrentUser();
+      setUser(current);
+      setLoading(false);
+    })();
   }, []);
 
   async function signIn(email: string, password: string) {
