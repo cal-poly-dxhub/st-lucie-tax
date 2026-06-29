@@ -1,0 +1,68 @@
+{
+  "txnTypeId": "duplicate-title",
+  "baseItems": ["photo-id-all-applicants", "hsmv-82101"],
+  "factsRequired": [
+    "duplicate_title_channel",
+    "title_holding_status",
+    "has_lien_or_lease",
+    "owners_joined",
+    "signing_via_poa"
+  ],
+  "branches": [
+    {
+      "when": { "duplicate_title_channel": "online-mydmv", "has_lien_or_lease": "none" },
+      "addItems": ["mydmv-portal-referral"],
+      "removeItems": ["photo-id-all-applicants", "hsmv-82101"],
+      "note": "Electronic titles with no lien can be converted to paper online at MyDMV Portal for a $4.50 fee. Paper title mailed to the address on the motor vehicle record within 3-4 weeks.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/paper-liens-and-titles/",
+        "https://mydmvportal.flhsmv.gov/"
+      ]
+    },
+    {
+      "when": { "has_lien_or_lease": "lien-active" },
+      "addItems": ["lien-letter"],
+      "note": "Active lien on the vehicle — duplicate title typically issued to the lienholder, not the customer. Lienholder may need to provide a release or letter authorizing a duplicate to the registered owner.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/paper-liens-and-titles/"
+      ]
+    },
+    {
+      "when": { "owners_joined": "joined-and" },
+      "note": "Title with multiple owners joined by 'and' — all owners must sign the duplicate title application (HSMV 82101).",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82101.pdf"]
+    },
+    {
+      "when": { "signing_via_poa": "yes-owner-absent" },
+      "addItems": ["hsmv-82053"],
+      "note": "Owner cannot be present — notarized POA (HSMV 82053) required authorizing the third party to apply for the duplicate title.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82053.pdf"]
+    },
+    {
+      "when": { "title_holding_status": "electronic-held", "duplicate_title_channel": "in-office" },
+      "note": "Electronic title currently held in FLHSMV's database — customer can convert to paper at the office for the standard fee. Paper title mailed to the address on record.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/paper-liens-and-titles/"
+      ]
+    },
+    {
+      "when": { "title_holding_status": "lost-paper" },
+      "note": "Lost or destroyed paper title — HSMV 82101 duplicate title application; the customer's most recent title record is reissued as a new paper title.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82101.pdf"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "FL Titles- MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/paper-liens-and-titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/198/Duplicate-Titles",
+      "https://www.tcslc.com/194/Titles-Registrations"
+    ],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/319.23"]
+  }
+}

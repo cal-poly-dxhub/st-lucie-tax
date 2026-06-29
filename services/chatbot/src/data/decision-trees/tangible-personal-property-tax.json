@@ -1,0 +1,41 @@
+{
+  "txnTypeId": "tangible-personal-property-tax",
+  "baseItems": ["tpp-bill-or-account"],
+  "factsRequired": ["tpp_intent", "tpp_is_past_due"],
+  "branches": [
+    {
+      "when": { "tpp_intent": "file-return" },
+      "note": "BLOCKED at this office: TPP returns (DR-405) are filed with the St. Lucie County Property Appraiser, NOT the Tax Collector. Returns must be filed by April 1 each year to claim the $25,000 Amendment 1 exemption. Late filing loses the exemption.",
+      "sourceRefs": [
+        "https://www.tcslc.com/214/Tangible-Centrally-Assessed-Tax",
+        "https://www.paslc.gov/"
+      ]
+    },
+    {
+      "when": { "tpp_intent": "inquiry-exemption" },
+      "note": "BLOCKED at this office: TPP exemption applications are handled by the St. Lucie County Property Appraiser (paslc.gov), not the Tax Collector. The $25,000 Amendment 1 exemption is claimed by filing the TPP return by April 1 each year.",
+      "sourceRefs": [
+        "https://www.tcslc.com/214/Tangible-Centrally-Assessed-Tax",
+        "https://www.paslc.gov/"
+      ]
+    },
+    {
+      "when": { "tpp_intent": "pay-bill", "tpp_is_past_due": "yes" },
+      "addItems": ["guaranteed-funds-only"],
+      "note": "Delinquent TPP taxes must be paid with guaranteed funds ONLY: cashier's check, cash, debit, or credit. Personal checks are not accepted on past-due TPP amounts — same rule as real-property delinquent tax.",
+      "sourceRefs": [
+        "https://www.tcslc.com/214/Tangible-Centrally-Assessed-Tax",
+        "https://www.tcslc.com/165/Taxes"
+      ]
+    },
+    {
+      "when": { "tpp_intent": "pay-bill", "tpp_is_past_due": "no" },
+      "addItems": ["personal-check-ok"],
+      "note": "Current-year TPP payment — personal checks accepted, along with cash, credit, debit, or cashier's check. Bring the TPP bill or account number.",
+      "sourceRefs": ["https://www.tcslc.com/214/Tangible-Centrally-Assessed-Tax"]
+    }
+  ],
+  "sources": {
+    "tcslcVerified": ["https://www.tcslc.com/214/Tangible-Centrally-Assessed-Tax"]
+  }
+}

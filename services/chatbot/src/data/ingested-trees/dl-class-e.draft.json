@@ -1,0 +1,242 @@
+{
+  "txnTypeId": "dl-class-e",
+  "sourceFile": "Driver License - Class E .xlsx",
+  "generatedAt": "2026-04-21T23:00:03.911Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "H": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "FORMS NEEDED?",
+        "F": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "G": "EXTERNAL WEBSITES:",
+        "H": "REASON:",
+        "I": "SOLUTION:"
+      }
+    },
+    {
+      "row": 4,
+      "cells": {
+        "B": "Have you obtained a License in Florida before?",
+        "C": "Yes",
+        "D": "Make sure they are REAL ID compliant and no changes to (name/address/citizenship/legal presence), ",
+        "H": "Not REAL ID compliant or no proof of address documents presented if making changes to address"
+      }
+    },
+    {
+      "row": 5,
+      "cells": {
+        "C": "No",
+        "D": "Refer customer to Complete exams (i.e class E knowledge, driving skills, and tlsae/dets) required for Class E issuance",
+        "F": "https://www.tcslc.com/163/Driver-Licenses-Identification-Cards"
+      }
+    },
+    {
+      "row": 6,
+      "cells": {
+        "B": "Do you have an OOS license?",
+        "C": "Yes",
+        "D": "Need REAL ID documents and proof of address, oos dl/transcripts",
+        "H": "Does not have physical license or proof of having a license"
+      }
+    },
+    {
+      "row": 7,
+      "cells": {
+        "C": "No",
+        "D": "must have real id docs, and need to take tlsae/dets,knowledge exam and driving exam"
+      }
+    },
+    {
+      "row": 8,
+      "cells": {
+        "B": "Did you have any endorsements on your previous license?",
+        "C": "Yes",
+        "D": "reciprocated if the customer presents a driver license from any U.S. State, U.S territory, Motorcycle requirements are reciprocated if the customer presents a valid driver license that includes a motorcycle endorsement from any one of the jurisdictions listed below:Any State Except Alabama United States Territories\r\nIncluding Panama Canal Zone if issued prior to January 1, 2000\r\nCanada\r\nFrance\r\nGermany\r\nUnited States Armed Forces\r\nThis includes on base only and off base armed forces driver licenses",
+        "H": "customer insists they have and want endorsements on FL DL but have no proof of eligibility"
+      }
+    },
+    {
+      "row": 9,
+      "cells": {
+        "C": "No",
+        "D": "ask customer if they are looking to add new endorsements and discuss requirements",
+        "G": "https://www.flhsmv.gov/driver-licenses-id-cards/motorcycle-rider-education-endorsements/"
+      }
+    },
+    {
+      "row": 10,
+      "cells": {
+        "B": "Do you physically have your OOS License?",
+        "C": "Yes",
+        "D": "Scan and reciprocate exams"
+      }
+    },
+    {
+      "row": 11,
+      "cells": {
+        "C": "No",
+        "D": "Need driving transcripts as proof or pull through NLETS",
+        "G": "https://www.usa.gov/state-motor-vehicle-services",
+        "H": "Does not have physical license or proof of having a license"
+      }
+    },
+    {
+      "row": 12,
+      "cells": {
+        "B": "Are you a U.S. Citizen?",
+        "C": "Yes",
+        "D": "Need U.S. Passport or Birth Certificate/SSN/Naturalization certificate, Proof of address,Name changes require supporting legal documents."
+      }
+    },
+    {
+      "row": 14,
+      "cells": {
+        "C": "No",
+        "D": "Customer must provide lawful presence/immigration documentation, proof of SSN (if issued), and Florida residential address documents per REAL ID",
+        "G": "https://www.cdc.gov/nchs/w2w/index.htm",
+        "H": "No BC or passport, no proof of status"
+      }
+    },
+    {
+      "row": 16,
+      "cells": {
+        "B": "Is your current license expired?",
+        "C": "Yes",
+        "D": "Reciprocate available exams and verify if any changes"
+      }
+    },
+    {
+      "row": 17,
+      "cells": {
+        "C": "No",
+        "D": "verify any changes-name, marriage, address, citizenship status"
+      }
+    },
+    {
+      "row": 19,
+      "cells": {
+        "B": "Will I Need anything else other than my Real ID license from my state?",
+        "C": "YES",
+        "D": "Your Real ID credential is Valid only for your previous state, all Real ID Documents will need to be presented to FL to meet requirements in FL.",
+        "F": "https://www.tcslc.com/163/Driver-Licenses-Identification-Cards"
+      }
+    },
+    {
+      "row": 20,
+      "cells": {
+        "C": "NO",
+        "D": "If you have previously held a FL Real ID Credential, Surrender OOS Credential-*explore possible changes"
+      }
+    },
+    {
+      "row": 22,
+      "cells": {
+        "B": "I have an old Florida Driver's license but then moved out of state, and got an ID, can I get my Driver's License Back?",
+        "C": "YES",
+        "D": "If you meet all requirements and there are no sanctions, provide current Florida Real ID Documents for issuance to update your previous record."
+      }
+    },
+    {
+      "row": 23,
+      "cells": {
+        "C": "No",
+        "D": "If you are not Real ID compliant in our system, then we will need to bring your record back into complaince with all documents for issuance.( U.S. Passport or Birth Certificate/SSN/Naturalization certificate, Proof of address,Name changes require supporting legal documents.)"
+      }
+    },
+    {
+      "row": 25,
+      "cells": {
+        "B": "I previously had a Florida license when I visited temporarily and I am now moving here permanently, what do I need to get my license back",
+        "D": "To Obtain your License we will need to locate your previous record and reciprocate previous exams, as well as provide current legal prescence documents for compliance requirements-if applicable, and address requirements"
+      }
+    },
+    {
+      "row": 27,
+      "cells": {
+        "B": "Does Florida require retesting when moving from out of state?",
+        "C": "Yes",
+        "D": "If you cannot provide a valid/expired credential or Driver's record, retesting will be required"
+      }
+    },
+    {
+      "row": 28,
+      "cells": {
+        "C": "NO",
+        "D": "If you provide Florida with a Previous valid/Expired Credential or Certified driver's Record, no retest required."
+      }
+    },
+    {
+      "row": 29,
+      "cells": {
+        "B": "Is your out of state license suspended?",
+        "C": "YES",
+        "D": "Provide not-not info and have customer contact state they are suspended in. advise cust must resolve suspension prior to issuance ",
+        "G": "https://www.usa.gov/state-motor-vehicle-services"
+      }
+    },
+    {
+      "row": 30,
+      "cells": {
+        "C": "NO",
+        "D": "issue if customer has all real id documents"
+      }
+    },
+    {
+      "row": 31,
+      "cells": {
+        "B": "Are you a honorably discharged veteran?",
+        "C": "YES",
+        "D": "inform cust must provide DD214 or veteran ID to add VA designation",
+        "F": "https://www.flhsmv.gov/military/",
+        "G": "https://www.archives.gov/veterans/military-service-records"
+      }
+    },
+    {
+      "row": 32,
+      "cells": {
+        "C": "no ",
+        "D": "standard fees apply "
+      }
+    },
+    {
+      "row": 33,
+      "cells": {
+        "B": "Are you a 100% disabled veteran?",
+        "C": "yes",
+        "D": "Veterans with a 100% total and permanent service-connected disability rating may be eligible for a no-fee driver license (with endorsements) or ID card. Require VA documentation showing the 100% total and permanent rating",
+        "F": "https://www.flhsmv.gov/military/",
+        "G": "https://www.archives.gov/veterans/military-service-records"
+      }
+    },
+    {
+      "row": 34,
+      "cells": {
+        "C": "no ",
+        "D": "standard fees apply minus tc fee "
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Driver License - Class E .xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "txnTypeId": "tag-replacement",
+  "baseItems": ["photo-id-all-applicants", "hsmv-83146"],
+  "factsRequired": ["tag_replacement_reason"],
+  "branches": [
+    {
+      "when": {
+        "tag_replacement_reason": "stolen"
+      },
+      "addItems": ["police-report-or-case-number"],
+      "note": "Stolen tag or decal \u2014 customer must bring a police report or police business card with the case number. Without it, replacement cannot proceed.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/proc/rs/rs-43.pdf",
+        "https://www.tcslc.com/304/Lost-or-Stolen-Tags-and-Plate-Surrenders"
+      ]
+    },
+    {
+      "when": {
+        "tag_replacement_reason": "lost-in-transit"
+      },
+      "note": "Lost-in-transit \u2014 if the renewal was processed online within the past 20 days and the credential never arrived, the replacement is free. After 20 days, standard replacement fees apply.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/"
+      ]
+    },
+    {
+      "when": {
+        "tag_replacement_reason": "defaced"
+      },
+      "note": "Damaged or defaced decal \u2014 replacement fee applies; no police report required. Bring the old decal if possible.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Registrations - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/304/Lost-or-Stolen-Tags-and-Plate-Surrenders"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/320.03"]
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "txnTypeId": "dealer-title-dropoff",
+  "baseItems": ["photo-id-all-applicants", "sunbiz-registration", "dealer-license-active"],
+  "factsRequired": [
+    "dealer_dropoff_type",
+    "dealer_license_active",
+    "dealer_has_odometer_disclosure",
+    "dealer_dropoff_entity_type"
+  ],
+  "branches": [
+    {
+      "when": {
+        "dealer_license_active": "no-expired"
+      },
+      "note": "BLOCKED: Your Florida motor-vehicle dealer license must be active. Renew with the FLHSMV Motor Vehicle Field Operations before dropping off title paperwork. See the Bureau of Field Operations Regional Offices directory (tcslc /DocumentCenter/View/167).",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.27",
+        "https://www.tcslc.com/DocumentCenter/View/167"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_type": "title-bundle"
+      },
+      "addItems": [
+        "original-vehicle-title",
+        "bill-of-sale-purchase-agreement",
+        "fl-insurance-proof"
+      ],
+      "note": "Standard dealer title-bundle drop-off \u2014 each vehicle's packet needs: original properly-assigned title, bill of sale / retail purchase agreement, and Florida insurance proof. Follow the tcslc New Dealer Information Packet (DocumentCenter/View/1492) for the exact paperwork sequence.",
+      "sourceRefs": [
+        "https://www.tcslc.com/216/Dealers-Corner",
+        "https://www.tcslc.com/DocumentCenter/View/1492",
+        "https://www.flsenate.gov/Laws/Statutes/2024/319.23"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_type": "reassignment"
+      },
+      "addItems": ["hsmv-82091"],
+      "note": "Reassignment Supplement (HSMV 82091) \u2014 used when the number of on-title reassignment lines is exhausted. Correct use per the 'Correct Use of Reassignments for Conforming Titles' procedure (DocumentCenter/View/515).",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82091.pdf",
+        "https://www.tcslc.com/216/Dealers-Corner"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_type": "temp-plate-stock"
+      },
+      "addItems": ["hsmv-83090", "hsmv-83091"],
+      "note": "Temporary License Plate application. HSMV 83090 = Application by Florida Dealer for Temporary License Plates. HSMV 83091 = Application for Temporary License Plate for a single customer.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/83090.pdf",
+        "https://www.flhsmv.gov/pdf/forms/83091.pdf"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_type": "towing-destruction"
+      },
+      "addItems": ["hsmv-82012"],
+      "note": "Application for Towing and Storage Certification of Destruction (HSMV 82012). Include the Towing-and-Storage Certificate of Destruction Checklist (DocumentCenter/View/1477) for every record.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82012.pdf",
+        "https://www.tcslc.com/DocumentCenter/View/1477"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_type": "out-of-business"
+      },
+      "addItems": ["hsmv-86060"],
+      "note": "Statement of Intent to Relinquish a Dealer License (HSMV 86060) \u2014 dealer closing operations. File to surrender the dealer license and release remaining temporary-plate inventory.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/86060.pdf"]
+    },
+    {
+      "when": {
+        "dealer_has_odometer_disclosure": "no"
+      },
+      "addItems": ["hsmv-82993"],
+      "note": "Separate Odometer Disclosure (HSMV 82993) \u2014 required when the title doesn't contain the odometer-disclosure section or when reassignment forms are used. Model-year 2011 or newer requires disclosure at every transfer per \u00a7319.14.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82993.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/319.14"
+      ]
+    },
+    {
+      "when": {
+        "dealer_dropoff_entity_type": "individual"
+      },
+      "removeItems": ["sunbiz-registration"],
+      "note": "Title transferring to an individual or co-individuals \u2014 no business entity proof needed. Sunbiz registration does not apply.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "dealer_dropoff_entity_type": "out-of-state-business"
+      },
+      "removeItems": ["sunbiz-registration"],
+      "addItems": ["business-entity-proof"],
+      "note": "Out-of-state businesses provide their FEID number or home-state registration; Florida Sunbiz isn't applicable. FLHSMV accepts FEID, FL sales-tax registration number, or equivalent business-entity proof.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "dealer_dropoff_entity_type": "trust"
+      },
+      "removeItems": ["sunbiz-registration"],
+      "addItems": ["trust-certification"],
+      "note": "Title transferring into a trust \u2014 bring the trust certification or trust agreement showing the trustee's authority. Sunbiz does not apply to trusts.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/pdf/forms/82091.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82012.pdf",
+      "https://www.flhsmv.gov/pdf/forms/83090.pdf",
+      "https://www.flhsmv.gov/pdf/forms/83091.pdf",
+      "https://www.flhsmv.gov/pdf/forms/86060.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82993.pdf"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/216/Dealers-Corner",
+      "https://www.tcslc.com/DocumentCenter/View/1492",
+      "https://www.tcslc.com/DocumentCenter/View/168"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/319.23",
+      "https://www.flsenate.gov/Laws/Statutes/2024/319.14",
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.27"
+    ]
+  }
+}

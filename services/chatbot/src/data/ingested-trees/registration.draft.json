@@ -1,0 +1,438 @@
+{
+  "txnTypeId": "registration",
+  "sourceFile": "Registrations - MVI.xlsx",
+  "generatedAt": "2026-04-21T23:00:03.985Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "I": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "INFORMATIONAL",
+        "F": "FORMS NEEDED?",
+        "G": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "H": "EXTERNAL WEBSITES:",
+        "I": "REASON:",
+        "J": "SOLUTION:"
+      }
+    },
+    {
+      "row": 5,
+      "cells": {
+        "A": "Renewals",
+        "I": "No proof of insurance"
+      }
+    },
+    {
+      "row": 6,
+      "cells": {
+        "A": "Replacement License Plate",
+        "B": "Why does it need to be replaced?",
+        "C": "It was stolen",
+        "D": "Need a police report ot police card with case number",
+        "G": "Replacement Procedure",
+        "I": "No police report"
+      }
+    },
+    {
+      "row": 7,
+      "cells": {
+        "C": "I never got it in the mail",
+        "D": "We need to check ORION MVI to see when it was renewed online. IF it was renewed within 20 days, they can replace it for free as a Lost-In-Transit. IF it has been more than 20 days, then they would have to pay the fees.",
+        "F": "HSMV 83146  must be signed by owner"
+      }
+    },
+    {
+      "row": 8,
+      "cells": {
+        "A": "Replacement Decal",
+        "B": "Why does it need to be replaced?",
+        "C": "The decal is defaced",
+        "F": "HSMV 83146  must be signed by owner"
+      }
+    },
+    {
+      "row": 9,
+      "cells": {
+        "C": "It was stolen",
+        "D": "Need a police report or police business card with case number",
+        "F": "HSMV 83146  must be signed by owner",
+        "G": "Replacement Procedure"
+      }
+    },
+    {
+      "row": 10,
+      "cells": {
+        "C": "Lost in transit (never received in the mail)",
+        "D": "We need to check ORION MVI to see when it was renewed online. IF it was renewed within 20 days, they can replace it for free as a Lost-In-Transit. IF it has been more than 20 days, then they would have to pay the fees.",
+        "E": "GPT states local tax collector policy (Find out why - Jackie)",
+        "F": "HSMV 83146  must be signed by owner"
+      }
+    },
+    {
+      "row": 12,
+      "cells": {
+        "A": "Original Registration",
+        "B": "Do you want a regular license plate or specialty license plate",
+        "C": "Customer needs a new Florida license plate",
+        "D": "Verify insurance for vehicle and issue requested license plate.",
+        "E": "Added missing required items\r\n•\tProof of identity for all owners\r\n•\tProof of Florida insurance\r\n•\tProof of ownership\r\n•\tHSMV 82040 signed by all owners\r\n•\tVIN verification for out-of-state used vehicles",
+        "H": "Reference the Specialty Plate packet guide",
+        "I": "VIN Number may be incorrect, vehicle is not listed on the insurance policy, post-dated insurance, or insurance expired "
+      }
+    },
+    {
+      "row": 13,
+      "cells": {
+        "A": "Military",
+        "B": "What if I am in the military?",
+        "C": "Yes",
+        "D": "Bring military orders, out of state insurance, sign military affidavit, sign initial exemption form if applicable",
+        "F": "Provide military packet"
+      }
+    },
+    {
+      "row": 14,
+      "cells": {
+        "A": "Transfer of Registration",
+        "B": "Do you have a physical plate to transfer to the vehicle (in your name)?",
+        "C": "Yes",
+        "D": "Either provide the physical license plate or the license plate number"
+      }
+    },
+    {
+      "row": 15,
+      "cells": {
+        "B": "Do you have a license plate that was surrendered to us (in your name)?",
+        "C": "No",
+        "D": "Clerk will look up plate credit in MVI.",
+        "I": "Unable to locate plate credit.",
+        "J": "If unable to find plate credit and customers insists that they have one, have customer obtain license plate number if available"
+      }
+    },
+    {
+      "row": 16,
+      "cells": {
+        "A": "Disabled Veteran Plate",
+        "B": "Have you been evaluated as being a 100% service-connected disabled veteran AND are applying for disabled veteran license plate?",
+        "C": "Yes",
+        "D": "Provide Summary of Benefits Letter from the Dept of Veteran Affairs which specifies you are: 1. 100%-service connected OR 2. Not totally and permanently disabled, but being compensated at the rate of 100% OR 3. documentation showing that vehicle was acquired through financial assistance by the DVA or its predecessor specifically for the purchase of an automobile.",
+        "E": "**Mention that only one license plate is reduced tax-free, but veteran can have as many DVR plates as they desire.",
+        "I": "Customer does not have the document proving eligibility, or customer does not have a phone, no internet access at home to download & email document. ",
+        "J": "If a customer has a veteran designation on their driver license, we can check scanned documents on motorist maintenance on ORION."
+      }
+    },
+    {
+      "row": 17,
+      "cells": {
+        "C": "No",
+        "D": "Proof of eligibility is required before issuance of a disabled veteran license plate",
+        "I": "People are evaluated as being less than 100% and/or not compensated at the rate of 100%",
+        "J": "Customer has to visit the VA to be evaluated by a physician who will provide them with the proper documentation."
+      }
+    },
+    {
+      "row": 18,
+      "cells": {
+        "A": "HVUT",
+        "B": "Do you need to renew a heavy truck that has a GVW of 55,000 lbs or more?",
+        "C": "Yes",
+        "D": "Bring these documents: (One of the following: ACORD Form, Certificate of Liability, Proof of Self Insurance through FMCSA.) with the correct limits of coverage AND HVUT 2290 or proof of exemption (purchased within 60 days: bill of sale, copy of signed title, etc.) AND Registration. ",
+        "E": "Provide sample image of 2290 and/or link to the IRS where they can access their 2290. Funds collected from this federal excise tax known as the Heavy Vehicle Use Tax help fund the construction and maintenance of the nation's public highway system. Federal legal requirement. FLHSMV requires scansheet with the 2290 to show vehicle tax was paid with the IRS.",
+        "G": "Reference section in manual about commercial vehicle insurance limits",
+        "I": "Customer did not bring the HVUT 2290, or they have to contact their employer for it. VIN number on the 2290 is incorrect/and or does not correspond with the registration or insurance or 2290 is not for the correct filing period or incorrect category is claimed on 2290 or 2290 has alterations, whiteouts, linethroughs, etc. or 2290 does not have an FEID # or the policy does not have the proper limits of coverage based on what the vehicle is grossing or the insurance is expired or scheduled autos is marked on the insurance, but no specific vins are listed or no lease agreement, proof of exemption (signed title within 60 days, or bill of sale)"
+      }
+    },
+    {
+      "row": 19,
+      "cells": {
+        "C": "Yes and the titled owner IS NOT THE SAME as the registrant",
+        "D": "Bring these documents: (One of the following: ACORD Form, Certificate of Liability, Proof of Self Insurance through FMCSA.) with the correct limits of coverage AND HVUT 2290 or proof of exemption (purchased within 60 days: bill of sale, copy of signed title AND Lease agreement or Sunbiz document AND Registration. ",
+        "G": "Reference section in manual about commercial vehicle insurance limits"
+      }
+    },
+    {
+      "row": 20,
+      "cells": {
+        "A": "Specialty Plate Voucher",
+        "B": "Are you trying to purchase a presale specialty license plate voucher for yourself?",
+        "C": "Yes",
+        "D": "Direct customer to visit our office or go online.",
+        "E": "Provide the FLHSMV link for the customer to visit to check the status of the specialty vouchers ALSO direct them to the link of the vouchers available for purchase online.",
+        "G": "•\tVoucher applies to a specific plate type and recipient\r\n•\tMust follow RS-67 / RS-22 specialty plate process"
+      }
+    },
+    {
+      "row": 21,
+      "cells": {
+        "B": "Are you trying to purchase a presale specialty license plate voucher for someone else?",
+        "C": "Yes",
+        "D": "Have the receipient's name, license plate number, and/or driver license number at time of transaction"
+      }
+    },
+    {
+      "row": 22,
+      "cells": {
+        "A": "Temporary License Plate (30-day)",
+        "B": "Are you a resident from another state, purchased a vehicle in Florida and need a temporary license plate to title/register it in your home state?",
+        "C": "Yes:",
+        "D": "A 30-day temporary license plate will be issued (only for qaulifying circumstances). Documents needed to complete the transaction: Valid out-of-state driver license, original, properly executed Florida Title w/ bill of sale (if applicable), DR-123 Partial Sales Tax Exemption, proof of out-of-state insurance OR Florida insurance policy and Temporary License Plate. ",
+        "E": "Add requirement to verify insurance and ownership context",
+        "F": "DR-123 Partial Sales Tax Exemption, Temporary License Plate Application",
+        "G": "Reference RS-31 - Partnernet",
+        "J": "Once all requirements have been met, customer can be issued temporary license plate to drive it out of state. "
+      }
+    },
+    {
+      "row": 23,
+      "cells": {
+        "C": "No",
+        "D": "You must bring the original, properly-executed Florida title w/ bill of sale (if applicable) and proof of Florida insurance and be issued a Florida license plate.",
+        "I": "Temporary license plates are only issued under specific circumstances.",
+        "J": "Customer would have to transfer the title, pay sales tax in Florida and be issued a physical license plate."
+      }
+    },
+    {
+      "row": 24,
+      "cells": {
+        "A": "Surrender License Plate (Scenario 1: Has physical plate) ",
+        "B": "Do you need to surrender a license plate as a result of a private sale, junk, trade, repossession or other circumstance?",
+        "C": "The vehicle is in a personal name AND you are the registered owner/co-registrant",
+        "D": "Provide the following: 1. Your valid government-issued identification 2. the physical license plate 3. Complete the License plate surrender affidavit ",
+        "E": "Surrender receipt will be provided",
+        "G": "None"
+      }
+    },
+    {
+      "row": 25,
+      "cells": {
+        "C": "The vehicle is in a personal name AND you ARE NOT the registered owner/co-registrant",
+        "D": "Provide the following: 1. A valid government-issued identification (individual surrendering the license plate) 2. the physical license plate 3. the License plate surrender affidavit signed by the individual conducting the transaction OR the LPSA signed by the current registered owner/co-owner OR Power of Attorney document signed by owner/co-owner granting the third party individual to conduct motor vehicle transactions on their behalf ",
+        "E": "Surrender receipt will be sent to the mailing address on record.",
+        "F": "HSMV 82053, License Plate Surrender Affidavit",
+        "G": "People that are not registered owner's want proof that the license plate was surrendered so that it can be reported to the insurance company, so the vehicle can be removed from the policy. (Reference RS-43 - Surrender Procedure - Partnernet)"
+      }
+    },
+    {
+      "row": 26,
+      "cells": {
+        "C": "The vehicle is in a business name AND you are a registered agent on Dept of State (Sunbiz)",
+        "D": "Provide the following: 1. A valid government-issued identification 2. the physical license plate 3. License plate surrender affidavit 4. Sunbiz printout which shows linkage to the company",
+        "E": "Surrender receipt will be provided",
+        "G": "None"
+      }
+    },
+    {
+      "row": 27,
+      "cells": {
+        "C": "The vehicle is in a business name AND you ARE NOT a registered agent on Dept of State (Sunbiz)",
+        "D": "Provide the following: 1. A valid government-issued identification (of the individual surrendering the license plate) 2. the physical license plate 3. License plate surrender affidavit signed by the registered agent of the company OR provides company letterhead with original signature by a registered agent granting the third-party individual to conduct the transaction, OR 82053 power of attorney signed by a registered agent of the company, OR the individual surrendering the license plate signs the affidavit)",
+        "E": "Surrender receipt provided based on conditions met",
+        "F": "HSMV 82053, License Plate Surrender Affidavit",
+        "G": "People that are not registered agents tied to the business want proof that the license plate was surrendered so that it can be reported to the insurance company, so the vehicle can be removed from the policy."
+      }
+    },
+    {
+      "row": 28,
+      "cells": {
+        "A": "Surviving Spouse - License Plate Transfer",
+        "B": "Is there currently a license plate on the vehicle?",
+        "C": "Yes AND you are the unremarried surviving spouse of the decendent who was the recipient of a EX-Prisoner of War or Purple Heart ONLY and has one of those special license plate/s... ",
+        "D": "The same license plate may be used.",
+        "E": "Copy of death certificate, AND an affidavit stating the customer is the unmarried surviving spouse.",
+        "F": "RS-15: Military Service- Related License Plates And Military Exemptions.",
+        "I": "Death file inquiry has not been updated, or customer does not have the death certificate.",
+        "J": "Customer has to wait for death file inquiry to be updated, or present the death certificate."
+      }
+    },
+    {
+      "row": 29,
+      "cells": {
+        "C": "Yes AND you are the surviving spouse of the decedent who was the recipient of a military-service related license plate",
+        "D": "License plate would have to be surrendered to the Tax Collector's office.",
+        "E": "HSMV 82002 - Initial Registration Exemption Form (If acquiring the vehicle through operation of law - inheritance)",
+        "J": "Check customer record for pre-existing license plate credit, or ask if customer has a license plate in their name for transfer, or if customer does not plan to register vehicle, do title-only w/o regist."
+      }
+    },
+    {
+      "row": 30,
+      "cells": {
+        "A": "Initial Registration Exemption - Immediate Family",
+        "B": "Did you recently acquire a vehicle from an immediate family member? (blood relative, parent, spouse, cousin, stepchild)",
+        "C": "Yes AND the residential address of the seller matches with the residential address of the purchaser",
+        "D": "Provide a valid government-issued identification & complete HSMV 82002 Initial Registration Exemption form.",
+        "E": "HSMV 82002 - Initial Registration Exemption Form (signed by applicant)",
+        "F": "PartnerNet - RS-30 Initial Registration Fee (page 4, section 4)",
+        "I": "The customer is aware about the initial registration exemption, but customer does not know that in order to qualify, both individuals must have the same residential address.",
+        "J": "The immediate family member comes into a driver license office and changes their residential address on their DL OR customer pays $225.00 (depending on vehicle category) or check if customer has license plate credit."
+      }
+    },
+    {
+      "row": 31,
+      "cells": {
+        "C": "Yes AND the residential address of the seller DOES NOT match with the residential address of the purchaser",
+        "D": "Customer does not qualify for the $225 Initial Registration Fee Exemption, full fee applies.",
+        "E": "N/A",
+        "I": "Customer has misconception that the same license plate can be used, even though they do not reside in the same household",
+        "J": "Emphasize that the $225 deduction applies to a new license plate unless the original owner will still remain on the vehicle with them as co-owner (in order to use the same plate.)"
+      }
+    },
+    {
+      "row": 32,
+      "cells": {
+        "A": "Personalized License Plate Relinquishment",
+        "B": "Are you relinquishing a personalized license plate to someone else?",
+        "C": "If you are taking ownership of a personalized plate from someone else and you PHYSICALLY HAVE the personalized license plate from the previous owner, AND you PHYSICALLY have a valid license plate in your name. ",
+        "D": "Present valid government-issued identification, proof of insurance for the vehicle that will acquire the plate & complete Personalized License Plate relinquishment form, and personalized license plate will be issued to you.",
+        "E": "Personalized Relinquishment Form, power of attorney (if applicable)",
+        "I": "Relinquishment form not signed due to owner not being present, or EFS-related matter (plate issued/transferred by dealership and title/registration has not been finalized; <30 days)",
+        "J": "Relinquishment form can be Docusigned, or owner would come in and sign form,"
+      }
+    },
+    {
+      "row": 33,
+      "cells": {
+        "C": "If you are taking ownership of a personalized plate from someone else and you PHYSICALLY HAVE the personalized license plate from the previous owner, but you DO NOT have a valid license plate in your name.",
+        "D": "Present valid government-issued identification, proof of insurance for the vehicle that will acquire the plate, temporary tag will be issued & complete Personalized License Plate relinquishment form, and personalized license plate will be issued to you."
+      }
+    },
+    {
+      "row": 34,
+      "cells": {
+        "C": "If you are taking ownership of a personalized plate from someone else and you DO NOT PHYSICALLY HAVE the personalized license plate from the previous owner, but you PHYSICALLY have a valid license plate in your name.",
+        "D": "Present valid government-issued identification, proof of insurance for the vehicle that will acquire the plate & complete Personalized License Plate relinquishment form, and personalized license plate will be mailed to you. (please allow 6-8 weeks.)"
+      }
+    },
+    {
+      "row": 35,
+      "cells": {
+        "C": "If you are taking ownership of a personalized plate from someone else and you DO NOT PHYSICALLY HAVE the personalized license plate from the previous owner, but you DO NOT PHYSICALLY have a valid license plate in your name.",
+        "D": "Present valid government-issued identification, proof of insurance for the vehicle, temporary license plate will be issued, complete Personalized License Plate relinquishment form, and personalized license plate will be mailed to you (please allow 6-8 weeks.)"
+      }
+    },
+    {
+      "row": 36,
+      "cells": {
+        "A": "National Guard Plates",
+        "B": "Are you applying for a first-time National Guard license plate?",
+        "C": "You are active",
+        "D": "You qualify for one free national guard license plate if you are a florida national guard member. You may select the National Guard license plate, OR select from a standard/specialty/personalized license (not exempt from specialty/personalized fees.) Documents required: HSMV 83030 form, valid government-issued identification (driver license/ID card, etc.) AND U.S Armed Forces Common Access Card OR have the statement on the HSMV 83030 application signed by your unit's full time administrative officer or sergeant. ",
+        "E": "HSMV 83030",
+        "F": "HSMV 83030 Application, page 2 (how to complete the form)",
+        "I": "Customer proves they are a member of the National Guard, but do not know they have to present the form.",
+        "J": "Check ORION under scanned documents, if any."
+      }
+    },
+    {
+      "row": 37,
+      "cells": {
+        "C": "You are retired",
+        "D": "You qualify for one free national guard license plate if you were a florida national guard member. You may select the National Guard license plate, OR select from a standard/specialty/personalized license (not exempt from specialty/personalized fees.) Documents required: HSMV 83030 form, valid government-issued identification (driver license/ID card, etc.) AND DD214."
+      }
+    },
+    {
+      "row": 38,
+      "cells": {
+        "A": "US Reserve License Plate",
+        "B": "Are you applying for a first-time US Reserve license plate?",
+        "C": "You are active",
+        "D": "You qualify for one free national guard license plate if you are a US reserve member. You may select the US Reserve license plate. Documents required: HSMV 83030 form, valid government-issued identification (driver license/ID card, etc.) AND U.S Armed Forces Common Access Card OR have the statement on the HSMV 83030 application signed by your unit's full time administrative officer or sergeant. ",
+        "I": "Customer states they are member of the US Reserve, but do not present documentation/the form.",
+        "J": "Check ORION under scanned documents, if any."
+      }
+    },
+    {
+      "row": 39,
+      "cells": {
+        "C": "You are retired",
+        "D": "You qualify for one free national guard license plate if you were a US Reserve member. You may select the US Reserve license plate. Documents required: HSMV 83030 form, valid government-issued identification (driver license/ID card, etc.) AND DD214."
+      }
+    },
+    {
+      "row": 40,
+      "cells": {
+        "A": "Registration (Original & Transfer)",
+        "B": "Do you have a license plate, or have a credit?",
+        "C": "Yes, you acquired a vehicle through a private sale, but the license plate is attached to the seller",
+        "D": "The license plate would have to be given to the seller or surrendered.",
+        "I": "Customer believes same plate can be used.",
+        "J": "Check tag credit, or have seller go on as co-purchaser."
+      }
+    },
+    {
+      "row": 41,
+      "cells": {
+        "C": "The insurance is under the seller's name and you are not an approved driver",
+        "D": "You would have to be added to the insurance policy or obtain your own insurance policy with the vehicle that you are registering.",
+        "I": "Purchaser will present insurance that is under the seller's name, and not their own.",
+        "J": "Have customer call their insurance and add car to policy. Title-only can be done. Customer's believe that their insurance company will not insure a car that is legally not theirs."
+      }
+    },
+    {
+      "row": 42,
+      "cells": {
+        "A": "Registration (Low Speed Vehicle)",
+        "B": "Do you need to register your low speed vehicle?",
+        "C": "Yes AND you have a Florida license plate (only if $225 was paid)",
+        "D": "Provide proof of ownership (title and/or VIN#) with proof of Florida insurance. You must have a minimum of $10,000 Personal Injury Protection and $10,000 Property Damage Liability, license plate will be transferred. $225 initial registration fee exempt.",
+        "E": "•\tLanguage implied automatic exemption from the initial registration fee.\r\nCorrection\r\n•\tRemoved unconditional exemption language\r\n•\tClarified LSVs must be:\r\no\tTitled\r\no\tRegistered\r\no\tInsured with PIP and PDL",
+        "F": "Low Speed vs. Golf Cart information sheet",
+        "I": "Customer has golf cart insurance; but not for low speed",
+        "J": "Customer has to call insurance and have policy edited."
+      }
+    },
+    {
+      "row": 43,
+      "cells": {
+        "C": "Yes AND you have a Florida license plate (only if $225 was paid) (but you are registering the low speed vehicle on behalf of someone else)",
+        "D": "Provide proof of ownership (title and/or VIN #) with proof of Florida insurance-there must be a minimum of $10,000 in Personal Injury Protection and $10,000 in Property Damage Liability before LSV can be registered. & valid government-issued identification (the individual that is conducting the transaction) with an originally-signed, or electronically-signed Power of Attorney document (HSMV 82053 Form), license plate will be transferred. $225 initial registration fee exempt.",
+        "E": "HSMV 82053 Power of Attorney"
+      }
+    },
+    {
+      "row": 44,
+      "cells": {
+        "C": "Yes AND you had a Florida license plate (only if $225 was paid) (that was surrendered) but the initial registration fee was previously paid",
+        "D": "Provide proof of ownership (title and/or VIN #) with proof of Florida insurance-there must be a minimum of $10,000 in Personal Injury Protection and $10,000 in Property Damage Liability before LSV can be registered. & valid government-issued identification license plate credit will be used, and new license plate will be transferred. $225 initial registration fee exempt."
+      }
+    },
+    {
+      "row": 45,
+      "cells": {
+        "C": "Yes AND you DO NOT have a Florida license plate",
+        "D": "Provide proof of ownership (title and/or VIN#) with proof of Florida insurance. You must have a minimum of $10,000 in Personal Injury Protection and $10,000 in Property Damage Liability. $225 initial regist fee due"
+      }
+    },
+    {
+      "row": 46,
+      "cells": {
+        "C": "Yes AND you DO NOT have a Florida license plate (but you are registering the low speed vehicle on behalf of someone else)",
+        "D": "Provide proof of ownership (title and/or VIN #) with proof of Florida insurance-there must be a minimum of $10,000 in Personal Injury Protection and $10,000 in Property Damage Liability before LSV can be registered. & valid government-issued identification (the individual that is conducting the transaction) with an originally-signed, or electronically-signed Power of Attorney document (HSMV 82053 Form), $225 initial regist fee due",
+        "E": "HSMV 82053 Power of Attorney",
+        "I": "Customer does not have legal authorization to register the",
+        "J": "Have registered owner come in, or sign power of attorney document, or customer claims insurance exists for the low speed vehicle on same policy w/ other vehicles, but presents proof of insurance w/o the low speed vehicle listed."
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Registrations - MVI.xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}

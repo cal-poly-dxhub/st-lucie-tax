@@ -1,0 +1,107 @@
+{
+  "txnTypeId": "dl-name-change",
+  "baseItems": ["fl-driver-license-to-renew", "ssa-record-updated", "name-change-marriage-cert"],
+  "factsRequired": [
+    "real_id_status",
+    "is_us_citizen",
+    "has_primary_id",
+    "has_social_security_card",
+    "address_proof_count",
+    "recent_name_change",
+    "name_change_document_type",
+    "ssa_record_updated",
+    "recent_address_change"
+  ],
+  "branches": [
+    {
+      "when": {
+        "ssa_record_updated": "no"
+      },
+      "note": "BLOCKED: Customer must update their name with the Social Security Administration BEFORE the Florida credential can be changed. FLHSMV requires SSA record reflecting the new name; without this, the issuance will fail the SSN/name match check.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "recent_name_change": "yes-missing-docs"
+      },
+      "note": "BLOCKED: Customer does not have the certified name-change documentation in hand. Florida requires an original or certified court order of marriage certificate, divorce decree, or court-ordered name change.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "name_change_document_type": "divorce-decree"
+      },
+      "removeItems": ["name-change-marriage-cert"],
+      "addItems": ["name-change-divorce-decree"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "name_change_document_type": "court-order"
+      },
+      "removeItems": ["name-change-marriage-cert"],
+      "addItems": ["name-change-court-order"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "real_id_status": "not-compliant"
+      },
+      "addItems": [
+        "primary-id-passport",
+        "social-security-card",
+        "address-proof-1",
+        "address-proof-2"
+      ],
+      "note": "Name change combined with first-time REAL ID upgrade \u2014 customer must present the full REAL ID document set along with the certified name-change documentation.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/real-id/",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"
+      ]
+    },
+    {
+      "when": {
+        "recent_address_change": "yes",
+        "address_proof_count": "zero"
+      },
+      "addItems": ["declaration-of-domicile"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+        "https://stlucieclerk.gov/departments-top-menu/recording-department"
+      ]
+    },
+    {
+      "when": {
+        "recent_address_change": "yes",
+        "address_proof_count": "one"
+      },
+      "addItems": ["declaration-of-domicile"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - Class E .xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/real-id/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/163/Driver-Licenses-Identification-Cards",
+      "https://www.tcslc.com/315/Driver-License-IDs"
+    ],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/322.19"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR12.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf"
+    ]
+  }
+}

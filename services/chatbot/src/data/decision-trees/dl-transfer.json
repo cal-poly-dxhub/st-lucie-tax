@@ -1,0 +1,150 @@
+{
+  "txnTypeId": "dl-transfer",
+  "baseItems": [
+    "primary-id-passport",
+    "social-security-card",
+    "address-proof-1",
+    "address-proof-2",
+    "oos-license"
+  ],
+  "factsRequired": [
+    "is_us_citizen",
+    "has_primary_id",
+    "has_social_security_card",
+    "address_proof_count",
+    "recent_name_change",
+    "is_new_fl_resident",
+    "oos_license_status",
+    "came_from_type",
+    "lawful_presence_docs",
+    "wears_corrective_lenses",
+    "is_military_active_duty"
+  ],
+  "branches": [
+    {
+      "when": {
+        "has_primary_id": "birth-certificate"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-birth-certificate"],
+      "note": "Customer is using certified birth certificate instead of passport as primary ID."
+    },
+    {
+      "when": {
+        "has_primary_id": "naturalization-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-naturalization-cert"]
+    },
+    {
+      "when": {
+        "has_primary_id": "citizenship-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-citizenship-cert"]
+    },
+    {
+      "when": {
+        "has_primary_id": "consular-report"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-consular-report"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "permanent-resident"
+      },
+      "addItems": ["lawful-presence-green-card"],
+      "removeItems": ["primary-id-passport"],
+      "note": "Non-citizen path: lawful-presence document replaces the US primary identity document for REAL ID."
+    },
+    {
+      "when": {
+        "is_us_citizen": "temporary-lawful-presence"
+      },
+      "addItems": ["lawful-presence-visa-i94"],
+      "removeItems": ["primary-id-passport"],
+      "note": "Temporary lawful-presence applicants receive a DL that expires with their I-94."
+    },
+    {
+      "when": {
+        "address_proof_count": "zero"
+      },
+      "addItems": ["declaration-of-domicile"],
+      "removeItems": ["address-proof-1", "address-proof-2"],
+      "note": "No qualifying address docs \u2014 customer must obtain Declaration of Domicile from the St. Lucie Clerk of Courts."
+    },
+    {
+      "when": {
+        "address_proof_count": "one"
+      },
+      "removeItems": ["address-proof-2"],
+      "addItems": ["declaration-of-domicile"],
+      "note": "One address doc held, second must be supplied via Declaration of Domicile or another qualifying list-B document."
+    },
+    {
+      "when": {
+        "recent_name_change": "yes-with-docs"
+      },
+      "addItems": ["name-change-marriage-cert"],
+      "note": "Customer indicated marriage-based name change; any certified name-change document (marriage/divorce/court order) is acceptable \u2014 this item is the default instance. Swap for divorce decree or court order if that applies."
+    },
+    {
+      "when": {
+        "recent_name_change": "yes-missing-docs"
+      },
+      "addItems": ["name-change-court-order"],
+      "note": "Customer must acquire certified name-change paperwork before the visit."
+    },
+    {
+      "when": {
+        "oos_license_status": "never-held"
+      },
+      "removeItems": ["oos-license"],
+      "note": "First-time driver applying for FL license does not bring an OOS license."
+    },
+    {
+      "when": {
+        "oos_license_status": "expired-more-than-1yr"
+      },
+      "addItems": ["certified-driving-record"],
+      "note": "Expired >1yr or not verifiable in NLETS requires certified driving record."
+    },
+    {
+      "when": {
+        "wears_corrective_lenses": "yes-not-with-me"
+      },
+      "addItems": ["vision-test-or-dl10"],
+      "note": "Customer cannot take vision test today; must return with lenses or provide HSMV 72010 completed by eye doctor."
+    },
+    {
+      "when": {
+        "is_military_active_duty": "yes"
+      },
+      "addItems": ["military-orders"],
+      "note": "Active-duty military orders can substitute for address documents; copy of orders required."
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - Immigration.xlsx, Driver License - Class E .xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/",
+      "https://www.flhsmv.gov/new-resident/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/163/Driver-Licenses-Identification-Cards"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/322.031"],
+    "gpt": ["Driver License - Immigration - GPT Reviewed.xlsx"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR01.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR09.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR15.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR20.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR12.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/AcceptableDocuments.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP15.pdf"
+    ]
+  }
+}

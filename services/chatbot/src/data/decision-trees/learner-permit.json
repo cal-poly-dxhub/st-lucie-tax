@@ -1,0 +1,134 @@
+{
+  "txnTypeId": "learner-permit",
+  "baseItems": [
+    "primary-id-passport",
+    "social-security-card",
+    "address-proof-1",
+    "address-proof-2",
+    "tlsae-course-completion"
+  ],
+  "factsRequired": [
+    "learner_permit_age_bracket",
+    "tlsae_completed",
+    "knowledge_exam_channel",
+    "is_us_citizen",
+    "has_primary_id",
+    "has_social_security_card",
+    "address_proof_count",
+    "parent_guardian_present"
+  ],
+  "branches": [
+    {
+      "when": {
+        "tlsae_completed": "no"
+      },
+      "note": "BLOCKED: Florida requires the TLSAE (Traffic Law & Substance Abuse Education) course \u2014 also called DETS for minors \u2014 to be completed BEFORE applying for a learner's license for anyone who has never been issued a driver license in any state or country. Must be completed at an FLHSMV-approved provider; completion reports to FLHSMV automatically.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "knowledge_exam_channel": "online-third-party",
+        "learner_permit_age_bracket": "under-18"
+      },
+      "addItems": ["parent-proctoring-form"],
+      "note": "Online knowledge exam (under 18 only) \u2014 the Parent Proctoring Form (HSMV 71144) must be notarized OR signed in the presence of a driver license examiner.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/71144.pdf",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "knowledge_exam_channel": "in-office"
+      },
+      "addItems": ["cdl-general-knowledge-exam-scheduling"],
+      "note": "In-office Class E knowledge exam \u2014 50 multiple-choice questions, 80% required to pass. English only.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "learner_permit_age_bracket": "under-18",
+        "parent_guardian_present": "no"
+      },
+      "note": "BLOCKED: Applicants under 18 require a parent or legal guardian (over 18) to be present at the office to sign. Siblings or adults without legal guardianship do not qualify.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "learner_permit_age_bracket": "under-18",
+        "parent_guardian_present": "yes"
+      },
+      "addItems": ["parent-consent-form", "parent-id-valid"],
+      "note": "Parental consent for minor applicant \u2014 HSMV 71142 must be signed with the parent/guardian present; parent must bring a valid government-issued photo ID.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/71142.pdf"]
+    },
+    {
+      "when": {
+        "has_primary_id": "birth-certificate"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-birth-certificate"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "has_primary_id": "naturalization-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-naturalization-cert"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "permanent-resident"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["lawful-presence-green-card"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "temporary-lawful-presence"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["lawful-presence-visa-i94"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/non-immigrant/"]
+    },
+    {
+      "when": {
+        "address_proof_count": "zero"
+      },
+      "removeItems": ["address-proof-1", "address-proof-2"],
+      "addItems": ["declaration-of-domicile"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+        "https://stlucieclerk.gov/departments-top-menu/recording-department"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - Learners License.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/non-immigrant/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-exams/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/292/Teen-Corner"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/322.21"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO02.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR04.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR14.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR20.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf"
+    ]
+  }
+}

@@ -1,0 +1,808 @@
+{
+  "txnTypeId": "cdl",
+  "sourceFile": "Driver License - CDL.xlsx",
+  "generatedAt": "2026-04-21T23:00:03.902Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "H": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "FORMS NEEDED?",
+        "F": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "G": "EXTERNAL WEBSITES:",
+        "H": "REASON:",
+        "I": "SOLUTION:"
+      }
+    },
+    {
+      "row": 4,
+      "cells": {
+        "A": "Renew CDL",
+        "B": "When does your CDL Expire",
+        "C": "More than 12 months",
+        "D": "We cannot renew the CDL",
+        "H": "Expiration date more than 12 months"
+      }
+    },
+    {
+      "row": 6,
+      "cells": {
+        "C": "Less than 12 Months",
+        "D": "We may be able to renew the CDL"
+      }
+    },
+    {
+      "row": 9,
+      "cells": {
+        "C": "Expired",
+        "D": "There must be evidence on the record Florida CDL exams were previously passed."
+      }
+    },
+    {
+      "row": 11,
+      "cells": {
+        "C": "Yes",
+        "D": "Proceed with issuance"
+      }
+    },
+    {
+      "row": 12,
+      "cells": {
+        "C": "No",
+        "D": "Customer must re-test all written and skills exams"
+      }
+    },
+    {
+      "row": 15,
+      "cells": {
+        "B": "Are you required by law to carry a CDL Medical Card?",
+        "C": "Yes",
+        "D": "We need to make sure it is valid in the system",
+        "E": "CDL Verification Form",
+        "H": "If not valid in system and recently updated with dr. they need to contact physcian to have record updated by physcian office"
+      }
+    },
+    {
+      "row": 17,
+      "cells": {
+        "C": "No",
+        "D": "Move forward "
+      }
+    },
+    {
+      "row": 20,
+      "cells": {
+        "C": "Less Than one year",
+        "D": "Customer must pay late fee"
+      }
+    },
+    {
+      "row": 23,
+      "cells": {
+        "B": "Are you a School Employee",
+        "C": "Yes",
+        "D": "Do you have employment ID Card or Letter from School Department",
+        "E": "Must have Letter or Employee school ID for every Original and renewal",
+        "H": "Does not have letter or Employee ID from School Department"
+      }
+    },
+    {
+      "row": 25,
+      "cells": {
+        "C": "NO",
+        "D": "Nothing extra needed"
+      }
+    },
+    {
+      "row": 27,
+      "cells": {
+        "B": "Are you changing your address",
+        "C": "No",
+        "D": "Move forward"
+      }
+    },
+    {
+      "row": 29,
+      "cells": {
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 31,
+      "cells": {
+        "B": "What do you have for proof of residential address?",
+        "C": "Yes",
+        "D": "They must have one from list A and one from list B",
+        "E": "If nothing from List A They need Declaration of Domicile from the St. Lucie County Clerk of Courts office",
+        "G": "Clerk of Court website",
+        "H": "Do not have proper address documents"
+      }
+    },
+    {
+      "row": 32,
+      "cells": {
+        "C": "No",
+        "D": "Give customer the list of documents needed",
+        "E": "CDL Customer cannot use Adress Certification Form"
+      }
+    },
+    {
+      "row": 34,
+      "cells": {
+        "H": "Do not pass the Hazmat Test"
+      }
+    },
+    {
+      "row": 35,
+      "cells": {
+        "B": "Do you have a Hazmat Endorsement",
+        "C": "Yes",
+        "D": "They must Retake the Hazmat Test and Pass. Test available in English or Spanish. Maybe taken in audio form.",
+        "E": "If they are at Walton they cannot renew there. No Hazmat Machine",
+        "H": "Does not have the extra fee for TSA Background Check $91 plus CDL Application fee of $75 plus $7 for each endorsement"
+      }
+    },
+    {
+      "row": 36,
+      "cells": {
+        "D": "They need money for the Hazmat Fee (TSA Background ) $91.00"
+      }
+    },
+    {
+      "row": 37,
+      "cells": {
+        "D": "If they do not have the TSA Fee They need to return"
+      }
+    },
+    {
+      "row": 38,
+      "cells": {
+        "D": "The Hazmat test is only valid for 60 Days"
+      }
+    },
+    {
+      "row": 39,
+      "cells": {
+        "B": "Do you wear glasses or contacts to Drive ",
+        "C": "Yes",
+        "D": "Do you have them to take an eye test",
+        "H": "If they don't have their glasses, contacts or cannot pass the vision test they need to go to the eye doctor and return"
+      }
+    },
+    {
+      "row": 40,
+      "cells": {
+        "C": "No",
+        "D": "Move Forward",
+        "E": "Must have proof of residential address"
+      }
+    },
+    {
+      "row": 42,
+      "cells": {
+        "A": "Original CDL Transferring",
+        "B": "Do you have your out of state CDL?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 43,
+      "cells": {
+        "C": "No",
+        "D": "Can we find proof of the license in NLETS?"
+      }
+    },
+    {
+      "row": 45,
+      "cells": {
+        "C": "No ",
+        "E": "Customer must provide Transcript or Certified Driving Record showing valid CDL"
+      }
+    },
+    {
+      "row": 48,
+      "cells": {
+        "A": "Will we transfer a CLP from another US state?",
+        "B": "No"
+      }
+    },
+    {
+      "row": 51,
+      "cells": {
+        "A": "Customer had a CLP  from Florida went to another state and passed the skills exam. Will Florida reciprocated the skills exam from the other state?",
+        "B": "We need to know the state in order to answer this question. You will need to speak with an agent."
+      }
+    },
+    {
+      "row": 54,
+      "cells": {
+        "A": "Where does the customer curently hold a VALID  CDL?",
+        "B": "Only CDL Exam Requirements (written and skills) can be Reciprocated from U.S. State or Canada"
+      }
+    },
+    {
+      "row": 56,
+      "cells": {
+        "B": "Can a valid CDL be reciprocated from a US Territory?",
+        "C": "No",
+        "D": "Customer must take all written exams and skills exam for CDL to be issued in FL"
+      }
+    },
+    {
+      "row": 58,
+      "cells": {
+        "H": "Customer has to leave and get a Certified Driving Record or Transcript"
+      }
+    },
+    {
+      "row": 59,
+      "cells": {
+        "B": "Is the out of state CDL Valid",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 60,
+      "cells": {
+        "C": "No",
+        "D": "Customer must Re-test written and skills",
+        "E": "Customer can go back to state of issuance and renew then return with valid CDL"
+      }
+    },
+    {
+      "row": 61,
+      "cells": {
+        "B": "Does Customer have proper address documents?",
+        "C": "No",
+        "D": "Give customer list of documents needed"
+      }
+    },
+    {
+      "row": 62,
+      "cells": {
+        "C": "Yes",
+        "D": "Still need something to prove current DL status"
+      }
+    },
+    {
+      "row": 66,
+      "cells": {
+        "A": "Orginial CDL First Time",
+        "B": "Has the Customer Passed the General Knowledge Exam",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 68,
+      "cells": {
+        "B": "Does the customer have a CLP?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 70,
+      "cells": {
+        "C": "No",
+        "D": "How long since the customer passed the CDL General Knowledge Exam?",
+        "E": "More than one year ago. Customer must re-test all written and skills exams"
+      }
+    },
+    {
+      "row": 73,
+      "cells": {
+        "B": "Can the Customer Communicate in English?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 74,
+      "cells": {
+        "B": "Has the customer passed the Skills Exam",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 76,
+      "cells": {
+        "B": "Can you find the exam in ADLTS?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 78,
+      "cells": {
+        "B": "Does the customer have all necessary documents?",
+        "C": "Yes",
+        "D": "Proof of address, Passport, Social Security Card, "
+      }
+    },
+    {
+      "row": 80,
+      "cells": {
+        "B": "Are you required by law to carry CDL Medical Card?",
+        "C": "Yes",
+        "D": "Has the current card been uploaded to the system?"
+      }
+    },
+    {
+      "row": 83,
+      "cells": {
+        "A": "Original CLP Florida",
+        "B": "When did you pass the General Knowledge test?",
+        "C": "Less than one year ago"
+      }
+    },
+    {
+      "row": 84,
+      "cells": {
+        "B": "When can the customer take the skills exam?",
+        "C": "Customer must wait 2 weeks after issuance of CLP to take Skills Exam"
+      }
+    },
+    {
+      "row": 86,
+      "cells": {
+        "B": "Are you required by law to carry CDL medical card?",
+        "C": "Yes",
+        "E": "Has the form been uploaded to the system?"
+      }
+    },
+    {
+      "row": 87,
+      "cells": {
+        "B": "Does the customer have all the required documents?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 89,
+      "cells": {
+        "B": "What endorsements do you have?"
+      }
+    },
+    {
+      "row": 90,
+      "cells": {
+        "B": "Available Endorsements: Air Brakes, Combination Vehicle, Tanker, Hazmat, School Bus, Passenger",
+        "C": "If the customer has passenger and or school bus they must pass a skills exams for these endorsements to be added to the credential"
+      }
+    },
+    {
+      "row": 97,
+      "cells": {
+        "A": "CDL Testing General Knowledge",
+        "B": "Does the customer have all necessary Real ID documents?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 98,
+      "cells": {
+        "C": "No",
+        "D": "Customer must have certified birth certificate, or passport, social security number and proof of address. Address docuemts  must have one from list A and one from list B",
+        "E": "If nothing from List A They need Declaration of Domicile from the St. Lucie County Clerk of Courts office"
+      }
+    },
+    {
+      "row": 99,
+      "cells": {
+        "B": "Can the customer pass the eye exam?",
+        "C": "Yes",
+        "D": "Proceed if they have all other documents"
+      }
+    },
+    {
+      "row": 100,
+      "cells": {
+        "C": "No",
+        "D": "Do you wear glasses for distance? ",
+        "E": "No They need a DL 10.                                                     Yes, they need to get their distance glasses and retry the vision test. "
+      }
+    },
+    {
+      "row": 101,
+      "cells": {
+        "A": "This question is for all exams",
+        "B": "How long do I have to complete the test?",
+        "C": "One Hour"
+      }
+    },
+    {
+      "row": 102,
+      "cells": {
+        "A": "This question is for all Knowledge exams",
+        "B": "How many times per day can I take the test?",
+        "C": "Two attempts per day"
+      }
+    },
+    {
+      "row": 103,
+      "cells": {
+        "A": "This question is for all Knowledge exams",
+        "B": "Does the customer meet the age requirement?"
+      }
+    },
+    {
+      "row": 104,
+      "cells": {
+        "A": "This question is for all Knowledge exams",
+        "B": "Can the cusomer pass the eye exam?"
+      }
+    },
+    {
+      "row": 105,
+      "cells": {
+        "A": "This question is for all customers taking Endorsement Exams",
+        "B": "Have you taken and passed the CDL General Knowledge Exam?"
+      }
+    },
+    {
+      "row": 106,
+      "cells": {
+        "A": "This question is for all customers taking Endorsement Exams",
+        "B": "Does the customer have all necessary Real ID documents?"
+      }
+    },
+    {
+      "row": 108,
+      "cells": {
+        "B": "Does the customer meet the age requirement?",
+        "C": "Yes",
+        "D": "Customer is at leat 17.5"
+      }
+    },
+    {
+      "row": 109,
+      "cells": {
+        "C": "No",
+        "D": "Customer must be at least 17.5 to take an exam"
+      }
+    },
+    {
+      "row": 111,
+      "cells": {
+        "B": "How many times can I take the test in a day?",
+        "C": "Two attempts are allowed on each exam per day."
+      }
+    },
+    {
+      "row": 112,
+      "cells": {
+        "A": "CDL Testing Hazmat",
+        "B": "Have you taken CDL General Knowledge and Passed",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 114,
+      "cells": {
+        "C": "No",
+        "D": "The Original Exam must be passed in English and may not be take in audio form."
+      }
+    },
+    {
+      "row": 116,
+      "cells": {
+        "A": "CDL Testing Air Brakes",
+        "B": "Have you taken the CDL General Knowledge and passed?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 117,
+      "cells": {
+        "B": "Does the customer have all necessary Real ID documents?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 119,
+      "cells": {
+        "B": "How many times can I take the test in a day?",
+        "C": "Two attempts are allowed on each exam per day."
+      }
+    },
+    {
+      "row": 120,
+      "cells": {
+        "B": "How long do I have to take the test?",
+        "C": "One Hour"
+      }
+    },
+    {
+      "row": 123,
+      "cells": {
+        "A": "CDL Testing Combination",
+        "B": "Have you taken and passed the CDL General Knowledge Test?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 126,
+      "cells": {
+        "B": "Does the customer have all the necessary Real ID documents ?",
+        "C": "Yes",
+        "D": "Continue wth testing"
+      }
+    },
+    {
+      "row": 128,
+      "cells": {
+        "C": "No",
+        "D": "Send the customer for documents needed to proceed"
+      }
+    },
+    {
+      "row": 130,
+      "cells": {
+        "A": "CDL Testing School Bus",
+        "B": "Have you taken and passed the CDL General Knowledge Test?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 132,
+      "cells": {
+        "B": "Does the customer have all the necessary Real ID documents?",
+        "C": "Yes",
+        "D": "Continue with Testing"
+      }
+    },
+    {
+      "row": 134,
+      "cells": {
+        "C": "No",
+        "D": "Send the customer for documents needed to proceed"
+      }
+    },
+    {
+      "row": 136,
+      "cells": {
+        "B": "Does the customer currently have a valid CDL?",
+        "C": "Yes",
+        "D": "Inform the customer if they pass the test they will need to take a skills exam to add the endorsement to their credential"
+      }
+    },
+    {
+      "row": 138,
+      "cells": {
+        "C": "No",
+        "D": "When they take their skills exam they will get their credential when they pass the test"
+      }
+    },
+    {
+      "row": 141,
+      "cells": {
+        "A": "CDL Testing Tanker",
+        "B": "Have you passed the CDL General Knowledge Test?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 143,
+      "cells": {
+        "B": "Does the customer have all the necessary Real ID Documents?",
+        "C": "Yes",
+        "D": "Continue with testing"
+      }
+    },
+    {
+      "row": 145,
+      "cells": {
+        "C": "No",
+        "D": "Send the customer for documents needed to proceed."
+      }
+    },
+    {
+      "row": 148,
+      "cells": {
+        "A": "CDL Testing Passenger",
+        "B": "Have you passed the CDL General Knowledge Test?",
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 150,
+      "cells": {
+        "B": "Does the customer have all the necessary Real ID Documents?",
+        "C": "Yes",
+        "D": "Continue Testing"
+      }
+    },
+    {
+      "row": 152,
+      "cells": {
+        "C": "No",
+        "D": "Send customer for documents needed to proceed"
+      }
+    },
+    {
+      "row": 154,
+      "cells": {
+        "B": "Does the customer have a valid CDL?",
+        "C": "Yes",
+        "D": "Inform the customer if they pass the test they will need to take a skills exam to add the endorsement to their credential."
+      }
+    },
+    {
+      "row": 156,
+      "cells": {
+        "C": "No",
+        "D": "When they take their skills exam they will get their credential when they pass the test"
+      }
+    },
+    {
+      "row": 158,
+      "cells": {
+        "A": "CDL Testing Doubles & Triples",
+        "B": "Have you passed the CDL General Knowledge Test?"
+      }
+    },
+    {
+      "row": 159,
+      "cells": {
+        "C": "Yes"
+      }
+    },
+    {
+      "row": 161,
+      "cells": {
+        "B": "Does the customer have all the necessary Real ID Documents?"
+      }
+    },
+    {
+      "row": 162,
+      "cells": {
+        "C": "Yes",
+        "D": "Continue Testing"
+      }
+    },
+    {
+      "row": 164,
+      "cells": {
+        "C": "No",
+        "D": "Send customer for documents needed to proceed"
+      }
+    },
+    {
+      "row": 166,
+      "cells": {
+        "A": "How Many questions are on the following tests?"
+      }
+    },
+    {
+      "row": 167,
+      "cells": {
+        "B": "CDL General Knowledge",
+        "C": "50"
+      }
+    },
+    {
+      "row": 169,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "10"
+      }
+    },
+    {
+      "row": 171,
+      "cells": {
+        "B": "Air Brakes",
+        "C": "25"
+      }
+    },
+    {
+      "row": 173,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "5"
+      }
+    },
+    {
+      "row": 175,
+      "cells": {
+        "B": "Combination ",
+        "C": "20"
+      }
+    },
+    {
+      "row": 177,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "4"
+      }
+    },
+    {
+      "row": 179,
+      "cells": {
+        "B": "Doubles & Triples",
+        "C": "20"
+      }
+    },
+    {
+      "row": 181,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "4"
+      }
+    },
+    {
+      "row": 183,
+      "cells": {
+        "B": "Tanker",
+        "C": "20"
+      }
+    },
+    {
+      "row": 185,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "4"
+      }
+    },
+    {
+      "row": 187,
+      "cells": {
+        "B": "Hazardous Materials (Must be US Citizen or Immigrant",
+        "C": "30"
+      }
+    },
+    {
+      "row": 189,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "6"
+      }
+    },
+    {
+      "row": 191,
+      "cells": {
+        "B": "Passenger",
+        "C": "20"
+      }
+    },
+    {
+      "row": 193,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "4"
+      }
+    },
+    {
+      "row": 195,
+      "cells": {
+        "B": "School Bus",
+        "C": "20"
+      }
+    },
+    {
+      "row": 197,
+      "cells": {
+        "B": "How many can I miss?",
+        "C": "4"
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Driver License - CDL.xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}

@@ -22,16 +22,26 @@ export interface ChatbotStackProps extends StackProps {
   proxy: rds.DatabaseProxy;
   dbSecret: rds.DatabaseSecret;
   lambdaSg: ec2.SecurityGroup;
-  distribution: cloudfront.Distribution;
-  frontendBucket: s3.Bucket;
   officeApiUrl: string;
+  webAclArn: string;
 }
 
 export class ChatbotStack extends Stack {
+  public readonly distribution: cloudfront.Distribution;
+
   constructor(scope: Construct, id: string, props: ChatbotStackProps) {
     super(scope, id, props);
-    const { vpc, proxy, dbSecret, lambdaSg, distribution, frontendBucket } = props;
+    const { vpc, proxy, dbSecret, lambdaSg } = props;
     const repoRoot = path.join(__dirname, "..", "..");
+
+    // ── Frontend bucket (shared across all SPAs) ─────────────────────────────
+    const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
 
     // ── Data: S3 buckets ─────────────────────────────────────────────────────
     const docBucket = new s3.Bucket(this, "DocUploadBucket", {
@@ -40,16 +50,6 @@ export class ChatbotStack extends Stack {
       versioned: true,
       enforceSSL: true,
       lifecycleRules: [{ prefix: "uploads/", expiration: Duration.days(30) }],
-      cors: [
-        {
-          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
-          allowedOrigins: [
-            `https://${distribution.distributionDomainName}`,
-            "http://localhost:5173",
-          ],
-          allowedHeaders: ["*"],
-        },
-      ],
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
@@ -196,9 +196,6 @@ export class ChatbotStack extends Stack {
       anyMethod: true,
       defaultMethodOptions: { apiKeyRequired: true },
     });
-    chatbotApi.root.addMethod("ANY", new apigateway.LambdaIntegration(chatbotFn), {
-      apiKeyRequired: true,
-    });
 
     const chatbotApiKey = chatbotApi.addApiKey("ChatbotApiKey");
     const chatbotUsagePlan = chatbotApi.addUsagePlan("ChatbotUsagePlan", {
@@ -224,9 +221,6 @@ export class ChatbotStack extends Stack {
       anyMethod: true,
       defaultMethodOptions: { apiKeyRequired: true },
     });
-    adminApi.root.addMethod("ANY", new apigateway.LambdaIntegration(adminFn), {
-      apiKeyRequired: true,
-    });
 
     const adminApiKey = adminApi.addApiKey("AdminApiKey");
     const adminUsagePlan = adminApi.addUsagePlan("AdminUsagePlan", {
@@ -236,24 +230,88 @@ export class ChatbotStack extends Stack {
     adminUsagePlan.addApiKey(adminApiKey);
     adminUsagePlan.addApiStage({ stage: adminApi.deploymentStage });
 
-    // ── CloudFront: additional behaviors for chatbot + admin APIs ─────────────
+    // ── CloudFront: single distribution for all SPAs + APIs ─────────────────
+    const officeApiOrigin = new origins.HttpOrigin(props.officeApiUrl.replace("https://", ""));
     const chatbotApiOrigin = new origins.RestApiOrigin(chatbotApi);
     const adminApiOrigin = new origins.RestApiOrigin(adminApi);
 
-    distribution.addBehavior("/api/chat/*", chatbotApiOrigin, {
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-      originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-    });
-    distribution.addBehavior("/api/admin/*", adminApiOrigin, {
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-      originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+    const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var req = event.request;
+  var uri = req.uri;
+  if (uri.includes('.')) return req;
+  if (uri.startsWith('/chat')) { req.uri = '/chat/index.html'; return req; }
+  if (uri.startsWith('/admin')) { req.uri = '/admin/index.html'; return req; }
+  if (uri !== '/') req.uri = '/index.html';
+  return req;
+}
+`),
     });
 
-    // ── SPA Deployment: chatbot + admin frontends ────────────────────────────
+    const distribution = (this.distribution = new cloudfront.Distribution(this, "FrontendDist", {
+      defaultRootObject: "index.html",
+      webAclId: props.webAclArn,
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        functionAssociations: [
+          {
+            function: spaRewrite,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
+      },
+      additionalBehaviors: {
+        "/api/chat/*": {
+          origin: chatbotApiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        },
+        "/api/admin/*": {
+          origin: adminApiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        },
+        "/api/*": {
+          origin: officeApiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        },
+      },
+    }));
+
+    // CORS for chatbot doc upload bucket (presigned upload PUTs from the browser)
+    const cfnDocBucket = docBucket.node.defaultChild as s3.CfnBucket;
+    cfnDocBucket.addPropertyOverride("CorsConfiguration", {
+      CorsRules: [
+        {
+          AllowedMethods: ["PUT", "GET"],
+          AllowedOrigins: [
+            `https://${distribution.distributionDomainName}`,
+            "http://localhost:3000",
+            "http://localhost:5173",
+          ],
+          AllowedHeaders: ["*"],
+        },
+      ],
+    });
+
+    // ── SPA Deployment: all three frontends ──────────────────────────────────
+    new s3deploy.BucketDeployment(this, "OfficeFrontendDeploy", {
+      sources: [s3deploy.Source.asset(path.join(repoRoot, "frontend", "dist"))],
+      destinationBucket: frontendBucket,
+      destinationKeyPrefix: "",
+      distribution,
+      distributionPaths: ["/*"],
+    });
+
     new s3deploy.BucketDeployment(this, "ChatbotFrontendDeploy", {
       sources: [s3deploy.Source.asset(path.join(repoRoot, "apps", "chatbot-app", "dist"))],
       destinationBucket: frontendBucket,
@@ -314,6 +372,12 @@ export class ChatbotStack extends Stack {
     bedrockThrottleAlarm.addAlarmAction(new cw_actions.SnsAction(alarmTopic));
 
     // ── Outputs ──────────────────────────────────────────────────────────────
+    new CfnOutput(this, "FrontendUrl", {
+      value: `https://${distribution.distributionDomainName}`,
+    });
+    new CfnOutput(this, "DistributionId", {
+      value: distribution.distributionId,
+    });
     new CfnOutput(this, "ChatbotApiUrl", {
       value: chatbotApi.url,
     });

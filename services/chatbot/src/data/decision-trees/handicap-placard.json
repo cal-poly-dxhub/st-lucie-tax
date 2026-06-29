@@ -1,0 +1,410 @@
+{
+  "txnTypeId": "handicap-placard",
+  "baseItems": [],
+  "factsRequired": [
+    "placard_scenario",
+    "placard_applicant_type",
+    "placard_physician_cert_age_months",
+    "placard_duration",
+    "placard_qualifying_condition",
+    "placard_certifier_type",
+    "placard_replacement_reason",
+    "placard_has_police_report",
+    "placard_special_exception_needed",
+    "placard_visitor_has_isa",
+    "placard_prior_temporary_within_12mo",
+    "placard_additional_permit_type",
+    "placard_org_id_type",
+    "placard_minor_or_guardian_signing",
+    "placard_country_of_origin_for_visitor"
+  ],
+  "branches": [
+    {
+      "when": { "placard_physician_cert_age_months": "more-than-12" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "expired-physician-certification",
+        "customerMessage": "The physician's signature on HSMV 83039 must be dated within the last 12 months. Florida cannot accept a certification older than that.",
+        "nextSteps": "Ask your physician (or another qualifying medical professional) for a fresh certification on HSMV 83039 and come back. The form is at flhsmv.gov/pdf/forms/83039.pdf.",
+        "sourceRefs": [
+          "https://www.flhsmv.gov/pdf/forms/83039.pdf",
+          "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/"
+        ]
+      },
+      "note": "BLOCKED: HSMV 83039 medical certification is more than 12 months old."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "cant-walk-200ft"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For another condition, please ask a physician (MD/DO), physician assistant, chiropractor, podiatrist, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": [
+          "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+          "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/"
+        ]
+      },
+      "note": "BLOCKED: optometrist certifying a non-sight condition (cant-walk-200ft)."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "wheelchair"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For wheelchair use or another non-sight condition, please ask a physician (MD/DO), physician assistant, chiropractor, podiatrist, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+      },
+      "note": "BLOCKED: optometrist certifying wheelchair use."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "lung-fev1-under-1l"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For lung disease, please ask a physician (MD/DO), physician assistant, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+      },
+      "note": "BLOCKED: optometrist certifying lung condition."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "portable-oxygen"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For oxygen dependence, please ask a physician (MD/DO), physician assistant, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+      },
+      "note": "BLOCKED: optometrist certifying oxygen dependence."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "nyha-3-or-4"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For a cardiac condition, please ask a physician (MD/DO), physician assistant, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+      },
+      "note": "BLOCKED: optometrist certifying cardiac condition."
+    },
+    {
+      "when": {
+        "placard_certifier_type": "optometrist-sight-only",
+        "placard_qualifying_condition": "severe-arthritic-neuro-orthopedic"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "optometrist-out-of-scope",
+        "customerMessage": "An optometrist's certification can only support legal blindness or sight-related disability. For an arthritic, neurological, or orthopedic condition, please ask a physician (MD/DO), physician assistant, chiropractor, podiatrist, or APRN to sign HSMV 83039 instead.",
+        "nextSteps": "Bring HSMV 83039 to a qualifying medical professional whose scope of practice covers your condition.",
+        "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+      },
+      "note": "BLOCKED: optometrist certifying arthritic/neuro/orthopedic condition."
+    },
+    {
+      "when": { "placard_certifier_type": "out-of-state-md" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "out-of-state-md-no-statement",
+        "customerMessage": "An out-of-state physician must include a separate signed statement showing they understand Florida's eligibility rules, plus documentation of their licensure. Without that, the certification can't be accepted.",
+        "nextSteps": "Either ask the out-of-state physician to attach a signed FL-eligibility statement and licensure copy, or have a Florida-licensed certifier sign HSMV 83039.",
+        "sourceRefs": [
+          "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+          "https://www.flhsmv.gov/pdf/forms/83039.pdf"
+        ]
+      },
+      "note": "BLOCKED: out-of-state physician without separate FL-eligibility statement."
+    },
+    {
+      "when": {
+        "placard_applicant_type": "individual-florida-id",
+        "placard_special_exception_needed": "yes",
+        "placard_duration": "permanent"
+      },
+      "addItems": ["hsmv-83039"],
+      "note": "Special Exception (homebound) path: the certifying physician signs the Special Exception line on HSMV 83039 in addition to the regular medical certification. With this, the FL DL/ID requirement is waived and the placard is issued without a DL number affixed. Submission options: by mail (TCSLC, P.O. Box 308, Ft. Pierce, FL 34954) or have the physician's office fax HSMV 83039 directly to TCSLC. The applicant does not need to come in person.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/83039.pdf",
+        "https://www.tcslc.com/218/Handicap-Placards"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_duration": "permanent",
+        "placard_applicant_type": "individual-florida-id",
+        "placard_special_exception_needed": "no"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83039"],
+      "note": "Permanent placard for a Florida resident — valid 4 years, no fee. Expires on the holder's birthday. Submission options: in person at TCSLC (appointment Mon–Fri 9:00–14:00; walk-ins after 14:30), by mail (TCSLC, P.O. Box 308, Ft. Pierce, FL 34954), or have your physician's office fax HSMV 83039 directly to TCSLC.",
+      "sourceRefs": [
+        "https://www.tcslc.com/218/Handicap-Placards",
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_duration": "temporary",
+        "placard_applicant_type": "individual-florida-id",
+        "placard_prior_temporary_within_12mo": "no"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83039", "payment-15-original-temporary"],
+      "note": "Temporary placard for a Florida resident — valid up to 6 months (date set by the physician), $15. Submission options: in person, by mail (P.O. Box 308, Ft. Pierce, FL 34954), or physician-faxed HSMV 83039.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/temporary-disabled-person-parking-permits/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_duration": "temporary",
+        "placard_applicant_type": "individual-florida-id",
+        "placard_prior_temporary_within_12mo": "yes"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83039"],
+      "note": "Second temporary placard within 12 months of the prior one — fee waived per §320.0848(1)(a). Submission options: in person, by mail, or physician-faxed.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/pdf/forms/83039.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_applicant_type": "individual-out-of-state",
+        "placard_visitor_has_isa": "yes"
+      },
+      "note": "Florida already honors your home placard if it displays the international wheelchair symbol — no Florida permit is needed. Display your home placard normally while parking in Florida. (No application, no fee, nothing to bring in.)",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-florida-visitors/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/316.1958"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_applicant_type": "individual-out-of-state",
+        "placard_visitor_has_isa": "no"
+      },
+      "addItems": ["visitor-acceptable-photo-id", "hsmv-83039", "payment-15-visitor-temporary"],
+      "note": "Visitor temporary placard — $15, non-renewable. Apply in person at TCSLC, or by mail (P.O. Box 308, Ft. Pierce, FL 34954). Visitor temporaries cannot be renewed; if you'll be in Florida longer than the placard's validity, you'll need to re-apply.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-florida-visitors/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_applicant_type": "individual-out-of-country"
+      },
+      "addItems": [
+        "visitor-acceptable-photo-id",
+        "home-country-permit-copy",
+        "payment-15-visitor-temporary"
+      ],
+      "note": "Out-of-country visitor — you may submit a copy of your current home-country parking permit in lieu of HSMV 83039's medical certification. $15, non-renewable. Submit in person or by mail.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-florida-visitors/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "original",
+        "placard_applicant_type": "organization"
+      },
+      "addItems": ["org-feid-or-fl-sales-tax", "hsmv-83039"],
+      "note": "Organization applicant — complete the 'Application by an Organization' section on HSMV 83039. One placard per fleet vehicle registered to the organization, valid up to 4 years, expiring June 30. Identifier: FEID OR Florida sales-tax registration number. Submit in person or by mail (P.O. Box 308, Ft. Pierce, FL 34954).",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/organizations/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "renewal",
+        "placard_applicant_type": "individual-florida-id",
+        "placard_certifier_type": "va-letter-27-333"
+      },
+      "addItems": [
+        "florida-dl-or-id",
+        "va-form-letter-27-333",
+        "expiring-placard-registration-copy"
+      ],
+      "removeItems": ["hsmv-83039"],
+      "note": "Renewal with VA service-connected disability — VA Form Letter 27-333 (issued in the last 12 months) substitutes for the HSMV 83039 medical certification. Submission options: in person, by mail, by fax from the VA office, or online via MyDMVPortal.flhsmv.gov.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/",
+        "https://www.flhsmv.gov/pdf/forms/83039.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "renewal",
+        "placard_applicant_type": "individual-florida-id"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83039", "expiring-placard-registration-copy"],
+      "note": "Renewal — submit a new HSMV 83039 (signed within the last 12 months) plus a copy of the registration for your expiring permit. Submission options: in person, by mail, by fax from your physician's office, or online via MyDMVPortal.flhsmv.gov.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/83039.pdf",
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "renewal",
+        "placard_applicant_type": "organization"
+      },
+      "addItems": ["org-feid-or-fl-sales-tax", "hsmv-83039", "expiring-placard-registration-copy"],
+      "note": "Organization renewal — submit a new HSMV 83039 with the Application by an Organization section completed, plus a copy of the registration for the expiring permit. Submission options: in person or by mail.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/organizations/"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "stolen",
+        "placard_has_police_report": "yes"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "police-report-stolen-placard"],
+      "note": "Replacement for a stolen placard with a police report — fee waived per §320.0848(2)(d). Submit HSMV 83146 in person or by mail with a copy of your vehicle registration.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/pdf/forms/83146.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "stolen",
+        "placard_has_police_report": "no"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a stolen placard without a police report — $1 fee. Submit HSMV 83146 in person or by mail.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/pdf/forms/83146.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "lost-in-transit"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146"],
+      "note": "Replacement for a permit lost in transit within 180 days of issuance — fee waived. Submit HSMV 83146 in person or by mail with a copy of your vehicle registration.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/83146.pdf"]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "lost"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a lost placard — $1 fee. Submit HSMV 83146 in person or by mail with a copy of your vehicle registration.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/pdf/forms/83146.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "damaged"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a damaged placard — $1 fee. Bring the damaged placard for surrender. Submit HSMV 83146 in person or by mail.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/pdf/forms/83146.pdf"
+      ]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "defaced"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a defaced placard — $1 fee. Bring the defaced placard for surrender. Submit HSMV 83146 in person or by mail.",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "destroyed"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a destroyed placard — $1 fee. Submit HSMV 83146 in person or by mail.",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+    },
+    {
+      "when": {
+        "placard_scenario": "replacement",
+        "placard_replacement_reason": "surrendered"
+      },
+      "addItems": ["florida-dl-or-id", "hsmv-83146", "payment-1-replacement"],
+      "note": "Replacement for a surrendered placard — $1 fee. Submit HSMV 83146 in person or by mail.",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+    },
+    {
+      "when": {
+        "placard_additional_permit_type": "frequent-traveler",
+        "placard_duration": "permanent"
+      },
+      "note": "Frequent-traveler additional permit — Florida allows a second permit for individuals who travel by plane, train, bus, or vessel (one for departure, one for destination). The secondary permit expires the same date as your primary permit, regardless of issuance date. Mark the frequent-traveler box on HSMV 83039. (Not available for temporary permits.)",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
+      ]
+    },
+    {
+      "when": {
+        "placard_additional_permit_type": "quadriplegic",
+        "placard_duration": "permanent"
+      },
+      "note": "Quadriplegic additional permit — Florida allows a second permit for quadriplegic applicants. The secondary permit expires the same date as your primary permit. Mark the quadriplegic box on HSMV 83039. (Not available for temporary permits; statute caps individuals at two permits total.)",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/320.0848"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Parking Permits - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/temporary-disabled-person-parking-permits/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-florida-visitors/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/organizations/",
+      "https://www.flhsmv.gov/pdf/forms/83039.pdf",
+      "https://www.flhsmv.gov/pdf/forms/83146.pdf",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/218/Handicap-Placards",
+      "https://www.tcslc.com/319/Parking-Permits"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
+      "https://www.flsenate.gov/Laws/Statutes/2024/316.1958"
+    ]
+  }
+}

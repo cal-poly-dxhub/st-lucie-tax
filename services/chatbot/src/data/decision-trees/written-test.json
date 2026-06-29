@@ -1,0 +1,62 @@
+{
+  "txnTypeId": "written-test",
+  "baseItems": ["primary-id-passport", "cdl-general-knowledge-exam-scheduling"],
+  "factsRequired": ["learner_permit_age_bracket", "knowledge_exam_channel", "tlsae_completed"],
+  "branches": [
+    {
+      "when": {
+        "tlsae_completed": "no"
+      },
+      "note": "BLOCKED: First-time licensees must complete the TLSAE/DETS course BEFORE attempting the Class E Knowledge Exam. If a previous DL has been held in any state or country, TLSAE is waived.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "knowledge_exam_channel": "online-third-party",
+        "learner_permit_age_bracket": "under-18"
+      },
+      "addItems": ["parent-proctoring-form"],
+      "removeItems": ["cdl-general-knowledge-exam-scheduling"],
+      "note": "Online Class E knowledge exam via approved third-party provider; under-18 applicants only. Requires notarized Parent Proctoring Form (HSMV 71144). Exam result is submitted electronically to FLHSMV on pass.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/71144.pdf",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "knowledge_exam_channel": "online-third-party",
+        "learner_permit_age_bracket": "18-or-older"
+      },
+      "note": "BLOCKED: Online Class E Knowledge Exam through an approved third-party administrator is only available to applicants under 18. Adults must take the exam in-office or via DELAP (high-school-only).",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "knowledge_exam_channel": "already-passed"
+      },
+      "note": "No further testing needed at this visit; FLHSMV record confirms the customer has passed the Class E Knowledge Exam. Per \u00a7322.56(3), a small percentage of exams passed through third parties are randomly selected for a no-fee mandatory re-test.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - Learners License.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-exams/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/316/Exams"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/322.21"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI10B.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO02.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf"
+    ]
+  }
+}

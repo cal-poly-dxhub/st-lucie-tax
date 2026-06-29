@@ -1,0 +1,85 @@
+{
+  "txnTypeId": "property-tax",
+  "baseItems": ["property-tax-bill-or-parcel-number"],
+  "factsRequired": ["property_tax_intent", "is_past_due", "is_property_owner"],
+  "branches": [
+    {
+      "when": {
+        "is_past_due": "yes"
+      },
+      "addItems": ["guaranteed-funds-only"],
+      "note": "Past-due (delinquent) taxes must be paid with guaranteed funds ONLY: cashier's check, cash, debit card, or credit card. Personal checks are NOT accepted for delinquent taxes per local TCSLC policy (backed by \u00a7197.333 \u2014 interest and fees accrue on delinquency).",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/197.252",
+        "https://www.tcslc.com/165/Taxes"
+      ]
+    },
+    {
+      "when": {
+        "property_tax_intent": "installment-plan"
+      },
+      "addItems": ["dr-534-installment-application"],
+      "note": "Installment plan application (DR-534) per \u00a7197.222 \u2014 application must be submitted by April 30 for the upcoming tax year. Four installments due June 30 (6% discount), Sep 30 (4.5%), Dec 31 (3%), Mar 31 (0%). Customer must be the owner to sign.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/197.222",
+        "https://www.tcslc.com/165/Taxes"
+      ]
+    },
+    {
+      "when": {
+        "property_tax_intent": "partial-payment"
+      },
+      "addItems": ["partial-payment-affidavit"],
+      "note": "Partial payment applies to CURRENT-year taxes only (before delinquency), must be made in up to 3 payments by March 31, no tax discounts apply on partial payments, and minimum $100 per payment.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/197.222",
+        "https://www.tcslc.com/213/Property-Tax-Discounts-Payment-Plans"
+      ]
+    },
+    {
+      "when": {
+        "property_tax_intent": "change-of-address"
+      },
+      "addItems": ["paslc-address-change-form", "tcslc-address-change-form"],
+      "note": "Property tax mailing-address change is a two-step process: first submit the change on the Property Appraiser's form (paslc.gov), then submit on the Tax Collector's form (tcslc.com). Appraiser-side must be completed before the Tax Collector side.",
+      "sourceRefs": ["https://www.tcslc.com/165/Taxes", "https://www.paslc.gov/"]
+    },
+    {
+      "when": {
+        "property_tax_intent": "exemption-inquiry"
+      },
+      "note": "Property tax EXEMPTION applications (homestead, senior, disability, veteran) are filed with the Property Appraiser (paslc.gov), not the Tax Collector. Customer directed there.",
+      "sourceRefs": ["https://www.paslc.gov/"]
+    },
+    {
+      "when": {
+        "property_tax_intent": "payment-standard",
+        "is_past_due": "no"
+      },
+      "addItems": ["personal-check-ok", "fl-discount-schedule"],
+      "note": "Standard current-year payment \u2014 personal checks, cash, credit, debit, or cashier's check accepted. Florida discount schedule applies (\u00a7197.162): 4% November, 3% December, 2% January, 1% February, 0% March.",
+      "sourceRefs": ["https://www.tcslc.com/203/Tax-Discounts-Deadlines-By-Month"]
+    },
+    {
+      "when": {
+        "is_property_owner": "no"
+      },
+      "note": "Customer is not the property owner \u2014 installment plan and partial-payment application must be signed by the owner. Standard current-year payment can be made by anyone.",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/197.222"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Property Tax.xlsx",
+    "flhsmvVerified": [],
+    "tcslcVerified": [
+      "https://www.tcslc.com/165/Taxes",
+      "https://www.tcslc.com/202/Important-Dates-Deadlines",
+      "https://www.tcslc.com/203/Tax-Discounts-Deadlines-By-Month",
+      "https://www.tcslc.com/213/Property-Tax-Discounts-Payment-Plans"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/197.222",
+      "https://www.flsenate.gov/Laws/Statutes/2024/197.252"
+    ]
+  }
+}

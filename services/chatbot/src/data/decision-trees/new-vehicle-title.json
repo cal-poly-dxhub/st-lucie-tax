@@ -1,0 +1,135 @@
+{
+  "txnTypeId": "new-vehicle-title",
+  "baseItems": [
+    "photo-id-all-applicants",
+    "hsmv-82040",
+    "mco-or-signed-title",
+    "fl-insurance-proof"
+  ],
+  "factsRequired": [
+    "new_vehicle_purchase_source",
+    "has_fl_insurance",
+    "has_odometer_disclosure",
+    "vehicle_model_year_range",
+    "has_lien_or_lease",
+    "owners_joined",
+    "purchaser_age_status",
+    "initial_reg_exemption_path",
+    "vehicle_class",
+    "vehicle_construction_type"
+  ],
+  "branches": [
+    {
+      "when": { "has_fl_insurance": "no" },
+      "note": "BLOCKED: Florida requires PDL + PIP insurance before a vehicle can be titled AND registered together. Customer can title-only without registering, but that prevents driving the vehicle. For the standard title-plus-registration flow, insurance must be obtained first.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/insurance/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+      ]
+    },
+    {
+      "when": { "new_vehicle_purchase_source": "franchise-dealer" },
+      "note": "Franchise dealer purchase — dealer typically handles title paperwork (MCO submission, sales tax remittance). Customer may only need to verify registration and pick up plate. Confirm dealer processed the title before arriving.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "new_vehicle_purchase_source": "private-out-of-state" },
+      "addItems": ["bill-of-sale-purchase-agreement", "vin-verification-completed"],
+      "note": "Private out-of-state purchase — customer provides the OOS title (signed over to them), bill of sale, and completes VIN verification.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+        "https://www.flhsmv.gov/pdf/forms/82042.pdf"
+      ]
+    },
+    {
+      "when": { "has_odometer_disclosure": "no", "vehicle_model_year_range": "2011-or-newer" },
+      "addItems": ["hsmv-82050"],
+      "removeItems": ["mco-or-signed-title"],
+      "note": "Vehicles from model year 2011 or newer require a signed odometer disclosure at transfer. If not already on the title, use HSMV 82050 (bill of sale with odometer disclosure). A bill of sale path indicates a used vehicle, so the MCO does not apply — the prior signed title is presented instead.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82050.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/319.14"
+      ]
+    },
+    {
+      "when": { "has_lien_or_lease": "lien-active" },
+      "addItems": ["lien-letter"],
+      "removeItems": ["mco-or-signed-title"],
+      "note": "Vehicle has an active lien — lienholder information must be present on the title application. Title will be issued electronically to the lienholder. With an active lien, the MCO has already been transferred to the lienholder, so the customer no longer holds it.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/"]
+    },
+    {
+      "when": { "has_lien_or_lease": "lease" },
+      "addItems": ["lease-agreement-with-lessor-letter"],
+      "removeItems": ["mco-or-signed-title"],
+      "note": "Leased vehicle — lease agreement plus lessor letter authorizing title transaction to the customer. The lessor (not the customer) holds title, so the customer does not present the MCO; the lessor letter substitutes for ownership documentation in this branch.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/"]
+    },
+    {
+      "when": { "purchaser_age_status": "minor-no-co-purchaser" },
+      "note": "BLOCKED: Minors cannot be sole owners of a Florida title. An adult co-purchaser (18+) must be added to the title and be present to sign.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "purchaser_age_status": "minor-with-adult-co-purchaser" },
+      "addItems": ["adult-co-purchaser-present"],
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "owners_joined": "joined-and" },
+      "addItems": ["all-applicants-present"],
+      "note": "Title joined by 'and' — all owners must be present to sign or provide a notarized POA (HSMV 82053).",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82053.pdf"]
+    },
+    {
+      "when": { "initial_reg_exemption_path": "immediate-family" },
+      "addItems": ["hsmv-82002"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82002.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.072"
+      ]
+    },
+    {
+      "when": { "vehicle_class": "low-speed-vehicle" },
+      "addItems": ["lsv-equipment-cert"],
+      "note": "LSVs require equipment compliance certification at title issuance per §316.2122.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "vehicle_construction_type": "homemade" },
+      "addItems": ["hsmv-84490", "builder-receipts", "hsmv-82105"],
+      "removeItems": ["mco-or-signed-title"],
+      "note": "Homemade vehicles never had a Manufacturer's Certificate of Origin. Florida issues a state-assigned VIN after physical inspection. Bring the Statement of Builder (HSMV 84490), parts receipts (sales-tax basis), and a certified weight slip (HSMV 82105) since fees are weight-tiered.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/84490.pdf",
+        "https://www.flhsmv.gov/pdf/forms/82105.pdf"
+      ]
+    },
+    {
+      "when": { "vehicle_construction_type": "kit-assembled" },
+      "addItems": ["hsmv-84490", "builder-receipts", "hsmv-82105"],
+      "removeItems": ["mco-or-signed-title"],
+      "note": "Kit-assembled vehicles follow the homemade-vehicle path: Statement of Builder, parts receipts, weight affidavit, and a state-assigned VIN issued after physical inspection.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/84490.pdf"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "FL Titles- MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/",
+      "https://www.flhsmv.gov/insurance/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/199/New-Vehicle-Title-Application",
+      "https://www.tcslc.com/194/Titles-Registrations"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/319.23",
+      "https://www.flsenate.gov/Laws/Statutes/2024/319.14",
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.072",
+      "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+    ]
+  }
+}

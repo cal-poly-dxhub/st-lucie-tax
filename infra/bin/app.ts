@@ -36,7 +36,6 @@ new ChatbotStack(app, "Chatbot", {
   proxy: officeStack.proxy,
   dbSecret: officeStack.dbSecret,
   lambdaSg: officeStack.lambdaSg,
-  distribution: officeStack.distribution,
-  frontendBucket: officeStack.frontendBucket,
   officeApiUrl: officeStack.httpApiUrl,
+  webAclArn: officeStack.webAclArn,
 });

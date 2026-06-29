@@ -1,0 +1,145 @@
+{
+  "txnTypeId": "vehicle-registration",
+  "baseItems": [
+    "photo-id-all-applicants",
+    "fl-insurance-proof",
+    "original-vehicle-title",
+    "hsmv-82040"
+  ],
+  "factsRequired": [
+    "has_fl_insurance",
+    "vehicle_origin",
+    "vehicle_class",
+    "vehicle_construction_type",
+    "is_military_active_duty",
+    "initial_reg_exemption_path",
+    "plate_choice",
+    "is_disabled_veteran_plate_request"
+  ],
+  "branches": [
+    {
+      "when": { "has_fl_insurance": "no" },
+      "note": "BLOCKED: Florida law requires continuous motor vehicle insurance before a vehicle can be registered. Customer must obtain Florida PDL + PIP insurance before visiting.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/insurance/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+      ]
+    },
+    {
+      "when": { "vehicle_origin": "us-state" },
+      "addItems": ["oos-title-surrender", "vin-verification-completed"],
+      "note": "Out-of-state used vehicles require VIN verification (HSMV 82042) completed before registration — can be done in-office by the clerk or by law enforcement / licensed dealer. Bring the physical OOS title for surrender to FL.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82042.pdf",
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"
+      ]
+    },
+    {
+      "when": { "vehicle_origin": "foreign-country" },
+      "addItems": ["customs-import-documents", "vin-verification-completed"],
+      "note": "Foreign-country vehicles require US Customs import paperwork (EPA / DOT conformity statements, Form 7501 entry summary) in addition to the standard VIN verification.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "initial_reg_exemption_path": "immediate-family" },
+      "addItems": ["hsmv-82002"],
+      "note": "Vehicle acquired from an immediate family member (blood relative, spouse, parent, cousin, stepchild) where seller and purchaser share a residential address qualifies for the §320.072 Initial Registration Fee exemption. Customer completes HSMV 82002.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82002.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.072"
+      ]
+    },
+    {
+      "when": { "initial_reg_exemption_path": "military-surviving-spouse" },
+      "addItems": ["hsmv-82002", "death-certificate"],
+      "note": "Surviving spouse of a service member acquiring the vehicle via operation of law (inheritance) qualifies for initial registration fee exemption.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82002.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/320.072"
+      ]
+    },
+    {
+      "when": { "plate_choice": "transfer-existing-plate" },
+      "addItems": ["existing-physical-plate-or-number"],
+      "removeItems": [],
+      "note": "Transfer an existing plate (registered in the same customer's name) to the new vehicle. Provide the physical plate OR the plate number; the office will verify plate credit.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/"
+      ]
+    },
+    {
+      "when": { "plate_choice": "specialty-plate" },
+      "addItems": ["specialty-plate-packet-guide"],
+      "note": "New specialty license plate. Customer chooses from the Specialty Plate packet — most have eligibility requirements (education/organization membership). Additional annual fee applies on top of the standard registration fee.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/"
+      ]
+    },
+    {
+      "when": { "is_disabled_veteran_plate_request": "yes" },
+      "addItems": ["va-summary-of-benefits-letter"],
+      "note": "Disabled Veteran license plate — customer must present VA Summary of Benefits letter specifying (1) 100% service-connected, OR (2) being compensated at the 100% rate even if not totally/permanently disabled, OR (3) DVA-financed vehicle purchase. Per §322.21, only ONE plate is fee-reduced per eligible veteran.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/military/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.21"
+      ]
+    },
+    {
+      "when": { "is_military_active_duty": "yes" },
+      "addItems": ["military-orders", "military-insurance-affidavit"],
+      "note": "Active-duty military stationed outside Florida may use out-of-state insurance if accompanied by the Military Insurance Affidavit (HSMV 71061) and military orders.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/military/",
+        "https://www.flhsmv.gov/pdf/forms/71061.pdf"
+      ]
+    },
+    {
+      "when": { "vehicle_class": "low-speed-vehicle" },
+      "addItems": ["lsv-equipment-cert"],
+      "note": "Low-speed vehicles (LSVs) require equipment compliance certification per §316.2122 (headlamps, brake lamps, mirrors, windshield, seatbelts). Standard insurance applies but only on roads with posted limits ≤35 mph.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/"]
+    },
+    {
+      "when": { "vehicle_class": "motorcycle" },
+      "note": "Motorcycle registration uses the same base documents as passenger cars; PIP is NOT required for motorcycles per §627.733, only PDL.",
+      "sourceRefs": ["https://www.flsenate.gov/Laws/Statutes/2024/627.733"]
+    },
+    {
+      "when": { "vehicle_construction_type": "homemade" },
+      "addItems": ["hsmv-84490", "builder-receipts", "hsmv-82105"],
+      "removeItems": ["original-vehicle-title"],
+      "note": "Homemade vehicles never had a Manufacturer's Certificate of Origin or original title. Florida issues a state-assigned VIN after physical inspection. Bring the Statement of Builder (HSMV 84490), parts receipts (sales-tax basis), and a certified weight slip (HSMV 82105) since fees are weight-tiered.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/84490.pdf",
+        "https://www.flhsmv.gov/pdf/forms/82105.pdf"
+      ]
+    },
+    {
+      "when": { "vehicle_construction_type": "kit-assembled" },
+      "addItems": ["hsmv-84490", "builder-receipts", "hsmv-82105"],
+      "removeItems": ["original-vehicle-title"],
+      "note": "Kit-assembled vehicles follow the homemade-vehicle path: Statement of Builder, parts receipts, weight affidavit, and a state-assigned VIN issued after physical inspection.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/84490.pdf"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Registrations - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
+      "https://www.flhsmv.gov/insurance/",
+      "https://www.flhsmv.gov/military/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/194/Titles-Registrations",
+      "https://www.tcslc.com/318/Vehicle-Registration"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.02",
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.072",
+      "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+    ]
+  }
+}

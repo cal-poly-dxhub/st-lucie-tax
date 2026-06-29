@@ -1,0 +1,2639 @@
+[
+  {
+    "factKey": "is_us_citizen",
+    "label": "US citizenship / lawful-presence status",
+    "valueType": "enum",
+    "allowedValues": [
+      "us-citizen",
+      "permanent-resident",
+      "temporary-lawful-presence",
+      "no",
+      "unknown"
+    ],
+    "questionText": "Are you a US citizen, a lawful permanent resident (green card), or here on a temporary visa?",
+    "inferenceHints": "Customer mentions passport/naturalization/citizenship certificate \u2192 us-citizen. Green card / I-551 \u2192 permanent-resident. Visa / I-94 / EAD \u2192 temporary-lawful-presence. FLHSMV requires lawful presence for every DL/CDL issuance.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "us-citizen": "US citizen",
+      "permanent-resident": "Permanent resident (green card)",
+      "temporary-lawful-presence": "Temporary visa or other non-immigrant status (work, student, etc.)",
+      "no": "Other",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_primary_id",
+    "label": "Primary identity document available",
+    "valueType": "enum",
+    "allowedValues": [
+      "passport",
+      "birth-certificate",
+      "naturalization-cert",
+      "citizenship-cert",
+      "consular-report",
+      "none",
+      "unknown"
+    ],
+    "questionText": "Which primary identity document do you have? A US passport, certified birth certificate, certificate of naturalization, certificate of citizenship, or consular report of birth abroad?",
+    "inferenceHints": "Customer names any of those documents. 'My license' is NOT a primary identity document for REAL ID. Copies are not accepted for any of these; originals only.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "passport": "US passport",
+      "birth-certificate": "Birth certificate",
+      "naturalization-cert": "Naturalization certificate",
+      "citizenship-cert": "Citizenship certificate",
+      "consular-report": "Consular report of birth abroad",
+      "none": "None of these",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_social_security_card",
+    "label": "Social Security card available (original, not copy)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "yes-copy-only", "no", "not-issued", "unknown"],
+    "questionText": "Do you have your original Social Security card with you? Copies are not accepted.",
+    "inferenceHints": "'I have my SSN memorized' is NOT yes. 'I have a copy / photo' \u2192 yes-copy-only, which will not be accepted. Non-citizens without work authorization may have 'not-issued'.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "yes": "Yes \u2014 original card",
+      "yes-copy-only": "I only have a copy / photo",
+      "no": "No",
+      "not-issued": "Never issued one",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "address_proof_count",
+    "label": "Number of St. Lucie County residential-address proof documents available",
+    "valueType": "enum",
+    "allowedValues": ["zero", "one", "two-or-more", "unknown"],
+    "questionText": "How many proofs of your St. Lucie County residential address can you bring? Examples: utility bill, bank statement, lease, deed, voter registration card.",
+    "inferenceHints": "FLHSMV requires TWO. One from List A (deed/mortgage/lease/utility/bank/voter reg) and one from List B. If customer has none but is a minor or new resident, the parent's documents or Declaration of Domicile can substitute \u2014 flag for clerk.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "zero": "Zero / none",
+      "one": "Just one",
+      "two-or-more": "Two or more",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "recent_name_change",
+    "label": "Name has changed since primary ID was issued",
+    "valueType": "enum",
+    "allowedValues": ["yes-with-docs", "yes-missing-docs", "no", "unknown"],
+    "questionText": "Has your legal name changed since your primary identity document (passport/birth cert) was issued? If yes, do you have the certified name-change document (marriage cert, divorce decree, court order)?",
+    "inferenceHints": "Church-issued marriage certificates are NOT accepted. Customer must also have updated SSA 24-48h before visit.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "yes-with-docs": "Yes \u2014 I have the legal documents",
+      "yes-missing-docs": "Yes \u2014 but I don't have the documents",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "needs_real_id_upgrade",
+    "label": "Current FL license is not REAL ID compliant and customer wants upgrade",
+    "valueType": "enum",
+    "allowedValues": [
+      "already-compliant",
+      "needs-upgrade",
+      "declining-upgrade",
+      "na-no-fl-license",
+      "unknown"
+    ],
+    "questionText": "Does your current Florida license have a gold star in the upper corner (REAL ID compliant)?",
+    "inferenceHints": "Gold star = already-compliant, no REAL ID docs required for renewal. No gold star + customer wants federal ID acceptance \u2192 needs-upgrade. New residents always need-upgrade.",
+    "scope": "global",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "already-compliant": "Yes \u2014 gold star already on my license",
+      "needs-upgrade": "No gold star, I want to upgrade",
+      "declining-upgrade": "No gold star, and I'll skip the upgrade",
+      "na-no-fl-license": "I don't have a Florida license",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_military_active_duty",
+    "label": "Active-duty military service member",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "veteran-not-active", "unknown"],
+    "questionText": "Are you currently on active-duty military service, or a veteran?",
+    "inferenceHints": "Active duty affects title transfer (military orders accepted in lieu of address proofs), sales-tax exemption on vehicles brought into FL under orders, and fee waivers under \u00a7322.21(8). Veteran-not-active qualifies for fee waivers but not active-duty rules.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "vehicle-title-transfer", "cdl"],
+    "valueLabels": {
+      "yes": "Yes \u2014 active duty",
+      "no": "No",
+      "veteran-not-active": "Veteran (not currently active)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "came_from_type",
+    "label": "Origin of prior license / residency",
+    "valueType": "enum",
+    "allowedValues": [
+      "us-state",
+      "us-territory",
+      "foreign-country",
+      "na-florida-native",
+      "unknown"
+    ],
+    "questionText": "Where are you moving to Florida from? Another US state, a US territory, or another country?",
+    "inferenceHints": "Foreign-country applicants often require additional translation or foreign-license verification and cannot use NLETS. US territories (PR, USVI, Guam, AS, MP) count for REAL ID primary ID acceptance.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "vehicle-title-transfer", "cdl"],
+    "valueLabels": {
+      "us-state": "Another US state",
+      "us-territory": "US territory",
+      "foreign-country": "Foreign country",
+      "na-florida-native": "Florida native",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_new_fl_resident",
+    "label": "New Florida resident within 30 days",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Have you recently moved to Florida (within the last 30 days or planning to stay)?",
+    "inferenceHints": "FL statute requires DL transfer within 30 days of establishing residency. 'I just moved here' / 'I'm new to Florida' \u2192 yes.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-transfer"],
+    "valueLabels": {
+      "yes": "Yes \u2014 new Florida resident",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "oos_license_status",
+    "label": "Out-of-state / out-of-country driver license status",
+    "valueType": "enum",
+    "allowedValues": [
+      "valid-in-hand",
+      "valid-in-nlets",
+      "expired-less-than-1yr",
+      "expired-more-than-1yr",
+      "never-held",
+      "unknown"
+    ],
+    "questionText": "Is your out-of-state driver license currently valid? Do you have it with you?",
+    "inferenceHints": "We must verify via NLETS. If not in NLETS and expired, customer needs a Certified Driving Record from prior state. Expired >1yr from a non-NLETS state often requires re-testing.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-transfer"],
+    "valueLabels": {
+      "valid-in-hand": "Valid \u2014 in hand",
+      "valid-in-nlets": "Valid \u2014 but not with me (in NLETS)",
+      "expired-less-than-1yr": "Expired less than 1 year",
+      "expired-more-than-1yr": "Expired more than 1 year",
+      "never-held": "Never had one",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "lawful_presence_docs",
+    "label": "Lawful-presence documents available (non-citizen path)",
+    "valueType": "enum",
+    "allowedValues": ["yes-permanent", "yes-temporary", "no", "na-us-citizen", "unknown"],
+    "questionText": "Do you have your lawful-presence documents with you (green card, EAD, visa + I-94)?",
+    "inferenceHints": "For temporary lawful presence, the DL expiration is tied to the I-94 / visa expiration. Required for every non-citizen issuance.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-transfer"],
+    "valueLabels": {
+      "yes-permanent": "Yes \u2014 green card (permanent resident)",
+      "yes-temporary": "Yes \u2014 visa, I-94, or EAD (temporary)",
+      "no": "No, I don't have them with me",
+      "na-us-citizen": "I'm a US citizen",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_condition",
+    "label": "Condition of the original title document",
+    "valueType": "enum",
+    "allowedValues": [
+      "clean",
+      "has-alterations",
+      "missing-seller-signature",
+      "missing-purchaser-name",
+      "na-no-title",
+      "unknown"
+    ],
+    "questionText": "Does the title have any whiteouts, line-throughs, scratch-outs, or missing signatures?",
+    "inferenceHints": "ANY alteration on the face of the title is rejected \u2014 customer must obtain a corrected title from seller. Missing seller sig \u2192 seller must come in or sign and return. Missing purchaser name on the 'seller must enter purchaser's line' \u2192 bill of sale required. na-no-title is an auto-resolved sentinel set when title_possession is electronic-held or lost-or-none \u2014 there is no physical title to inspect, so this question is skipped.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "clean": "Clean \u2014 no errors",
+      "has-alterations": "Has alterations",
+      "missing-seller-signature": "Missing seller's signature",
+      "missing-purchaser-name": "Missing buyer's name",
+      "na-no-title": "N/A \u2014 no paper title to inspect",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_is_oos",
+    "label": "Title comes from out of state / out of country",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-florida", "unknown"],
+    "questionText": "Is the vehicle currently titled in Florida or in another state/country?",
+    "inferenceHints": "OOS titles add VIN verification (HSMV 82042 or Section 7 of 82040), out-of-state registration copy, and title-holding-state rules.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes": "Yes \u2014 out-of-state title",
+      "no-florida": "No \u2014 Florida title",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_is_original_paper",
+    "label": "Physical status of the out-of-state title",
+    "valueType": "enum",
+    "allowedValues": [
+      "paper-original",
+      "paper-photocopy",
+      "electronic-title-holding-state",
+      "electronic-non-title-holding-state",
+      "na-fl-title",
+      "na-no-title",
+      "unknown"
+    ],
+    "questionText": "Do you have the original paper title, a photocopy, or is your state an electronic-title state?",
+    "inferenceHints": "Photocopies are never accepted. Title-holding states with electronic titles require the OOS writing packet (we write to lienholder). Non-title-holding states without paper title \u2192 look up the state's title-law per cartitles.com reference. na-fl-title is auto-resolved for Florida titles; na-no-title is auto-resolved when title_possession is electronic-held or lost-or-none (no paper title to classify).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "paper-original": "Paper original",
+      "paper-photocopy": "Photocopy only",
+      "electronic-title-holding-state": "Electronic \u2014 title-holding state",
+      "electronic-non-title-holding-state": "Electronic \u2014 non-title-holding state",
+      "na-fl-title": "Florida title",
+      "na-no-title": "N/A \u2014 no paper title",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "owners_joined",
+    "label": "How registered owners are joined on the title",
+    "valueType": "enum",
+    "allowedValues": ["single-owner", "joined-and", "joined-or", "unknown"],
+    "questionText": "Is there more than one name on the title? If so, are the names joined by AND or by OR?",
+    "inferenceHints": "Joined-and: every owner must sign (or POA). Joined-or: any one owner may sign. Matters for both title transfer and duplicate title.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "single-owner": "Just one owner",
+      "joined-and": "Two owners \u2014 joined with AND",
+      "joined-or": "Two owners \u2014 joined with OR",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_lien_or_lease",
+    "label": "Vehicle has an active lien or is leased",
+    "valueType": "enum",
+    "allowedValues": ["lien-active", "lease", "none", "unknown"],
+    "questionText": "Does the vehicle have a lien, or is it leased?",
+    "inferenceHints": "Lien-active: lienholder letterhead letter with VIN/make/year OR copy of OOS title showing lien. Lease: lease agreement + lessor letter authorizing FL 'registration-only'.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "lien-active": "Active lien (loan)",
+      "lease": "Leased",
+      "none": "Owned outright",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "purchaser_age_status",
+    "label": "Age status of the person taking title",
+    "valueType": "enum",
+    "allowedValues": [
+      "adult-18-plus",
+      "minor-with-adult-co-purchaser",
+      "minor-no-co-purchaser",
+      "unknown"
+    ],
+    "questionText": "Is the person whose name will be on the title 18 or older?",
+    "inferenceHints": "Per FL statute, minor purchasers require an adult co-purchaser on title. Confirm the co-purchaser is at least 18 and will be present to sign.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "adult-18-plus": "Adult (18+)",
+      "minor-with-adult-co-purchaser": "Minor \u2014 with an adult co-purchaser",
+      "minor-no-co-purchaser": "Minor \u2014 no adult co-purchaser",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ownership_duration",
+    "label": "How long the customer has owned the vehicle",
+    "valueType": "enum",
+    "allowedValues": ["less-than-6-months", "6-months-or-more", "unknown"],
+    "questionText": "How long have you owned this vehicle?",
+    "inferenceHints": "Less-than-6-months triggers FL 6% Use Tax + local option tax unless out-of-state sales tax proof is presented. Foreign-country imports always owe full 6% + local regardless of duration.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "less-than-6-months": "Less than 6 months",
+      "6-months-or-more": "6 months or more",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "sales_tax_paid_out_of_state",
+    "label": "Sales tax already paid in another state",
+    "valueType": "enum",
+    "allowedValues": ["yes-with-proof", "yes-no-proof", "no", "na-owned-6mo-plus", "unknown"],
+    "questionText": "Did you pay sales tax when you bought this vehicle in the other state? Do you have the bill of sale or purchase agreement showing the tax paid?",
+    "inferenceHints": "Only matters if ownership_duration is less-than-6-months. Without proof, FL collects the full 6% FL Use Tax.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes-with-proof": "Yes \u2014 with proof",
+      "yes-no-proof": "Yes \u2014 but no proof",
+      "no": "No",
+      "na-owned-6mo-plus": "Owned more than 6 months",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vehicle_origin",
+    "label": "Where the vehicle is being imported from",
+    "valueType": "enum",
+    "allowedValues": ["within-florida", "us-state", "foreign-country", "unknown"],
+    "questionText": "Was this vehicle previously titled in Florida, in another US state, or imported from another country?",
+    "inferenceHints": "Foreign-country: full 6% FL Use Tax + local option tax always due, regardless of ownership duration. VIN verification on FL-imported foreign vehicles often needs customs documentation.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "within-florida": "Already in Florida",
+      "us-state": "Another US state",
+      "foreign-country": "Foreign country",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ownership_entity_type",
+    "label": "Who will hold title",
+    "valueType": "enum",
+    "allowedValues": [
+      "individual",
+      "business",
+      "trust-single-trustee",
+      "trust-multiple-trustees",
+      "unknown"
+    ],
+    "questionText": "Will the title be in an individual's name, a business name, or a trust?",
+    "inferenceHints": "Business: Sunbiz active-registration printout required, registered-agent verification. Trust: certification-of-trust or trust agreement; multiple trustees means all must come in or provide POA.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "individual": "Individual person",
+      "business": "Business / company",
+      "trust-single-trustee": "Trust \u2014 single trustee",
+      "trust-multiple-trustees": "Trust \u2014 multiple trustees",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_fl_insurance",
+    "label": "Current Florida PDL + PIP insurance with company + policy#",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Do you have current Florida auto insurance? We need the insurance company name and policy number.",
+    "inferenceHints": "No FL insurance \u2192 we can perform title work ONLY, no registration. Out-of-state insurance is not acceptable for registration.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_odometer_disclosure",
+    "label": "Odometer disclosure status",
+    "valueType": "enum",
+    "allowedValues": [
+      "yes-on-title",
+      "yes-bill-of-sale",
+      "no",
+      "exempt",
+      "na-inheritance",
+      "unknown"
+    ],
+    "questionText": "Does the title have a completed odometer disclosure, or do you have a bill of sale showing the mileage?",
+    "inferenceHints": "If vehicle is model-year 2010 or older \u2192 exempt (federal). 2011+ requires disclosure. If odometer on title is less than previously recorded \u2192 flag as 'NOT ACTUAL'. na-inheritance is an auto-resolved sentinel for deceased-owner transfers: the deceased can't sign a seller's odometer disclosure, so the standard bill-of-sale odometer item does not apply (SME-confirmed) and this question is skipped.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes-on-title": "Yes \u2014 on the title",
+      "yes-bill-of-sale": "Yes \u2014 on a bill of sale",
+      "no": "No",
+      "exempt": "Exempt (vehicle 10+ years old)",
+      "na-inheritance": "N/A \u2014 inheritance (deceased owner)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vehicle_model_year_range",
+    "label": "Vehicle model year range (odometer rules)",
+    "valueType": "enum",
+    "allowedValues": ["2011-or-newer", "2010-or-older", "na-odometer-moot", "unknown"],
+    "questionText": "What year is the vehicle?",
+    "inferenceHints": "2010-or-older vehicles are exempt from federal odometer disclosure. 2011-or-newer requires mileage disclosure at transfer. na-odometer-moot is an auto-resolved sentinel used only when the odometer disclosure itself is moot (e.g. an inheritance transfer): the model year is asked solely to gate the odometer item, so when that item can't apply the year question is skipped.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "2011-or-newer": "2011 or newer",
+      "2010-or-older": "2010 or older",
+      "na-odometer-moot": "N/A \u2014 odometer not applicable",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vehicle_physically_present",
+    "label": "Vehicle is physically present at the office for VIN verification",
+    "valueType": "enum",
+    "allowedValues": ["yes-in-lot", "no", "na-fl-title", "unknown"],
+    "questionText": "Will you be bringing the vehicle to the office so we can do the VIN verification?",
+    "inferenceHints": "Only relevant for OOS titles. Yes \u2192 deputy performs VIN verification on-site. No \u2192 VIN verification must be done by law enforcement ahead of the visit; customer brings completed HSMV 82042 or Section 7 of 82040. na-fl-title is an auto-resolved sentinel (set when title_is_oos=no-florida): a vehicle already on a Florida title needs no VIN verification, so the question is skipped.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes-in-lot": "Yes \u2014 in the lot",
+      "no": "No",
+      "na-fl-title": "N/A \u2014 Florida title",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "signing_via_poa",
+    "label": "Someone else is signing the title application on the owner's behalf",
+    "valueType": "enum",
+    "allowedValues": ["yes-owner-absent", "no-owner-present", "unknown"],
+    "questionText": "Will the person whose name is going on the title be present at the appointment, or will someone else be signing on their behalf?",
+    "inferenceHints": "Absent owner requires notarized POA document with original signature or DocuSigned POA. POA must be submitted with the title work that goes to the state.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "yes-owner-absent": "Yes \u2014 owner absent, using POA",
+      "no-owner-present": "No \u2014 owner is present",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "cdl_expiration_range",
+    "label": "CDL expiration status",
+    "valueType": "enum",
+    "allowedValues": [
+      "not-expired",
+      "expired-less-than-1yr",
+      "expired-more-than-1yr",
+      "never-held",
+      "unknown"
+    ],
+    "questionText": "Is your CDL currently valid? If expired, how long has it been expired?",
+    "inferenceHints": "More-than-1-year: FL cannot renew \u2014 treat as original CDL (re-test all knowledge and skills exams). Less-than-1-year: renewable but late fee applies. Expiration drives the dominant branch for CDL work.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "not-expired": "Not expired",
+      "expired-less-than-1yr": "Expired less than 1 year",
+      "expired-more-than-1yr": "Expired more than 1 year",
+      "never-held": "Never had a CDL",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "cdl_origin",
+    "label": "Which CDL flow applies",
+    "valueType": "enum",
+    "allowedValues": [
+      "fl-renewal",
+      "oos-transfer",
+      "fl-original-first-time",
+      "fl-clp-upgrade",
+      "unknown"
+    ],
+    "questionText": "Are you renewing an existing Florida CDL, transferring a CDL from another state, applying for a brand-new CDL, or upgrading from a CLP?",
+    "inferenceHints": "Each origin has different document + test requirements. oos-transfer requires valid out-of-state CDL; fl-original-first-time requires General Knowledge exam passed; fl-clp-upgrade requires CLP held 2+ weeks before skills exam.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "fl-renewal": "Renewing my Florida CDL",
+      "oos-transfer": "Transferring from another state",
+      "fl-original-first-time": "Brand new \u2014 never had a CDL",
+      "fl-clp-upgrade": "Upgrading my CLP to a CDL",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "oos_cdl_valid",
+    "label": "Out-of-state CDL is currently valid",
+    "valueType": "enum",
+    "allowedValues": ["valid", "invalid", "na-not-oos-transfer", "unknown"],
+    "questionText": "Is the CDL from your previous state currently valid?",
+    "inferenceHints": "Invalid OOS CDL \u2192 re-test all written and skills exams, or customer can return to origin state to renew first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "valid": "Valid",
+      "invalid": "Invalid / expired",
+      "na-not-oos-transfer": "N/A \u2014 not a transfer",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_hazmat_endorsement_request",
+    "label": "Customer wants hazmat endorsement this visit",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Do you need a hazmat endorsement on your CDL?",
+    "inferenceHints": "Hazmat requires TSA background check ($91) + $7 per endorsement + $75 CDL app fee. Hazmat test valid only 60 days. Must be taken in English, no audio form. Walton office does NOT have a hazmat machine.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes \u2014 need HazMat endorsement",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_tsa_fee",
+    "label": "Customer has funds for TSA background check fee",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-no-hazmat", "unknown"],
+    "questionText": "Have you paid the TSA background check fee ($91) for the hazmat endorsement?",
+    "inferenceHints": "Without TSA fee paid, customer must return. Only asked if has_hazmat_endorsement_request is yes.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-no-hazmat": "N/A \u2014 no HazMat",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "medical_cert_required",
+    "label": "Customer is required by law to carry a CDL medical card",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you required by law to carry a CDL medical examiner's certificate (DOT physical card)?",
+    "inferenceHints": "Excepted intrastate drivers are not required. Most interstate drivers are. This controls whether medical_cert_in_system is needed.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "medical_cert_in_system",
+    "label": "Current medical card uploaded to FL system",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-required", "unknown"],
+    "questionText": "Has your medical examiner's certificate been uploaded to the Florida system by your physician's office?",
+    "inferenceHints": "If no and recently updated, customer contacts the physician's office to upload. We cannot accept paper cards in place of the system record. Only applies when medical_cert_required=yes.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes \u2014 already on file",
+      "no": "No",
+      "na-not-required": "N/A \u2014 not required",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "general_knowledge_exam_passed",
+    "label": "CDL General Knowledge exam status",
+    "valueType": "enum",
+    "allowedValues": ["passed-in-adlts", "passed-not-in-adlts", "not-passed", "na", "unknown"],
+    "questionText": "Have you passed the CDL General Knowledge written exam? If yes, can we verify it in ADLTS?",
+    "inferenceHints": "passed-not-in-adlts \u2192 customer must obtain certified driving record showing exam was passed. not-passed \u2192 schedule/offer testing.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "passed-in-adlts": "Passed \u2014 in ADLTS",
+      "passed-not-in-adlts": "Passed \u2014 not in ADLTS",
+      "not-passed": "Not yet passed",
+      "na": "N/A",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "general_knowledge_exam_age",
+    "label": "Age of the most recent passed CDL General Knowledge exam",
+    "valueType": "enum",
+    "allowedValues": ["less-than-1yr", "more-than-1yr", "na", "unknown"],
+    "questionText": "When did you pass the CDL General Knowledge exam?",
+    "inferenceHints": "More-than-1yr since passing \u2192 must re-test all written and skills exams.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "less-than-1yr": "Less than 1 year ago",
+      "more-than-1yr": "More than 1 year ago",
+      "na": "N/A",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "skills_exam_passed",
+    "label": "CDL skills exam status",
+    "valueType": "enum",
+    "allowedValues": ["passed", "not-passed", "scheduled", "na", "unknown"],
+    "questionText": "Have you passed the CDL skills (driving) exam?",
+    "inferenceHints": "Skills exam cannot be taken until 2 weeks after CLP issuance. If not-passed but eligible, offer scheduling.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "passed": "Passed",
+      "not-passed": "Not passed",
+      "scheduled": "Scheduled",
+      "na": "N/A",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "clp_age_weeks",
+    "label": "Time elapsed since CLP issuance",
+    "valueType": "enum",
+    "allowedValues": ["less-than-2-weeks", "2-weeks-or-more", "na-no-clp", "unknown"],
+    "questionText": "When was your Commercial Learner's Permit (CLP) issued?",
+    "inferenceHints": "Less-than-2-weeks: skills exam not yet eligible. 2-weeks-or-more: eligible.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "less-than-2-weeks": "Less than 2 weeks",
+      "2-weeks-or-more": "2 weeks or more",
+      "na-no-clp": "N/A \u2014 no CLP",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_school_employee",
+    "label": "Applicant is a school employee",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you a school district employee applying for a school-bus endorsement?",
+    "inferenceHints": "School employees must present school employment ID card or letter from the school department on every original and renewal. CDL customers generally cannot use the Address Certification Form \u2014 school employees are the exception per vendor workflow.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "can_communicate_in_english",
+    "label": "Applicant can communicate in English (for CDL exams)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Can you read and communicate in English?",
+    "inferenceHints": "Effective Feb 6 2026, all FL DL exams are English-only. CDL General Knowledge exam must be passed in English and may not be taken in audio form. Hazmat retest may be in English or Spanish and may use audio.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "wears_corrective_lenses",
+    "label": "Applicant wears corrective lenses for driving",
+    "valueType": "enum",
+    "allowedValues": ["no", "yes-with-me", "yes-not-with-me", "unknown"],
+    "questionText": "Do you wear glasses or contacts to drive? If yes, do you have them with you today?",
+    "inferenceHints": "Yes-not-with-me \u2192 customer cannot take vision test today; must return with corrective lenses or visit eye doctor. Failure of vision test \u2192 form DL 10 referral.",
+    "scope": "global",
+    "relevantTransactions": ["dl-transfer", "cdl"],
+    "valueLabels": {
+      "no": "No",
+      "yes-with-me": "Yes \u2014 and I have them with me",
+      "yes-not-with-me": "Yes \u2014 but they're not with me",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "applicant_age_meets_cdl",
+    "label": "Applicant is at least 17.5 years old (CDL testing age floor)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you at least 17 years and 6 months old?",
+    "inferenceHints": "CDL test requires age 17.5+. Federal interstate CDL requires 21+; intrastate FL allows 18+. This fact gates testing eligibility.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["cdl"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dl_renewal_channel",
+    "label": "How the customer wants to renew their driver license",
+    "valueType": "enum",
+    "allowedValues": ["online-mydmv", "in-office", "unknown"],
+    "questionText": "Would you like to renew online at MyDMV Portal, or do you need to come in-office?",
+    "inferenceHints": "Online renewal available every other renewal cycle per FLHSMV. In-office required if customer used online last renewal, holds a CDL, needs a photo update, is changing name/designation, or is getting their first FL credential.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-renewal"],
+    "valueLabels": {
+      "online-mydmv": "Online via MyDMV",
+      "in-office": "In-office",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "real_id_status",
+    "label": "Whether the customer's current FL credential is REAL ID compliant (gold star)",
+    "valueType": "enum",
+    "allowedValues": ["compliant", "not-compliant", "unknown"],
+    "questionText": "Does your current Florida driver license or ID card have a gold star in the upper right corner (REAL ID compliant)?",
+    "inferenceHints": "FLHSMV began issuing REAL ID compliant credentials in January 2010. Non-REAL-ID customers need the full REAL ID document set on this visit.",
+    "scope": "global",
+    "relevantTransactions": [
+      "dl-renewal",
+      "dl-replacement",
+      "dl-name-change",
+      "dl-address-change",
+      "real-id-upgrade"
+    ],
+    "valueLabels": {
+      "compliant": "Already REAL ID compliant (gold star)",
+      "not-compliant": "Not yet REAL ID compliant",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "recent_address_change",
+    "label": "Whether the customer has changed Florida residential address since their last credential",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Has your Florida residential address changed since your current license or ID was issued?",
+    "inferenceHints": "Florida law requires address update within 30 days of a move. Combining the renewal with an address change is supported on the same in-office visit.",
+    "scope": "global",
+    "relevantTransactions": ["dl-renewal", "dl-address-change", "dl-replacement"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_veteran_designation_request",
+    "label": "Whether the customer wants the Veteran (V) designation added to the credential",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "already-designated", "not-a-veteran", "unknown"],
+    "questionText": "Would you like the 'Veteran' designation added to your Florida driver license or ID card?",
+    "inferenceHints": "Veteran designation requires DD-214 (honorable discharge) or VA veteran ID card. One-time designation; once added, carries forward through renewals. If the customer says they aren't a veteran, record not-a-veteran \u2014 this also implies is_100_percent_disabled_veteran=no so the disability follow-up is skipped.",
+    "scope": "global",
+    "relevantTransactions": ["dl-renewal", "dl-replacement", "id-card", "dl-transfer"],
+    "valueLabels": {
+      "yes": "Yes \u2014 add the V designation",
+      "no": "No",
+      "already-designated": "Already on my license",
+      "not-a-veteran": "I'm not a veteran",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_100_percent_disabled_veteran",
+    "label": "Whether the customer has a VA-documented 100% total and permanent service-connected disability",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Do you have a VA letter showing a 100% total and permanent service-connected disability rating?",
+    "inferenceHints": "Per \u00a7322.21(1), 100% T&P disabled veterans qualify for a no-fee Florida driver license, ID card, or CDL. Requires VA letter showing the 100% T&P rating.",
+    "scope": "global",
+    "relevantTransactions": ["cdl", "dl-renewal", "dl-replacement", "id-card", "dl-transfer"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "name_change_document_type",
+    "label": "Which certified name-change document the customer has",
+    "valueType": "enum",
+    "allowedValues": ["marriage-cert", "divorce-decree", "court-order", "none", "unknown"],
+    "questionText": "Which document certifies your name change \u2014 a marriage certificate, divorce decree, or a court order?",
+    "inferenceHints": "FLHSMV accepts only certified/original documents from the issuing clerk of court. Hospital marriage certificates, religious ceremonies, or uncertified copies are not accepted.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-name-change"],
+    "valueLabels": {
+      "marriage-cert": "Marriage certificate",
+      "divorce-decree": "Divorce decree",
+      "court-order": "Court order",
+      "none": "None of these",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ssa_record_updated",
+    "label": "Whether the customer has already updated their name with the Social Security Administration",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Have you already updated your name with the Social Security Administration?",
+    "inferenceHints": "FLHSMV cross-checks the name-on-credential against the SSA record as part of REAL ID verification. If SSA has not been updated, the credential change will fail at submission; customer must visit SSA first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-name-change"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "id_card_intent",
+    "label": "Which ID-card scenario applies",
+    "valueType": "enum",
+    "allowedValues": [
+      "original-first-time",
+      "downgrade-from-dl",
+      "replacement-lost-stolen",
+      "real-id-upgrade",
+      "unknown"
+    ],
+    "questionText": "Are you applying for your first Florida ID card, downgrading from a driver license, replacing a lost/stolen card, or upgrading to REAL ID?",
+    "inferenceHints": "Downgrade from DL typically happens when an 80+ customer fails the vision exam. Replacement is eligible for MyDMV online. REAL ID upgrade requires the full document set.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["id-card"],
+    "valueLabels": {
+      "original-first-time": "Original \u2014 first-time ID",
+      "downgrade-from-dl": "Downgrade my license to an ID",
+      "replacement-lost-stolen": "Replace lost or stolen ID",
+      "real-id-upgrade": "REAL ID upgrade",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "learner_permit_age_bracket",
+    "label": "Applicant's age bracket (drives parental-consent + online-exam rules)",
+    "valueType": "enum",
+    "allowedValues": ["under-18", "18-or-older", "unknown"],
+    "questionText": "Are you (or the applicant) under 18 or 18 or older?",
+    "inferenceHints": "Under 18: parental consent required; online knowledge exam available via approved third-party providers. 18+: in-person or third-party knowledge exam; no parental consent required.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["learner-permit", "written-test"],
+    "valueLabels": {
+      "under-18": "Under 18",
+      "18-or-older": "18 or older",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tlsae_completed",
+    "label": "Whether the applicant has completed the TLSAE/DETS course required for first-time licensees",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-previously-licensed", "unknown"],
+    "questionText": "Have you completed the Traffic Law & Substance Abuse Education (TLSAE) course \u2014 also called DETS for minors? It's required before applying for a learner's license for first-time licensees.",
+    "inferenceHints": "TLSAE/DETS is only required for applicants who have never held a driver license in any state or country. Completion is reported electronically to FLHSMV by approved providers.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["learner-permit"],
+    "valueLabels": {
+      "yes": "Yes \u2014 I've completed TLSAE",
+      "no": "No \u2014 not yet",
+      "na-previously-licensed": "Held a license before \u2014 not required",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "knowledge_exam_channel",
+    "label": "How the applicant will take (or took) the Class E Knowledge Exam",
+    "valueType": "enum",
+    "allowedValues": [
+      "in-office",
+      "online-third-party",
+      "already-passed",
+      "delap-high-school",
+      "unknown"
+    ],
+    "questionText": "Will you take the Class E Knowledge Exam in-office, online through an approved third-party provider, have you already passed it, or did you complete it through a high school DELAP program?",
+    "inferenceHints": "Online exams are only available to applicants under 18. In-office is available to any age. DELAP is high-school-specific. Exam is 50 questions, 80% required to pass, English only.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["learner-permit", "written-test"],
+    "valueLabels": {
+      "in-office": "Take it in-office",
+      "online-third-party": "Online (third-party provider)",
+      "already-passed": "Already passed",
+      "delap-high-school": "Took it through high-school DELAP",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "parent_guardian_present",
+    "label": "Whether a parent or legal guardian (over 18) is physically at the office to sign for a minor applicant",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-adult-applicant", "unknown"],
+    "questionText": "Will a parent or legal guardian over age 18 be present to sign for the minor at the office?",
+    "inferenceHints": "Must be a legal parent or guardian \u2014 siblings and adult-non-guardians don't qualify. Parent must bring a valid government-issued photo ID.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["learner-permit"],
+    "valueLabels": {
+      "yes": "Yes \u2014 a parent/guardian will be there",
+      "no": "No",
+      "na-adult-applicant": "I'm an adult applicant (18+)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_heavy_truck_55k_gvw",
+    "label": "Whether the vehicle being renewed has a gross vehicle weight of 55,000 lbs or more (triggers HVUT)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Does the vehicle have a gross vehicle weight (GVW) of 55,000 lbs or more?",
+    "inferenceHints": "Heavy Vehicle Use Tax applies at 55,000 lbs GVW or more. Customer must present IRS Form 2290 or proof of exemption.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["registration-renewal"],
+    "valueLabels": {
+      "yes": "Yes \u2014 55,000 lb GVW or more",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "initial_reg_exemption_path",
+    "label": "Whether the customer qualifies for the Initial Registration Fee exemption under \u00a7320.072",
+    "valueType": "enum",
+    "allowedValues": [
+      "immediate-family",
+      "military-surviving-spouse",
+      "plate-credit-available",
+      "none",
+      "unknown"
+    ],
+    "questionText": "Are you acquiring this vehicle from an immediate family member at the same address, through inheritance as a surviving spouse, or using existing license-plate credit in your name?",
+    "inferenceHints": "Per \u00a7320.072, immediate-family transfers (same residential address), surviving-spouse inheritance, and plate-credit transfers all exempt the $225 Initial Registration Fee. HSMV 82002 documents the exemption.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-registration"],
+    "valueLabels": {
+      "immediate-family": "Immediate family transfer",
+      "military-surviving-spouse": "Military surviving spouse",
+      "plate-credit-available": "Plate credit available",
+      "none": "None apply",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "plate_choice",
+    "label": "Which plate the customer wants to use for the new registration",
+    "valueType": "enum",
+    "allowedValues": [
+      "new-standard-plate",
+      "transfer-existing-plate",
+      "specialty-plate",
+      "unknown"
+    ],
+    "questionText": "Do you want a new standard Florida plate, transfer an existing plate registered to you, or get a specialty/personalized plate?",
+    "inferenceHints": "Transferring an existing plate avoids the Initial Registration Fee. Specialty plates add an annual surcharge on top of the standard registration.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-registration"],
+    "valueLabels": {
+      "new-standard-plate": "New standard plate",
+      "transfer-existing-plate": "Transfer existing plate",
+      "specialty-plate": "Specialty plate",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_disabled_veteran_plate_request",
+    "label": "Whether the customer is applying for a Disabled Veteran license plate",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you applying for a Disabled Veteran (DV) license plate?",
+    "inferenceHints": "Requires VA Summary of Benefits letter specifying 100% service-connected OR 100%-compensation-rate OR DVA-financed vehicle. Per \u00a7322.21, one plate is fee-reduced; additional DV plates pay standard fee.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-registration"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tag_replacement_reason",
+    "label": "Why the tag or decal needs to be replaced",
+    "valueType": "enum",
+    "allowedValues": ["stolen", "lost-in-transit", "defaced", "damaged", "unknown"],
+    "questionText": "Why does the plate or decal need to be replaced \u2014 was it stolen, never arrived in the mail, or is it damaged/defaced?",
+    "inferenceHints": "Stolen requires police report or case number. Lost-in-transit within 20 days of an online renewal is free; after 20 days, standard replacement fees apply.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tag-replacement"],
+    "valueLabels": {
+      "stolen": "Stolen",
+      "lost-in-transit": "Lost in mail / transit",
+      "defaced": "Defaced (illegible / surface damaged)",
+      "damaged": "Bent or physically broken",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tag_replacement_item",
+    "label": "Whether replacing the metal plate or just the annual decal",
+    "valueType": "enum",
+    "allowedValues": ["plate", "decal", "both", "unknown"],
+    "questionText": "Are you replacing the metal license plate, the annual decal, or both?",
+    "inferenceHints": "Decal-only replacement has a lower fee than full plate replacement. HSMV 83146 works for either.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "plate": "License plate",
+      "decal": "Registration decal / sticker",
+      "both": "Both",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "plate_surrender_owner_type",
+    "label": "Who is surrendering the license plate and their relationship to the registration",
+    "valueType": "enum",
+    "allowedValues": [
+      "personal-registrant",
+      "personal-not-registrant",
+      "business-registered-agent",
+      "business-third-party",
+      "unknown"
+    ],
+    "questionText": "Is this plate in a personal name (yours or someone else's) or a business name, and are you the registered owner/agent?",
+    "inferenceHints": "Third-party surrender requires either LPSA signed by owner or HSMV 82053 POA. Business surrender by non-agent requires agent-signed letter or POA.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["plate-surrender"],
+    "valueLabels": {
+      "personal-registrant": "I'm the registrant",
+      "personal-not-registrant": "Not the registrant",
+      "business-registered-agent": "Business \u2014 registered agent",
+      "business-third-party": "Business \u2014 third party",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "third_party_signing",
+    "label": "Whether someone other than the registered owner is signing",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you the registered owner of this plate, or are you surrendering it on someone else's behalf?",
+    "inferenceHints": "Third-party signing requires either LPSA signed by owner in advance OR notarized POA.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "specialty_plate_flow",
+    "label": "Which specialty-plate scenario applies",
+    "valueType": "enum",
+    "allowedValues": ["new-plate-on-existing-vehicle", "voucher-self", "voucher-gift", "unknown"],
+    "questionText": "Are you putting a specialty plate on your vehicle now, buying a pre-sale voucher for yourself, or buying a voucher as a gift for someone else?",
+    "inferenceHints": "Pre-sale vouchers exist for plates that haven't reached the FLHSMV issuance threshold yet. Once threshold met, voucher holders get the plate issued.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["specialty-plate"],
+    "valueLabels": {
+      "new-plate-on-existing-vehicle": "New plate on a vehicle I already own",
+      "voucher-self": "Buying a voucher for myself",
+      "voucher-gift": "Buying a voucher as a gift",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_specialty_plate_eligibility_proof",
+    "label": "Whether the customer has eligibility proof for the specialty plate they want",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-no-eligibility-required", "unknown"],
+    "questionText": "Does your chosen specialty plate require eligibility documentation (university affiliation, professional license, etc.), and do you have it?",
+    "inferenceHints": "Many specialty plates gate on membership or credential status. If eligibility is required but not presented, BLOCK until it is.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["specialty-plate"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-no-eligibility-required": "N/A \u2014 not required",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "voucher_recipient",
+    "label": "Whether the specialty-plate voucher is for the customer or someone else",
+    "valueType": "enum",
+    "allowedValues": ["self", "gift", "na-not-voucher", "unknown"],
+    "questionText": "Is the voucher for yourself or a gift for someone else?",
+    "inferenceHints": "Gift vouchers require the recipient's name + license plate number or driver license number at time of transaction.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "self": "For myself",
+      "gift": "Gift for someone else",
+      "na-not-voucher": "I'm not buying a voucher",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "duplicate_title_channel",
+    "label": "Whether the customer wants to process the duplicate title online, by mail, or in-office",
+    "valueType": "enum",
+    "allowedValues": ["online-mydmv", "in-office", "by-mail", "unknown"],
+    "questionText": "Would you like to process the duplicate title online via MyDMV Portal, by mail, or in-office?",
+    "inferenceHints": "Online option only works for electronic titles with no lien. Online fee $4.50, mail fee $2.50, in-office fees on FLHSMV schedule.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["duplicate-title"],
+    "valueLabels": {
+      "online-mydmv": "Online via MyDMV",
+      "in-office": "In-office",
+      "by-mail": "By mail",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_holding_status",
+    "label": "Current holding status of the title",
+    "valueType": "enum",
+    "allowedValues": ["electronic-held", "paper-in-hand", "lost-paper", "unknown"],
+    "questionText": "Is your title currently held electronically by the state, is it a paper title you have in hand, or is it a paper title you've lost?",
+    "inferenceHints": "Electronic-held + no-lien \u2192 online conversion eligible. Lost-paper \u2192 HSMV 82101 duplicate. Paper-in-hand shouldn't be in duplicate-title flow.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["duplicate-title"],
+    "valueLabels": {
+      "electronic-held": "FLHSMV holds it electronically",
+      "paper-in-hand": "Paper title in hand",
+      "lost-paper": "Lost the paper title",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "new_vehicle_purchase_source",
+    "label": "Where the customer purchased the new vehicle",
+    "valueType": "enum",
+    "allowedValues": [
+      "franchise-dealer",
+      "private-in-florida",
+      "private-out-of-state",
+      "inheritance",
+      "unknown"
+    ],
+    "questionText": "Did you purchase this vehicle from a franchise dealer, from a private seller in Florida, from a private seller out-of-state, or did you inherit it?",
+    "inferenceHints": "Franchise dealers typically process title + tax directly. Private OOS purchases require VIN verification and bill of sale.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["new-vehicle-title"],
+    "valueLabels": {
+      "franchise-dealer": "Franchise dealer",
+      "private-in-florida": "Private seller in Florida",
+      "private-out-of-state": "Private seller out-of-state",
+      "inheritance": "Inheritance",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_scenario",
+    "label": "Which parking-placard scenario applies",
+    "valueType": "enum",
+    "allowedValues": ["original", "renewal", "replacement", "unknown"],
+    "questionText": "Are you applying for an original placard, renewing an existing one, or replacing a lost/damaged placard?",
+    "inferenceHints": "Replacement uses HSMV 83146. Renewal also requires a new HSMV 83039 signed within the last 12 months plus a copy of the expiring placard's registration.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "original": "First-time placard",
+      "renewal": "Renewal",
+      "replacement": "Replacement (lost / stolen)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_applicant_type",
+    "label": "Type of parking-placard applicant",
+    "valueType": "enum",
+    "allowedValues": [
+      "individual-florida-id",
+      "individual-out-of-state",
+      "individual-out-of-country",
+      "organization",
+      "unknown"
+    ],
+    "questionText": "Is the applicant an individual Florida resident, an out-of-state resident, an out-of-country visitor, or an organization/business?",
+    "inferenceHints": "Out-of-state visitors with an ISA-marked home-state placard are honored automatically (no FL permit needed). Otherwise visitors get a $15 temporary placard. Organizations complete the Application by an Organization section on HSMV 83039 and identify themselves with an FEID or FL sales-tax registration number.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "individual-florida-id": "Individual \u2014 has FL ID",
+      "individual-out-of-state": "Individual \u2014 out-of-state",
+      "individual-out-of-country": "Individual \u2014 out-of-country",
+      "organization": "Organization",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_physician_cert_age_months",
+    "label": "How old the physician's HSMV 83039 certification is",
+    "valueType": "enum",
+    "allowedValues": ["less-than-12", "more-than-12", "unknown"],
+    "questionText": "Was your HSMV 83039 certification dated within the last 12 months?",
+    "inferenceHints": "Certifications older than 12 months are not accepted; customer must obtain a new one from a qualifying medical professional.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "less-than-12": "Signed less than 12 months ago",
+      "more-than-12": "Signed more than 12 months ago",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_duration",
+    "label": "Permanent vs. temporary placard",
+    "valueType": "enum",
+    "allowedValues": ["permanent", "temporary", "unknown"],
+    "questionText": "Is this for a permanent placard (4 years, no fee) or a temporary one (no more than 6 months, $15)?",
+    "inferenceHints": "Permanent placards are blue and free. Temporary placards are red, expire on a date the physician sets (≤6 months), and cost $15. Statute §320.0848(1)(a) waives the temporary fee if a second temp is issued within 12 months of the first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "permanent": "Permanent (4-year)",
+      "temporary": "Temporary (≤6 months)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_qualifying_condition",
+    "label": "Qualifying medical condition certified on HSMV 83039",
+    "valueType": "enum",
+    "allowedValues": [
+      "cant-walk-200ft",
+      "wheelchair",
+      "lung-fev1-under-1l",
+      "portable-oxygen",
+      "nyha-3-or-4",
+      "severe-arthritic-neuro-orthopedic",
+      "legally-blind",
+      "unknown"
+    ],
+    "questionText": "Which qualifying condition has your physician certified on HSMV 83039 (boxes 2–8)?",
+    "inferenceHints": "FLHSMV requires the certifier to check at least one of seven qualifying conditions on HSMV 83039. Optometrists may sign only for legally-blind. If none of these conditions apply, the application will be rejected at the office — ask up front to save the trip.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "cant-walk-200ft": "Cannot walk 200 ft without rest",
+      "wheelchair": "Uses a wheelchair",
+      "lung-fev1-under-1l": "Lung disease (FEV1 < 1 L)",
+      "portable-oxygen": "Portable oxygen dependent",
+      "nyha-3-or-4": "Cardiac condition (NYHA Class III–IV)",
+      "severe-arthritic-neuro-orthopedic": "Severe arthritic, neurological, or orthopedic limitation",
+      "legally-blind": "Legally blind",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_certifier_type",
+    "label": "Type of medical professional signing HSMV 83039",
+    "valueType": "enum",
+    "allowedValues": [
+      "md-do",
+      "physician-assistant",
+      "chiropractor",
+      "podiatrist",
+      "optometrist-sight-only",
+      "aprn",
+      "va-letter-27-333",
+      "out-of-state-md",
+      "unknown"
+    ],
+    "questionText": "Who is signing the medical certification on HSMV 83039?",
+    "inferenceHints": "Per §320.0848(1)(b)2 and HSMV-Main: Florida-licensed physician, osteopath, physician assistant, chiropractor, podiatrist, optometrist (sight conditions only), or APRN. Out-of-state physicians must include a separate signed statement showing they understand FL eligibility rules. VA Form Letter 27-333 substitutes for HSMV 83039 medical certification — but only at renewal or replacement, not initial.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "md-do": "Physician (MD or DO)",
+      "physician-assistant": "Physician Assistant",
+      "chiropractor": "Chiropractor",
+      "podiatrist": "Podiatrist",
+      "optometrist-sight-only": "Optometrist (sight conditions only)",
+      "aprn": "Advanced Practice Registered Nurse",
+      "va-letter-27-333": "VA Form Letter 27-333 (renewal/replacement only)",
+      "out-of-state-md": "Out-of-state physician",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_replacement_reason",
+    "label": "Reason for replacement (when scenario=replacement)",
+    "valueType": "enum",
+    "allowedValues": [
+      "lost",
+      "stolen",
+      "damaged",
+      "defaced",
+      "destroyed",
+      "surrendered",
+      "lost-in-transit",
+      "na-not-replacement",
+      "unknown"
+    ],
+    "questionText": "Why are you replacing the placard?",
+    "inferenceHints": "Per §320.0848(2)(d): replacements cost $1, except $0 when stolen with a police report or lost-in-transit within 180 days of issuance. The 'na-not-replacement' value is auto-set by fact-implications when scenario != replacement.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "lost": "Lost",
+      "stolen": "Stolen",
+      "damaged": "Damaged",
+      "defaced": "Defaced",
+      "destroyed": "Destroyed",
+      "surrendered": "Surrendered",
+      "lost-in-transit": "Lost in transit (within 180 days of issuance)",
+      "na-not-replacement": "Doesn’t apply (not a replacement)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_has_police_report",
+    "label": "Police report for stolen placard",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-stolen", "unknown"],
+    "questionText": "Do you have a police report listing the stolen placard?",
+    "inferenceHints": "Statute §320.0848(2)(d) waives the $1 replacement fee when a stolen placard is reported and the police report accompanies the application. The 'na-not-stolen' value is auto-set by fact-implications when replacement_reason != stolen.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "yes": "Yes — have the report",
+      "no": "No",
+      "na-not-stolen": "Doesn’t apply (not stolen)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_special_exception_needed",
+    "label": "Special Exception (homebound) path needed",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you applying because the disability is too severe to come into a tax-collector or DL office in person to obtain a Florida driver license or ID?",
+    "inferenceHints": "F-83039 page 1 has a Special Exception line the certifying physician signs to waive the FL DL/ID requirement for severely disabled permanent applicants. F-83039 wording restricts this to permanent applicants. Without this, no FL DL/ID = blocked.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "yes": "Yes — physician will sign Special Exception",
+      "no": "No — standard application",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_visitor_has_isa",
+    "label": "Visitor has an ISA-marked home placard",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-visitor", "unknown"],
+    "questionText": "Do you already have a parking placard or plate from your home state or country that shows the international wheelchair symbol?",
+    "inferenceHints": "Per HSMV-Vis and §316.1958, Florida honors home-state and home-country placards that display the international symbol of accessibility. No Florida permit is needed in that case. The 'na-not-visitor' value is auto-set when applicant_type is FL or organization.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "yes": "Yes — home placard shows the wheelchair symbol",
+      "no": "No",
+      "na-not-visitor": "Doesn’t apply (not a visitor)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_prior_temporary_within_12mo",
+    "label": "Prior temporary placard issued within last 12 months",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-temporary", "unknown"],
+    "questionText": "Have you been issued a temporary placard in the last 12 months?",
+    "inferenceHints": "Per §320.0848(1)(a) and F-83039 §3a, a second temporary placard issued within 12 months of the first is free; outside that window the $15 fee applies again. Auto-set to 'na-not-temporary' when duration != temporary.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "yes": "Yes — within last 12 months",
+      "no": "No",
+      "na-not-temporary": "Doesn’t apply (not temporary)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_additional_permit_type",
+    "label": "Eligible for an additional secondary permit",
+    "valueType": "enum",
+    "allowedValues": ["none", "frequent-traveler", "quadriplegic", "unknown"],
+    "questionText": "Are you eligible for an additional permit because you are a frequent traveler (plane / train / bus / vessel) or a quadriplegic?",
+    "inferenceHints": "Per §320.0848(2)(c), an individual may hold up to two permits only if they are a frequent traveler or a quadriplegic. The secondary permit expires on the same date as the primary, regardless of issuance date. Not available for temporary permits.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "none": "Not applying for an additional permit",
+      "frequent-traveler": "Frequent traveler (plane / train / bus / vessel)",
+      "quadriplegic": "Quadriplegic",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_org_id_type",
+    "label": "Organization identifier type",
+    "valueType": "enum",
+    "allowedValues": ["feid", "fl-sales-tax", "na-not-organization", "unknown"],
+    "questionText": "What identifier will the organization provide to be affixed to the permit — an FEID or a Florida sales-tax registration number?",
+    "inferenceHints": "Per HSMV-Org: organizations must provide one of FEID or FL sales-tax registration number. Sunbiz registration is NOT an accepted identifier (the prior tree referenced it; corrected). Auto-set to 'na-not-organization' when applicant_type != organization.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "feid": "FEID (federal employer ID)",
+      "fl-sales-tax": "Florida sales-tax registration number",
+      "na-not-organization": "Doesn’t apply (not an organization)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_minor_or_guardian_signing",
+    "label": "Whether disabled person or a guardian signs",
+    "valueType": "enum",
+    "allowedValues": ["disabled-person-signs", "parent-or-guardian-signs", "unknown"],
+    "questionText": "Will the disabled person sign the application themselves, or will a parent or guardian sign on their behalf?",
+    "inferenceHints": "F-83039 signature line allows either the disabled person or their guardian to sign. §320.0848(1)(c)3.b explicitly authorizes the applicant or the applicant's parent or guardian.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "disabled-person-signs": "Disabled person signs themselves",
+      "parent-or-guardian-signs": "Parent or guardian signs on their behalf",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "placard_country_of_origin_for_visitor",
+    "label": "Visitor origin (US state vs. foreign country)",
+    "valueType": "enum",
+    "allowedValues": ["us-state", "foreign-country", "na-not-visitor", "unknown"],
+    "questionText": "Are you visiting from another US state or from a foreign country?",
+    "inferenceHints": "Out-of-country visitors may submit a copy of their home-country parking permit in lieu of an HSMV 83039 medical certification. Auto-set to 'na-not-visitor' when applicant_type is FL or organization.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["handicap-placard"],
+    "valueLabels": {
+      "us-state": "Visiting from another US state",
+      "foreign-country": "Visiting from a foreign country",
+      "na-not-visitor": "Doesn’t apply (not a visitor)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vessel_origin",
+    "label": "Origin of the vessel being registered",
+    "valueType": "enum",
+    "allowedValues": ["florida", "us-state", "foreign-country", "antique", "non-titled", "unknown"],
+    "questionText": "Where is the vessel from \u2014 Florida already, another US state, a foreign country, antique (30+ years), or a non-titled vessel?",
+    "inferenceHints": "Antique (30+ years) has a special registration. Non-titled vessels use HSMV 87244. OOS vessels require title surrender.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vessel-registration"],
+    "valueLabels": {
+      "florida": "Florida",
+      "us-state": "Another US state",
+      "foreign-country": "Foreign country",
+      "antique": "Antique vessel",
+      "non-titled": "Non-titled (small vessel)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vessel_length_feet",
+    "label": "Vessel length in feet",
+    "valueType": "enum",
+    "allowedValues": ["less-than-16", "16-to-25", "26-to-39", "40-plus", "unknown"],
+    "questionText": "What is the length of the vessel in feet?",
+    "inferenceHints": "Vessel length determines registration class and fee.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vessel-registration"],
+    "valueLabels": {
+      "less-than-16": "Less than 16 feet",
+      "16-to-25": "16 to 25 feet",
+      "26-to-39": "26 to 39 feet",
+      "40-plus": "40 feet or more",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vessel_propulsion_type",
+    "label": "Vessel propulsion type",
+    "valueType": "enum",
+    "allowedValues": ["motorized", "non-motorized-sail", "non-motorized-oar-paddle", "unknown"],
+    "questionText": "Is the vessel motorized, a sailboat, or purely oar/paddle-powered?",
+    "inferenceHints": "Non-motorized small vessels may be exempt from titling (not registration).",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "motorized": "Motorized",
+      "non-motorized-sail": "Non-motorized \u2014 sail",
+      "non-motorized-oar-paddle": "Non-motorized \u2014 oar / paddle",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vessel_intent",
+    "label": "What the customer wants to do with the vessel registration",
+    "valueType": "enum",
+    "allowedValues": [
+      "original-title-and-registration",
+      "registration-only",
+      "transfer-to-new-owner",
+      "duplicate-registration",
+      "unknown"
+    ],
+    "questionText": "Are you titling and registering the vessel for the first time, just renewing registration, transferring to a new owner, or getting a duplicate?",
+    "inferenceHints": "Registration-only flow doesn't need the title-application form.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vessel-registration"],
+    "valueLabels": {
+      "original-title-and-registration": "Title + register a new boat",
+      "registration-only": "Registration only",
+      "transfer-to-new-owner": "Transfer to a new owner",
+      "duplicate-registration": "Replace a lost registration",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_learners_license_active",
+    "label": "Whether the applicant currently holds an active FL learner's license",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Do you currently hold a valid Florida learner's license?",
+    "inferenceHints": "A valid learner's license is a prerequisite for the Class E Driving Skills Test.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["road-test"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "road_test_location",
+    "label": "Which St. Lucie County office is hosting the road test",
+    "valueType": "enum",
+    "allowedValues": ["walton", "tradition", "ft-pierce", "unknown"],
+    "questionText": "Which office will you be doing the road test at \u2014 Walton, Tradition, or Ft. Pierce?",
+    "inferenceHints": "Each office has its own parking/route guide. Walton and Ft. Pierce do most tests; Tradition has limited availability.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["road-test"],
+    "valueLabels": {
+      "walton": "Walton",
+      "tradition": "Tradition",
+      "ft-pierce": "Fort Pierce",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "property_tax_intent",
+    "label": "Which property-tax transaction applies",
+    "valueType": "enum",
+    "allowedValues": [
+      "payment-standard",
+      "installment-plan",
+      "partial-payment",
+      "change-of-address",
+      "exemption-inquiry",
+      "unknown"
+    ],
+    "questionText": "Are you making a standard payment, setting up installments, making a partial payment, updating your mailing address, or asking about exemptions?",
+    "inferenceHints": "Exemption inquiries go to the Property Appraiser, not the Tax Collector. Installment plan requires DR-534 by April 30.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["property-tax"],
+    "valueLabels": {
+      "payment-standard": "Pay the bill",
+      "installment-plan": "Installment plan",
+      "partial-payment": "Make a partial payment",
+      "change-of-address": "Change my address",
+      "exemption-inquiry": "Ask about an exemption",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_past_due",
+    "label": "Whether the property-tax payment is delinquent",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you paying current-year taxes or delinquent taxes?",
+    "inferenceHints": "Delinquent payments require guaranteed funds only (no personal checks). Interest accrues per \u00a7197.252.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["property-tax"],
+    "valueLabels": {
+      "yes": "Past due (delinquent)",
+      "no": "Current-year bill",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "is_property_owner",
+    "label": "Whether the customer is the property owner",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you the owner of the property?",
+    "inferenceHints": "Installment plan and partial payment applications require owner signature. Standard current-year payments can be made by anyone.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["property-tax"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "payment_method",
+    "label": "How the customer wants to pay",
+    "valueType": "enum",
+    "allowedValues": ["cash", "personal-check", "cashiers-check", "debit", "credit", "unknown"],
+    "questionText": "How will you be paying \u2014 cash, personal check, cashier's check, debit, or credit?",
+    "inferenceHints": "Personal checks NOT accepted for delinquent taxes.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "cash": "Cash",
+      "personal-check": "Personal check",
+      "cashiers-check": "Cashier's check / money order",
+      "debit": "Debit card",
+      "credit": "Credit card",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "mobile_home_purchase_source",
+    "label": "Where the mobile home was purchased",
+    "valueType": "enum",
+    "allowedValues": ["fl-dealer", "oos-dealer", "private-seller", "inheritance", "unknown"],
+    "questionText": "Did you purchase the mobile home from a Florida dealer, an out-of-state dealer, a private seller, or did you inherit it?",
+    "inferenceHints": "Florida dealers are legally required to process the title. OOS-dealer + private-seller flows require customer to submit HSMV 82040 at the tax collector.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["mobile-home-title"],
+    "valueLabels": {
+      "fl-dealer": "Florida dealer",
+      "oos-dealer": "Out-of-state dealer",
+      "private-seller": "Private seller",
+      "inheritance": "Inheritance",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "owns_land_under_mobile_home",
+    "label": "Whether the customer owns the land the mobile home sits on",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Do you also own the land the mobile home sits on?",
+    "inferenceHints": "Yes \u2192 eligible for RP decal (permanent, $5.10) AND title retirement. No \u2192 standard annual mobile-home decal applies.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["mobile-home-title", "mobile-home-retire"],
+    "valueLabels": {
+      "yes": "Yes \u2014 own the land",
+      "no": "No \u2014 don't own the land",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "transferring_existing_decal",
+    "label": "Whether the customer is transferring a decal from a previously owned mobile home",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you transferring a decal from a mobile home you previously owned?",
+    "inferenceHints": "Decal transfer avoids a new decal fee; customer must bring the current registration and decal number.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["mobile-home-title"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_is_retired_state",
+    "label": "Current status of the mobile home title with respect to retirement",
+    "valueType": "enum",
+    "allowedValues": ["not-retired", "already-retired", "unknown"],
+    "questionText": "Has the mobile home's title already been retired to real property?",
+    "inferenceHints": "Already-retired means future transfers use a deed, not an HSMV title application \u2014 no action at the tax collector.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["mobile-home-retire"],
+    "valueLabels": {
+      "not-retired": "Not retired",
+      "already-retired": "Already retired",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "clerk_recording_completed",
+    "label": "Whether the customer has already filed the retirement paperwork with the Clerk of the Circuit Court",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Have you already filed the title-retirement paperwork with the St. Lucie County Clerk of the Circuit Court?",
+    "inferenceHints": "Clerk filing must happen BEFORE tax collector filing. Clerk has their own fees.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["mobile-home-retire"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ccw_intent",
+    "label": "Whether the customer is applying for a new CCW license or renewing an existing one",
+    "valueType": "enum",
+    "allowedValues": ["new-application", "renewal", "unknown"],
+    "questionText": "Is this a new concealed-weapon license or a renewal of an existing one?",
+    "inferenceHints": "Renewals do not require new firearms-training documentation; new applications do.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["concealed-weapon"],
+    "valueLabels": {
+      "new-application": "New application",
+      "renewal": "Renewal",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ccw_applicant_age_bracket",
+    "label": "Applicant's age bracket for CCW eligibility",
+    "valueType": "enum",
+    "allowedValues": [
+      "under-18",
+      "18-to-20-not-military",
+      "18-to-20-military-or-veteran",
+      "21-plus",
+      "unknown"
+    ],
+    "questionText": "How old is the applicant?",
+    "inferenceHints": "Florida CCW minimum is age 21. Exception: servicemembers (\u00a7250.01) and honorably-discharged veterans qualify at 18+. Under 18 never qualifies.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["concealed-weapon"],
+    "valueLabels": {
+      "under-18": "Under 18",
+      "18-to-20-not-military": "18-20, not military",
+      "18-to-20-military-or-veteran": "18-20, military or veteran",
+      "21-plus": "21 or older",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ccw_has_training_document",
+    "label": "Whether the applicant has a firearms-training certificate",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-military-uses-dd214", "unknown"],
+    "questionText": "Do you have a firearms-training certificate (NRA, hunter safety, law-enforcement course, or state-certified instructor)?",
+    "inferenceHints": "Active-duty military and honorably-discharged veterans can substitute military orders or DD-214 for a training certificate.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["concealed-weapon"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-military-uses-dd214": "I'll use my DD-214",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "ccw_has_disqualifying_history",
+    "label": "Whether the applicant has any disqualifying condition from \u00a7790.06",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unsure", "unknown"],
+    "questionText": "Do you have any felony convictions, domestic-violence injunctions, two or more DUIs within the last 3 years, mental-health adjudications, dishonorable discharge, or controlled-substance issues that might affect eligibility?",
+    "inferenceHints": "Any yes or unsure should route the customer to review the Application Instructions PDF and contact FDACS before scheduling. Rights-restored felons may still qualify.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["concealed-weapon"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unsure": "Maybe \u2014 I'd need to check",
+      "unknown": "I haven't thought about it"
+    }
+  },
+  {
+    "factKey": "fwc_license_category",
+    "label": "Which FWC recreational-license category the customer needs",
+    "valueType": "enum",
+    "allowedValues": ["hunting", "saltwater-fishing", "freshwater-fishing", "combo", "unknown"],
+    "questionText": "Which license do you need \u2014 hunting, saltwater fishing, freshwater fishing, or a combo?",
+    "inferenceHints": "Combos (Sportsman, Gold Sportsman) bundle hunting + fishing + common permits.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["hunting-fishing"],
+    "valueLabels": {
+      "hunting": "Hunting",
+      "saltwater-fishing": "Saltwater fishing",
+      "freshwater-fishing": "Freshwater fishing",
+      "combo": "Combo (multiple)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "fwc_applicant_residency",
+    "label": "Whether the applicant is a Florida resident",
+    "valueType": "enum",
+    "allowedValues": ["resident", "non-resident", "unknown"],
+    "questionText": "Are you a Florida resident?",
+    "inferenceHints": "Residents pay lower fees, qualify for lifetime licenses, and access certain exemptions. Non-residents buy visitor-duration licenses.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["hunting-fishing"],
+    "valueLabels": {
+      "resident": "Florida resident",
+      "non-resident": "Non-resident",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "fwc_age_bracket",
+    "label": "Applicant's age bracket for FWC license purposes",
+    "valueType": "enum",
+    "allowedValues": ["under-16", "16-to-64", "65-plus", "unknown"],
+    "questionText": "How old is the applicant?",
+    "inferenceHints": "Under-16 and 65+ residents are exempt from license fees per \u00a7379.353.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "under-16": "Under 16",
+      "16-to-64": "16 to 64",
+      "65-plus": "65 or older",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "fwc_license_duration",
+    "label": "How long the customer wants the license to last",
+    "valueType": "enum",
+    "allowedValues": ["annual", "5-year", "lifetime", "short-term-visitor", "unknown"],
+    "questionText": "How long should the license last \u2014 annual, 5-year, or lifetime? (Non-residents can also buy short-term 3-day or 7-day.)",
+    "inferenceHints": "Lifetime licenses require Florida residency.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["hunting-fishing"],
+    "valueLabels": {
+      "annual": "Annual",
+      "5-year": "5-year",
+      "lifetime": "Lifetime",
+      "short-term-visitor": "Short-term visitor",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "fwc_is_military_eligible",
+    "label": "Whether the applicant qualifies for the Military Gold Sportsman's License",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "unknown"],
+    "questionText": "Are you a Florida resident currently on active-duty US military?",
+    "inferenceHints": "Active-duty Florida-resident servicemembers qualify for the reduced-rate Military Gold Sportsman's license.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["hunting-fishing"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "fwc_exemption_claim",
+    "label": "Which \u00a7379.353 exemption category applies (if any)",
+    "valueType": "enum",
+    "allowedValues": [
+      "none",
+      "youth-under-16",
+      "senior-65-plus",
+      "disabled-resident",
+      "armed-forces-home-on-leave",
+      "homestead-county",
+      "unknown"
+    ],
+    "questionText": "Do you qualify for a license-fee exemption (senior 65+, under 16, disabled FL resident, armed forces home on leave, hunting/fishing on your homestead)?",
+    "inferenceHints": "Exemptions waive the fee entirely; customer still needs to bring the appropriate proof (age, DL, disability cert, military orders).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["hunting-fishing"],
+    "valueLabels": {
+      "none": "None",
+      "youth-under-16": "Youth under 16",
+      "senior-65-plus": "Senior 65+",
+      "disabled-resident": "Disabled resident",
+      "armed-forces-home-on-leave": "Armed Forces home on leave",
+      "homestead-county": "Homestead \u2014 same county",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_intent",
+    "label": "What the customer wants to do with their Business Tax Receipt",
+    "valueType": "enum",
+    "allowedValues": ["new-application", "renewal", "modify", "close", "unknown"],
+    "questionText": "Are you applying for a new Business Tax Receipt, renewing an existing one, modifying it, or closing your business?",
+    "inferenceHints": "New and renewal both involve payment; modify routes to Tax Specialist email; close uses the Business Tax Closure form.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "new-application": "New business \u2014 apply",
+      "renewal": "Renew existing receipt",
+      "modify": "Modify existing receipt",
+      "close": "Close the business",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_jurisdiction",
+    "label": "Jurisdiction where the business is located",
+    "valueType": "enum",
+    "allowedValues": [
+      "unincorporated",
+      "port-st-lucie",
+      "fort-pierce",
+      "st-lucie-village",
+      "unknown"
+    ],
+    "questionText": "Which jurisdiction is your business located in \u2014 unincorporated St. Lucie County, City of Port St. Lucie, City of Fort Pierce, or St. Lucie Village?",
+    "inferenceHints": "City-limits businesses need BOTH a city BTR and a county BTR. Unincorporated businesses only need the county BTR but must complete county zoning first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "unincorporated": "Unincorporated St. Lucie County",
+      "port-st-lucie": "City of Port St. Lucie",
+      "fort-pierce": "City of Fort Pierce",
+      "st-lucie-village": "Village of St. Lucie",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_is_fictitious_name",
+    "label": "Whether the business uses a name other than the owner's legal name",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-own-legal-name", "unknown"],
+    "questionText": "Is your business using a name other than your own legal first and last name (a DBA, fictitious name, or business entity name)?",
+    "inferenceHints": "Fictitious names require SunBiz registration (Florida Division of Corporations) before the BTR can issue.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "yes": "Yes \u2014 using a fictitious name",
+      "no-own-legal-name": "No \u2014 using my own legal name",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_business_type_category",
+    "label": "Broad category of the business (drives special pre-requirements)",
+    "valueType": "enum",
+    "allowedValues": [
+      "general",
+      "regulated-profession",
+      "pest-control",
+      "lawn-landscape",
+      "unknown"
+    ],
+    "questionText": "What kind of business is this \u2014 a general business, a state-regulated profession, a pest-control business, or a lawn/landscape business using fertilizers or pesticides?",
+    "inferenceHints": "Regulated-profession businesses need state professional license first. Pest-control and lawn/landscape need FDACS certification.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "general": "General business",
+      "regulated-profession": "Regulated profession",
+      "pest-control": "Pest control",
+      "lawn-landscape": "Lawn / landscape",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_has_state_license",
+    "label": "Whether a state professional license is required and already held",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-required", "na-not-regulated", "unknown"],
+    "questionText": "If your occupation is regulated by a state agency, do you already hold the state-issued license?",
+    "inferenceHints": "State license must be obtained BEFORE the BTR application.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no-required": "No \u2014 but it's required",
+      "na-not-regulated": "N/A \u2014 not regulated",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_has_zoning_approval",
+    "label": "Whether unincorporated-area zoning approval has been completed",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-unincorporated", "unknown"],
+    "questionText": "Have you completed the St. Lucie County Zoning process (required only for unincorporated-area businesses)?",
+    "inferenceHints": "Unincorporated-area businesses must complete zoning BEFORE applying for BTR. City-limits businesses don't use this process.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-not-unincorporated": "N/A \u2014 not in unincorporated county",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_needs_fire_inspection",
+    "label": "Whether the business requires a county fire inspection",
+    "valueType": "enum",
+    "allowedValues": [
+      "yes-commercial",
+      "no-home-based",
+      "already-completed",
+      "na-not-unincorporated",
+      "unknown"
+    ],
+    "questionText": "Is your business located at a commercial address in unincorporated St. Lucie County (commercial locations need a Fire Inspection before BTR)?",
+    "inferenceHints": "Home-based businesses in unincorporated areas don't need the fire inspection. Commercial locations must schedule with SLC Fire District (772-621-3377).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "yes-commercial": "Yes \u2014 commercial space",
+      "no-home-based": "No \u2014 home-based",
+      "already-completed": "Already completed",
+      "na-not-unincorporated": "N/A \u2014 not in unincorporated county",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "btr_exemption_claim",
+    "label": "Which BTR exemption applies (per Florida Statutes)",
+    "valueType": "enum",
+    "allowedValues": [
+      "none",
+      "nonprofit-501c3",
+      "religious",
+      "agriculture",
+      "veteran-discount",
+      "unknown"
+    ],
+    "questionText": "Do you qualify for a BTR exemption (nonprofit 501(c)(3), religious organization, agricultural/farm operation, or veteran fee waiver)?",
+    "inferenceHints": "Statutory exemptions: \u00a7205.192 nonprofit, \u00a7205.191 religious, \u00a7205.064 agricultural. Veterans have a separate fee-waiver program (not a full exemption).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["business-tax-receipt"],
+    "valueLabels": {
+      "none": "None",
+      "nonprofit-501c3": "Nonprofit 501(c)(3)",
+      "religious": "Religious",
+      "agriculture": "Agriculture",
+      "veteran-discount": "Veteran discount",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_intent",
+    "label": "What the customer wants to do with their Tourist Development Tax account",
+    "valueType": "enum",
+    "allowedValues": ["new-registration", "file-returns", "deactivate", "unknown"],
+    "questionText": "Are you setting up a new TDT account, filing routine returns, or deactivating your rental account?",
+    "inferenceHints": "Routine filing is online-only; deactivation uses the Tourist-Inactive form.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "new-registration": "New rental \u2014 register",
+      "file-returns": "File returns",
+      "deactivate": "Deactivate the property",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_property_rental_duration",
+    "label": "Whether the property is rented for periods of 6 months or less",
+    "valueType": "enum",
+    "allowedValues": ["under-6-months", "over-6-months", "mixed", "unknown"],
+    "questionText": "Is your property rented for periods of 6 months or less, or longer?",
+    "inferenceHints": "TDT applies ONLY to rentals of 6 months or less. Longer-term rentals are not subject to the 5% tourist tax (though state sales tax may still apply).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "under-6-months": "Under 6 months at a time",
+      "over-6-months": "Over 6 months at a time",
+      "mixed": "A mix of both",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_has_fdor_sales_tax_id",
+    "label": "Whether the customer has a Florida Department of Revenue sales-tax ID",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-needed", "na-exempt", "unknown"],
+    "questionText": "Do you already have a Florida Department of Revenue sales-tax identification number?",
+    "inferenceHints": "Most TDT registrants need an FDOR sales-tax ID first. Obtain one at floridarevenue.com or by calling 772-429-2900.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no-needed": "No \u2014 but I need one",
+      "na-exempt": "N/A \u2014 exempt",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_has_property_manager",
+    "label": "Whether a property management company files on the owner's behalf",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-owner-self-manages", "unknown"],
+    "questionText": "Do you have a property management company that files returns for you?",
+    "inferenceHints": "If yes, complete the Tourist Owner-Agent Agreement authorizing the manager to file.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no-owner-self-manages": "No \u2014 I manage it myself",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_touristexpress_account_status",
+    "label": "Whether the customer already has a TouristExpress account",
+    "valueType": "enum",
+    "allowedValues": ["has-account", "no-account", "unknown"],
+    "questionText": "Do you already have a TouristExpress account on stlucie.county-taxes.com/tourist?",
+    "inferenceHints": "New registrations flow through TouristExpress. Customers without an account create one first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "has-account": "Already have one",
+      "no-account": "Don't have one yet",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dealer_dropoff_type",
+    "label": "What kind of dealer paperwork is being dropped off",
+    "valueType": "enum",
+    "allowedValues": [
+      "title-bundle",
+      "reassignment",
+      "temp-plate-stock",
+      "towing-destruction",
+      "out-of-business",
+      "unknown"
+    ],
+    "questionText": "What are you dropping off \u2014 a title bundle, reassignment paperwork, temporary-plate stock, towing/storage destruction forms, or closing out your dealership?",
+    "inferenceHints": "Each category uses different HSMV forms. Title bundle = routine. Out-of-business = cancels the dealer license.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dealer-title-dropoff"],
+    "valueLabels": {
+      "title-bundle": "Title bundle dropoff",
+      "reassignment": "Reassignment",
+      "temp-plate-stock": "Temp-plate stock",
+      "towing-destruction": "Towing / destruction",
+      "out-of-business": "Closing the dealership",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dealer_license_active",
+    "label": "Whether the dealer's FLHSMV license is currently active",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-expired", "unknown"],
+    "questionText": "Is your Florida motor-vehicle dealer license currently active?",
+    "inferenceHints": "Expired licenses cannot submit paperwork at the tax collector; customer must renew with FLHSMV Field Operations first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dealer-title-dropoff"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no-expired": "No / expired",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dealer_has_odometer_disclosure",
+    "label": "Whether odometer disclosure is captured on the title or needs a separate form",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-exempt", "unknown"],
+    "questionText": "Is the odometer disclosure already captured on the title, or do you need to include HSMV 82993?",
+    "inferenceHints": "\u00a7319.14 requires disclosure at every transfer for vehicles model-year 2011 or newer. Pre-2011 vehicles are exempt.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dealer-title-dropoff"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-exempt": "Exempt",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dealer_form_type",
+    "label": "Which dealer form is being used",
+    "valueType": "enum",
+    "allowedValues": [
+      "standard-title",
+      "reassignment-82091",
+      "temp-plate-83090",
+      "towing-destruction-82012",
+      "relinquish-license-86060",
+      "unknown"
+    ],
+    "questionText": "Which HSMV form is this paperwork using \u2014 standard title, 82091 reassignment, 83090 temp plate, 82012 towing destruction, or 86060 relinquish license?",
+    "inferenceHints": "Form type determines which additional checklists/attachments are required.",
+    "scope": "transaction-specific",
+    "relevantTransactions": [],
+    "valueLabels": {
+      "standard-title": "Standard title",
+      "reassignment-82091": "Reassignment (82091)",
+      "temp-plate-83090": "Temp plate (83090)",
+      "towing-destruction-82012": "Towing / destruction (82012)",
+      "relinquish-license-86060": "Relinquish license (86060)",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "sanction_type",
+    "label": "Category of the driver-license sanction",
+    "valueType": "enum",
+    "allowedValues": [
+      "traffic-citation-unpaid",
+      "failure-to-appear",
+      "failure-to-complete-driver-school",
+      "child-support",
+      "points",
+      "financial-responsibility",
+      "dui",
+      "habitual-traffic-offender",
+      "drug-offense-chapter-893",
+      "medical-vision",
+      "non-dui-death-or-serious-injury",
+      "other",
+      "unknown"
+    ],
+    "questionText": "What type of sanction is on your driver license \u2014 unpaid citation, failure to appear/comply, court-ordered school, child-support, points, financial-responsibility (insurance), DUI, habitual traffic offender, drug-offense, medical/vision, or non-DUI serious-injury?",
+    "inferenceHints": "Each sanction type has a distinct clearance path. Some (failure-to-appear, failure-to-comply, child-support) are NOT eligible for hardship licensing.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "traffic-citation-unpaid": "Unpaid traffic ticket",
+      "failure-to-appear": "Failure to appear in court",
+      "failure-to-complete-driver-school": "Didn't finish driving school",
+      "child-support": "Child support",
+      "points": "Too many points",
+      "financial-responsibility": "Financial responsibility / no insurance",
+      "dui": "DUI",
+      "habitual-traffic-offender": "Habitual traffic offender",
+      "drug-offense-chapter-893": "Drug offense",
+      "medical-vision": "Medical or vision issue",
+      "non-dui-death-or-serious-injury": "Crash with serious injury or death (non-DUI)",
+      "other": "Other / not sure",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "sanction_status",
+    "label": "Current state of the sanction",
+    "valueType": "enum",
+    "allowedValues": [
+      "current-suspension",
+      "current-revocation",
+      "expired-but-not-reinstated",
+      "unknown"
+    ],
+    "questionText": "Is your license currently under an active suspension/revocation, or has the sanction period expired (but the license is still not reinstated)?",
+    "inferenceHints": "Expired-but-not-reinstated customers often just need to pay the reinstatement fee. Active suspensions may need course completions or court clearance first.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "current-suspension": "Currently suspended",
+      "current-revocation": "Currently revoked",
+      "expired-but-not-reinstated": "Expired but not reinstated",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_cleared_underlying_issue",
+    "label": "Whether the underlying cause of the sanction has been cleared",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no-still-owed", "partial", "unknown"],
+    "questionText": "Have you cleared the underlying issue that caused the suspension (paid the citation, satisfied the court, paid child-support, etc.)?",
+    "inferenceHints": "Court / DOR clearance typically updates FLHSMV electronically. No reinstatement fee can be accepted until the underlying issue is resolved.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "yes": "Yes \u2014 already cleared",
+      "no-still-owed": "No \u2014 still pending",
+      "partial": "Partially cleared",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_completed_required_course",
+    "label": "Whether the required driver-improvement or DUI-program course has been completed",
+    "valueType": "enum",
+    "allowedValues": [
+      "yes-adi-or-traffic-school",
+      "yes-licensed-dui-program",
+      "no-not-yet",
+      "na-not-required",
+      "unknown"
+    ],
+    "questionText": "Have you completed the required course \u2014 Advanced Driver Improvement (ADI) or Licensed DUI Program?",
+    "inferenceHints": "ADI is required for HTO, non-DUI serious-injury, and DUI hardship. Licensed DUI Program is required for DUI and Chapter 893 drug offenses.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "yes-adi-or-traffic-school": "Yes \u2014 ADI or traffic school",
+      "yes-licensed-dui-program": "Yes \u2014 licensed DUI program",
+      "no-not-yet": "Not yet",
+      "na-not-required": "Course isn't required for my situation",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_sr22_insurance",
+    "label": "Whether SR-22 insurance is on file with FLHSMV (for financial-responsibility sanctions)",
+    "valueType": "enum",
+    "allowedValues": ["yes-on-file", "no", "na-not-required", "unknown"],
+    "questionText": "Is an SR-22 insurance filing on record with FLHSMV (required for financial-responsibility / insurance-related suspensions)?",
+    "inferenceHints": "SR-22 is filed electronically by your insurance company directly with FLHSMV; the customer doesn't hand-carry a document to the tax collector.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "yes-on-file": "Yes \u2014 on file",
+      "no": "No",
+      "na-not-required": "N/A \u2014 not required",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "has_dui_iid_requirement",
+    "label": "Whether an Ignition Interlock Device is required as part of a DUI sanction",
+    "valueType": "enum",
+    "allowedValues": [
+      "yes-iid-active",
+      "yes-iid-pending",
+      "no-not-dui",
+      "na-not-required",
+      "unknown"
+    ],
+    "questionText": "If this is a DUI sanction, is an Ignition Interlock Device (IID) required as part of reinstatement (per \u00a7322.2715)?",
+    "inferenceHints": "IID installation must be performed by an FLHSMV-contracted provider and proof presented at reinstatement.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "yes-iid-active": "Yes \u2014 IID active",
+      "yes-iid-pending": "Yes \u2014 IID pending install",
+      "no-not-dui": "N/A \u2014 not DUI",
+      "na-not-required": "N/A \u2014 not required",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "wants_hardship_license",
+    "label": "Whether the customer is seeking a hardship license (restricted to employment / business purposes)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-eligible", "unknown"],
+    "questionText": "Are you applying for a hardship license (restricted to driving for employment or business purposes only), or full reinstatement?",
+    "inferenceHints": "Hardship applications go through the Administrative Reviews Office, not the tax collector directly. Failure-to-appear, failure-to-comply, and child-support suspensions are NOT eligible for hardship.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dl-sanctions-lift"],
+    "valueLabels": {
+      "yes": "Yes",
+      "no": "No",
+      "na-not-eligible": "N/A \u2014 not eligible",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tpp_intent",
+    "label": "What the customer wants to do regarding Tangible Personal Property tax",
+    "valueType": "enum",
+    "allowedValues": ["pay-bill", "file-return", "inquiry-exemption", "unknown"],
+    "questionText": "Are you trying to pay an existing Tangible Personal Property tax bill, file your TPP return for the year, or asking about the $25,000 exemption?",
+    "inferenceHints": "Paying a bill = Tax Collector. Filing the return OR applying for exemption = Property Appraiser (paslc.gov). The $25,000 Amendment 1 exemption is claimed via the filed return by April 1 each year.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tangible-personal-property-tax"],
+    "valueLabels": {
+      "pay-bill": "Pay an existing TPP bill",
+      "file-return": "File the annual return (DR-405)",
+      "inquiry-exemption": "Ask about exemptions",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tpp_is_past_due",
+    "label": "Whether the TPP tax bill is past due (delinquent)",
+    "valueType": "enum",
+    "allowedValues": ["yes", "no", "na-not-paying", "unknown"],
+    "questionText": "Is the TPP bill current-year or is it past due (delinquent)?",
+    "inferenceHints": "Delinquent TPP must be paid with guaranteed funds (cashier's check, cash, debit, credit). Personal checks are rejected on past-due. Customer 'yes' = past due, 'no' = current-year.",
+    "valueLabels": {
+      "yes": "Past due (delinquent)",
+      "no": "Current-year bill",
+      "na-not-paying": "Just looking, not paying yet",
+      "unknown": "Not sure"
+    },
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tangible-personal-property-tax"]
+  },
+  {
+    "factKey": "vehicle_class",
+    "label": "Vehicle class",
+    "valueType": "enum",
+    "allowedValues": [
+      "passenger-car",
+      "motorcycle",
+      "trailer",
+      "low-speed-vehicle",
+      "vessel",
+      "mobile-home",
+      "unknown"
+    ],
+    "questionText": "What kind of vehicle is this — a regular passenger car, motorcycle, trailer, low-speed vehicle, vessel, or mobile home?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-registration", "new-vehicle-title", "vehicle-title-transfer"],
+    "valueLabels": {
+      "passenger-car": "Passenger car or truck",
+      "motorcycle": "Motorcycle",
+      "trailer": "Trailer (utility, motorcycle, or boat trailer)",
+      "low-speed-vehicle": "Low-speed vehicle (LSV / golf cart with VIN)",
+      "vessel": "Boat / vessel",
+      "mobile-home": "Mobile home",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "vehicle_construction_type",
+    "label": "How the vehicle was constructed",
+    "valueType": "enum",
+    "allowedValues": ["manufactured", "homemade", "kit-assembled", "rebuilt-salvage", "unknown"],
+    "questionText": "Was this vehicle made by a manufacturer, built from scratch, assembled from a kit, or rebuilt from salvage?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["new-vehicle-title", "vehicle-registration"],
+    "valueLabels": {
+      "manufactured": "Made by a manufacturer (regular dealer-bought vehicle)",
+      "homemade": "I built it from scratch",
+      "kit-assembled": "Built from a kit",
+      "rebuilt-salvage": "Rebuilt from salvage / parts",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "tdt_channel",
+    "label": "Tourist Development Tax filing channel",
+    "valueType": "enum",
+    "allowedValues": ["online-portal", "in-office", "by-mail", "unknown"],
+    "questionText": "How are you filing the Tourist Development Tax — online, in person, or by mail?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["tourist-development-tax"],
+    "valueLabels": {
+      "online-portal": "Online (TouristExpress portal)",
+      "in-office": "In person at the Tax Collector office",
+      "by-mail": "By mail",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "dealer_dropoff_entity_type",
+    "label": "Type of entity acquiring title via dealer drop-off",
+    "valueType": "enum",
+    "allowedValues": [
+      "fl-registered-business",
+      "out-of-state-business",
+      "individual",
+      "trust",
+      "unknown"
+    ],
+    "questionText": "Is the title being transferred to a Florida-registered business, an out-of-state business, an individual, or a trust?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["dealer-title-dropoff"]
+  },
+  {
+    "factKey": "trailer_weight_class",
+    "label": "Trailer net weight",
+    "valueType": "enum",
+    "allowedValues": ["under-2000", "2000-or-more", "unknown"],
+    "questionText": "About how much does the trailer weigh empty? Florida treats trailers differently above and below 2,000 lb.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["trailer-registration"],
+    "valueLabels": {
+      "under-2000": "Under 2,000 lb (most utility, motorcycle, and small cargo trailers)",
+      "2000-or-more": "2,000 lb or more (large cargo, car-hauler, equipment trailers)",
+      "unknown": "Not sure — I'll bring it to the certified scale before the visit"
+    },
+    "inferenceHints": "Net (empty) weight, not loaded weight. The 2,000-lb cutoff governs whether the trailer must be titled (≥2,000 lb) or is registration-only (<2,000 lb). When unknown, treat as <2,000 lb for the doc list and add a note that the public-scale slip will determine the final classification."
+  },
+  {
+    "factKey": "trailer_construction_type",
+    "label": "How the trailer was built or obtained",
+    "valueType": "enum",
+    "allowedValues": ["homemade", "manufactured", "unknown"],
+    "questionText": "Did you build this trailer yourself, or was it manufactured by a company?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["trailer-registration"],
+    "valueLabels": {
+      "homemade": "I built it myself (welded / assembled from parts)",
+      "manufactured": "It was made by a manufacturer (has a tag / VIN from a company)",
+      "unknown": "Not sure"
+    },
+    "inferenceHints": "If the customer says DIY, homemade, shop-built, scratch-built, kit-built — record homemade. If they describe a brand, model, or factory tag — manufactured."
+  },
+  {
+    "factKey": "trailer_acquisition_source",
+    "label": "How the trailer came to the customer",
+    "valueType": "enum",
+    "allowedValues": [
+      "newly-built",
+      "private-purchase",
+      "dealer-purchase",
+      "inherited",
+      "out-of-state-transfer",
+      "unknown"
+    ],
+    "questionText": "How did you get the trailer?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["trailer-registration"],
+    "valueLabels": {
+      "newly-built": "I just built it myself",
+      "private-purchase": "Bought it used from a private seller",
+      "dealer-purchase": "Bought it from a dealer",
+      "inherited": "Inherited from a family member who passed",
+      "out-of-state-transfer": "Already registered in another state, moving to Florida",
+      "unknown": "Not sure"
+    },
+    "inferenceHints": "newly-built and homemade go together. Inherited typically pairs with manufactured. private-purchase implies an existing prior title (if ≥2,000 lb). out-of-state-transfer means the trailer has registration or title in another state being surrendered to FL."
+  },
+  {
+    "factKey": "trailer_has_parts_receipts",
+    "label": "Whether the customer can produce material receipts (homemade only)",
+    "valueType": "enum",
+    "allowedValues": ["yes-complete", "yes-partial", "no", "unknown"],
+    "questionText": "For a homemade trailer, Florida calculates 6% sales tax on the cost of materials. Do you have the receipts for the parts you bought?",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["trailer-registration"],
+    "valueLabels": {
+      "yes-complete": "Yes, I have all my receipts",
+      "yes-partial": "I have some receipts but not all",
+      "no": "I don't have receipts",
+      "unknown": "Not sure"
+    },
+    "inferenceHints": "Only relevant for homemade trailers — sales tax is calculated on material cost. Without receipts, the office may estimate from market value or refuse processing."
+  },
+  {
+    "factKey": "transfer_reason",
+    "label": "Why the vehicle is being titled into a new owner's name",
+    "valueType": "enum",
+    "allowedValues": ["standard-sale-or-gift", "inheritance-deceased-owner", "unknown"],
+    "questionText": "What's the reason for this title transfer — did you buy or receive the vehicle from a living owner, or is this because the owner on the title has passed away?",
+    "inferenceHints": "If the customer mentions a death, inheritance, estate, probate, or that the owner 'passed away'/'died', record inheritance-deceased-owner. A normal purchase, gift, or family transfer between living people is standard-sale-or-gift. This is asked EARLY because an inheritance changes who may legally take title (and must be established before logistics).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "standard-sale-or-gift": "Bought or received from a living owner",
+      "inheritance-deceased-owner": "The owner on the title has passed away",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "inheritance_additional_owners",
+    "label": "Whether anyone other than the deceased is named as an owner on the title",
+    "valueType": "enum",
+    "allowedValues": ["surviving-co-owner", "sole-owner-deceased", "na-not-inheritance", "unknown"],
+    "questionText": "How does the title read — was the deceased the only owner listed, or is there another person named as an owner on the title (for example a spouse)?",
+    "inferenceHints": "SME-named question (tax423: 'at no point was I asked if there were any additional owners on the title'). surviving-co-owner = another living person is already on the title (often a spouse joined by 'or', so the vehicle usually passes to them directly). sole-owner-deceased = the deceased was the only owner, so the estate determines the heir. na-not-inheritance is an auto-resolved sentinel for non-inheritance transfers. unknown means heirship is not yet established — the transfer is hard-blocked until it is. Ask this EARLY, before title logistics.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "surviving-co-owner": "Another owner (e.g. spouse) is also on the title",
+      "sole-owner-deceased": "The deceased was the only owner",
+      "na-not-inheritance": "N/A — not an inheritance",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "inheritance_has_will",
+    "label": "Whether the deceased owner's estate has a will or probate",
+    "valueType": "enum",
+    "allowedValues": [
+      "will-or-probate",
+      "no-will-no-probate",
+      "na-surviving-co-owner",
+      "na-not-inheritance",
+      "unknown"
+    ],
+    "questionText": "Is there a will, or has the estate gone through (or started) probate?",
+    "inferenceHints": "SME-named question (tax423: 'also was not asked if there is a will'). will-or-probate = a will exists or the estate is/was in probate (the named representative/heir can act). no-will-no-probate = no will and no probate yet, so the lawful heir is not yet legally established — hard-blocked until resolved. na-surviving-co-owner is auto-resolved when a surviving co-owner is already on the title (the vehicle passes to them, so the will question is moot). na-not-inheritance is the sentinel for non-inheritance transfers.",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "will-or-probate": "Yes — there is a will or probate",
+      "no-will-no-probate": "No will and no probate",
+      "na-surviving-co-owner": "N/A — a surviving owner is on the title",
+      "na-not-inheritance": "N/A — not an inheritance",
+      "unknown": "Not sure"
+    }
+  },
+  {
+    "factKey": "title_possession",
+    "label": "Whether the customer actually has the title and in what form",
+    "valueType": "enum",
+    "allowedValues": ["paper-in-hand", "electronic-held", "lost-or-none", "unknown"],
+    "questionText": "Do you have the vehicle's title in hand? Is it a paper title you physically have, an electronic title held by the state, or do you not have it (lost or never received)?",
+    "inferenceHints": "Asked EARLY so the bot doesn't loop on paper-title-condition questions the customer can't answer (sessions 19d716d3 and ae0b2879, where the customer said up-front they didn't have the title / it was electronic, and the bot re-asked title-condition and paper-type repeatedly). paper-in-hand = normal flow. electronic-held = FLHSMV holds it electronically; no paper to inspect or bring (converted as part of the transfer). lost-or-none = customer lost it or never received it; a duplicate title (HSMV 82101) is needed before/with the transfer. When electronic-held or lost-or-none, the title_condition and title_is_original_paper questions are auto-resolved to na-no-title (no physical title to inspect).",
+    "scope": "transaction-specific",
+    "relevantTransactions": ["vehicle-title-transfer"],
+    "valueLabels": {
+      "paper-in-hand": "Yes — paper title in hand",
+      "electronic-held": "It's electronic (held by the state)",
+      "lost-or-none": "No — lost it or never had it",
+      "unknown": "Not sure"
+    }
+  }
+]

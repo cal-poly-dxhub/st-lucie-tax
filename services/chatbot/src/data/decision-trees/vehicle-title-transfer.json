@@ -1,0 +1,267 @@
+{
+  "txnTypeId": "vehicle-title-transfer",
+  "baseItems": [
+    "hsmv-82040",
+    "original-vehicle-title",
+    "photo-id-all-applicants",
+    "all-applicants-present",
+    "fl-insurance-proof"
+  ],
+  "factsRequired": [
+    "transfer_reason",
+    "inheritance_additional_owners",
+    "inheritance_has_will",
+    "purchaser_age_status",
+    "title_possession",
+    "title_condition",
+    "title_is_oos",
+    "title_is_original_paper",
+    "vehicle_class",
+    "vehicle_origin",
+    "has_lien_or_lease",
+    "ownership_entity_type",
+    "ownership_duration",
+    "sales_tax_paid_out_of_state",
+    "has_odometer_disclosure",
+    "vehicle_model_year_range",
+    "has_fl_insurance",
+    "vehicle_physically_present",
+    "signing_via_poa",
+    "is_military_active_duty"
+  ],
+  "branches": [
+    {
+      "when": {
+        "transfer_reason": "inheritance-deceased-owner",
+        "inheritance_additional_owners": "unknown"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "heirship-not-established",
+        "customerMessage": "Because the owner on the title has passed away, we first need to know who is legally entitled to the vehicle before it can be transferred. That starts with how the title is held — whether the deceased was the only owner, or whether there's a surviving co-owner (for example a spouse) already on the title.",
+        "nextSteps": "Check how the names appear on the title. If a surviving co-owner is listed (joined by \"or\"), the vehicle usually passes to them directly. If the deceased was the sole owner, ownership is determined by the estate — whether there is a will/probate or other heirs. Bring the certified death certificate and the title (or be ready to request a duplicate if you don't have it), and we'll confirm the exact estate documents for your situation.",
+        "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+      },
+      "note": "BLOCKED: inheritance/deceased-owner transfer where heirship is not yet established (additional-owners question unanswered). Heir determination must precede any title logistics. Per SME (tax423/tax424): establish additional owners on the title + whether there is a will BEFORE logistics."
+    },
+    {
+      "when": { "transfer_reason": "inheritance-deceased-owner" },
+      "addItems": ["death-certificate-inheritance"],
+      "note": "Inheritance/deceased-owner transfer: a certified death certificate of the owner named on the title is required to establish that the prior owner is deceased (SME-confirmed: tax423 deceased-spouse scenario). The full estate-document set beyond the death certificate (will, Letters of Administration, FLHSMV decedent affidavit) depends on the surviving-owner / will / probate path and is confirmed at the counter — see vehicle-title-transfer.review.md for the SME checklist still to be finalized."
+    },
+    {
+      "when": {
+        "transfer_reason": "inheritance-deceased-owner",
+        "inheritance_additional_owners": "sole-owner-deceased",
+        "inheritance_has_will": "no-will-no-probate"
+      },
+      "blocking": {
+        "severity": "hard",
+        "reason": "heirship-needs-estate-process",
+        "customerMessage": "The deceased was the only owner on the title and there's no will or probate yet. Florida needs the rightful heir to be legally established before the vehicle can be titled in a new name — we can't simply transfer it on request.",
+        "nextSteps": "Bring the certified death certificate and the title (or request a duplicate if you don't have it). Because there's no will or probate, the office will confirm which estate document establishes you as the heir for your specific situation — contact the tax collector's office to confirm before your visit.",
+        "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+      },
+      "note": "BLOCKED: sole deceased owner with no will/probate — the lawful heir is not yet established. Per SME, who may take title must be settled first; exact estate document is confirmed at the counter."
+    },
+    {
+      "when": { "transfer_reason": "inheritance-deceased-owner", "has_odometer_disclosure": "no" },
+      "removeItems": ["odometer-disclosure-bill-of-sale"],
+      "note": "Inheritance: the deceased owner cannot sign a seller's odometer disclosure, so the standard HSMV 82050 bill-of-sale odometer item does NOT apply and is removed (removeItems are applied after all adds, so this strips the sale-path odometer item that would otherwise aggregate in). SME-confirmed (tax423): 'having a bill of sale or odometer would be unlikely' for a deceased-owner transfer."
+    },
+    {
+      "when": { "title_possession": "electronic-held" },
+      "addItems": ["mydmv-portal-referral"],
+      "note": "Title is held electronically by FLHSMV (no paper in hand). There is no physical title to inspect for alterations/signatures, and no paper to bring — the electronic title is converted/printed as part of the transfer. This is NOT a blocker. Per sessions 19d716d3/ae0b2879, the bot must stop asking paper-title-condition questions once the customer says the title is electronic.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/paper-liens-and-titles/"
+      ]
+    },
+    {
+      "when": { "title_possession": "lost-or-none" },
+      "addItems": ["hsmv-82101"],
+      "note": "Customer does not have the title and it is not held electronically (lost/destroyed/never received). A duplicate title (HSMV 82101) must be obtained before — or together with — the transfer; the original title cannot be inspected. This is NOT a hard block (the duplicate can be applied for), but the customer must be told they need the duplicate. Per session 19d716d3, the bot looped title-condition questions instead of recognizing the missing title.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82101.pdf"]
+    },
+    {
+      "when": { "title_condition": "has-alterations" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "title-altered",
+        "customerMessage": "Any whiteout, line-through, scratch-out, or alteration on the face of the title voids it, so we can't process the transfer with this title.",
+        "nextSteps": "Obtain a corrected title from the seller (or a duplicate title from the issuing agency) before your appointment. No other document can substitute for a clean title."
+      },
+      "note": "BLOCKED: Any whiteout, line-through, scratch-out, or alteration on the face of the title voids it. Customer must obtain a corrected title from the seller. No items can satisfy this condition."
+    },
+    {
+      "when": { "title_condition": "missing-seller-signature" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "title-missing-seller-signature",
+        "customerMessage": "The seller (and co-seller, if the title lists two owners joined by \"and\") must sign the title before we can transfer it.",
+        "nextSteps": "Return to the seller for the missing signature, or have the seller come to the office to sign in person, before your appointment."
+      },
+      "note": "BLOCKED: Seller (and co-seller, if joined by AND) must sign the title. Customer must return to seller for signature, or the seller can come to the office to sign in person."
+    },
+    {
+      "when": { "title_condition": "missing-purchaser-name" },
+      "addItems": ["hsmv-82050"],
+      "note": "Purchaser name missing from seller's-fill-in line — bill of sale (HSMV 82050) required to establish purchaser."
+    },
+    {
+      "when": { "title_is_oos": "yes" },
+      "addItems": ["oos-registration"],
+      "note": "Out-of-state titles also require the current out-of-state registration."
+    },
+    {
+      "when": { "title_is_oos": "yes", "vehicle_physically_present": "yes-in-lot" },
+      "note": "Deputy performs VIN verification on-site — no form needed."
+    },
+    {
+      "when": { "title_is_oos": "yes", "vehicle_physically_present": "no" },
+      "addItems": ["hsmv-82042"],
+      "note": "VIN verification (HSMV 82042 or Section 7 of 82040) must be completed by law enforcement, FL DMV compliance examiner, FL licensed dealer, FL notary, or US Military Police before the visit."
+    },
+    {
+      "when": { "title_is_original_paper": "paper-photocopy" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "title-photocopy-not-accepted",
+        "customerMessage": "Florida does not accept photocopies of titles — we need the original title document to process the transfer.",
+        "nextSteps": "Obtain the original title, or request a duplicate title from the issuing state, before your appointment."
+      },
+      "note": "BLOCKED: Florida does not accept photocopies of titles. Customer must obtain the original or request a duplicate from the issuing state."
+    },
+    {
+      "when": { "title_is_original_paper": "electronic-title-holding-state" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "electronic-title-holding-state",
+        "customerMessage": "Your title is held electronically by a lienholder in a title-holding state, so we can't transfer it on the spot — we first have to write to your lienholder to obtain the paper title.",
+        "nextSteps": "Complete the out-of-state Writing Packet with us so we can request the paper title from your lienholder, then schedule a follow-up appointment once it arrives."
+      },
+      "note": "BLOCKED at intake: customer completes OOS Writing Packet so we can write to their lienholder for the paper title. Provide packet and schedule follow-up."
+    },
+    {
+      "when": { "has_lien_or_lease": "lien-active" },
+      "addItems": ["lien-letter"]
+    },
+    {
+      "when": { "has_lien_or_lease": "lease" },
+      "addItems": ["lease-agreement-with-lessor-letter"]
+    },
+    {
+      "when": { "purchaser_age_status": "minor-with-adult-co-purchaser" },
+      "addItems": ["adult-co-purchaser-present"]
+    },
+    {
+      "when": { "purchaser_age_status": "minor-no-co-purchaser" },
+      "blocking": {
+        "severity": "hard",
+        "reason": "minor-no-co-purchaser",
+        "customerMessage": "A minor can't hold the title alone — Florida requires an adult (18+) co-owner to appear on the title and sign alongside the minor.",
+        "nextSteps": "Bring an adult (18+) co-purchaser who will appear on the title and sign at the appointment."
+      },
+      "note": "BLOCKED: Minor purchasers require an 18+ co-purchaser to appear on title and sign."
+    },
+    {
+      "when": {
+        "ownership_duration": "less-than-6-months",
+        "vehicle_origin": "us-state",
+        "sales_tax_paid_out_of_state": "yes-with-proof"
+      },
+      "addItems": ["proof-oos-sales-tax"],
+      "note": "Out-of-state sales tax credit applied; bring proof to avoid paying FL 6% Use Tax."
+    },
+    {
+      "when": {
+        "ownership_duration": "less-than-6-months",
+        "vehicle_origin": "us-state",
+        "sales_tax_paid_out_of_state": "yes-no-proof"
+      },
+      "addItems": ["bill-of-sale-purchase-agreement"],
+      "note": "Bill of sale needed to establish purchase price for FL Use Tax calculation."
+    },
+    {
+      "when": {
+        "ownership_duration": "less-than-6-months",
+        "vehicle_origin": "us-state",
+        "sales_tax_paid_out_of_state": "no"
+      },
+      "addItems": ["bill-of-sale-purchase-agreement"],
+      "note": "FL 6% Use Tax + local option tax will be collected on the purchase price."
+    },
+    {
+      "when": { "vehicle_origin": "foreign-country" },
+      "addItems": ["bill-of-sale-purchase-agreement"],
+      "note": "Foreign imports always owe full 6% FL Use Tax + local option tax regardless of ownership duration."
+    },
+    {
+      "when": { "has_odometer_disclosure": "no", "vehicle_model_year_range": "2011-or-newer" },
+      "addItems": ["odometer-disclosure-bill-of-sale"],
+      "note": "Federal odometer disclosure required; supply via HSMV 82050 bill of sale."
+    },
+    {
+      "when": { "vehicle_model_year_range": "2010-or-older" },
+      "note": "Model year exempt from federal odometer disclosure — mileage optional."
+    },
+    {
+      "when": { "signing_via_poa": "yes-owner-absent" },
+      "addItems": ["poa-document", "hsmv-82053"],
+      "note": "POA form HSMV 82053 with notarization or DocuSign; original must accompany title work to the state."
+    },
+    {
+      "when": { "ownership_entity_type": "business" },
+      "addItems": ["sunbiz-registration"]
+    },
+    {
+      "when": { "ownership_entity_type": "trust-single-trustee" },
+      "addItems": ["certification-of-trust"]
+    },
+    {
+      "when": { "ownership_entity_type": "trust-multiple-trustees" },
+      "addItems": ["certification-of-trust", "all-trustees-present-or-poa"]
+    },
+    {
+      "when": { "has_fl_insurance": "no" },
+      "removeItems": ["fl-insurance-proof"],
+      "note": "Without FL insurance, we can perform the title transfer only — no registration. Customer must obtain FL insurance before returning for registration."
+    },
+    {
+      "when": { "is_military_active_duty": "yes" },
+      "addItems": ["military-orders"],
+      "note": "Active-duty military orders can waive initial-registration fee under §320.072 and may substitute for residency documentation."
+    },
+    {
+      "when": { "vehicle_class": "trailer" },
+      "addItems": ["hsmv-82105"],
+      "note": "Trailers being titled require a certified weight slip (HSMV 82105) since fees and class assignment are weight-based.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82105.pdf"]
+    },
+    {
+      "when": { "vehicle_class": "low-speed-vehicle" },
+      "addItems": ["lsv-equipment-cert"],
+      "note": "LSVs require equipment compliance certification at title issuance per §316.2122.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "FL Titles- MVI.xlsx, Original - OOS Titles - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/pdf/forms/82040.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82042.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82050.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82053.pdf",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/194/Titles-Registrations",
+      "https://www.tcslc.com/199/New-Vehicle-Title-Application"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/319.23",
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.072"
+    ],
+    "gpt": ["FL Titles- MVI - GPT Responses.docx"]
+  }
+}

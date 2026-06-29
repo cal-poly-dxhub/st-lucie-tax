@@ -1,0 +1,50 @@
+{
+  "txnTypeId": "plate-surrender",
+  "baseItems": [
+    "photo-id-all-applicants",
+    "physical-license-plate-for-surrender",
+    "license-plate-surrender-affidavit"
+  ],
+  "factsRequired": ["plate_surrender_owner_type"],
+  "branches": [
+    {
+      "when": {
+        "plate_surrender_owner_type": "personal-not-registrant"
+      },
+      "addItems": ["lpsa-signed-by-registered-owner", "hsmv-82053"],
+      "note": "Third-party surrender for a personal-name plate \u2014 the surrendering individual must bring either (1) the License Plate Surrender Affidavit signed by the registered owner/co-owner, OR (2) a notarized Power of Attorney (HSMV 82053) authorizing the surrender.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82053.pdf",
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/"
+      ]
+    },
+    {
+      "when": {
+        "plate_surrender_owner_type": "business-registered-agent"
+      },
+      "addItems": ["sunbiz-registration"],
+      "note": "Business-owned vehicle plate surrender by a registered agent \u2014 present the Sunbiz printout showing the surrendering individual is an active registered agent of the company.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
+        "https://search.sunbiz.org/"
+      ]
+    },
+    {
+      "when": {
+        "plate_surrender_owner_type": "business-third-party"
+      },
+      "addItems": ["hsmv-82053", "sunbiz-registration"],
+      "note": "Business-owned vehicle plate surrender by someone other than the registered agent \u2014 requires POA (HSMV 82053) from the registered agent, OR a company letterhead with original signature by a registered agent authorizing the third-party.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/82053.pdf", "https://search.sunbiz.org/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Registrations - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/304/Lost-or-Stolen-Tags-and-Plate-Surrenders"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/320.02"]
+  }
+}

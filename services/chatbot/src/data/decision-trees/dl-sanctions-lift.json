@@ -1,0 +1,261 @@
+{
+  "txnTypeId": "dl-sanctions-lift",
+  "baseItems": ["photo-id-all-applicants", "reinstatement-fee"],
+  "factsRequired": [
+    "sanction_type",
+    "sanction_status",
+    "has_cleared_underlying_issue",
+    "has_completed_required_course",
+    "has_sr22_insurance",
+    "has_dui_iid_requirement",
+    "wants_hardship_license"
+  ],
+  "branches": [
+    {
+      "when": {
+        "sanction_type": "traffic-citation-unpaid",
+        "has_cleared_underlying_issue": "no-still-owed"
+      },
+      "note": "BLOCKED: Suspension for unpaid traffic citation is indefinite. You must first contact the traffic court in the county where the citation was issued and pay the fine; some courts accept online credit-card payment. The court will update FLHSMV electronically with the clearance. Only then can we process reinstatement.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/traffic-citations-court-suspensions/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "traffic-citation-unpaid",
+        "has_cleared_underlying_issue": "yes"
+      },
+      "note": "Court has cleared the underlying citation \u2014 present the reinstatement fee at any driver license service center OR pay by phone (850-617-3000). Check status at MyDMV Portal Online Driver License Check.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/traffic-citations-court-suspensions/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "failure-to-appear",
+        "has_cleared_underlying_issue": "no-still-owed"
+      },
+      "note": "BLOCKED: Failure-to-comply / failure-to-appear suspensions are indefinite. You must contact the traffic court in the issuing county and satisfy the court requirements. The county will electronically update FLHSMV with clearance. These suspensions are NOT eligible for hardship license.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/traffic-citations-court-suspensions/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "failure-to-complete-driver-school",
+        "has_cleared_underlying_issue": "no-still-owed"
+      },
+      "note": "BLOCKED: Suspension for failing to complete a court-ordered driver improvement school. Contact the traffic court in the county where the summons was issued and satisfy the court's requirements; the court will update FLHSMV electronically with clearance before the reinstatement fee can be paid.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/traffic-citations-court-suspensions/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "child-support"
+      },
+      "note": "BLOCKED: Child-support-delinquency suspensions are indefinite AND not eligible for a hardship license. Contact the Florida Department of Revenue (850-488-5437, floridarevenue.com) to resolve. Once the delinquency is cleared, FLHSMV is notified electronically; then present the reinstatement fee at any driver license service center.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "points",
+        "sanction_status": "current-suspension"
+      },
+      "note": "Point-based suspension \u2014 the period depends on total points accumulated (per \u00a7322.27 point schedule). After the suspension period has run, present the reinstatement fee for full restoration. Hardship license may be available earlier via the Administrative Reviews Office.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/points-point-suspensions/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.28",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "financial-responsibility",
+        "has_sr22_insurance": "no"
+      },
+      "addItems": ["sr22-filing-from-insurer"],
+      "note": "Financial-responsibility suspension (PIP/insurance-related) requires an SR-22 insurance filing from an authorized insurer, filed directly with FLHSMV. Customer obtains the SR-22 from their insurance company (not at the tax collector).",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/insurance/received-a-letter/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/627.733",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06E.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "financial-responsibility",
+        "has_sr22_insurance": "yes-on-file"
+      },
+      "note": "SR-22 is on file \u2014 present the reinstatement fee at any driver license service center. FR suspensions may also require any tags to be surrendered if the vehicle is no longer insured.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/insurance/received-a-letter/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06E.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "dui",
+        "wants_hardship_license": "yes"
+      },
+      "addItems": [
+        "licensed-dui-program-completion",
+        "hardship-license-application",
+        "adi-course-completion"
+      ],
+      "note": "DUI hardship license \u2014 after the mandatory revocation minimum (varies by DUI conviction under \u00a7322.28), apply through your local Administrative Reviews Office with: Licensed DUI Program completion, ADI completion, reinstatement fee. Hardship license restricts driving to employment or business purposes only.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.28",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.291",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "dui",
+        "has_dui_iid_requirement": "yes-iid-active"
+      },
+      "addItems": ["iid-installation-proof"],
+      "note": "Ignition Interlock Device (IID) required per \u00a7322.2715. Proof of IID installation from an FLHSMV-contracted provider must accompany the reinstatement. Violations reviewed by the FLHSMV Bureau of Motorist Compliance.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "dui",
+        "wants_hardship_license": "no",
+        "sanction_status": "current-revocation"
+      },
+      "addItems": ["licensed-dui-program-completion", "adi-course-completion"],
+      "note": "Full DUI reinstatement (revocation period fully served) \u2014 present Licensed DUI Program completion, ADI course enrollment, and reinstatement fee. Additional license fees may also apply.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "habitual-traffic-offender",
+        "sanction_status": "current-revocation",
+        "wants_hardship_license": "yes"
+      },
+      "addItems": ["adi-course-completion", "hardship-license-application"],
+      "note": "Habitual Traffic Offender (HTO) \u2014 license is revoked for 5 years (\u00a7322.34). After one year from the effective date, customer may apply for hardship through the Administrative Reviews Office with ADI completion + reinstatement fee. Hardship license is employment-only.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.34",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "habitual-traffic-offender",
+        "sanction_status": "expired-but-not-reinstated"
+      },
+      "addItems": ["adi-course-completion"],
+      "note": "HTO revocation period has expired \u2014 full reinstatement requires ADI school enrollment + reinstatement fee + any applicable license fees at any driver license service center.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "drug-offense-chapter-893",
+        "wants_hardship_license": "yes"
+      },
+      "addItems": ["licensed-dui-program-completion", "hardship-license-application"],
+      "note": "Chapter 893 drug-offense suspension (minimum 1 year). After 6 months from the effective date, customer may apply for hardship through the Administrative Reviews Office with Licensed DUI Program completion + reinstatement fee. Hardship license is employment-only.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "medical-vision",
+        "has_cleared_underlying_issue": "no-still-owed"
+      },
+      "addItems": ["medical-vision-clearance"],
+      "note": "Medical or vision suspension \u2014 customer must work through FLHSMV's Medical Review process (HSMV 72010 eye-exam report or Medical Advisory Board evaluation). Reinstatement requires the medical clearance before any fee is accepted.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/general-information/medical-visual-problems/",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/medical-review/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI08.pdf"
+      ]
+    },
+    {
+      "when": {
+        "sanction_type": "non-dui-death-or-serious-injury",
+        "wants_hardship_license": "yes"
+      },
+      "addItems": ["adi-course-completion", "hardship-license-application"],
+      "note": "Non-DUI violation resulting in death or serious bodily injury \u2014 license is suspended up to 1 year. Hardship license available through Administrative Reviews Office with ADI completion + reinstatement fee. Hardship license is employment-only.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf"
+      ]
+    },
+    {
+      "when": {
+        "has_completed_required_course": "no-not-yet"
+      },
+      "note": "Reinstatement likely blocked on course completion. Advanced Driver Improvement (ADI) is required for HTO, non-DUI-serious-injury, and DUI hardship paths. Licensed DUI Program is required for DUI and Chapter 893 drug paths. See the FLHSMV suspensions/revocations pages for approved-provider links.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/"
+      ]
+    },
+    {
+      "when": {
+        "sanction_status": "expired-but-not-reinstated",
+        "has_cleared_underlying_issue": "yes"
+      },
+      "note": "Per CI06 \u00a715-year policy: if your open Florida sanction is more than 15 years old AND you have been continuously licensed by another state after the sanction's effective date, reinstatement fees and compliance requirements may be waived. Request an Administrative Reviews determination.",
+      "sourceRefs": [
+        "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.28"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/points-point-suspensions/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/traffic-citations-court-suspensions/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/general-information/medical-visual-problems/",
+      "https://www.flhsmv.gov/insurance/received-a-letter/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/163/Driver-Licenses-Identification-Cards"],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.28",
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.2615",
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.291",
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.34"
+    ],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06A.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06B.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06C.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06D.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06E.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI08.pdf"
+    ]
+  }
+}

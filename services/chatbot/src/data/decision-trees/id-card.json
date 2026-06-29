@@ -1,0 +1,173 @@
+{
+  "txnTypeId": "id-card",
+  "baseItems": [
+    "primary-id-passport",
+    "social-security-card",
+    "address-proof-1",
+    "address-proof-2"
+  ],
+  "factsRequired": [
+    "id_card_intent",
+    "is_us_citizen",
+    "has_primary_id",
+    "has_social_security_card",
+    "address_proof_count",
+    "recent_name_change",
+    "is_veteran_designation_request",
+    "is_100_percent_disabled_veteran"
+  ],
+  "branches": [
+    {
+      "when": {
+        "id_card_intent": "downgrade-from-dl"
+      },
+      "addItems": ["fl-driver-license-to-renew"],
+      "note": "Downgrade from driver license to ID card. Customer surrenders the driver license; if they failed a vision exam, this is the standard path for 80+ customers who can no longer pass the vision test.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "id_card_intent": "replacement-lost-stolen"
+      },
+      "addItems": ["mydmv-portal-referral"],
+      "note": "Replacement of a lost or stolen ID card is supported online at MyDMV Portal if the customer's SSN can be verified. In-office replacement also available.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/",
+        "https://mydmvportal.flhsmv.gov/"
+      ]
+    },
+    {
+      "when": {
+        "has_primary_id": "birth-certificate"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-birth-certificate"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "has_primary_id": "naturalization-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-naturalization-cert"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "has_primary_id": "citizenship-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-citizenship-cert"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "has_primary_id": "consular-report"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-consular-report"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "permanent-resident"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["lawful-presence-green-card"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "temporary-lawful-presence"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["lawful-presence-visa-i94"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/non-immigrant/"]
+    },
+    {
+      "when": {
+        "recent_name_change": "yes-with-docs"
+      },
+      "addItems": ["name-change-marriage-cert"],
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "recent_name_change": "yes-missing-docs"
+      },
+      "note": "BLOCKED: Customer must present certified marriage cert, divorce decree, or court order AND have updated the SSA record before the ID card can be issued with the new name.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "address_proof_count": "zero"
+      },
+      "removeItems": ["address-proof-1", "address-proof-2"],
+      "addItems": ["declaration-of-domicile"],
+      "note": "No qualifying Florida-address documents \u2014 customer must obtain a notarized and recorded Declaration of Domicile.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+        "https://stlucieclerk.gov/departments-top-menu/recording-department"
+      ]
+    },
+    {
+      "when": {
+        "address_proof_count": "one"
+      },
+      "removeItems": ["address-proof-2"],
+      "addItems": ["declaration-of-domicile"],
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/"]
+    },
+    {
+      "when": {
+        "is_veteran_designation_request": "yes"
+      },
+      "addItems": ["dd214-or-veteran-id"],
+      "sourceRefs": ["https://www.flhsmv.gov/military/"]
+    },
+    {
+      "when": {
+        "is_100_percent_disabled_veteran": "yes"
+      },
+      "addItems": ["va-100-percent-disability-letter"],
+      "note": "Per \u00a7322.21(1), 100% T&P disabled veterans qualify for a no-fee Florida ID card.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/military/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.21"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - ID Cards.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/real-id/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/u-s-citizen/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/non-immigrant/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/",
+      "https://www.flhsmv.gov/military/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/163/Driver-Licenses-Identification-Cards",
+      "https://www.tcslc.com/315/Driver-License-IDs"
+    ],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/322.21"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO01.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR09.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR15.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR17.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR20.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/AcceptableDocuments.pdf"
+    ]
+  }
+}
