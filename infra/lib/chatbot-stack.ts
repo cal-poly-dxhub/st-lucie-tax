@@ -16,6 +16,7 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cw_actions from "aws-cdk-lib/aws-cloudwatch-actions";
+import * as bedrock from "aws-cdk-lib/aws-bedrock";
 
 export interface ChatbotStackProps extends StackProps {
   vpc: ec2.Vpc;
@@ -62,6 +63,54 @@ export class ChatbotStack extends Stack {
       autoDeleteObjects: true,
     });
 
+    // ── Knowledge Base: Bedrock KB with S3 Vectors ──────────────────────────
+    const kbRole = new iam.Role(this, "KbRole", {
+      assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
+      inlinePolicies: {
+        BedrockKb: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ["bedrock:InvokeModel"],
+              resources: [
+                `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              actions: ["s3:GetObject", "s3:ListBucket"],
+              resources: [kbDataBucket.bucketArn, `${kbDataBucket.bucketArn}/*`],
+            }),
+          ],
+        }),
+      },
+    });
+
+    const knowledgeBase = new bedrock.CfnKnowledgeBase(this, "KnowledgeBase", {
+      name: "st-lucie-tax-kb",
+      description: "St. Lucie County Tax Collector content from tcslc.com, FLHSMV, FDACS, and FWC",
+      roleArn: kbRole.roleArn,
+      knowledgeBaseConfiguration: {
+        type: "VECTOR",
+        vectorKnowledgeBaseConfiguration: {
+          embeddingModelArn: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+        },
+      },
+      storageConfiguration: {
+        type: "S3_VECTORS",
+        s3VectorsConfiguration: {},
+      },
+    });
+
+    new bedrock.CfnDataSource(this, "KbDataSource", {
+      name: "tcslc-documents",
+      knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
+      dataSourceConfiguration: {
+        type: "S3",
+        s3Configuration: {
+          bucketArn: kbDataBucket.bucketArn,
+        },
+      },
+    });
+
     // ── Compute: Chatbot Lambda ──────────────────────────────────────────────
     const vpcSubnets: ec2.SubnetSelection = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
 
@@ -90,7 +139,7 @@ export class ChatbotStack extends Stack {
         PGSSL: "true",
         DOC_BUCKET: docBucket.bucketName,
         BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
-        BEDROCK_KB_ID: process.env.BEDROCK_KB_ID || "",
+        BEDROCK_KB_ID: knowledgeBase.attrKnowledgeBaseId,
         AWS_ACCOUNT_ID: this.account,
         BETA_PASSWORD: process.env.BETA_PASSWORD || "",
         BETA_AUTH_SECRET: process.env.BETA_AUTH_SECRET || "",
@@ -169,7 +218,7 @@ export class ChatbotStack extends Stack {
     chatbotFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate"],
-        resources: ["*"],
+        resources: [knowledgeBase.attrKnowledgeBaseArn],
       }),
     );
     chatbotFn.addToRolePolicy(
