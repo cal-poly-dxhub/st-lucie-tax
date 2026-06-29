@@ -671,9 +671,12 @@ router.post("/demo-book", async (req, res) => {
 });
 
 // ─── POST /api/set-demo-email ────────────────────────────────────────────────
-// Updates the contact_email on all appointments to the provided address and
-// triggers SES email identity verification so the address can receive emails.
+// Updates the contact_email on all appointments for the demo date to the
+// provided address and triggers SES email identity verification.
 router.post("/set-demo-email", requireAuth("admin"), async (req, res) => {
+  if (process.env.NODE_ENV === "production" && !process.env.ENABLE_DEMO_ENDPOINTS) {
+    return res.status(404).json({ error: "Not found" });
+  }
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "email required" });

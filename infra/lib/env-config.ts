@@ -23,8 +23,11 @@ export interface EnvConfig {
 }
 
 export function envConfig(): EnvConfig {
+  if (!process.env.SENDER_EMAIL) {
+    throw new Error("SENDER_EMAIL environment variable is required for CDK synthesis");
+  }
   return {
-    senderEmail: process.env.SENDER_EMAIL!,
+    senderEmail: process.env.SENDER_EMAIL,
     dbMinCapacity: 0.5,
     dbMaxCapacity: 2,
     dbDeletionProtection: false,

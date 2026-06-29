@@ -6,7 +6,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 // makes the Lambda packaging (env-driven) consistent with local dev.
 
 export const REGION = process.env.AWS_REGION ?? "us-west-2";
-export const EMAIL = process.env.EMAIL ?? "njriley@calpoly.edu";
+export const EMAIL = process.env.EMAIL ?? "noreply@localhost";
 export const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 export const DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET ?? "";
 

@@ -12,7 +12,7 @@ declare module "express-serve-static-core" {
   }
 }
 
-const isDev = process.env.NODE_ENV !== "production";
+const isDev = process.env.DEV_AUTH_BYPASS === "true";
 
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID;
