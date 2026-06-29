@@ -1,32 +1,41 @@
 /**
- * Retrieve session state from DynamoDB.
+ * Retrieve session state from PostgreSQL.
  */
 
 import type { Session } from "@st-lucie/shared-types";
-import { getItem } from "@st-lucie/data-access";
+import { getChatSession } from "@st-lucie/data-access";
 
 export async function getSession(tenantId: string, sessionId: string): Promise<Session | null> {
-  const item = await getItem(tenantId, "SESSION", sessionId, "METADATA");
-  if (!item) return null;
+  const row = await getChatSession(sessionId);
+  if (!row) return null;
+
+  const ctx = row.structured_context as Record<string, unknown>;
+  const meta = (ctx._meta ?? {}) as Record<string, unknown>;
 
   return {
-    tenantId: item.tenantId as string,
-    sessionId: item.sessionId as string,
-    currentState: item.currentState as Session["currentState"],
-    structuredContext: item.structuredContext as Session["structuredContext"],
-    stateConversationTurns: (item.stateConversationTurns ||
+    tenantId: (meta.tenantId as string) ?? tenantId,
+    sessionId: row.session_uuid,
+    currentState: row.state as Session["currentState"],
+    structuredContext: stripMeta(ctx) as unknown as Session["structuredContext"],
+    stateConversationTurns: ((meta.stateConversationTurns as unknown[]) ??
       []) as Session["stateConversationTurns"],
-    incompletePreWork: (item.incompletePreWork || false) as boolean,
-    channel: (item.channel || "web") as Session["channel"],
-    walkInLocationId: item.walkInLocationId as string | undefined,
-    betaTesterEmail: item.betaTesterEmail as string | undefined,
-    isTestSession: item.isTestSession as boolean | undefined,
-    authIdAccountNumber: item.authIdAccountNumber as string | undefined,
-    authIdOperationId: item.authIdOperationId as string | undefined,
-    authIdProofResult: item.authIdProofResult as Session["authIdProofResult"],
-    pendingAuthIdProof: item.pendingAuthIdProof as Session["pendingAuthIdProof"],
-    createdAt: item.createdAt as string,
-    updatedAt: item.updatedAt as string,
-    ttl: item.ttl as number | undefined,
+    incompletePreWork: (meta.incompletePreWork as boolean) ?? false,
+    channel: ((meta.channel as string) ?? "web") as Session["channel"],
+    walkInLocationId: meta.walkInLocationId as string | undefined,
+    betaTesterEmail: row.email ?? (meta.betaTesterEmail as string | undefined),
+    isTestSession: meta.isTestSession as boolean | undefined,
+    authIdAccountNumber: meta.authIdAccountNumber as string | undefined,
+    authIdOperationId: meta.authIdOperationId as string | undefined,
+    authIdProofResult: meta.authIdProofResult as Session["authIdProofResult"],
+    pendingAuthIdProof: meta.pendingAuthIdProof as Session["pendingAuthIdProof"],
+    reviewed: row.reviewed_at !== null ? true : undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
+}
+
+function stripMeta(ctx: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...ctx };
+  delete out._meta;
+  return out;
 }

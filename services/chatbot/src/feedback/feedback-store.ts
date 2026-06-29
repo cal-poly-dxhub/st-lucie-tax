@@ -1,18 +1,13 @@
 /**
- * Beta-tester feedback persistence.
+ * Beta-tester feedback persistence via chat_messages table.
  *
  * Two write paths:
- *   - appendMessageFeedback: a tester clicks Good / Bad / Comment under a
- *     specific assistant message. SK = FEEDBACK#MESSAGE#<messageId>#<reaction>.
- *   - appendSessionFeedback: a tester clicks "Submit Transcript" in the debug
- *     panel, sending freeform notes + a snapshot of all per-message reactions.
- *     SK = FEEDBACK#SUBMISSION#<ISO8601>.
- *
- * Mirrors raw-history.ts / debug-log.ts: same PK as the session, no PII TTL
- * (3-year retention to match the public-records artifacts they describe).
+ *   - appendMessageFeedback: updates feedback_reaction/feedback_comment on an
+ *     existing message row (matched by messageId in the content JSONB).
+ *   - appendSessionFeedback: inserts a role='system' message with the feedback
+ *     submission payload.
  */
-import { buildPk, getDocClient, getTableName } from "@st-lucie/data-access";
-import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { getPool, getChatSession } from "@st-lucie/data-access";
 
 export type MessageFeedbackReaction = "good" | "bad" | "comment";
 
@@ -27,25 +22,32 @@ export async function appendMessageFeedback(
   sessionId: string,
   payload: MessageFeedbackPayload,
 ): Promise<void> {
-  const client = getDocClient();
-  const tableName = getTableName();
-  const submittedAt = new Date().toISOString();
+  const pool = getPool();
+  const session = await getChatSession(sessionId);
+  if (!session) return;
 
-  await client.send(
-    new PutCommand({
-      TableName: tableName,
-      Item: {
-        PK: buildPk(tenantId, "SESSION", sessionId),
-        SK: `FEEDBACK#MESSAGE#${payload.messageId}#${payload.reaction}`,
-        entityType: "SESSION_FEEDBACK_MESSAGE",
-        sessionId,
-        messageId: payload.messageId,
-        reaction: payload.reaction,
-        comment: payload.comment ?? null,
-        submittedAt,
-      },
-    }),
-  );
+  const pgReaction =
+    payload.reaction === "good" ? "up" : payload.reaction === "bad" ? "down" : null;
+
+  if (pgReaction) {
+    await pool.query(
+      `UPDATE chat_messages
+       SET feedback_reaction = $1, feedback_comment = $2
+       WHERE session_id = $3
+         AND content->>'messageId' = $4
+         AND role = 'assistant'`,
+      [pgReaction, payload.comment ?? null, session.id, payload.messageId],
+    );
+  } else if (payload.reaction === "comment" && payload.comment) {
+    await pool.query(
+      `UPDATE chat_messages
+       SET feedback_comment = $1
+       WHERE session_id = $2
+         AND content->>'messageId' = $3
+         AND role = 'assistant'`,
+      [payload.comment, session.id, payload.messageId],
+    );
+  }
 }
 
 export interface SessionFeedbackPayload {
@@ -64,10 +66,6 @@ export interface SessionFeedbackPayload {
     transactions?: unknown;
     factsCount?: number;
   };
-  /**
-   * Email of the tester who submitted this feedback. Sourced from the
-   * session (which captured it at login). Persists into DDB for triage.
-   */
   betaTesterEmail?: string;
 }
 
@@ -76,28 +74,28 @@ export async function appendSessionFeedback(
   sessionId: string,
   payload: SessionFeedbackPayload,
 ): Promise<{ submissionSk: string }> {
-  const client = getDocClient();
-  const tableName = getTableName();
-  const submittedAt = new Date().toISOString();
-  const sk = `FEEDBACK#SUBMISSION#${submittedAt}`;
+  const pool = getPool();
+  const session = await getChatSession(sessionId);
+  if (!session) return { submissionSk: "" };
 
-  await client.send(
-    new PutCommand({
-      TableName: tableName,
-      Item: {
-        PK: buildPk(tenantId, "SESSION", sessionId),
-        SK: sk,
-        entityType: "SESSION_FEEDBACK_SUBMISSION",
-        sessionId,
-        notes: payload.notes ?? "",
-        messageFeedback: payload.messageFeedback ?? {},
+  const submittedAt = new Date().toISOString();
+  await pool.query(
+    `INSERT INTO chat_messages (session_id, role, content, state)
+     VALUES ($1, 'system', $2, $3)`,
+    [
+      session.id,
+      JSON.stringify({
+        type: "feedback_submission",
+        notes: payload.notes,
+        messageFeedback: payload.messageFeedback,
         capturedAt: payload.capturedAt,
-        stateSnapshot: payload.stateSnapshot ?? {},
+        stateSnapshot: payload.stateSnapshot,
+        betaTesterEmail: payload.betaTesterEmail,
         submittedAt,
-        ...(payload.betaTesterEmail ? { betaTesterEmail: payload.betaTesterEmail } : {}),
-      },
-    }),
+      }),
+      session.state,
+    ],
   );
 
-  return { submissionSk: sk };
+  return { submissionSk: `FEEDBACK#SUBMISSION#${submittedAt}` };
 }

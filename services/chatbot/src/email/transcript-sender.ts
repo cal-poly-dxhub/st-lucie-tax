@@ -8,7 +8,7 @@
  */
 
 import { getSession } from "../session/get-session.js";
-import { query } from "@st-lucie/data-access";
+import { getChatSession, getChatMessages } from "@st-lucie/data-access";
 import { buildTranscriptEmail } from "./transcript-template.js";
 import { sendEmail } from "./ses-client.js";
 
@@ -28,13 +28,17 @@ export async function sendTranscriptForSession(
     return { status: "failed", reason: "session-not-found" };
   }
 
-  const historyItems = await query(tenantId, "SESSION", sessionId, "HISTORY#");
-  const transcript = historyItems
-    .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
-    .map((h) => ({
-      role: (h.role as "user" | "assistant") ?? "assistant",
-      content: String(h.content ?? ""),
-    }));
+  const sessionRow = await getChatSession(sessionId);
+  const messages = sessionRow ? await getChatMessages(sessionRow.id) : [];
+  const transcript = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => {
+      const content = m.content as Record<string, unknown>;
+      return {
+        role: m.role as "user" | "assistant",
+        content: (content.text as string) ?? "",
+      };
+    });
 
   const email = buildTranscriptEmail({ session, transcript });
 

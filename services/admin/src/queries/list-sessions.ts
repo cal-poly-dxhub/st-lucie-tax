@@ -1,20 +1,8 @@
 /**
- * List every session METADATA item, optionally enriched with feedback counts.
- *
- * Strategy:
- *   1. Scan with FilterExpression entityType = 'SESSION' to surface every
- *      METADATA row.
- *   2. For each, fire a `query(SK begins_with FEEDBACK#)` in parallel batches
- *      so a session table can render badges without a second click.
- *   3. Apply optional filter chips in memory (beta volume tolerates this).
- *
- * No pagination at MVP — the chatbot beta is small enough that returning
- * every session per call is fine. Cursor support is reserved in the response
- * shape so we can wire it later without a breaking change.
+ * List chat sessions with feedback counts via PostgreSQL.
  */
 
-import { query, getDocClient, getTableName } from "@st-lucie/data-access";
-import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { getPool } from "@st-lucie/data-access";
 
 export type SessionRow = {
   sessionId: string;
@@ -36,122 +24,88 @@ export interface ListSessionsOptions {
   hasSubmission?: boolean;
   state?: string;
   email?: string;
-  /**
-   * When true, INCLUDE flagged test sessions in the response. Default false
-   * (matching the dashboard default toggle position) — the admin filter
-   * hides Playwright/curl probes from the tester triage view unless
-   * explicitly toggled on.
-   */
   includeTestSessions?: boolean;
-}
-
-const TENANT_ID = process.env.TENANT_ID || "stlucie";
-
-interface MetadataItem {
-  PK: string;
-  SK: string;
-  entityType: string;
-  sessionId?: string;
-  currentState?: string;
-  channel?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  betaTesterEmail?: string;
-  isTestSession?: boolean;
-  reviewed?: boolean;
-  structuredContext?: { transactions?: Array<{ txnTypeId: string; status: string }> };
 }
 
 export async function listSessions(
   opts: ListSessionsOptions = {},
 ): Promise<{ items: SessionRow[] }> {
-  const docClient = getDocClient();
-  const tableName = getTableName();
+  const pool = getPool();
 
-  const items: MetadataItem[] = [];
-  let lastKey: Record<string, unknown> | undefined;
-  do {
-    const r: { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> } =
-      await docClient.send(
-        new ScanCommand({
-          TableName: tableName,
-          FilterExpression: "entityType = :et AND SK = :sk",
-          ExpressionAttributeValues: { ":et": "SESSION", ":sk": "METADATA" },
-          ExclusiveStartKey: lastKey,
-        }),
-      );
-    if (r.Items) items.push(...(r.Items as unknown as MetadataItem[]));
-    lastKey = r.LastEvaluatedKey;
-  } while (lastKey);
+  const conditions: string[] = [];
+  const values: unknown[] = [];
 
-  // Enrich with feedback counts in parallel batches of 10.
-  const rows: SessionRow[] = [];
-  const BATCH = 10;
-  for (let i = 0; i < items.length; i += BATCH) {
-    const slice = items.slice(i, i + BATCH);
-    const batch = await Promise.allSettled(
-      slice.map(async (it) => {
-        const sessionId = it.sessionId ?? extractSessionIdFromPk(it.PK);
-        if (!sessionId) return null;
-        let badges: SessionRow["feedbackBadges"] = { good: 0, bad: 0, comment: 0, submission: 0 };
-        // Fallback email lookup — the SESSION row sometimes lands without
-        // a betaTesterEmail (the auth token didn't fully attach on the
-        // create-session call), but FEEDBACK#SUBMISSION rows carry the
-        // email pulled from req.betaEmail at submit time. Use whichever we
-        // can find as a backstop so the dashboard always shows who owned
-        // the session.
-        let fallbackEmail: string | undefined;
-        try {
-          const fb = await query(TENANT_ID, "SESSION", sessionId, "FEEDBACK#");
-          for (const f of fb) {
-            const sk = String(f.SK);
-            if (sk.startsWith("FEEDBACK#MESSAGE#")) {
-              if (sk.endsWith("#good")) badges.good += 1;
-              else if (sk.endsWith("#bad")) badges.bad += 1;
-              else if (sk.endsWith("#comment")) badges.comment += 1;
-            } else if (sk.startsWith("FEEDBACK#SUBMISSION#")) {
-              badges.submission += 1;
-            }
-            if (!fallbackEmail && typeof f.betaTesterEmail === "string" && f.betaTesterEmail) {
-              fallbackEmail = f.betaTesterEmail;
-            }
-          }
-        } catch (e) {
-          // Surface as null badges so the row still renders.
-
-          console.warn(`feedback enrichment failed for ${sessionId}:`, e);
-          badges = null;
-        }
-        const txns = it.structuredContext?.transactions ?? [];
-        const row: SessionRow = {
-          sessionId,
-          currentState: it.currentState ?? "unknown",
-          channel: it.channel ?? "web",
-          createdAt: it.createdAt ?? "",
-          updatedAt: it.updatedAt ?? "",
-          betaTesterEmail: it.betaTesterEmail ?? fallbackEmail,
-          isTestSession: it.isTestSession === true ? true : undefined,
-          reviewed: it.reviewed === true ? true : undefined,
-          activeTxnTypeIds: txns.filter((t) => t.status === "active").map((t) => t.txnTypeId),
-          feedbackBadges: badges,
-        };
-        return row;
-      }),
-    );
-    for (const p of batch) {
-      if (p.status === "fulfilled" && p.value) rows.push(p.value);
-    }
+  if (opts.state) {
+    values.push(opts.state);
+    conditions.push(`cs.state = $${values.length}`);
+  }
+  if (opts.email) {
+    values.push(`%${opts.email.trim().toLowerCase()}%`);
+    conditions.push(`cs.email ILIKE $${values.length}`);
   }
 
-  // Filter chips in memory.
-  let filtered = rows;
-  // Hide test sessions by default. Caller must opt in via includeTestSessions
-  // to see Playwright probes / curl smoke checks alongside real testers.
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const limit = opts.limit ?? 200;
+
+  const sql = `
+    SELECT cs.session_uuid,
+           cs.state,
+           cs.email,
+           cs.structured_context,
+           cs.created_at::text,
+           cs.updated_at::text,
+           cs.reviewed_at,
+           COALESCE(fb.good, 0)::int AS good,
+           COALESCE(fb.bad, 0)::int AS bad,
+           COALESCE(fb.comment_cnt, 0)::int AS comment_cnt,
+           COALESCE(fb.submission, 0)::int AS submission
+    FROM chat_sessions cs
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE feedback_reaction = 'up') AS good,
+             count(*) FILTER (WHERE feedback_reaction = 'down') AS bad,
+             count(*) FILTER (WHERE feedback_comment IS NOT NULL AND feedback_reaction IS NULL) AS comment_cnt,
+             count(*) FILTER (WHERE role = 'system' AND content->>'type' = 'feedback_submission') AS submission
+      FROM chat_messages cm
+      WHERE cm.session_id = cs.id
+    ) fb ON true
+    ${where}
+    ORDER BY cs.created_at DESC
+    LIMIT ${limit}`;
+
+  const result = await pool.query(sql, values);
+
+  let rows: SessionRow[] = result.rows.map((r: Record<string, unknown>) => {
+    const ctx = r.structured_context as Record<string, unknown>;
+    const meta = (ctx?._meta ?? {}) as Record<string, unknown>;
+    const transactions = (ctx?.transactions ?? []) as Array<{
+      txnTypeId: string;
+      status: string;
+    }>;
+
+    return {
+      sessionId: r.session_uuid as string,
+      currentState: r.state as string,
+      channel: (meta.channel as string) ?? "web",
+      createdAt: r.created_at as string,
+      updatedAt: r.updated_at as string,
+      betaTesterEmail: (r.email as string) ?? undefined,
+      isTestSession: (meta.isTestSession as boolean) || undefined,
+      reviewed: r.reviewed_at ? true : undefined,
+      activeTxnTypeIds: transactions.filter((t) => t.status === "active").map((t) => t.txnTypeId),
+      feedbackBadges: {
+        good: r.good as number,
+        bad: r.bad as number,
+        comment: r.comment_cnt as number,
+        submission: r.submission as number,
+      },
+    };
+  });
+
   if (!opts.includeTestSessions) {
-    filtered = filtered.filter((r) => r.isTestSession !== true);
+    rows = rows.filter((r) => r.isTestSession !== true);
   }
   if (opts.hasFeedback) {
-    filtered = filtered.filter(
+    rows = rows.filter(
       (r) =>
         r.feedbackBadges &&
         r.feedbackBadges.good +
@@ -162,28 +116,11 @@ export async function listSessions(
     );
   }
   if (opts.hasBad) {
-    filtered = filtered.filter((r) => r.feedbackBadges && r.feedbackBadges.bad > 0);
+    rows = rows.filter((r) => r.feedbackBadges && r.feedbackBadges.bad > 0);
   }
   if (opts.hasSubmission) {
-    filtered = filtered.filter((r) => r.feedbackBadges && r.feedbackBadges.submission > 0);
-  }
-  if (opts.state) {
-    filtered = filtered.filter((r) => r.currentState === opts.state);
-  }
-  if (opts.email) {
-    const e = opts.email.trim().toLowerCase();
-    filtered = filtered.filter((r) => r.betaTesterEmail?.toLowerCase().includes(e));
+    rows = rows.filter((r) => r.feedbackBadges && r.feedbackBadges.submission > 0);
   }
 
-  filtered.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-
-  const limit = opts.limit ?? 200;
-  return { items: filtered.slice(0, limit) };
-}
-
-function extractSessionIdFromPk(pk: string): string | null {
-  // PK shape: TENANT#stlucie#SESSION#<uuid>
-  const parts = pk.split("#");
-  if (parts.length < 4) return null;
-  return parts[3] ?? null;
+  return { items: rows };
 }

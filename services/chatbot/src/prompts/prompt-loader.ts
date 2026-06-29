@@ -1,11 +1,10 @@
 /**
- * Load transaction-type-specific system prompt from DynamoDB.
+ * Load transaction-type-specific system prompt.
  *
- * Falls back to default prompts if no DB override exists.
+ * Falls back to default prompts (no DB override in the Postgres schema).
  */
 
 import type { ConversationState } from "@st-lucie/shared-types";
-import { getConfigValue } from "@st-lucie/data-access";
 import { DEFAULT_PROMPTS, universalBlockersPrompt } from "./default-prompts.js";
 import { buildContextSummary } from "../session/structured-context.js";
 import type { Session } from "@st-lucie/shared-types";
@@ -156,17 +155,6 @@ ${lines.join("\n\n")}
 --- END CHIP LABELS ---`;
 }
 
-async function loadStatePrompt(tenantId: string, state: ConversationState): Promise<string> {
-  // Try tenant-specific prompt override from DynamoDB
-  try {
-    const customPrompt = await getConfigValue(tenantId, `PROMPT#${state}`);
-    if (customPrompt && typeof customPrompt === "string") {
-      return customPrompt;
-    }
-  } catch {
-    // Fall through to default
-  }
-
-  // Use default prompt
+async function loadStatePrompt(_tenantId: string, state: ConversationState): Promise<string> {
   return DEFAULT_PROMPTS[state];
 }
