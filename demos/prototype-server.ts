@@ -654,11 +654,15 @@ app.post("/api/walk-in", async (req, res) => {
 
     // TODO: pull required docs per txn type from the database instead of hardcoding
     const txnDocMap: Record<string, string[]> = {
-      road_test: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
-      id_card: ["birth_cert", "proof_address", "ssn_proof"],
-      license_original: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+      "road-test": ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+      "id-card": ["birth_cert", "proof_address", "ssn_proof"],
+      "license-original": ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
     };
-    const txnIdMap: Record<string, number> = { road_test: 1, id_card: 2, license_original: 3 };
+    const txnIdMap: Record<string, number> = {
+      "road-test": 1,
+      "id-card": 2,
+      "license-original": 3,
+    };
 
     const txnTypeIds = txns.map((t: string) => txnIdMap[t]).filter(Boolean);
     const seen = new Set<string>();

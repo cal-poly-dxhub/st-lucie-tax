@@ -1,29 +1,22 @@
 /**
- * The ONLY chatbot code that knows the scheduling service's HTTP shape.
- * If the devs change their API, this file (and txn-map.ts) is where it's fixed.
+ * Scheduling integration — queries the shared PostgreSQL directly.
  *
- * Reads SCHEDULING_API_URL (empty = scheduling unavailable) and
- * SCHEDULING_COUNTY_ID. All calls send the x-county-id header their service
- * requires.
+ * Now that chatbot and office share a database with unified hyphenated
+ * txn_type_id values, we resolve integer IDs and call book_appointment()
+ * directly rather than going through an HTTP intermediary.
  */
-import { mapTransactions, type SchedulingTxnType } from "./txn-map.js";
 
-const BASE_URL = process.env.SCHEDULING_API_URL ?? "";
-const COUNTY_ID = process.env.SCHEDULING_COUNTY_ID ?? "stlucie";
+import { getPool } from "@st-lucie/data-access";
 
 export function schedulingEnabled(): boolean {
-  return BASE_URL.length > 0;
-}
-
-function headers(): Record<string, string> {
-  return { "x-county-id": COUNTY_ID, "Content-Type": "application/json" };
+  return true;
 }
 
 export interface OfferedSlot {
   officeId: number;
   officeName: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM:SS
+  date: string;
+  time: string;
 }
 
 export interface SlotResult {
@@ -33,43 +26,70 @@ export interface SlotResult {
   schedulable: boolean;
 }
 
-async function listTypes(): Promise<SchedulingTxnType[]> {
-  const res = await fetch(`${BASE_URL}/api/transaction-types`, { headers: headers() });
-  if (!res.ok) throw new Error(`scheduling transaction-types failed: ${res.status}`);
-  return res.json() as Promise<SchedulingTxnType[]>;
-}
-
 export async function findSlot(opts: {
   chatbotTxnIds: string[];
   startDate?: string;
   maxDays?: number;
 }): Promise<SlotResult> {
-  const types = await listTypes();
-  const { ids, unmapped } = mapTransactions(opts.chatbotTxnIds, types);
-  if (ids.length === 0) {
+  const pool = getPool();
+
+  const { rows: txnRows } = await pool.query<{ id: number; txn_type_id: string }>(
+    `SELECT id, txn_type_id FROM transaction_types
+     WHERE txn_type_id = ANY($1) AND office_id IS NULL`,
+    [opts.chatbotTxnIds],
+  );
+
+  const mapped = new Set(txnRows.map((r) => r.txn_type_id));
+  const unmapped = opts.chatbotTxnIds.filter((id) => !mapped.has(id));
+  const txnTypeIds = txnRows.map((r) => r.id);
+
+  if (txnTypeIds.length === 0) {
     return { slot: null, reason: null, unmapped, schedulable: false };
   }
-  const qs = new URLSearchParams({ txn_type_ids: ids.join(",") });
-  if (opts.startDate) qs.set("start_date", opts.startDate);
-  if (opts.maxDays) qs.set("max_days", String(opts.maxDays));
-  const res = await fetch(`${BASE_URL}/api/scheduling/slots?${qs.toString()}`, {
-    headers: headers(),
-  });
-  if (!res.ok) throw new Error(`scheduling slots failed: ${res.status}`);
-  const body = (await res.json()) as {
-    slot: { office_id: number; office_name: string; date: string; time: string } | null;
-    reason: string | null;
-  };
+
+  const startDate = opts.startDate ?? tomorrow();
+  const maxDays = opts.maxDays ?? 30;
+
+  const { rows: slotRows } = await pool.query<{
+    office_id: number;
+    office_name: string;
+    slot_date: string;
+    slot_time: string;
+  }>(
+    `WITH candidate_dates AS (
+       SELECT generate_series($1::date, $1::date + ($2 - 1), '1 day')::date AS d
+     ),
+     candidate_slots AS (
+       SELECT o.id AS office_id, o.name AS office_name, cd.d AS slot_date,
+              generate_series(oh.open_time, oh.close_time - interval '1 minute', interval '15 minutes')::time AS slot_time
+       FROM offices o
+       JOIN candidate_dates cd ON true
+       JOIN office_hours oh ON oh.office_id = o.id AND oh.day_of_week = EXTRACT(DOW FROM cd.d)::int
+     )
+     SELECT cs.office_id, cs.office_name, cs.slot_date::text, cs.slot_time::text
+     FROM candidate_slots cs
+     WHERE validate_slot(cs.office_id, cs.slot_date, cs.slot_time, $3, (
+       SELECT COALESCE(SUM(avg_duration_min), 0)::int
+       FROM transaction_types WHERE id = ANY($3) AND office_id IS NULL
+     )) > 0
+     ORDER BY cs.slot_date, cs.slot_time, cs.office_id
+     LIMIT 1`,
+    [startDate, maxDays, txnTypeIds],
+  );
+
+  if (slotRows.length === 0) {
+    return { slot: null, reason: "no-availability", unmapped, schedulable: true };
+  }
+
+  const row = slotRows[0];
   return {
-    slot: body.slot
-      ? {
-          officeId: body.slot.office_id,
-          officeName: body.slot.office_name,
-          date: body.slot.date,
-          time: body.slot.time,
-        }
-      : null,
-    reason: body.reason,
+    slot: {
+      officeId: row.office_id,
+      officeName: row.office_name,
+      date: row.slot_date.slice(0, 10),
+      time: row.slot_time,
+    },
+    reason: null,
     unmapped,
     schedulable: true,
   };
@@ -91,43 +111,53 @@ export async function book(opts: {
   email: string;
   phone: string;
 }): Promise<BookResult> {
-  const types = await listTypes();
-  const { ids } = mapTransactions(opts.chatbotTxnIds, types);
-  const res = await fetch(`${BASE_URL}/api/appointments`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      office_id: opts.officeId,
-      first_name: opts.firstName,
-      last_name: opts.lastName,
-      contact_email: opts.email,
-      contact_phone: opts.phone,
-      txn_type_ids: ids,
-      appointment_date: opts.date,
-      appointment_time: opts.time,
-    }),
-  });
-  if (res.status === 409) {
+  const pool = getPool();
+
+  const { rows: txnRows } = await pool.query<{ id: number }>(
+    `SELECT id FROM transaction_types
+     WHERE txn_type_id = ANY($1) AND office_id IS NULL`,
+    [opts.chatbotTxnIds],
+  );
+  const txnTypeIds = txnRows.map((r) => r.id);
+
+  const { rows } = await pool.query<{ id: number; confirmation_code: string }>(
+    `SELECT * FROM book_appointment($1, $2::date, $3::time, $4, '{}',
+       $5, $6, $7, $8)`,
+    [
+      opts.officeId,
+      opts.date,
+      opts.time,
+      txnTypeIds,
+      opts.firstName,
+      opts.lastName,
+      opts.email,
+      opts.phone,
+    ],
+  );
+
+  if (rows.length === 0) {
     throw Object.assign(new Error("Slot just taken"), { code: "SLOT_TAKEN" });
   }
-  if (!res.ok) throw new Error(`scheduling book failed: ${res.status}`);
-  const row = (await res.json()) as {
-    id: number;
-    qr_code: string;
-    office_id: number;
-    appointment_date: string;
-    appointment_time: string;
-  };
+
+  const { rows: officeRows } = await pool.query<{ name: string }>(
+    `SELECT name FROM offices WHERE id = $1`,
+    [opts.officeId],
+  );
+
   return {
-    appointmentId: row.id,
-    qrCode: row.qr_code,
-    // pg serializes the `date` column to a full ISO timestamp (e.g.
-    // 2026-05-13T07:00:00.000Z); slice to the bare YYYY-MM-DD the UI expects.
+    appointmentId: rows[0].id,
+    qrCode: rows[0].confirmation_code,
     slot: {
-      officeId: row.office_id,
-      officeName: "",
-      date: row.appointment_date.slice(0, 10),
-      time: row.appointment_time,
+      officeId: opts.officeId,
+      officeName: officeRows[0]?.name ?? "",
+      date: opts.date,
+      time: opts.time,
     },
   };
+}
+
+function tomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }

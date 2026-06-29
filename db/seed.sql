@@ -1,7 +1,7 @@
 -- St. Lucie Tax System — Seed Data for Scheduling Engine Queries
 -- Adapted from schedule-engine-poc branch, aligned to current database-design.md schema.
 -- Fixed date range: 2026-05-12 through 2026-05-22 (weekdays only)
--- 2 offices, 3 clerks each, 3 transaction types, ~50% capacity bookings
+-- 2 offices, 3 clerks each, 32 transaction types, ~50% capacity bookings
 
 -- =============================================================================
 -- Config (single row)
@@ -43,13 +43,43 @@ INSERT INTO office_lunch_shifts (office_id, shift_num, start_time, end_time) VAL
     (2, 2, '12:15', '13:00');
 
 -- =============================================================================
--- Transaction Types (3 types, global — no office override)
--- skill_ids reference: 1=road_test, 2=id_card, 3=license_original
+-- Transaction Types (all 32 chatbot transaction types)
+-- skill_ids reference: 1=road-test, 2=id-card, 3=license-original
 -- =============================================================================
 INSERT INTO transaction_types (txn_type_id, name, description, avg_duration_min, status, available_from, available_until) VALUES
-    ('road_test',        'Road Test',               'Behind-the-wheel driving test',    30, 'active', '09:00', '15:00'),
-    ('id_card',          'State ID Card',           'Non-driver identification card',   15, 'active', NULL,    NULL),
-    ('license_original', 'Original Driver License', 'First-time FL driver license',     20, 'active', NULL,    NULL);
+    ('road-test',                    'Road Test',                       'Behind-the-wheel driving test',                       30, 'active', '09:00', '15:00'),
+    ('id-card',                      'State ID Card',                   'Non-driver identification card',                      15, 'active', NULL,    NULL),
+    ('license-original',             'Original Driver License',         'First-time FL driver license',                        20, 'active', NULL,    NULL),
+    ('business-tax-receipt',         'Business Tax Receipt',            'Local business tax receipt application or renewal',    15, 'active', NULL,    NULL),
+    ('cdl',                          'Commercial Driver License',       'CDL original, renewal, or endorsement',               30, 'active', NULL,    NULL),
+    ('concealed-weapon',             'Concealed Weapon Permit',         'Concealed weapon or firearm license application',     20, 'active', NULL,    NULL),
+    ('dealer-title-dropoff',         'Dealer Title Drop-off',           'Dealer title work drop-off',                          15, 'active', NULL,    NULL),
+    ('dl-address-change',            'DL Address Change',               'Update address on driver license',                    10, 'active', NULL,    NULL),
+    ('dl-name-change',               'DL Name Change',                  'Update name on driver license',                       15, 'active', NULL,    NULL),
+    ('dl-renewal',                   'DL Renewal',                      'Renew an existing driver license',                    15, 'active', NULL,    NULL),
+    ('dl-replacement',               'DL Replacement',                  'Replace a lost or damaged driver license',            15, 'active', NULL,    NULL),
+    ('dl-sanctions-lift',            'DL Sanctions Lift',               'Reinstate a suspended or revoked driver license',     20, 'active', NULL,    NULL),
+    ('dl-transfer',                  'DL Transfer',                     'Transfer out-of-state license to Florida',            20, 'active', NULL,    NULL),
+    ('duplicate-title',              'Duplicate Title',                 'Obtain a duplicate vehicle title',                    15, 'active', NULL,    NULL),
+    ('handicap-placard',             'Handicap Placard',                'Apply for or renew a disabled parking permit',        10, 'active', NULL,    NULL),
+    ('hunting-fishing',              'Hunting/Fishing License',         'Hunting or fishing license purchase',                 10, 'active', NULL,    NULL),
+    ('learner-permit',               'Learner Permit',                  'First-time learner permit application',               20, 'active', NULL,    NULL),
+    ('mobile-home-retire',           'Mobile Home Retirement',          'Retire a mobile home title',                          20, 'active', NULL,    NULL),
+    ('mobile-home-title',            'Mobile Home Title',               'Title a mobile home',                                 25, 'active', NULL,    NULL),
+    ('new-vehicle-title',            'New Vehicle Title',               'Title a newly purchased vehicle',                     20, 'active', NULL,    NULL),
+    ('plate-surrender',              'Plate Surrender',                 'Surrender a license plate',                           10, 'active', NULL,    NULL),
+    ('property-tax',                 'Property Tax',                    'Property tax payment or inquiry',                     15, 'active', NULL,    NULL),
+    ('real-id-upgrade',              'REAL ID Upgrade',                 'Upgrade existing license to REAL ID compliant',       20, 'active', NULL,    NULL),
+    ('registration-renewal',         'Registration Renewal',            'Renew vehicle registration',                          10, 'active', NULL,    NULL),
+    ('specialty-plate',              'Specialty Plate',                 'Order or renew a specialty license plate',            15, 'active', NULL,    NULL),
+    ('tag-replacement',              'Tag Replacement',                 'Replace a lost or damaged license plate tag',         10, 'active', NULL,    NULL),
+    ('tangible-personal-property-tax','Tangible Personal Property Tax', 'Tangible personal property tax filing or payment',    15, 'active', NULL,    NULL),
+    ('tourist-development-tax',      'Tourist Development Tax',         'Tourist development tax filing or payment',           15, 'active', NULL,    NULL),
+    ('trailer-registration',         'Trailer Registration',            'Register a trailer',                                  15, 'active', NULL,    NULL),
+    ('vehicle-registration',         'Vehicle Registration',            'Register a vehicle',                                  15, 'active', NULL,    NULL),
+    ('vehicle-title-transfer',       'Vehicle Title Transfer',          'Transfer vehicle title to a new owner',              20, 'active', NULL,    NULL),
+    ('vessel-registration',          'Vessel Registration',             'Register a boat or vessel',                           20, 'active', NULL,    NULL),
+    ('written-test',                 'Written Test',                    'Written knowledge test for driver license',           30, 'active', '09:00', '15:00');
 
 -- =============================================================================
 -- Document Registry (required documents per transaction type)
@@ -66,7 +96,7 @@ INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
 
 -- =============================================================================
 -- Prescreen Questions (per transaction type)
--- txn_type_id: 1=road_test, 2=id_card, 3=license_original
+-- txn_type_id: 1=road-test, 2=id-card, 3=license-original
 -- =============================================================================
 INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text) VALUES
     (1, 1, 'Do you currently hold a valid Florida learner permit?'),
@@ -84,12 +114,12 @@ INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text) VALUES
 
 -- =============================================================================
 -- Clerks (3 per office, distributed skills)
---   Maria  (Fort Pierce): all skills — the only road_test + license_original clerk here
---   James  (Fort Pierce): id_card + license_original
---   Angela (Fort Pierce): road_test + id_card
+--   Maria  (Fort Pierce): all skills — the only road-test + license-original clerk here
+--   James  (Fort Pierce): id-card + license-original
+--   Angela (Fort Pierce): road-test + id-card
 --   Jennifer (SL West):   all skills
---   Thomas   (SL West):   id_card + license_original
---   Nancy    (SL West):   road_test + id_card
+--   Thomas   (SL West):   id-card + license-original
+--   Nancy    (SL West):   road-test + id-card
 -- =============================================================================
 INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids) VALUES
     ('Maria',    'Santos',   'maria.santos@stlucie.gov',   'active', '{1,2,3}', '{1}'),
@@ -156,7 +186,7 @@ DECLARE
         'Young','Allen','King','Wright','Scott','Torres','Nguyen','Hill','Flores',
         'Green','Adams','Nelson','Baker','Hall','Rivera','Campbell','Mitchell',
         'Carter','Roberts'];
-    -- Required docs by txn_type_id: 1=road_test, 2=id_card, 3=license_original
+    -- Required docs by txn_type_id: 1=road-test, 2=id-card, 3=license-original
     road_test_docs TEXT[] := ARRAY['learner_permit','photo_id','vision_cert','vehicle_reg','insurance_card'];
     id_card_docs TEXT[] := ARRAY['birth_cert','proof_address','ssn_proof'];
     license_docs TEXT[] := ARRAY['learner_permit','photo_id','proof_address','ssn_proof'];

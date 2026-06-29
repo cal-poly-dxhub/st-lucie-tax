@@ -76,10 +76,10 @@ describe("findAppointment packing model checks", () => {
 
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
-    // Earliest opening is 09:15 (id_card from 09:00 ends) or 10:00 (road_tests from 09:30 end)
-    // Since road_test needs supply, and at 09:15 the two road_tests from 09:00 are still running,
-    // road_test supply=2, demand=2 at 09:15 → full. Next: 09:30 is also full.
-    // At 10:00: road_tests from 09:30 end → supply=2, demand=0 → available.
+    // Earliest opening is 09:15 (id-card from 09:00 ends) or 10:00 (road-tests from 09:30 end)
+    // Since road-test needs supply, and at 09:15 the two road-tests from 09:00 are still running,
+    // road-test supply=2, demand=2 at 09:15 → full. Next: 09:30 is also full.
+    // At 10:00: road-tests from 09:30 end → supply=2, demand=0 → available.
     expect(result!.slotTime).toBe("10:00:00");
   });
 
@@ -87,7 +87,7 @@ describe("findAppointment packing model checks", () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // road_test has available_from=09:00. Even though office opens at 08:00,
+    // road-test has available_from=09:00. Even though office opens at 08:00,
     // the packing model should include 09:00 as a candidate.
     const result = await findAppointment(db.client, baseInput());
     expect(result).not.toBeNull();
@@ -148,7 +148,7 @@ describe("findAppointment preferences", () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill all morning road_test at both offices to skill supply.
+    // Fill all morning road-test at both offices to skill supply.
     await fillMorningSlots(db.client, { office: 1 });
     await fillMorningSlots(db.client, { office: 2 });
 
@@ -328,7 +328,7 @@ describe("findAppointment with combined preferences", () => {
   test("returns null when office 1 morning road-test slots are full on Tuesday", async () => {
     await clearOfficeDay(db.client);
 
-    // Reduce to 1 desk and 1 road_test clerk at office 1.
+    // Reduce to 1 desk and 1 road-test clerk at office 1.
     await db.client.query(`UPDATE offices SET total_desks = 1 WHERE id = 1`);
     await db.client.query(`UPDATE clerks SET status = 'inactive'`);
     await db.client.query(`UPDATE clerks SET status = 'active' WHERE id = 1`); // Maria only
@@ -355,8 +355,8 @@ describe("findAppointment with combined preferences", () => {
   test("returns null with full desk cap", async () => {
     await clearOfficeDay(db.client);
 
-    // Default setup: office 1 has 3 desks, 2 road_test clerks (Maria + Angela).
-    // Morning road_test supply=2 (09:00-11:00), supply=1 at 11:30 (Maria on lunch).
+    // Default setup: office 1 has 3 desks, 2 road-test clerks (Maria + Angela).
+    // Morning road-test supply=2 (09:00-11:00), supply=1 at 11:30 (Maria on lunch).
     await fillMorningSlots(db.client, { office: 1 });
 
     const result = await findAppointment(
@@ -377,7 +377,7 @@ describe("findAppointment with combined preferences", () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
 
-    // Fill all morning road_test at office 1 (supply=2 for 09:00-11:00, supply=1 at 11:30).
+    // Fill all morning road-test at office 1 (supply=2 for 09:00-11:00, supply=1 at 11:30).
     await fillMorningSlots(db.client, { office: 1 });
 
     // Office 2 has wide-open capacity, and office 1 afternoon is open.
@@ -403,7 +403,7 @@ describe("findAppointment scheduling_block_padding", () => {
     await clearOfficeDay(db.client);
     await clearOfficeDay(db.client, 2);
     await db.client.query("UPDATE config SET scheduling_block_padding = 5");
-    // Fill both road_test clerk slots at 09:00 (30-min → raw end 09:30)
+    // Fill both road-test clerk slots at 09:00 (30-min → raw end 09:30)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
 
@@ -416,7 +416,7 @@ describe("findAppointment scheduling_block_padding", () => {
   test("booking inside padding zone is rejected", async () => {
     await clearOfficeDay(db.client);
     await db.client.query("UPDATE config SET scheduling_block_padding = 5");
-    // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
+    // Fill both road-test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
 
@@ -429,7 +429,7 @@ describe("findAppointment scheduling_block_padding", () => {
   test("booking after padding zone succeeds", async () => {
     await clearOfficeDay(db.client);
     await db.client.query("UPDATE config SET scheduling_block_padding = 5");
-    // Fill both road_test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
+    // Fill both road-test clerk slots at 09:00 (raw end 09:30, padded end 09:35)
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00" }));
     await db.client.query(BOOK_SQL, bookParams({ time: "09:00", email: "pad2@x.com" }));
 

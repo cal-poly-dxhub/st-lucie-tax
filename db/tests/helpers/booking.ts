@@ -194,7 +194,7 @@ export async function fillSlotToCapacity(
   }
 }
 
-// Fills morning road_test slots (09:00–11:30) at an office to skill supply.
+// Fills morning road-test slots (09:00–11:30) at an office to skill supply.
 // Supply=2 for 09:00–11:00 (both clerks), supply=1 at 11:30 (one on lunch).
 export async function fillMorningSlots(
   client: Client,
@@ -244,7 +244,7 @@ export function lunchAwareCap(office: number, slotMin: number): number {
   return inShift1 ? 1 : inShift2 ? 2 : 3;
 }
 
-// Fills all road_test slots (09:00-14:30) at the given offices to desk cap
+// Fills all road-test slots (09:00-14:30) at the given offices to desk cap
 export async function fillAllSlots(
   client: Client,
   opts: {

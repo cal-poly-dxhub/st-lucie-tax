@@ -566,10 +566,10 @@ router.delete("/document-registry/:docId", async (req, res) => {
 router.get("/transaction-flows", async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT tf.id, tf.txn_type_id, tt.name AS txn_name, tf.steps
+      `SELECT tf.id, tf.txn_type_id, tt.txn_type_id AS slug, tt.name AS txn_name, tf.steps
        FROM transaction_flows tf
        JOIN transaction_types tt ON tt.id = tf.txn_type_id
-       ORDER BY tf.txn_type_id`,
+       ORDER BY tt.name`,
     );
     res.json(rows);
   } catch (err) {
