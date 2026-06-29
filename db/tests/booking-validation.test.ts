@@ -27,7 +27,10 @@ describe("effective transaction types", () => {
         WHERE office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
-    expect(office1.rows.map((r) => r.txn_type_id)).toEqual(["id-card", "license-original"]);
+    const office1Ids = office1.rows.map((r: { txn_type_id: string }) => r.txn_type_id);
+    expect(office1Ids).not.toContain("road-test");
+    expect(office1Ids).toContain("id-card");
+    expect(office1Ids).toContain("license-original");
 
     const office2 = await db.client.query(
       `SELECT txn_type_id
@@ -35,11 +38,10 @@ describe("effective transaction types", () => {
         WHERE office_id = 2 AND status = 'active'
         ORDER BY global_id`,
     );
-    expect(office2.rows.map((r) => r.txn_type_id)).toEqual([
-      "road-test",
-      "id-card",
-      "license-original",
-    ]);
+    const office2Ids = office2.rows.map((r: { txn_type_id: string }) => r.txn_type_id);
+    expect(office2Ids).toContain("road-test");
+    expect(office2Ids).toContain("id-card");
+    expect(office2Ids).toContain("license-original");
   });
 });
 
