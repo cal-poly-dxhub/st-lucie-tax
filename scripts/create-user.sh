@@ -9,7 +9,7 @@ EMAIL="${1:?Usage: create-user.sh <email> <password> [groups]}"
 PASSWORD="${2:?Usage: create-user.sh <email> <password> [groups]}"
 GROUPS="${3:-admin,checkin_clerk,service_clerk}"
 
-STACK_NAME="OfficeInfra"
+STACK_NAME="BackOffice"
 USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
 

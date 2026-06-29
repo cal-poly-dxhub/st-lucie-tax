@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./scripts/post-deploy.sh [stack-name]
 #   stack-name: CloudFormation stack name (default: OfficeInfra)
 
-STACK_NAME="${1:-OfficeInfra}"
+STACK_NAME="${1:-BackOffice}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "==> Fetching stack outputs for ${STACK_NAME}..."
@@ -34,5 +34,4 @@ echo "==> Invoking DB schema init lambda: ${DB_INIT_FN}..."
 aws lambda invoke --function-name "$DB_INIT_FN" --log-type Tail /dev/stdout | head -1
 echo ""
 
-echo "==> Running frontend deploy..."
-"${REPO_ROOT}/scripts/deploy-frontend.sh" "$STACK_NAME"
+echo "==> Done! Frontend is deployed via CDK BucketDeployment (no separate step needed)."
