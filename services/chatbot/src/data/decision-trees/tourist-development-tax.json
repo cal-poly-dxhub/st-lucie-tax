@@ -1,0 +1,84 @@
+{
+  "txnTypeId": "tourist-development-tax",
+  "baseItems": ["photo-id-all-applicants", "property-parcel-info"],
+  "factsRequired": [
+    "tdt_intent",
+    "tdt_property_rental_duration",
+    "tdt_has_fdor_sales_tax_id",
+    "tdt_has_property_manager",
+    "tdt_touristexpress_account_status",
+    "tdt_channel",
+    "is_100_percent_disabled_veteran",
+    "is_military_active_duty"
+  ],
+  "branches": [
+    {
+      "when": { "tdt_property_rental_duration": "over-6-months" },
+      "note": "Tourist Development Tax only applies to rentals of 6 months or less. If you rent exclusively for periods over 6 months, TDT is NOT required. You may still owe state sales tax — check with Florida Department of Revenue.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    },
+    {
+      "when": { "tdt_intent": "new-registration", "tdt_has_fdor_sales_tax_id": "no-needed" },
+      "addItems": ["fdor-sales-tax-registration"],
+      "note": "BLOCKED: You must first obtain a Florida Department of Revenue (FDOR) sales-tax identification number BEFORE registering for TDT. Contact FDOR at 772-429-2900 or floridarevenue.com.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    },
+    {
+      "when": {
+        "tdt_intent": "new-registration",
+        "tdt_has_fdor_sales_tax_id": "yes",
+        "tdt_touristexpress_account_status": "no-account"
+      },
+      "addItems": ["touristexpress-application"],
+      "note": "New TDT registration — create a TouristExpress account at stlucie.county-taxes.com/tourist, click \"Add account\", answer no in \"Add an account\" but yes in \"Start an application\", and submit. You'll receive your new tourist tax account number by email once approved.",
+      "sourceRefs": [
+        "https://www.tcslc.com/233/Tourist-Development",
+        "https://www.tcslc.com/DocumentCenter/View/1435"
+      ]
+    },
+    {
+      "when": { "tdt_intent": "file-returns" },
+      "addItems": ["touristexpress-referral"],
+      "removeItems": ["photo-id-all-applicants"],
+      "note": "TDT is filed online via TouristExpress. File and pay by the 20th of the month for a 2.5% collection allowance (capped at $30/month). No in-office visit needed for routine filing.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    },
+    {
+      "when": { "tdt_intent": "deactivate" },
+      "addItems": ["tourist-inactive-form"],
+      "note": "Deactivating a rental property — submit the Tourist Tax Inactive Form. Once the property is no longer rented short-term, the account is marked inactive.",
+      "sourceRefs": [
+        "https://www.tcslc.com/233/Tourist-Development",
+        "https://form.jotform.com/250283874214053"
+      ]
+    },
+    {
+      "when": { "tdt_has_property_manager": "yes" },
+      "addItems": ["tourist-owner-agent-agreement"],
+      "note": "If a property management company files on your behalf, complete the Tourist Owner-Agent Agreement (request from the Tourist Development Tax office via tcslc.com/233/Tourist-Development) so the manager is authorized to file returns for your account.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    },
+    {
+      "when": { "is_military_active_duty": "yes" },
+      "note": "Certain members of the military may qualify for TDT exemptions under Florida Statutes. Check with the Tourist Development Tax office for current eligibility rules before filing.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    },
+    {
+      "when": { "tdt_channel": "online-portal" },
+      "addItems": ["tdt-online-referral"],
+      "removeItems": ["property-parcel-info", "photo-id-all-applicants"],
+      "note": "TDT is filed and paid online through the TouristExpress portal. The portal already has the property parcel linked to your account; no in-office documents are required for routine online filing.",
+      "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [],
+    "tcslcVerified": [
+      "https://www.tcslc.com/233/Tourist-Development",
+      "https://www.tcslc.com/DocumentCenter/View/1435",
+      "https://form.jotform.com/250283874214053"
+    ],
+    "statutes": []
+  }
+}

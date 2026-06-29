@@ -1,0 +1,58 @@
+{
+  "txnTypeId": "specialty-plate",
+  "baseItems": ["photo-id-all-applicants", "specialty-plate-packet-guide"],
+  "factsRequired": ["specialty_plate_flow", "has_specialty_plate_eligibility_proof"],
+  "branches": [
+    {
+      "when": {
+        "specialty_plate_flow": "new-plate-on-existing-vehicle"
+      },
+      "addItems": ["current-registration-or-renewal-notice", "fl-insurance-proof"],
+      "note": "Installing a specialty plate on a vehicle already registered in Florida. Bring current registration + proof of insurance. Customer pays specialty-plate annual fee in addition to any prorated registration difference.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/"
+      ]
+    },
+    {
+      "when": {
+        "specialty_plate_flow": "voucher-self"
+      },
+      "note": "Pre-sale specialty license plate voucher purchased for the customer's own vehicle. Customer can purchase at the office OR online via FLHSMV. Voucher is redeemable when the plate meets the FLHSMV issuance threshold.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/pre-sale-data/"
+      ]
+    },
+    {
+      "when": {
+        "specialty_plate_flow": "voucher-gift"
+      },
+      "addItems": ["recipient-plate-or-license-info"],
+      "note": "Purchasing a voucher for someone else \u2014 customer must have the recipient's name plus either the license plate number OR the driver license number at time of transaction.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/pre-sale-data/"
+      ]
+    },
+    {
+      "when": {
+        "has_specialty_plate_eligibility_proof": "no"
+      },
+      "note": "BLOCKED: Many specialty plates (e.g., university, professional, honor-society) require documented eligibility. Customer must obtain the required proof (alumni letter, membership card, service credential) before applying.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Registrations - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/pre-sale-data/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/307/Specialty-License-Plates-and-Personalized",
+      "https://www.tcslc.com/308/Presale-Specialty-License-Plate-Vouchers"
+    ],
+    "statutes": []
+  }
+}

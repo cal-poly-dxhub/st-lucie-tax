@@ -1,0 +1,74 @@
+{
+  "txnTypeId": "road-test",
+  "baseItems": [
+    "fl-driver-license-to-renew",
+    "vehicle-for-road-test",
+    "fl-insurance-proof-for-test-vehicle"
+  ],
+  "factsRequired": [
+    "learner_permit_age_bracket",
+    "has_learners_license_active",
+    "road_test_location",
+    "parent_guardian_present"
+  ],
+  "branches": [
+    {
+      "when": {
+        "has_learners_license_active": "no"
+      },
+      "note": "BLOCKED: A valid Florida learner's license must be active to take the Class E Driving Skills Test. Customer must first obtain the learner's permit.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/"
+      ]
+    },
+    {
+      "when": {
+        "learner_permit_age_bracket": "under-18",
+        "parent_guardian_present": "no"
+      },
+      "note": "BLOCKED: Minor applicants require a parent or legal guardian (over 18) to be present at the road-test appointment.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/"
+      ]
+    },
+    {
+      "when": {
+        "road_test_location": "walton"
+      },
+      "addItems": ["walton-road-test-parking-guide"],
+      "note": "Walton Road office road-test parking guide \u2014 review before arrival.",
+      "sourceRefs": ["https://www.tcslc.com/316/Exams"]
+    },
+    {
+      "when": {
+        "road_test_location": "tradition"
+      },
+      "addItems": ["tradition-road-test-parking-guide"],
+      "note": "Tradition office road-test parking guide \u2014 review before arrival.",
+      "sourceRefs": ["https://www.tcslc.com/316/Exams"]
+    },
+    {
+      "when": {
+        "road_test_location": "ft-pierce"
+      },
+      "addItems": ["ft-pierce-road-test-parking-guide"],
+      "note": "Ft. Pierce office road-test parking guide \u2014 review before arrival.",
+      "sourceRefs": ["https://www.tcslc.com/316/Exams"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-exams/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/behind-wheel-training/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/316/Exams", "https://www.tcslc.com/292/Teen-Corner"],
+    "statutes": [],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI10C.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO02.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf"
+    ]
+  }
+}

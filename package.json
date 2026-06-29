@@ -1,5 +1,12 @@
 {
   "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*",
+    "frontend"
+  ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -1,0 +1,67 @@
+{
+  "txnTypeId": "mobile-home-title",
+  "baseItems": ["photo-id-all-applicants", "hsmv-82040", "all-applicants-present"],
+  "factsRequired": [
+    "mobile_home_purchase_source",
+    "vehicle_origin",
+    "has_lien_or_lease",
+    "owns_land_under_mobile_home",
+    "transferring_existing_decal"
+  ],
+  "branches": [
+    {
+      "when": { "mobile_home_purchase_source": "fl-dealer" },
+      "note": "Florida dealer purchase — dealer is required by law to process the Application for Title. Customer does NOT need to file the title paperwork at the tax collector.",
+      "sourceRefs": ["https://www.tcslc.com/192/Mobile-Homes"]
+    },
+    {
+      "when": { "mobile_home_purchase_source": "oos-dealer" },
+      "addItems": ["mco-or-signed-title", "bill-of-sale-purchase-agreement"],
+      "note": "Out-of-state dealer purchase (new mobile home) — customer submits HSMV 82040 with manufacturer's certificate of origin, bill of sale showing purchase price and sales tax paid, and any applicable lien-holder information.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82040.pdf",
+        "https://www.tcslc.com/192/Mobile-Homes"
+      ]
+    },
+    {
+      "when": { "vehicle_origin": "us-state" },
+      "addItems": ["oos-title-surrender", "bill-of-sale-purchase-agreement"],
+      "note": "Previously titled out-of-state — surrender the OOS title. Sales tax paid to another state must be proved; Florida Use Tax may apply if purchased within 6 months. Full 6% Use Tax + local option tax applies to foreign-country imports.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+        "https://www.tcslc.com/192/Mobile-Homes"
+      ]
+    },
+    {
+      "when": { "has_lien_or_lease": "lien-active" },
+      "addItems": ["lien-letter"],
+      "note": "Active lien — lien-holder information required on the title application; title issued to lienholder.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/"]
+    },
+    {
+      "when": { "transferring_existing_decal": "yes" },
+      "addItems": ["existing-mobile-home-registration-and-decal"],
+      "note": "Transferring an existing mobile-home decal — present the current registration and decal number.",
+      "sourceRefs": ["https://www.tcslc.com/192/Mobile-Homes"]
+    },
+    {
+      "when": { "owns_land_under_mobile_home": "yes" },
+      "addItems": ["dr-402-real-property-declaration", "rp-decal-note"],
+      "note": "Customer owns the land under the mobile home — should apply for a Real Property (RP) decal instead of an annual registration. Requires Declaration of Real Property (DR-402) issued by the Property Appraiser first.",
+      "sourceRefs": ["https://www.tcslc.com/192/Mobile-Homes", "https://www.paslc.gov/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/liens-and-titles/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/192/Mobile-Homes",
+      "https://www.tcslc.com/194/Titles-Registrations"
+    ],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/319.23"]
+  }
+}

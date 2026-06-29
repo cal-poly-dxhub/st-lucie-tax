@@ -1,0 +1,229 @@
+{
+  "txnTypeId": "cdl",
+  "baseItems": [
+    "primary-id-passport",
+    "social-security-card",
+    "address-proof-1",
+    "address-proof-2",
+    "cdl-application-fee"
+  ],
+  "factsRequired": [
+    "cdl_origin",
+    "cdl_expiration_range",
+    "oos_cdl_valid",
+    "is_us_citizen",
+    "has_primary_id",
+    "has_social_security_card",
+    "address_proof_count",
+    "medical_cert_required",
+    "medical_cert_in_system",
+    "has_hazmat_endorsement_request",
+    "has_tsa_fee",
+    "general_knowledge_exam_passed",
+    "general_knowledge_exam_age",
+    "skills_exam_passed",
+    "clp_age_weeks",
+    "is_school_employee",
+    "can_communicate_in_english",
+    "wears_corrective_lenses",
+    "applicant_age_meets_cdl",
+    "is_100_percent_disabled_veteran"
+  ],
+  "branches": [
+    {
+      "when": {
+        "cdl_origin": "fl-renewal",
+        "cdl_expiration_range": "expired-more-than-1yr"
+      },
+      "note": "BLOCKED for renewal: FL cannot renew a CDL expired more than 12 months. Customer must re-apply as an Original CDL \u2014 full knowledge + skills testing required.",
+      "addItems": ["cdl-general-knowledge-exam", "cdl-skills-exam"]
+    },
+    {
+      "when": {
+        "cdl_origin": "fl-renewal",
+        "cdl_expiration_range": "expired-less-than-1yr"
+      },
+      "addItems": ["cdl-late-fee"],
+      "note": "Renewal with less-than-1yr expiration: CDL late fee applies in addition to renewal fee."
+    },
+    {
+      "when": {
+        "cdl_origin": "oos-transfer",
+        "oos_cdl_valid": "valid"
+      },
+      "addItems": ["valid-out-of-state-cdl"],
+      "note": "Valid OOS CDL in hand: no re-testing. Proceed to issuance once identity + residency documents clear."
+    },
+    {
+      "when": {
+        "cdl_origin": "oos-transfer",
+        "oos_cdl_valid": "invalid"
+      },
+      "addItems": ["cdl-general-knowledge-exam", "cdl-skills-exam"],
+      "note": "Invalid OOS CDL: customer must re-test written and skills, OR return to issuing state to renew and come back with a valid CDL."
+    },
+    {
+      "when": {
+        "cdl_origin": "fl-original-first-time"
+      },
+      "addItems": ["cdl-general-knowledge-exam"],
+      "note": "First-time FL CDL requires General Knowledge exam passed. Skills exam only after CLP has been held 2+ weeks."
+    },
+    {
+      "when": {
+        "cdl_origin": "fl-clp-upgrade",
+        "clp_age_weeks": "2-weeks-or-more"
+      },
+      "addItems": ["cdl-skills-exam"],
+      "note": "CLP held 2+ weeks \u2014 eligible for skills exam to upgrade to CDL."
+    },
+    {
+      "when": {
+        "cdl_origin": "fl-clp-upgrade",
+        "clp_age_weeks": "less-than-2-weeks"
+      },
+      "note": "BLOCKED: Skills exam not eligible until CLP has been held 2 weeks. Reschedule for a date after the 2-week mark."
+    },
+    {
+      "when": {
+        "general_knowledge_exam_age": "more-than-1yr"
+      },
+      "addItems": ["cdl-general-knowledge-exam", "cdl-skills-exam"],
+      "note": "General Knowledge passed more than 12 months ago \u2014 customer must re-test all written and skills exams."
+    },
+    {
+      "when": {
+        "general_knowledge_exam_passed": "passed-not-in-adlts"
+      },
+      "addItems": ["certified-driving-record"],
+      "note": "Exam pass not visible in ADLTS \u2014 customer needs certified driving record / transcript to prove it."
+    },
+    {
+      "when": {
+        "applicant_age_meets_cdl": "no"
+      },
+      "note": "BLOCKED: CDL exams require age 17.5+. Interstate CDL requires 21+; intrastate FL CDL requires 18+."
+    },
+    {
+      "when": {
+        "medical_cert_required": "yes",
+        "medical_cert_in_system": "no"
+      },
+      "addItems": ["cdl-medical-cert-uploaded"],
+      "note": "BLOCKED until physician's office uploads the medical examiner's certificate to the FL state system. FL does not accept the paper card at the counter."
+    },
+    {
+      "when": {
+        "medical_cert_required": "yes",
+        "medical_cert_in_system": "yes"
+      },
+      "addItems": ["cdl-medical-cert-uploaded"],
+      "note": "Medical card is already in the FL system \u2014 nothing further needed, but item is listed for clerk verification."
+    },
+    {
+      "when": {
+        "has_hazmat_endorsement_request": "yes",
+        "has_tsa_fee": "yes"
+      },
+      "addItems": ["hazmat-tsa-fee", "hazmat-written-test", "cdl-endorsement-fee-per"],
+      "note": "Hazmat: TSA fee $91 plus $7 endorsement fee plus hazmat written test (English/Spanish, 60-day validity). Walton office does NOT have a hazmat machine \u2014 schedule at a different office."
+    },
+    {
+      "when": {
+        "has_hazmat_endorsement_request": "yes",
+        "has_tsa_fee": "no"
+      },
+      "note": "BLOCKED: Customer needs $91 TSA background check fee before hazmat can proceed. Reschedule once funded."
+    },
+    {
+      "when": {
+        "address_proof_count": "zero"
+      },
+      "addItems": ["declaration-of-domicile"],
+      "removeItems": ["address-proof-1", "address-proof-2"],
+      "note": "No qualifying address docs \u2014 Declaration of Domicile required. Note CDL customers CANNOT use the Address Certification Form (shortcut available for Class E is not available for CDL)."
+    },
+    {
+      "when": {
+        "is_school_employee": "yes"
+      },
+      "addItems": ["school-employee-letter-or-id"],
+      "note": "School employees must provide employment ID or school department letter on every original and renewal."
+    },
+    {
+      "when": {
+        "is_us_citizen": "permanent-resident"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["lawful-presence-green-card"]
+    },
+    {
+      "when": {
+        "is_us_citizen": "temporary-lawful-presence"
+      },
+      "note": "BLOCKED: FL CDL issuance requires US citizenship or lawful permanent residency. Temporary lawful presence does not qualify."
+    },
+    {
+      "when": {
+        "has_primary_id": "birth-certificate"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-birth-certificate"]
+    },
+    {
+      "when": {
+        "has_primary_id": "naturalization-cert"
+      },
+      "removeItems": ["primary-id-passport"],
+      "addItems": ["primary-id-naturalization-cert"]
+    },
+    {
+      "when": {
+        "can_communicate_in_english": "no"
+      },
+      "note": "BLOCKED: Effective Feb 6 2026, FL DL exams are English-only. CDL General Knowledge must be passed in English and cannot be taken in audio form. Hazmat retest retains English/Spanish audio option."
+    },
+    {
+      "when": {
+        "wears_corrective_lenses": "yes-not-with-me"
+      },
+      "addItems": ["vision-test-or-dl10"],
+      "note": "Vision test failure or missing lenses \u2192 must return with lenses or complete HSMV 72010 with eye doctor."
+    },
+    {
+      "when": {
+        "is_100_percent_disabled_veteran": "yes"
+      },
+      "addItems": ["va-summary-of-benefits-letter"],
+      "removeItems": ["cdl-application-fee"],
+      "note": "100% T&P service-connected disabled veterans qualify for fee waiver on the Florida CDL per F.S. \u00a7322.21(1). Bring the VA Summary of Benefits letter showing the 100% rating in lieu of the application fee.",
+      "sourceRefs": [
+        "https://www.flsenate.gov/Laws/Statutes/2024/322.21",
+        "https://www.flhsmv.gov/military/"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Driver License - CDL.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/driver-licenses-id-cards/commercial-driver-license/",
+      "https://www.flhsmv.gov/driver-licenses-id-cards/commercial-motor-vehicle-drivers/commercial-driver-license/cdl-medical-certification/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/301/Commercial-Driver-License-CDL"],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.53",
+      "https://www.flsenate.gov/Laws/Statutes/2024/322.54"
+    ],
+    "gpt": ["Driver License - CDL - GPT Responses.docx"],
+    "opsManualVerified": [
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO04.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/EO03.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR05.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR06.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/IR07.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/MP08.pdf",
+      "https://tcslc.sharepoint.com/sites/KB-StLucie/Documents/Shared/Local/Incoming/Driver%20License%20Manual%20PN/CI06B.pdf"
+    ]
+  }
+}

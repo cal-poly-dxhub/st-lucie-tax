@@ -1,0 +1,69 @@
+{
+  "txnTypeId": "vessel-registration",
+  "baseItems": [
+    "photo-id-all-applicants",
+    "hsmv-82040",
+    "vessel-title-or-mco-or-bill-of-sale",
+    "vessel-hull-id-documented"
+  ],
+  "factsRequired": ["vessel_origin", "vessel_length_feet", "vessel_intent"],
+  "branches": [
+    {
+      "when": {
+        "vessel_intent": "registration-only"
+      },
+      "removeItems": ["hsmv-82040"],
+      "note": "Registration only (no title change) \u2014 no HSMV 82040. Customer provides current registration + proof of ownership if changed.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/vessel-titling-registrations/"
+      ]
+    },
+    {
+      "when": {
+        "vessel_length_feet": "less-than-16"
+      },
+      "note": "Vessels under 16 feet (excluding motorized except as required) may have exemptions from titling; registration still required.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/vessel-titling-registrations/"
+      ]
+    },
+    {
+      "when": {
+        "vessel_origin": "us-state"
+      },
+      "addItems": ["oos-vessel-title-surrender"],
+      "note": "Out-of-state vessel \u2014 surrender the OOS title. Verify registration validity in prior state.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/vessel-titling-registrations/"
+      ]
+    },
+    {
+      "when": {
+        "vessel_origin": "antique"
+      },
+      "addItems": ["hsmv-87243"],
+      "note": "Antique vessel (30+ years) \u2014 special antique registration via HSMV 87243.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/87243.pdf"]
+    },
+    {
+      "when": {
+        "vessel_origin": "non-titled"
+      },
+      "removeItems": ["vessel-title-or-mco-or-bill-of-sale"],
+      "addItems": ["hsmv-87244"],
+      "note": "Non-titled vessel (some small vessels, specific propulsion types) \u2014 HSMV 87244 registration application.",
+      "sourceRefs": ["https://www.flhsmv.gov/pdf/forms/87244.pdf"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/vessel-titling-registrations/",
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/vessels/numbering-and-decals/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/164/Vessels"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/328.72"]
+  }
+}

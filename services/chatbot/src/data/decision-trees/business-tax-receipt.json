@@ -1,0 +1,153 @@
+{
+  "txnTypeId": "business-tax-receipt",
+  "baseItems": ["photo-id-all-applicants", "btr-application-fee"],
+  "factsRequired": [
+    "btr_intent",
+    "btr_jurisdiction",
+    "btr_is_fictitious_name",
+    "btr_business_type_category",
+    "btr_has_state_license",
+    "btr_has_zoning_approval",
+    "btr_needs_fire_inspection",
+    "btr_exemption_claim",
+    "is_100_percent_disabled_veteran"
+  ],
+  "branches": [
+    {
+      "when": { "btr_intent": "renewal" },
+      "addItems": ["existing-btr-account-number"],
+      "removeItems": ["photo-id-all-applicants"],
+      "note": "BTR renewal — look up the existing account by name or account number at county-taxes.net/stlucie and pay the amount due. Can be completed online; no in-office documents needed unless modifying the record.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_intent": "modify" },
+      "note": "Modifying an existing BTR (change of address, ownership, classification) — contact the Tax Specialist team directly at taxspecialist@tcslc.com; this isn't completed at the counter.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_intent": "close" },
+      "addItems": ["btr-closure-form", "existing-btr-account-number"],
+      "removeItems": ["photo-id-all-applicants", "btr-application-fee"],
+      "note": "Closing a BTR — complete the Business Tax Closure JotForm linked from the tcslc Local Business Tax page. No fee to close.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_is_fictitious_name": "yes" },
+      "addItems": ["sunbiz-registration"],
+      "note": "Using a name other than your legal first and last name (a fictitious/DBA name or business entity) — you must first register with the Florida Division of Corporations (SunBiz) and present proof.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax", "https://search.sunbiz.org/"]
+    },
+    {
+      "when": { "btr_jurisdiction": "port-st-lucie" },
+      "addItems": ["city-btr-port-st-lucie"],
+      "note": "Business located within the City of Port St. Lucie — you MUST obtain both the City of Port St. Lucie Business Tax receipt (772-344-4356) AND the county BTR. Operating on only one is a violation.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_jurisdiction": "fort-pierce" },
+      "addItems": ["city-btr-fort-pierce"],
+      "note": "Business located within the City of Fort Pierce — you MUST obtain both the City of Fort Pierce Certificate of Use (772-467-3065) AND the county BTR. Operating on only one is a violation.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_jurisdiction": "st-lucie-village" },
+      "addItems": ["city-btr-st-lucie-village"],
+      "note": "Business located within St. Lucie Village — you MUST obtain both the Village Business Tax receipt (772-466-6900) AND the county BTR.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_jurisdiction": "unincorporated", "btr_has_zoning_approval": "no" },
+      "addItems": ["slc-zoning-approval"],
+      "note": "BLOCKED: Unincorporated-area businesses must complete the St. Lucie County Zoning process BEFORE applying for a BTR. Visit stluciecountyfl-energovpub.tylerhost.net or call 772-462-2822.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_needs_fire_inspection": "yes-commercial" },
+      "addItems": ["slc-fire-inspection"],
+      "note": "Commercial locations in unincorporated St. Lucie County require a Fire Inspection from St. Lucie County Fire District (772-621-3377) before BTR issuance.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": {
+        "btr_business_type_category": "regulated-profession",
+        "btr_has_state_license": "no-required"
+      },
+      "note": "BLOCKED: Your occupation is regulated by a state agency — you must obtain the state-level professional license BEFORE applying for a BTR.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": {
+        "btr_business_type_category": "regulated-profession",
+        "btr_has_state_license": "yes"
+      },
+      "addItems": ["state-professional-license"],
+      "note": "Regulated profession — present the state-issued professional license (DBPR, FDACS, etc.) at application.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_business_type_category": "pest-control" },
+      "addItems": ["fdacs-pest-control-certification"],
+      "note": "Pest Control / Lawn & Landscape businesses using fertilizers or pesticides MUST contact the Florida Department of Agriculture (St. Lucie County Extension 772-462-1660) BEFORE applying for BTR. See fdacs.gov/Business-Services/Pest-Control/Licensing-and-Certification.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax", "https://www.fdacs.gov/"]
+    },
+    {
+      "when": { "btr_business_type_category": "lawn-landscape" },
+      "addItems": ["fdacs-pest-control-certification"],
+      "note": "Lawn/Landscape businesses that apply fertilizers or pesticides need FDACS certification before BTR.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax", "https://www.fdacs.gov/"]
+    },
+    {
+      "when": { "btr_exemption_claim": "nonprofit-501c3" },
+      "addItems": ["btr-exemption-form", "nonprofit-501c3-proof"],
+      "removeItems": ["btr-application-fee"],
+      "note": "§205.192 nonprofit exemption — 501(c)(3) organizations are exempt. Submit BTR Exemption Form (DocumentCenter/View/257) with proof of federal 501(c)(3) determination.",
+      "sourceRefs": [
+        "https://www.tcslc.com/227/Local-Business-Tax",
+        "https://www.tcslc.com/DocumentCenter/View/257"
+      ]
+    },
+    {
+      "when": { "btr_exemption_claim": "religious" },
+      "addItems": ["btr-exemption-form"],
+      "removeItems": ["btr-application-fee"],
+      "note": "§205.191 religious tenets exemption. Submit the BTR Exemption Form.",
+      "sourceRefs": ["https://www.tcslc.com/DocumentCenter/View/257"]
+    },
+    {
+      "when": { "btr_exemption_claim": "agriculture" },
+      "addItems": ["btr-exemption-form"],
+      "removeItems": ["btr-application-fee"],
+      "note": "§205.064 agricultural/farm/grove/floricultural exemption — includes tropical fish farms and related manufacturing. Submit the BTR Exemption Form.",
+      "sourceRefs": ["https://www.tcslc.com/DocumentCenter/View/257"]
+    },
+    {
+      "when": { "btr_exemption_claim": "veteran-discount" },
+      "addItems": ["dd214-or-veteran-id"],
+      "note": "Florida's Veterans Licensing Fee Waiver program reduces BTR-related fees for eligible veterans. Present DD-214 or VA documentation.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "is_100_percent_disabled_veteran": "yes" },
+      "addItems": ["va-100-percent-disability-letter"],
+      "note": "100% total-and-permanent-disabled veterans may qualify for BTR fee reduction under Florida's veterans fee-waiver program. Present VA letter.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    },
+    {
+      "when": { "btr_intent": "new-application" },
+      "addItems": ["btr-online-referral"],
+      "removeItems": ["btr-application-fee"],
+      "note": "New county Business Tax Receipt applications are fully online via the county portal (stlucie.county-taxes.com/btexpress) — there is no in-office application channel. Fees are calculated automatically based on the business classification you select and paid in the portal; no separate in-office fee, no office visit needed for the county BTR.",
+      "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [],
+    "tcslcVerified": [
+      "https://www.tcslc.com/227/Local-Business-Tax",
+      "https://www.tcslc.com/DocumentCenter/View/257"
+    ],
+    "statutes": []
+  }
+}

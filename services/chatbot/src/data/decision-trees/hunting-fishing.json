@@ -1,0 +1,86 @@
+{
+  "txnTypeId": "hunting-fishing",
+  "baseItems": ["photo-id-all-applicants", "fwc-license-fee"],
+  "factsRequired": [
+    "fwc_license_category",
+    "fwc_applicant_residency",
+    "fwc_license_duration",
+    "fwc_is_military_eligible",
+    "fwc_exemption_claim"
+  ],
+  "branches": [
+    {
+      "when": { "fwc_exemption_claim": "senior-65-plus" },
+      "addItems": ["fl-driver-license-to-renew"],
+      "removeItems": ["fwc-license-fee"],
+      "note": "Florida residents age 65+ are EXEMPT from recreational hunting/fishing license fees under §379.353. Bring Florida DL or ID card showing age + residency, or obtain a free Resident 65+ Hunt/Fish Certificate at the tax collector.",
+      "sourceRefs": [
+        "https://myfwc.com/license/recreational/do-i-need-one/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/379.354"
+      ]
+    },
+    {
+      "when": { "fwc_exemption_claim": "youth-under-16" },
+      "removeItems": ["fwc-license-fee"],
+      "note": "Youth under age 16 are exempt from all recreational hunting and fishing licenses (federal duck stamp also exempt) under §379.353.",
+      "sourceRefs": [
+        "https://myfwc.com/license/recreational/do-i-need-one/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/379.354"
+      ]
+    },
+    {
+      "when": { "fwc_exemption_claim": "disabled-resident" },
+      "addItems": ["disabled-person-hunt-fish-certification"],
+      "removeItems": ["fwc-license-fee"],
+      "note": "Florida residents certified as totally and permanently disabled qualify for a Florida Resident Disabled Person's Hunting and Fishing License (free) under §379.353.",
+      "sourceRefs": [
+        "https://myfwc.com/license/recreational/do-i-need-one/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/379.354"
+      ]
+    },
+    {
+      "when": { "fwc_exemption_claim": "armed-forces-home-on-leave" },
+      "addItems": ["military-orders"],
+      "removeItems": ["fwc-license-fee"],
+      "note": "Florida residents who are US Armed Forces members, not stationed in Florida and home on leave for 30 days or less, are exempt when orders are presented.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/do-i-need-one/"]
+    },
+    {
+      "when": { "fwc_applicant_residency": "non-resident" },
+      "note": "Non-resident fees apply; visitor licenses available in 3-day, 7-day, or annual durations for fishing; non-resident hunting license options include 10-day and annual.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/visitors/"]
+    },
+    {
+      "when": { "fwc_applicant_residency": "resident", "fwc_is_military_eligible": "yes" },
+      "addItems": ["military-gold-sportsman-application"],
+      "note": "Florida resident active-duty military qualify for the Military Gold Sportsman's License at a reduced rate. Present current military ID.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/military-gold/"]
+    },
+    {
+      "when": { "fwc_license_category": "hunting" },
+      "note": "Hunting license lets the holder take game animals statewide. Additional permits required for deer, turkey, waterfowl, archery, muzzleloading, crossbow seasons, and for certain Wildlife Management Areas.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/hunting/"]
+    },
+    {
+      "when": { "fwc_license_category": "saltwater-fishing" },
+      "note": "Saltwater fishing license required to attempt to take marine species (including crabs, lobsters, marine plants). Vessel and pier licenses available as alternatives for qualifying groups.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/saltwater-fishing/"]
+    },
+    {
+      "when": { "fwc_license_category": "freshwater-fishing" },
+      "note": "Freshwater fishing license required for any catch attempt in Florida freshwater (including catch-and-release). Exemptions include the homestead county of residence for a minor child of the homestead owner.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/freshwater-fishing/"]
+    },
+    {
+      "when": { "fwc_license_duration": "lifetime" },
+      "note": "Lifetime licenses are available only to Florida residents and must be purchased with a Florida DL/ID establishing residency. Separate lifetime options for Freshwater Fishing, Saltwater Fishing, Hunting, Sportsman, and Gold Sportsman.",
+      "sourceRefs": ["https://myfwc.com/license/recreational/lifetime-licenses/"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [],
+    "tcslcVerified": ["https://www.tcslc.com/194/Titles-Registrations"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/379.354"]
+  }
+}

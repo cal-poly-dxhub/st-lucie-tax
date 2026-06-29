@@ -1,0 +1,719 @@
+/**
+ * API client for Chatbot Service.
+ *
+ * Routes match API Gateway structure so the same code works
+ * in local dev (Vite proxy → Express) and production (CloudFront → API Gateway).
+ */
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+const AUTH_STORAGE_KEY = "stlucie-beta-auth-v1";
+
+export interface BetaAuthState {
+  token: string;
+  email: string;
+}
+
+export function loadBetaAuth(): BetaAuthState | null {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BetaAuthState>;
+    if (!parsed.token || !parsed.email) return null;
+    return { token: parsed.token, email: parsed.email };
+  } catch {
+    return null;
+  }
+}
+
+export function saveBetaAuth(state: BetaAuthState): void {
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state));
+}
+
+export function clearBetaAuth(): void {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+// SEC-05 sliding expiry: the backend re-issues a token once it's past half-life
+// and returns it in the `X-Refreshed-Token` response header. Install a single
+// fetch wrapper (covers all API calls, present and future) that swaps the new
+// token into localStorage so an actively-used session never expires out from
+// under a tester. No-op when not logged in or no header present.
+//
+// Idempotent: guarded so React StrictMode's double-invoke / HMR can't stack
+// wrappers.
+const FETCH_PATCH_FLAG = "__stlucieRefreshPatch";
+if (
+  typeof window !== "undefined" &&
+  !(window.fetch as unknown as Record<string, boolean>)[FETCH_PATCH_FLAG]
+) {
+  const original = window.fetch.bind(window);
+  const patched: typeof window.fetch = async (...args) => {
+    const res = await original(...args);
+    try {
+      const refreshed = res.headers.get("X-Refreshed-Token");
+      if (refreshed) {
+        const current = loadBetaAuth();
+        if (current) saveBetaAuth({ ...current, token: refreshed });
+      }
+    } catch {
+      // Never let token-refresh bookkeeping break a real response.
+    }
+    return res;
+  };
+  (patched as unknown as Record<string, boolean>)[FETCH_PATCH_FLAG] = true;
+  window.fetch = patched;
+}
+
+/**
+ * Build a headers object for fetch calls. Always sets Content-Type;
+ * conditionally adds `x-api-key` when VITE_API_KEY is configured at
+ * build time AND `Authorization: Bearer <token>` when the user has logged in.
+ * Local dev (no key set, no token) keeps working unchanged.
+ */
+function buildHeaders(extra?: Record<string, string>): Record<string, string> {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  const auth = loadBetaAuth();
+  if (auth) headers["Authorization"] = `Bearer ${auth.token}`;
+  if (extra) Object.assign(headers, extra);
+  return headers;
+}
+
+/**
+ * Same as buildHeaders but for GET requests where Content-Type is
+ * irrelevant. Attaches x-api-key + Authorization when set.
+ */
+function buildGetHeaders(): Record<string, string> | undefined {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  const auth = loadBetaAuth();
+  if (!apiKey && !auth) return undefined;
+  const h: Record<string, string> = {};
+  if (apiKey) h["x-api-key"] = apiKey;
+  if (auth) h["Authorization"] = `Bearer ${auth.token}`;
+  return h;
+}
+
+/**
+ * POST /chatbot/auth/login — exchange password + email for a bearer token.
+ * Returns null on bad password (401) or invalid email (400). Throws on
+ * network / 5xx so callers can show a generic error.
+ */
+export async function login(
+  email: string,
+  password: string,
+): Promise<BetaAuthState | { error: string }> {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  const res = await fetch(`${API_BASE}/chatbot/auth/login`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ email, password }),
+  });
+  if (res.status === 401 || res.status === 400) {
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    return { error: typeof body.error === "string" ? body.error : "Sign-in failed." };
+  }
+  if (!res.ok) throw new Error(`Login HTTP ${res.status}`);
+  const body = (await res.json()) as BetaAuthState;
+  return body;
+}
+
+/**
+ * Build an Error with both a technical `message` (for `console.error`) and a
+ * `displayMessage` for user-facing toasts/banners. Callers that already handle
+ * the technical message (existing log lines) keep working unchanged; callers
+ * that surface the error to users should read `err.displayMessage`.
+ */
+export interface ApiError extends Error {
+  displayMessage: string;
+  status?: number;
+}
+function httpError(status: number, displayMessage: string, technical?: string): ApiError {
+  return Object.assign(new Error(technical ?? `HTTP ${status}`), {
+    displayMessage,
+    status,
+  }) as ApiError;
+}
+
+export interface HotButton {
+  label: string;
+  transactionTypeId: string;
+  category?: string;
+  description?: string;
+}
+
+export interface KBSource {
+  title: string;
+  url?: string;
+  type: "page" | "pdf";
+}
+
+export interface ChatResponse {
+  sessionId: string;
+  message: string;
+  state: string;
+  structuredContext: SessionContext;
+  identifiedTransactions: Array<{
+    txnTypeId: string;
+    name: string;
+    durationMinutes: number;
+  }>;
+  combinedDocuments: string[];
+  totalDurationMinutes: number;
+  kbSources?: KBSource[];
+  /** Server-assigned id for this assistant turn; used as the feedback key. */
+  messageId?: string;
+}
+
+export interface FactValue {
+  value: string;
+  confidence: "asserted" | "inferred" | "unknown";
+  source: "user-message" | "prescreening" | "ocr" | "inference";
+  updatedAt: string;
+}
+
+export type ItemBucket = "bring_in" | "optional_upload" | "form";
+
+export interface BucketItem {
+  itemId: string;
+  label: string;
+  bucket: ItemBucket;
+  source?: string;
+  notes?: string;
+}
+
+export interface ResolvedItemsByBucket {
+  bringIns: BucketItem[];
+  optionalUploads: BucketItem[];
+  forms: BucketItem[];
+}
+
+export interface BlockingInfo {
+  severity: "hard" | "conditional";
+  reason: string;
+  customerMessage: string;
+  nextSteps?: string;
+  sourceRefs?: string[];
+  origin: "decision-tree" | "universal-blockers" | "pre-screen";
+}
+
+export interface TransactionSummary {
+  txnTypeId: string;
+  name: string;
+  durationMinutes: number;
+  status: string;
+  blockedReason?: string;
+  blockingInfo?: BlockingInfo;
+}
+
+export interface SessionContext {
+  identity?: {
+    name?: string;
+    dob?: string;
+    address?: string;
+    confirmed: boolean;
+  };
+  transactions: TransactionSummary[];
+  documents: Array<{
+    documentType: string;
+    status: string;
+  }>;
+  preScreening: {
+    answers: Record<string, unknown>;
+    completedTxnTypes: string[];
+  };
+  scheduling?: {
+    appointmentId?: string;
+    selectedSlot?: {
+      locationName: string;
+      date: string;
+      startTime: string;
+    };
+    qrCodeUrl?: string;
+  };
+  facts?: Record<string, FactValue>;
+  resolvedBuckets?: ResolvedItemsByBucket;
+}
+
+export interface SessionState {
+  sessionId: string;
+  state: string;
+  structuredContext: SessionContext;
+  incompletePreWork: boolean;
+  pendingAuthIdProof?: { embedUrl: string; operationId: string; mode: "proof" | "verified" };
+}
+
+export interface UploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface CreateSessionResponse {
+  sessionId: string;
+  state: string;
+  hotButtons: HotButton[];
+}
+
+// --- Session lifecycle ---
+
+export async function createSession(
+  channel: "web" | "walkin" = "web",
+  walkInLocationId?: string,
+): Promise<CreateSessionResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ channel, walkInLocationId }),
+  });
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't start your session. Please refresh and try again.");
+  return res.json();
+}
+
+export async function fetchHotButtons(): Promise<HotButton[]> {
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/hot-buttons`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface AllTransaction {
+  txnTypeId: string;
+  name: string;
+  category: string;
+  opener: string;
+  summary?: string;
+}
+
+export async function fetchAllTransactions(): Promise<AllTransaction[]> {
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/all-transactions`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// --- Messaging ---
+
+export async function sendMessage(sessionId: string, message: string): Promise<ChatResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "We couldn't send that message. Try again, or refresh if it keeps happening.",
+    );
+  return res.json();
+}
+
+// --- Polling (5s interval) ---
+
+export async function getSessionState(sessionId: string): Promise<SessionState> {
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/session-state/${sessionId}`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "We lost track of your session for a moment. Refresh to pick up where you left off.",
+    );
+  return res.json();
+}
+
+// --- Rehydrate (session resume from URL) ---
+
+export interface RehydrateResponse {
+  session: {
+    sessionId: string;
+    currentState: string;
+    structuredContext: SessionContext;
+    channel: "web" | "walkin" | "sms";
+    walkInLocationId?: string;
+    pendingAuthIdProof?: { embedUrl: string; operationId: string; mode: "proof" | "verified" };
+    createdAt: string;
+    updatedAt: string;
+  };
+  messages: Array<{ role: "user" | "assistant"; content: string; timestamp: string }>;
+  reauth?: {
+    embedUrl: string;
+    transactionId: string;
+  };
+}
+
+export async function rehydrateSession(sessionId: string): Promise<RehydrateResponse | null> {
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/sessions/${sessionId}/rehydrate`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (res.status === 404) return null;
+  if (res.status === 403) {
+    // Session belongs to a different tester. Surface a structured error so
+    // App.tsx can show the email-mismatch notice rather than the generic
+    // "we couldn't reload" message.
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    throw Object.assign(
+      httpError(
+        403,
+        typeof body.message === "string"
+          ? body.message
+          : "This conversation belongs to a different beta tester.",
+      ),
+      {
+        reason: typeof body.error === "string" ? body.error : "forbidden",
+      },
+    );
+  }
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "We couldn't reload your saved conversation. Refresh to start fresh.",
+    );
+  return res.json();
+}
+
+// --- Uploads ---
+
+export async function getUploadUrl(
+  sessionId: string,
+  documentType: string,
+  filename: string,
+): Promise<UploadUrlResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/upload-url`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ documentType, filename }),
+  });
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't get an upload ready. Try again in a moment.");
+  return res.json();
+}
+
+export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
+  // Note: this hits a presigned S3 URL directly, not our API. We intentionally
+  // do NOT attach our API key here — S3 rejects unknown headers on presigned PUTs.
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "Your file didn't finish uploading. Check your connection and try once more.",
+      `Upload failed: ${res.status}`,
+    );
+}
+
+// --- Debug ---
+
+export interface DebugTree {
+  txnTypeId: string;
+  baseItems: string[];
+  factsRequired: string[];
+  branches: Array<{
+    when: Record<string, string>;
+    addItems?: string[];
+    removeItems?: string[];
+    note?: string;
+  }>;
+}
+
+export interface DebugFactDefinition {
+  factKey: string;
+  label: string;
+  valueType: string;
+  allowedValues: string[];
+  questionText: string;
+  scope: "global" | "transaction-specific";
+  relevantTransactions: string[];
+  valueLabels?: Record<string, string>;
+}
+
+export async function fetchDebugTrees(
+  txnTypeIds: string[],
+): Promise<{ trees: DebugTree[]; factDefinitions: DebugFactDefinition[] }> {
+  const params =
+    txnTypeIds.length > 0 ? `?txnTypeIds=${encodeURIComponent(txnTypeIds.join(","))}` : "";
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/debug/trees${params}`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok) throw httpError(res.status, "Couldn't load the decision details just now.");
+  return res.json();
+}
+
+export async function skipState(
+  sessionId: string,
+  stateName: string,
+): Promise<{ previousState: string; newState: string; warning: string }> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/skip`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ stateName }),
+  });
+  if (!res.ok) throw httpError(res.status, "We couldn't skip ahead — try the next step instead.");
+  return res.json();
+}
+
+// --- Confirm-facts review ---
+
+export interface EditFactsResponse {
+  status: "ok";
+  facts: Record<string, FactValue>;
+  resolvedBuckets?: ResolvedItemsByBucket;
+  transactions: TransactionSummary[];
+  newlyUnresolved: string[];
+  newHardBlocks: Array<{
+    txnTypeId: string;
+    name: string;
+    blockingInfo: BlockingInfo;
+  }>;
+  rejected: Array<{ factKey: string; value: string; reason: string }>;
+}
+
+export async function editFacts(
+  sessionId: string,
+  edits: Array<{ factKey: string; value: string }>,
+): Promise<EditFactsResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/edit-facts`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ edits }),
+  });
+  if (!res.ok) throw httpError(res.status, "We couldn't save that change. Try once more.");
+  return res.json();
+}
+
+export interface ConfirmFactsResponse {
+  previousState: string;
+  newState: string;
+}
+
+export async function confirmFacts(
+  sessionId: string,
+  emailOptIn?: { address: string },
+): Promise<ConfirmFactsResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/confirm-facts`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(emailOptIn ? { emailOptIn } : {}),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw Object.assign(
+      httpError(
+        res.status,
+        "We couldn't finalize your answers. Check the form above and try again.",
+      ),
+      { body },
+    );
+  }
+  return res.json();
+}
+
+export async function sendTranscript(
+  sessionId: string,
+  to: string,
+): Promise<{ status: "sent" | "skipped" | "failed"; messageId?: string; reason?: string }> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/send-transcript`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ to }),
+  });
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "We couldn't send the email transcript. Check the address and try again.",
+    );
+  return res.json();
+}
+
+// --- Beta-tester feedback ---
+
+export type MessageFeedbackReaction = "good" | "bad" | "comment";
+
+export async function submitMessageFeedback(
+  sessionId: string,
+  messageId: string,
+  reaction: MessageFeedbackReaction,
+  comment?: string,
+): Promise<{ status: "ok" }> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/message-feedback`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ messageId, reaction, comment }),
+  });
+  if (!res.ok) throw httpError(res.status, "We couldn't record your feedback right now.");
+  return res.json();
+}
+
+export interface SessionFeedbackPayload {
+  notes: string;
+  messageFeedback: Record<
+    string,
+    {
+      reaction?: "good" | "bad";
+      comment?: string;
+      submittedAt?: string;
+    }
+  >;
+  capturedAt: string;
+}
+
+export async function submitSessionFeedback(
+  sessionId: string,
+  payload: SessionFeedbackPayload,
+): Promise<{ status: "ok"; submissionSk: string }> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/feedback`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't submit your feedback bundle. Try again in a moment.");
+  return res.json();
+}
+
+export interface TranscriptPdfMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp?: string;
+  messageId?: string;
+}
+
+export async function downloadTranscriptPdf(
+  sessionId: string,
+  options: {
+    notes?: string;
+    messageFeedback?: SessionFeedbackPayload["messageFeedback"];
+    messages?: TranscriptPdfMessage[];
+  } = {},
+): Promise<Blob> {
+  // Accept: application/pdf is REQUIRED — API Gateway uses the request's
+  // Accept header to decide whether to base64-decode the binary response.
+  // Without it, the PDF arrives as a base64 string and renders as blank
+  // pages.
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/transcript-pdf`, {
+    method: "POST",
+    headers: buildHeaders({ Accept: "application/pdf" }),
+    body: JSON.stringify(options),
+  });
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't build the transcript PDF. Try again in a moment.");
+  return res.blob();
+}
+
+export interface AuthIdResultResponse {
+  status: "pass" | "review" | "rejected" | "authid-failed";
+  reasons?: string[];
+  identity?: { name: string; dob: string; address: string };
+  sessionState?: string;
+  authIdStatus?: number;
+  /**
+   * Bot reply for the new state (resolve-facts in the happy path) — already
+   * generated by the backend's autoGreet pass after the state advance, so
+   * the SPA can drop it straight into the chat without a synthetic round-trip.
+   */
+  greeting?: string;
+}
+
+export async function submitAuthIdResult(sessionId: string): Promise<AuthIdResultResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/authid-result`, {
+    method: "POST",
+    headers: buildHeaders(),
+  });
+  if (!res.ok)
+    throw httpError(
+      res.status,
+      "We couldn't fetch the verification result. Refresh and try once more.",
+    );
+  return res.json();
+}
+
+export interface SkipVerifyResponse {
+  status: "skipped";
+  sessionState: string;
+  greeting?: string;
+}
+
+/** Customer chose "Skip For Now" at the verify-identity gate. */
+export async function skipVerifyIdentity(sessionId: string): Promise<SkipVerifyResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/skip-verify`, {
+    method: "POST",
+    headers: buildHeaders(),
+  });
+  if (!res.ok) throw httpError(res.status, "We couldn't skip that step. Try again.");
+  return res.json();
+}
+
+// --- Scheduling (proxied to the devs' scheduling service) ---
+
+export interface SchedulingSlotResponse {
+  schedulable?: boolean;
+  unavailable?: boolean;
+  slot?: { officeId: number; officeName: string; date: string; time: string } | null;
+  reason?: string | null;
+  unmapped?: string[];
+}
+
+export interface SchedulingBookResponse {
+  status: "booked";
+  appointmentId: number;
+  qrCode: string;
+  scheduling: {
+    selectedSlot: { locationName: string; date: string; startTime: string };
+    appointmentId: string;
+  };
+}
+
+export async function fetchSchedulingSlot(sessionId: string): Promise<SchedulingSlotResponse> {
+  const getHeaders = buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/slot`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't reach scheduling. You can call the office to book.");
+  return res.json();
+}
+
+export async function bookSchedulingAppointment(
+  sessionId: string,
+  body: {
+    officeId: number;
+    date: string;
+    time: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  },
+): Promise<SchedulingBookResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/scheduling/book`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 409)
+    throw Object.assign(httpError(409, "That time was just taken — try again."), {
+      reason: "slot-taken",
+    });
+  if (!res.ok) throw httpError(res.status, "We couldn't book that. Try again, or call the office.");
+  return res.json();
+}

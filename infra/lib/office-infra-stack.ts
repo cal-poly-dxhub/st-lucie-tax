@@ -9,12 +9,9 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3assets from "aws-cdk-lib/aws-s3-assets";
-import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
-import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
-import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigwv2_integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
@@ -38,9 +35,8 @@ export class OfficeInfraStack extends Stack {
   public readonly proxy: rds.DatabaseProxy;
   public readonly dbSecret: rds.DatabaseSecret;
   public readonly lambdaSg: ec2.SecurityGroup;
-  public readonly distribution: cloudfront.Distribution;
-  public readonly frontendBucket: s3.Bucket;
   public readonly httpApiUrl: string;
+  public readonly webAclArn: string;
 
   constructor(scope: Construct, id: string, props: OfficeInfraStackProps) {
     super(scope, id, props);
@@ -210,7 +206,17 @@ export class OfficeInfraStack extends Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
       enforceSSL: true,
-      cors: [], // populated after CloudFront distributions are created
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+          allowedOrigins: [
+            "https://*.cloudfront.net",
+            "http://localhost:3000",
+            "http://localhost:5173",
+          ],
+          allowedHeaders: ["*"],
+        },
+      ],
       lifecycleRules: [{ expiration: Duration.days(30) }],
       removalPolicy: config.dbRemovalPolicy,
       autoDeleteObjects: true,
@@ -411,103 +417,13 @@ export class OfficeInfraStack extends Stack {
         },
       ],
     });
-
-    // ── Frontend: single S3 + CloudFront distribution ──────────────────────────
-    const frontendBucket = (this.frontendBucket = new s3.Bucket(this, "FrontendBucket", {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      enforceSSL: true,
-      removalPolicy: config.dbRemovalPolicy,
-      autoDeleteObjects: true,
-    }));
-
-    const apiOrigin = new origins.HttpOrigin(
-      `${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`,
-    );
-
-    // SPA fallback: rewrite paths without file extensions to /index.html so
-    // client-side routing works. This runs only on the default (S3) behavior —
-    // API responses pass through unmodified.
-    const spaRewrite = new cloudfront.Function(this, "SpaRewrite", {
-      code: cloudfront.FunctionCode.fromInline(`
-function handler(event) {
-  var req = event.request;
-  var uri = req.uri;
-  if (uri.includes('.')) return req;
-  if (uri.startsWith('/chat')) { req.uri = '/chat/index.html'; return req; }
-  if (uri.startsWith('/admin')) { req.uri = '/admin/index.html'; return req; }
-  if (uri !== '/') req.uri = '/index.html';
-  return req;
-}
-`),
-    });
-
-    const distribution = (this.distribution = new cloudfront.Distribution(this, "FrontendDist", {
-      defaultRootObject: "index.html",
-      webAclId: webAcl.attrArn,
-      defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        functionAssociations: [
-          {
-            function: spaRewrite,
-            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
-          },
-        ],
-      },
-      additionalBehaviors: {
-        "/api/*": {
-          origin: apiOrigin,
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-        },
-      },
-    }));
+    this.webAclArn = webAcl.attrArn;
 
     this.httpApiUrl = `https://${httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`;
 
-    new s3deploy.BucketDeployment(this, "OfficeFrontendDeploy", {
-      sources: [s3deploy.Source.asset(path.join(repoRoot, "frontend", "dist"))],
-      destinationBucket: frontendBucket,
-      destinationKeyPrefix: "",
-      distribution,
-      distributionPaths: ["/*"],
-    });
-
-    // ── CORS ────────────────────────────────────────────────────────────────
-    // API requests now go through CloudFront (same-origin), so API Gateway
-    // CORS is unnecessary. S3 documents bucket still needs CORS for presigned
-    // upload PUTs from the browser.
-    const allowedOrigins = [
-      `https://${distribution.distributionDomainName}`,
-      "http://localhost:3000",
-      "http://localhost:5173",
-    ];
-
-    const cfnBucket = documentsBucket.node.defaultChild as s3.CfnBucket;
-    cfnBucket.addPropertyOverride("CorsConfiguration", {
-      CorsRules: [
-        {
-          AllowedMethods: ["PUT", "GET"],
-          AllowedOrigins: allowedOrigins,
-          AllowedHeaders: ["*"],
-        },
-      ],
-    });
-
     // ── Outputs ───────────────────────────────────────────────────────────────
-    new CfnOutput(this, "ApiUrl", {
-      value: "",
-    });
     new CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, "DocumentsBucketName", { value: documentsBucket.bucketName });
-    new CfnOutput(this, "FrontendBucketName", { value: frontendBucket.bucketName });
-    new CfnOutput(this, "FrontendUrl", {
-      value: `https://${distribution.distributionDomainName}`,
-    });
-    new CfnOutput(this, "DistributionId", { value: distribution.distributionId });
   }
 }

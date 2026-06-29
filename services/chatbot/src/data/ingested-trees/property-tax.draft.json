@@ -1,0 +1,257 @@
+{
+  "txnTypeId": "property-tax",
+  "sourceFile": "Property Tax.xlsx",
+  "generatedAt": "2026-04-21T23:00:03.976Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "H": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "FORMS NEEDED?",
+        "F": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "G": "EXTERNAL WEBSITES:",
+        "H": "REASON:",
+        "I": "SOLUTION:"
+      }
+    },
+    {
+      "row": 4,
+      "cells": {
+        "B": "Are you here to pay past due taxes? ",
+        "C": "yes",
+        "D": "inform customer must pay by guaranteed funds; such as cashiers check, cash, debit, credit. NO PERSONAL CHECKS ON PAST DUE TAXES.",
+        "F": "local TCSLC policy* ,F.S. 197.333"
+      }
+    },
+    {
+      "row": 5,
+      "cells": {
+        "C": "no",
+        "D": "determine which taxes they are wanting to pay "
+      }
+    },
+    {
+      "row": 6,
+      "cells": {
+        "B": "method of payment are you using?",
+        "C": "yes",
+        "D": " cashiers check, cash, debit, credit, personal checks. *special note persoanl check do not apply to delinquent taxes"
+      }
+    },
+    {
+      "row": 7,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 8,
+      "cells": {
+        "B": "Are you here to inquire about which exemptions you qualify for?",
+        "C": "yes",
+        "D": "direct customer to property appraiser",
+        "G": "https://www.paslc.gov/"
+      }
+    },
+    {
+      "row": 9,
+      "cells": {
+        "B": "Do you have questions about the exemptions that are already applied?",
+        "C": "yes",
+        "D": "inform customer of what we see on current tax bill ",
+        "F": "tcslc.com",
+        "G": "https://www.paslc.gov/"
+      }
+    },
+    {
+      "row": 10,
+      "cells": {
+        "B": "Are you here to change the address on your property tax?",
+        "C": "yes",
+        "D": "inform customer that change of address form must be done on property appraisewr form first then we can submit on our form a change of address ",
+        "E": "https://www.tcslc.com/DocumentCenter/View/205/Property-Tax-Change-of-Address-Form-PDF?bidId=",
+        "F": "pasclc.com and tcslc.com ",
+        "G": "https://www.paslc.gov/DocumentCenter/View/287/Address-Change-Request-Form-PDF"
+      }
+    },
+    {
+      "row": 11,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 13,
+      "cells": {
+        "B": "Are you here to set up installments?",
+        "C": "yes",
+        "D": "are you the owner? Yes:Provide the APPLICATION FOR INSTALLMENT that must be filled out by owner, (returned to tax collector by nov 1st of year prior and April 30th the year of; first installment due June 30 at 6%-One-quarter of the total estimated taxes and assessments based on the previous year,  2nd installment sept 30th at 4.5%-One-quarter of the total estimated taxes and assessments based on the previous year, 3rd installment dec 31st at 3%-One-quarter of the total estimated taxes and assessments plus one-half of any adjusted tax amount, and 4th installment march 31st at 0%-One-quarter of the total estimated taxes and assessments plus one-half of any adjusted tax amount",
+        "E": "DR-534 APP FOR INSTALLMENT PAYMENT OF PROPERTY TAXES",
+        "F": "tcslc.com or refer to tax bill,F.S. 197.222 ,F.S. 197.333"
+      }
+    },
+    {
+      "row": 14,
+      "cells": {
+        "C": "no",
+        "D": "inform owner must complete application and submitted by owner"
+      }
+    },
+    {
+      "row": 15,
+      "cells": {
+        "B": "Are you here to make partial payment?",
+        "C": "yes",
+        "D": " are you the owner? Yes: provide the application for partial payments, Partial payments apply to CURRENT year taxes only (before delinquency) must be made within 3 payments also no discounts, and due by march 31st. A minimum of $100 must be paid on each partial payment.",
+        "E": "PARTIAL PAYMENT AFFIDAVIT",
+        "F": "tcslc.com or refer to tax bill;  Florida Statute 197.374; F.S. 197.333"
+      }
+    },
+    {
+      "row": 16,
+      "cells": {
+        "C": "no",
+        "D": "inform owner must complete application and submitted by owner"
+      }
+    },
+    {
+      "row": 17,
+      "cells": {
+        "B": "Do you have a state issued Florida License or Id?",
+        "C": "yes"
+      }
+    },
+    {
+      "row": 18,
+      "cells": {
+        "C": "no",
+        "D": "advise state credential is required; provide checklist with required documents for real ID",
+        "F": "https://www.tcslc.com/documentcenter/view/140"
+      }
+    },
+    {
+      "row": 20,
+      "cells": {
+        "B": "Are you here to pay for your taxes ?",
+        "C": "yes",
+        "D": "ask for bill and/or ID and determine if it's 1 or more properties"
+      }
+    },
+    {
+      "row": 21,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 22,
+      "cells": {
+        "B": " are you paying on behalf of someone else?",
+        "C": "yes",
+        "D": "Have the customer provide the correct addresses of the properties and/or property *special note ensure the pay by is entered correctly for any potential refunds"
+      }
+    },
+    {
+      "row": 23,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 25,
+      "cells": {
+        "B": "Are you in need of a copy of your bill?",
+        "C": "yes",
+        "D": "inform them the bill is accesibble on our website and in office ",
+        "F": "https://county-taxes.net/stlucie/property-tax"
+      }
+    },
+    {
+      "row": 26,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 27,
+      "cells": {
+        "B": "Is the account confidential?",
+        "C": "yes",
+        "D": "inform customer that bill for confidential accounts are not available on tcslc website must come in office with their ID to ensure that they are the propety owner"
+      }
+    },
+    {
+      "row": 28,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 29,
+      "cells": {
+        "B": "Are you here to make a payment on the current year?",
+        "C": "yes",
+        "D": "ask for bill and/or ID and correct form of payment"
+      }
+    },
+    {
+      "row": 30,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 31,
+      "cells": {
+        "B": "Are you here to apply for homestead tax deferral?",
+        "C": "yes",
+        "D": "inform customer they must be owner and to submit form with supporting documents showing income restrictions *special note turn around time is 45 day from when all info is gathered; prefilled application is available in taxsys with amounts",
+        "E": "DR-570 APPLICATION FOR HOMESTEAD TAX DEFERRAL",
+        "F": "https://www.tcslc.com/documentcenter/view/1173         ; F.S. 197.252"
+      }
+    },
+    {
+      "row": 32,
+      "cells": {
+        "C": "no"
+      }
+    },
+    {
+      "row": 33,
+      "cells": {
+        "D": " "
+      }
+    },
+    {
+      "row": 36,
+      "cells": {
+        "B": "question on  ad valorem/non ad valorem, tax amount, and other exemptions.",
+        "D": "refer customer to property appraiser for tax amount and exemptions. And refer cust to levying authorities for ad valorem/non ad valorem",
+        "F": "https://www.tcslc.com/BusinessDirectoryii.aspx?ysnShowAll=0&lngNewPage=0&txtLetter=&txtZipCode=&txtCity=&txtState=&txtBusinessName=&lngBusinessCategoryID=0&txtCustomField1=&txtCustomField2=&txtCustomField3=&txtCustomField4=&txtAreaCode=",
+        "G": "https://www.paslc.gov/"
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Property Tax.xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}

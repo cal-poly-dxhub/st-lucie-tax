@@ -1,0 +1,47 @@
+{
+  "txnTypeId": "registration-renewal",
+  "baseItems": ["fl-insurance-proof", "current-registration-or-renewal-notice"],
+  "factsRequired": ["has_fl_insurance", "is_military_active_duty", "is_heavy_truck_55k_gvw"],
+  "branches": [
+    {
+      "when": { "has_fl_insurance": "no" },
+      "note": "BLOCKED: Florida requires continuous motor vehicle insurance on any registered vehicle. Registration cannot be renewed without current proof of Florida Property Damage Liability (PDL) and Personal Injury Protection (PIP) coverage. Customer must obtain Florida insurance before renewing.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/insurance/",
+        "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+      ]
+    },
+    {
+      "when": { "is_heavy_truck_55k_gvw": "yes" },
+      "addItems": ["hvut-2290-proof", "commercial-insurance-limits-proof"],
+      "note": "Heavy Vehicle Use Tax applies to trucks with a gross vehicle weight (GVW) of 55,000 lbs or more. Customer must present IRS Form 2290 (or proof of exemption purchased within 60 days) AND commercial-vehicle insurance policy with the correct coverage limits.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/"]
+    },
+    {
+      "when": { "is_military_active_duty": "yes" },
+      "addItems": ["military-orders", "military-insurance-affidavit"],
+      "note": "Active-duty military stationed outside Florida may use out-of-state insurance with a Military Insurance Affidavit (HSMV 71061) accompanying military orders.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/military/",
+        "https://www.flhsmv.gov/pdf/forms/71061.pdf"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "Registrations - MVI.xlsx",
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/",
+      "https://www.flhsmv.gov/insurance/",
+      "https://www.flhsmv.gov/military/",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": [
+      "https://www.tcslc.com/297/Express-Lane-Registration-Renewals",
+      "https://www.tcslc.com/318/Vehicle-Registration"
+    ],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/320.02",
+      "https://www.flsenate.gov/Laws/Statutes/2024/627.733"
+    ]
+  }
+}

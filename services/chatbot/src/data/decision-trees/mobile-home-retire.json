@@ -1,0 +1,50 @@
+{
+  "txnTypeId": "mobile-home-retire",
+  "baseItems": [
+    "photo-id-all-applicants",
+    "mobile-home-title-retirement-application",
+    "clerk-recorded-documents",
+    "all-tangible-taxes-paid"
+  ],
+  "factsRequired": [
+    "owns_land_under_mobile_home",
+    "title_is_retired_state",
+    "clerk_recording_completed",
+    "owners_joined"
+  ],
+  "branches": [
+    {
+      "when": { "owns_land_under_mobile_home": "no" },
+      "note": "BLOCKED: Title retirement is only available when the owner of the mobile home ALSO owns the real property it sits on. Otherwise the mobile home is personal property and keeps its motor-vehicle title.",
+      "sourceRefs": ["https://www.tcslc.com/193/Retire-Florida-Title"]
+    },
+    {
+      "when": { "clerk_recording_completed": "no" },
+      "note": "BLOCKED: Title retirement is a two-step process. You must first file with the St. Lucie County Clerk of the Circuit Court (Recording Department) BEFORE filing with the Tax Collector's Office. Clerk fees apply separately; call 772-462-6900 or visit stlucieclerk.gov for details.",
+      "sourceRefs": [
+        "https://www.tcslc.com/193/Retire-Florida-Title",
+        "https://stlucieclerk.gov/departments-top-menu/recording-department"
+      ]
+    },
+    {
+      "when": { "owners_joined": "joined-and" },
+      "addItems": ["all-applicants-present"],
+      "note": "Title joined by 'and' — each owner must sign the retirement application.",
+      "sourceRefs": ["https://www.tcslc.com/193/Retire-Florida-Title"]
+    },
+    {
+      "when": { "title_is_retired_state": "already-retired" },
+      "note": "BLOCKED: Title has already been retired. Future transfers use a deed (recorded with the Clerk), not a motor-vehicle title application.",
+      "sourceRefs": ["https://www.tcslc.com/193/Retire-Florida-Title"]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"],
+    "tcslcVerified": [
+      "https://www.tcslc.com/193/Retire-Florida-Title",
+      "https://www.tcslc.com/192/Mobile-Homes"
+    ],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/319.23"]
+  }
+}

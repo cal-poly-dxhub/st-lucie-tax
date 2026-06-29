@@ -1,0 +1,214 @@
+{
+  "txnTypeId": "dl-learners",
+  "sourceFile": "Driver License - Learners License.xlsx",
+  "generatedAt": "2026-04-21T23:00:03.948Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "H": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "FORMS NEEDED?",
+        "F": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "G": "EXTERNAL WEBSITES:",
+        "H": "REASON:",
+        "I": "SOLUTION:"
+      }
+    },
+    {
+      "row": 4,
+      "cells": {
+        "A": "Original Learner's License",
+        "B": "What do I NEED, when I come to your office?",
+        "C": "Is it your 1st Time getting one?",
+        "D": "YES: Are you older or younger than 18?",
+        "E": "TLSAE/DETS Course, Real ID Documents",
+        "H": "Not completing the correct course",
+        "I": "Completing prior to coming to office, "
+      }
+    },
+    {
+      "row": 5,
+      "cells": {
+        "D": "NO: Do You have your FL ID with you?",
+        "E": "TLSAE/DETS Course",
+        "H": "Not completing the correct course",
+        "I": "Completing prior to coming to office, "
+      }
+    },
+    {
+      "row": 7,
+      "cells": {
+        "B": "Did you complete your TLSAE/DETS Course?",
+        "C": "Online Testing",
+        "D": "Yes: When did you complete it?",
+        "H": "The person did not wait the appropriate time (3days) prior to coming to office",
+        "I": "Prompt Users to wait 3 days after completing online testing"
+      }
+    },
+    {
+      "row": 8,
+      "cells": {
+        "D": "NO: This course needs to be done prior to coming to the office.",
+        "H": "The person did not wait the appropriate time (3days) prior to coming to office",
+        "I": "Prompt Users to wait 3 days after completing online testing"
+      }
+    },
+    {
+      "row": 10,
+      "cells": {
+        "B": "What if I entered Incorrect information when creating online TLSAE/DETS Course?",
+        "C": "IF YES",
+        "D": " Contact provider used for online course",
+        "H": "Information must match REAL ID Documents for DL issuance ",
+        "I": "Prompt Users to verify information prior to confirming their online use account, and coming to the offices."
+      }
+    },
+    {
+      "row": 11,
+      "cells": {
+        "C": "IF NO",
+        "D": "Proceed with transaction"
+      }
+    },
+    {
+      "row": 12,
+      "cells": {
+        "B": "Has it been more than 1 year since you took the Knowledge exam?",
+        "C": "If YES",
+        "D": "If your exam was neve applied to a FL Record a Re-exam may be required in office.",
+        "H": "Customer got selected to retest",
+        "I": "Need to take exam in the office"
+      }
+    },
+    {
+      "row": 13,
+      "cells": {
+        "C": "If NO",
+        "D": "You will need to provided proof of TLSAE/DETS Course to your local DMV, along with All Real ID Documents for issuance."
+      }
+    },
+    {
+      "row": 15,
+      "cells": {
+        "B": "Have you taken all of your exams?",
+        "C": "IF YES",
+        "D": "We will need to locate your information in the system, and determine if any  re-exams is required in office."
+      }
+    },
+    {
+      "row": 16,
+      "cells": {
+        "C": "IF NO",
+        "D": "You will need to complete all Required Knowledge and Skills Exam at a Local DMV or Approved FLHSMV 3rd Party Course provider",
+        "H": "Parent/ Guardian does not have valid form of I.D. or brings a sibling under age to sign for them"
+      }
+    },
+    {
+      "row": 18,
+      "cells": {
+        "B": "Which online drug and alcohol course do I need to take?",
+        "C": "Are you younger than 18?",
+        "D": "If YES: DETS course is required "
+      }
+    },
+    {
+      "row": 19,
+      "cells": {
+        "C": "Are you older than 18?",
+        "D": "If YES: TLSAE course is required"
+      }
+    },
+    {
+      "row": 21,
+      "cells": {
+        "B": "I have a License from out of country, do I need to get a Learner's License?",
+        "C": "Have you had a Florida DL before?",
+        "D": "YES: We will need to locate your information in the system and reciprocate your testing with no re-exam required"
+      }
+    },
+    {
+      "row": 22,
+      "cells": {
+        "D": "NO: We will need to set you up for testing for a knowledge exam"
+      }
+    },
+    {
+      "row": 24,
+      "cells": {
+        "B": "I am from out of country, do I need to obtain a learner's license 1st? Or can I obtain a Full driver's license?",
+        "C": "Have you been licensed in the U.S Before?",
+        "D": "IF YES: We may be able to reciprocate our exams and issue you a new DL"
+      }
+    },
+    {
+      "row": 25,
+      "cells": {
+        "D": "If NO: You must complete all required testing prior to obtaining a FL DL"
+      }
+    },
+    {
+      "row": 27,
+      "cells": {
+        "B": "I Previously had a FL Learner's license, and I am now older than 18, am I able to go and get my license?",
+        "C": "Did you ever complete your driving skills exam?",
+        "D": "If YES: You will need to upgrade your learner's license to a Full driver's license "
+      }
+    },
+    {
+      "row": 28,
+      "cells": {
+        "D": "If NO: You will need to complete a Driving Skills exam with a certified Proctor or approved FLHSMV 3rd Party Administrator and update it with your local DMV."
+      }
+    },
+    {
+      "row": 30,
+      "cells": {
+        "B": "What happens if I completed all Testing but never went in to receive a physical DL?",
+        "C": "Do you currently have a FL ID?",
+        "D": "If YES: You will need to go in to your local DMV, and upgrade to a Driver's license"
+      }
+    },
+    {
+      "row": 31,
+      "cells": {
+        "D": "If NO: You will need to contact your local DMV and provide all Real ID Documents to be issued a FL DL"
+      }
+    },
+    {
+      "row": 33,
+      "cells": {
+        "B": "I am 15yrs old, what do I need to obtain my Learner's License?",
+        "C": "Have you had a FL Real ID  Identification Card issued before?",
+        "D": "If YES: Then bring proof of address documents to a local DMV office and proof of online Test completions. A Parent or Gaurdian over the age of  18 must be with you."
+      }
+    },
+    {
+      "row": 34,
+      "cells": {
+        "D": "If NO: Provide all Real ID Documents along with your DETS Course and Class E General Knowledge completion to your local DMV Office. A Parent or Gaurdian over the age of 18 must be with you."
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Driver License - Learners License.xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}

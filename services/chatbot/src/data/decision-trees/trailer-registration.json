@@ -1,0 +1,126 @@
+{
+  "txnTypeId": "trailer-registration",
+  "baseItems": ["photo-id-all-applicants", "certified-weight-slip"],
+  "factsRequired": [
+    "trailer_weight_class",
+    "trailer_construction_type",
+    "trailer_acquisition_source",
+    "trailer_has_parts_receipts"
+  ],
+  "branches": [
+    {
+      "when": { "trailer_weight_class": "2000-or-more" },
+      "addItems": ["hsmv-82040"],
+      "note": "Trailers weighing 2,000 lb or more are required to be titled in Florida per F.S. §319.14. HSMV 82040 is the title application.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/82040.pdf",
+        "https://www.flsenate.gov/Laws/Statutes/2024/319.14"
+      ]
+    },
+    {
+      "when": { "trailer_weight_class": "under-2000" },
+      "note": "Trailers under 2,000 lb cannot be titled in Florida (per HSMV TL-10) and are registration-only. No title application needed.",
+      "sourceRefs": ["https://www.tcslc.com/302/Trailers"]
+    },
+    {
+      "when": { "trailer_construction_type": "homemade" },
+      "addItems": ["parts-receipts-trailer"],
+      "note": "Homemade trailers — bring all parts receipts. 6% sales tax is calculated on the total cost of materials.",
+      "sourceRefs": ["https://www.tcslc.com/302/Trailers"]
+    },
+    {
+      "when": { "trailer_construction_type": "homemade", "trailer_weight_class": "2000-or-more" },
+      "addItems": ["hsmv-84490", "vin-verification-completed"],
+      "note": "Homemade trailers ≥2,000 lb need a state-assigned VIN. Compliance Examiner inspects the trailer in-office, assigns the VIN, and completes HSMV 82042. HSMV 84490 (Statement of Builder) is sometimes also required at the examiner's discretion — bring it filled out to avoid a return trip.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/pdf/forms/84490.pdf",
+        "https://www.flhsmv.gov/pdf/forms/82042.pdf"
+      ]
+    },
+    {
+      "when": { "trailer_construction_type": "homemade", "trailer_has_parts_receipts": "no" },
+      "note": "BLOCKED: homemade trailer registration requires receipts so the tax collector can calculate the 6% sales tax on material cost. Without receipts, reconstruct from credit-card statements or contact the office for a market-value estimate before visiting.",
+      "sourceRefs": ["https://www.tcslc.com/302/Trailers"]
+    },
+    {
+      "when": {
+        "trailer_acquisition_source": "private-purchase",
+        "trailer_weight_class": "under-2000"
+      },
+      "addItems": ["prior-owner-bill-of-sale-trailer"],
+      "note": "Private purchase of a sub-2,000 lb trailer — the bill of sale from the prior owner is the proof of ownership (no title exists). Bring the bill of sale showing trailer description, purchase price, and date.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "trailer_acquisition_source": "private-purchase",
+        "trailer_weight_class": "2000-or-more"
+      },
+      "addItems": ["prior-fl-title-signed-by-seller", "vin-verification-completed"],
+      "note": "Private purchase of a ≥2,000 lb trailer — the seller signs over the existing FL title. VIN verification (HSMV 82042) is required because the trailer is changing ownership.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+        "https://www.flhsmv.gov/pdf/forms/82042.pdf"
+      ]
+    },
+    {
+      "when": { "trailer_acquisition_source": "dealer-purchase" },
+      "addItems": ["dealer-bill-of-sale-trailer"],
+      "note": "Dealer purchase — dealer collects FL sales tax at point of sale. Bring the dealer bill of sale showing the tax breakdown. For ≥2,000 lb the dealer also provides MCO or signed-over title.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "trailer_acquisition_source": "dealer-purchase",
+        "trailer_weight_class": "2000-or-more"
+      },
+      "addItems": ["mco-or-signed-title"],
+      "note": "Dealer-purchased ≥2,000 lb trailers come with a Manufacturer Certificate of Origin (new) or signed-over title (used dealer inventory). The dealer hands this to the customer at sale.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "trailer_acquisition_source": "inherited" },
+      "addItems": ["death-certificate"],
+      "note": "Inherited trailer — bring the deceased prior owner's death certificate plus their existing trailer title (if ≥2,000 lb) signed via probate process. For sub-2,000 lb trailers, the death certificate establishes chain of ownership; no title transfer is needed.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": { "trailer_acquisition_source": "inherited", "trailer_weight_class": "2000-or-more" },
+      "addItems": ["prior-fl-title-signed-by-seller"],
+      "note": "Inherited ≥2,000 lb trailer — the prior owner's FL title must be transferred. Probate court documents or a surviving-spouse affidavit may substitute for a signed-over title. Office may require additional paperwork at the examiner's discretion.",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "trailer_acquisition_source": "out-of-state-transfer",
+        "trailer_weight_class": "2000-or-more"
+      },
+      "addItems": ["oos-title-surrender", "vin-verification-completed"],
+      "note": "Out-of-state transfer of a ≥2,000 lb trailer — the OOS title is surrendered to FL and a new FL title is issued. VIN verification (HSMV 82042) is required.",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+        "https://www.flhsmv.gov/pdf/forms/82042.pdf"
+      ]
+    },
+    {
+      "when": {
+        "trailer_acquisition_source": "out-of-state-transfer",
+        "trailer_weight_class": "under-2000"
+      },
+      "addItems": ["oos-registration"],
+      "note": "Out-of-state transfer of a sub-2,000 lb trailer — bring the OOS registration as proof of prior ownership. No title is required (FL doesn't title trailers <2,000 lb).",
+      "sourceRefs": ["https://www.tcslc.com/302/Trailers"]
+    }
+  ],
+  "sources": {
+    "flhsmvVerified": [
+      "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
+      "https://www.flhsmv.gov/pdf/forms/82040.pdf",
+      "https://www.flhsmv.gov/pdf/forms/82042.pdf",
+      "https://www.flhsmv.gov/pdf/forms/84490.pdf",
+      "https://www.flhsmv.gov/fees/"
+    ],
+    "tcslcVerified": ["https://www.tcslc.com/302/Trailers"],
+    "statutes": ["https://www.flsenate.gov/Laws/Statutes/2024/319.14"]
+  }
+}

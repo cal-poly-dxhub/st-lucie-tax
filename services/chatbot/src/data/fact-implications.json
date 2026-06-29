@@ -1,0 +1,200 @@
+[
+  {
+    "when": { "ownership_duration": "6-months-or-more" },
+    "then": { "sales_tax_paid_out_of_state": "na-owned-6mo-plus" },
+    "note": "Owned 6+ months → no out-of-state sales-tax/use-tax concern, so the sales-tax question is moot. Every vehicle-title-transfer sales-tax branch is gated on ownership_duration=less-than-6-months, so na-owned-6mo-plus fires no branch (document-list neutral); this auto-resolves the fact so the bot skips the redundant question instead of asking one it just called moot."
+  },
+  {
+    "when": { "title_is_oos": "no-florida" },
+    "then": {
+      "title_is_original_paper": "na-fl-title",
+      "vehicle_origin": "within-florida",
+      "vehicle_physically_present": "na-fl-title",
+      "ownership_duration": "6-months-or-more"
+    },
+    "note": "A current Florida title means the vehicle is already in the FL title system: it cannot be an out-of-state paper/electronic title (title_is_original_paper=na-fl-title), it was previously titled in Florida (vehicle_origin=within-florida), it needs no VIN verification (vehicle_physically_present=na-fl-title), and there is no out-of-state use-tax window to assess (ownership_duration=6-months-or-more, which cascades to sales_tax=na-owned-6mo-plus). All implied facts fire ZERO branches in vehicle-title-transfer (the paper-status, origin, VIN-verification, and use-tax branches all gate on out-of-state values), so this is document-list neutral and only suppresses redundant FL-title questions. Helps every transfer type (gated on the FL-title fact, not on inheritance)."
+  },
+  {
+    "when": { "vehicle_origin": "within-florida" },
+    "then": { "sales_tax_paid_out_of_state": "na-owned-6mo-plus" },
+    "note": "A vehicle already titled in Florida (within-florida origin) can have no out-of-state sales/use-tax concern. Every sales-tax branch (indices 12-14) is gated on vehicle_origin=us-state, so na-owned-6mo-plus fires no branch (document-list neutral); auto-resolving skips the moot out-of-state sales-tax question. Cascades from the title_is_oos=no-florida rule above."
+  },
+  {
+    "when": { "transfer_reason": "inheritance-deceased-owner" },
+    "then": {
+      "ownership_duration": "6-months-or-more",
+      "has_odometer_disclosure": "na-inheritance",
+      "vehicle_model_year_range": "na-odometer-moot"
+    },
+    "note": "An inheritance is not a purchase by the heir. (1) No FL use-tax / out-of-state sales-tax event → the purchase-framed 'how long have YOU owned it' question is moot; ownership_duration=6-months-or-more cascades to sales_tax=na (the use-tax branches all require less-than-6-months, so no document branch fires). (2) The deceased can't sign a seller's odometer disclosure (SME-confirmed: tax423), so the odometer question is moot — has_odometer_disclosure=na-inheritance fires no branch, and vehicle_model_year_range (asked only to gate the odometer item) is set to na-odometer-moot so it's skipped too. All three implied values are document-list neutral; the inheritance odometer-removal branch in the tree is a belt-and-suspenders guard in case odometer was answered before transfer_reason."
+  },
+  {
+    "when": { "transfer_reason": "standard-sale-or-gift" },
+    "then": {
+      "inheritance_additional_owners": "na-not-inheritance",
+      "inheritance_has_will": "na-not-inheritance"
+    },
+    "note": "A standard living-owner sale or gift has no estate/heirship to determine, so auto-resolve both inheritance heirship facts to their N/A sentinels and skip the inheritance questions for non-inheritance transfers."
+  },
+  {
+    "when": { "inheritance_additional_owners": "surviving-co-owner" },
+    "then": { "inheritance_has_will": "na-surviving-co-owner" },
+    "note": "When a surviving co-owner is already named on the title (commonly a spouse joined by 'or'), the vehicle passes to them directly, so the will/probate question is moot — auto-resolve it and skip the question. This also clears the heirship hard-block, since who-takes-title is established by the survivorship on the title itself."
+  },
+  {
+    "when": { "title_possession": "electronic-held" },
+    "then": {
+      "title_condition": "na-no-title",
+      "title_is_original_paper": "na-no-title"
+    },
+    "note": "Title is held electronically by FLHSMV — there is no physical title to inspect for alterations/signatures and nothing to classify as paper/photocopy. Auto-resolve both paper-title questions to na-no-title so the bot stops asking them (sessions 19d716d3/ae0b2879 looped these after the customer said the title was electronic). na-no-title fires no document branch; the electronic-held branch handles the conversion guidance."
+  },
+  {
+    "when": { "title_possession": "lost-or-none" },
+    "then": {
+      "title_condition": "na-no-title",
+      "title_is_original_paper": "na-no-title"
+    },
+    "note": "Customer does not have the title (lost / destroyed / never received). There is no physical title to inspect or classify, so auto-resolve both paper-title questions to na-no-title and stop asking them (session 19d716d3 looped title-condition ~8 times). The lost-or-none branch adds the duplicate-title application (HSMV 82101) the customer must obtain."
+  },
+  {
+    "when": { "fwc_applicant_residency": "non-resident" },
+    "then": { "fwc_is_military_eligible": "no" },
+    "note": "The FL-military hunting/fishing benefit (military-gold-sportsman) applies only to Florida RESIDENTS — the sole hunting-fishing branch using fwc_is_military_eligible is gated on fwc_applicant_residency=resident. For a non-resident the military fact can never change the doc list, and the question text ('Are you a Florida resident currently on active-duty military?') is self-contradictory after they said non-resident. Auto-resolving to 'no' fires no branch (document-list neutral) and skips the dead question."
+  },
+  {
+    "when": { "cdl_origin": "fl-original-first-time" },
+    "then": {
+      "cdl_expiration_range": "never-held",
+      "oos_cdl_valid": "na-not-oos-transfer",
+      "clp_age_weeks": "na-no-clp"
+    },
+    "note": "A first-time CDL application cannot have a prior CDL to expire or an OOS license; CLP is only relevant if one exists."
+  },
+  {
+    "when": { "cdl_origin": "fl-renewal" },
+    "then": { "oos_cdl_valid": "na-not-oos-transfer" },
+    "note": "In-state renewal means no out-of-state license is being transferred."
+  },
+  {
+    "when": { "cdl_origin": "fl-clp-upgrade" },
+    "then": {
+      "cdl_expiration_range": "never-held",
+      "oos_cdl_valid": "na-not-oos-transfer"
+    },
+    "note": "CLP → CDL upgrade: no prior CDL ever held; no OOS involvement."
+  },
+  {
+    "when": { "cdl_expiration_range": "never-held" },
+    "then": {
+      "general_knowledge_exam_passed": "not-passed",
+      "general_knowledge_exam_age": "na",
+      "skills_exam_passed": "not-passed"
+    },
+    "note": "A never-held CDL implies no prior exams have been passed for it."
+  },
+  {
+    "when": { "has_hazmat_endorsement_request": "no" },
+    "then": { "has_tsa_fee": "na-no-hazmat" },
+    "note": "No hazmat endorsement → no TSA background-check fee applies."
+  },
+  {
+    "when": { "is_us_citizen": "us-citizen" },
+    "then": { "lawful_presence_docs": "na-us-citizen" },
+    "note": "US citizens do not need lawful-presence documents."
+  },
+  {
+    "when": { "is_veteran_designation_request": "not-a-veteran" },
+    "then": { "is_100_percent_disabled_veteran": "no" },
+    "note": "Someone who isn't a veteran cannot have a VA service-connected disability rating — skip the VA-letter follow-up."
+  },
+  {
+    "when": { "is_new_fl_resident": "no" },
+    "then": { "came_from_type": "na-florida-native" },
+    "note": "Customer not new to Florida → defaults to Florida native; the LLM can override if they later mention a prior state."
+  },
+  {
+    "when": { "placard_scenario": "original" },
+    "then": {
+      "placard_replacement_reason": "na-not-replacement",
+      "placard_has_police_report": "na-not-stolen"
+    },
+    "note": "Original placard application → no replacement-reason or police-report follow-up."
+  },
+  {
+    "when": { "placard_scenario": "renewal" },
+    "then": {
+      "placard_replacement_reason": "na-not-replacement",
+      "placard_has_police_report": "na-not-stolen"
+    },
+    "note": "Renewal application → no replacement-reason or police-report follow-up."
+  },
+  {
+    "when": { "placard_replacement_reason": "lost" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Lost placard → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_replacement_reason": "damaged" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Damaged placard → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_replacement_reason": "defaced" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Defaced placard → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_replacement_reason": "destroyed" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Destroyed placard → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_replacement_reason": "surrendered" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Surrendered placard → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_replacement_reason": "lost-in-transit" },
+    "then": { "placard_has_police_report": "na-not-stolen" },
+    "note": "Lost in transit → not stolen, no police-report needed."
+  },
+  {
+    "when": { "placard_applicant_type": "individual-florida-id" },
+    "then": {
+      "placard_visitor_has_isa": "na-not-visitor",
+      "placard_country_of_origin_for_visitor": "na-not-visitor",
+      "placard_org_id_type": "na-not-organization"
+    },
+    "note": "Florida resident individual → not a visitor (no ISA / no origin question), not an organization."
+  },
+  {
+    "when": { "placard_applicant_type": "individual-out-of-state" },
+    "then": {
+      "placard_org_id_type": "na-not-organization",
+      "placard_country_of_origin_for_visitor": "us-state"
+    },
+    "note": "Out-of-state individual visitor → not an organization, origin is a US state."
+  },
+  {
+    "when": { "placard_applicant_type": "individual-out-of-country" },
+    "then": {
+      "placard_org_id_type": "na-not-organization",
+      "placard_country_of_origin_for_visitor": "foreign-country"
+    },
+    "note": "Out-of-country individual visitor → not an organization, origin is foreign."
+  },
+  {
+    "when": { "placard_applicant_type": "organization" },
+    "then": {
+      "placard_visitor_has_isa": "na-not-visitor",
+      "placard_country_of_origin_for_visitor": "na-not-visitor"
+    },
+    "note": "Organization applicant → not a visitor (no ISA / no origin question)."
+  },
+  {
+    "when": { "placard_duration": "permanent" },
+    "then": { "placard_prior_temporary_within_12mo": "na-not-temporary" },
+    "note": "Permanent placard → the prior-temporary 12-month fee waiver doesn't apply."
+  }
+]

@@ -1,0 +1,93 @@
+{
+  "txnTypeId": "concealed-weapon",
+  "baseItems": ["photo-id-all-applicants", "ccw-firearms-training-document", "ccw-application-fee"],
+  "factsRequired": [
+    "ccw_intent",
+    "ccw_applicant_age_bracket",
+    "is_us_citizen",
+    "ccw_has_training_document",
+    "recent_name_change",
+    "ccw_has_disqualifying_history"
+  ],
+  "branches": [
+    {
+      "when": { "ccw_has_disqualifying_history": "yes" },
+      "note": "BLOCKED — potentially ineligible. FDACS may deny applicants with a felony conviction (unless rights restored), domestic-violence injunction, adjudication withheld on a crime of violence within 3 years, two DUI convictions in the last 3 years, drug/alcohol abuse history, mental-health adjudication, dishonorable discharge, fugitive status, or renunciation of US citizenship. Customer should review the Application Instructions PDF and call FDACS (1-850-245-5691) before scheduling an appointment.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements",
+        "https://www.flsenate.gov/Laws/Statutes/2024/790.06"
+      ]
+    },
+    {
+      "when": { "ccw_applicant_age_bracket": "under-18" },
+      "note": "BLOCKED: Florida CCW minimum age is 21. Applicants 18-20 qualify ONLY if they are current US servicemembers (per §250.01) or honorably-discharged veterans. Under 18 never qualifies.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements",
+        "https://www.flsenate.gov/Laws/Statutes/2024/790.06"
+      ]
+    },
+    {
+      "when": { "ccw_applicant_age_bracket": "18-to-20-not-military" },
+      "note": "BLOCKED: 18-20 year olds qualify for Florida CCW ONLY if they are current US servicemembers or honorably-discharged veterans. Other 18-20 applicants must wait until age 21.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements",
+        "https://www.flsenate.gov/Laws/Statutes/2024/790.06"
+      ]
+    },
+    {
+      "when": { "ccw_applicant_age_bracket": "18-to-20-military-or-veteran" },
+      "addItems": ["dd214-or-military-orders"],
+      "note": "Servicemember / honorably-discharged veteran aged 18-20 qualifies. Present DD-214 (veteran) OR current military orders + statement of military service (active duty).",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements"
+      ]
+    },
+    {
+      "when": { "is_us_citizen": "permanent-resident" },
+      "addItems": ["lawful-presence-green-card"],
+      "note": "Lawful permanent resident aliens qualify. Must present a valid Permanent Resident Alien card with the application.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements"
+      ]
+    },
+    {
+      "when": { "is_us_citizen": "temporary-lawful-presence" },
+      "note": "BLOCKED: Florida CCW eligibility is limited to US citizens and lawful permanent resident aliens. Temporary lawful presence (visa holders, I-94, EAD) does NOT qualify.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Eligibility-Requirements",
+        "https://www.flsenate.gov/Laws/Statutes/2024/790.06"
+      ]
+    },
+    {
+      "when": { "ccw_has_training_document": "no" },
+      "note": "BLOCKED: Florida law requires proof of firearms competency. Customer must first complete an approved course (NRA firearms safety, hunter safety/education course, law-enforcement firearms course, or state-certified instructor course) and obtain a certificate. Active-duty military / veterans can substitute DD-214 or call-to-active-duty orders.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Acceptable-Firearms-Training-Documentation"
+      ]
+    },
+    {
+      "when": { "ccw_intent": "renewal" },
+      "removeItems": ["ccw-firearms-training-document"],
+      "addItems": ["existing-ccw-license"],
+      "note": "Renewal does NOT require new training documentation. Bring the current CCW license.",
+      "sourceRefs": ["https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License"]
+    },
+    {
+      "when": { "recent_name_change": "yes-with-docs" },
+      "addItems": ["name-change-marriage-cert"],
+      "note": "Name change must be documented with a certified marriage certificate, divorce decree, or court order.",
+      "sourceRefs": [
+        "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License"
+      ]
+    }
+  ],
+  "sources": {
+    "spreadsheet": "",
+    "flhsmvVerified": [],
+    "tcslcVerified": ["https://www.tcslc.com/331/Concealed-Weapon-Permits"],
+    "statutes": [
+      "https://www.flsenate.gov/Laws/Statutes/2024/790.06",
+      "https://www.flsenate.gov/Laws/Statutes/2024/790.0655"
+    ]
+  }
+}

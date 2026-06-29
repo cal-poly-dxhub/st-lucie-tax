@@ -1,0 +1,119 @@
+{
+  "txnTypeId": "dl-immigration",
+  "sourceFile": "Driver License - Immigration.xlsx",
+  "generatedAt": "2026-04-21T23:00:03.939Z",
+  "rawRows": [
+    {
+      "row": 1,
+      "cells": {
+        "A": "TRANSACTIONS",
+        "H": "REASONS CUSTOMERS ARE TURNED AWAY"
+      }
+    },
+    {
+      "row": 3,
+      "cells": {
+        "A": "TRANSACTION TYPE:",
+        "B": "QUESTIONS:",
+        "C": "IF:",
+        "D": "THEN:",
+        "E": "FORMS NEEDED?",
+        "F": "RESOURCES (PROCEDURES/CHEATSHEETS):",
+        "G": "EXTERNAL WEBSITES:",
+        "H": "REASON:",
+        "I": "SOLUTION:"
+      }
+    },
+    {
+      "row": 4,
+      "cells": {
+        "B": "I recently moved from out of country, how can I obtain a License?",
+        "C": "Are you classified as an Immigrant or Non-Immigrant",
+        "D": "Immigrant = we will need your Permanent Residence Card, Social Security Card/Number, Proof of Address Documents. You will then need to Complete All required Testing at your local DMV Office",
+        "E": "I-551 Permanent Resident Card, or an I-551 Stamp on Passport or on I-94",
+        "G": "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/immigrant/"
+      }
+    },
+    {
+      "row": 5,
+      "cells": {
+        "D": "Non-Immigrant = Proof of Legal Status( Work Authorization Card) or I-94 issued by DHS or USCIS, Proof of Social Security Card/Number (if Applicable), Proof of Address. You will need to complete All required Testing at your local DMV Office.",
+        "E": "Valid employment authorization card issued by the U.S. Department of Homeland Security (DHS) form I-688B or I-766;",
+        "G": "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/non-immigrant/"
+      }
+    },
+    {
+      "row": 7,
+      "cells": {
+        "B": "I Already have a License from my country, Do I need to take a Driving Test?",
+        "C": "YES",
+        "D": "Your Out of Country License will allow you to waive a Drug and Alcohol Test but will require you to complete a Class E General Knowledge and Skills exam at your Local DMV office or Approved FLHSMV 3rd Party Course provider. "
+      }
+    },
+    {
+      "row": 8,
+      "cells": {
+        "C": "NO",
+        "D": "If you previously held a Valid US Driver's License, and can provided physical proof or proof of a Driver's Record and we verify with NLETS, no testing will be required"
+      }
+    },
+    {
+      "row": 9,
+      "cells": {
+        "B": "I am from out of country and visiting for a short while, am I able to get a License/ID?",
+        "C": "YES",
+        "D": "Valid Passport, DHS form I-94 with required, Proof of Address Documents"
+      }
+    },
+    {
+      "row": 10,
+      "cells": {
+        "C": "NO",
+        "D": "You must have proof of Legal entry or status in order to receive a FL Credential."
+      }
+    },
+    {
+      "row": 11,
+      "cells": {
+        "B": "I am a Canadian Citizen, can I get a FL License?",
+        "C": "YES",
+        "D": "Canadians Renewing, replacing or applying for a new driver's license or ID Card in person MUST submit all Real ID compliant documents. Surrender Canadian License for all Exam Reciprocation, or complete Class E Knowledge and Skills Exam at Local DMV, or approved FLHSMV 3rd Party Course Provider.",
+        "E": "Canadian Passport, Proof of Social Security Number (if Applicable), Proof of Address Documents, Canadian DL"
+      }
+    },
+    {
+      "row": 12,
+      "cells": {
+        "C": "NO",
+        "D": "If you are unable to provide Real ID Documents for issuance, or proof of legal status."
+      }
+    },
+    {
+      "row": 14,
+      "cells": {
+        "B": "I have a Commercial Driver's License from my country, Can I Obtain a CDL in FL?",
+        "C": "YES",
+        "D": "If you are a US Permanent Resident or US Citizen, you must establish Florida Residency and complete ALL CDL Knowledge and CDL Skills Exams to obtain a FL CDL."
+      }
+    },
+    {
+      "row": 15,
+      "cells": {
+        "C": "NO",
+        "D": "If you do not hold US Permanent Resident or US Citizenship, you are unable to apply for a US CDL per USA DOT."
+      }
+    }
+  ],
+  "skeleton": {
+    "baseItems": [],
+    "factsRequired": [],
+    "branches": [],
+    "sources": {
+      "spreadsheet": "Driver License - Immigration.xlsx",
+      "flhsmvVerified": [],
+      "tcslcVerified": [],
+      "statutes": [],
+      "gpt": []
+    }
+  }
+}
