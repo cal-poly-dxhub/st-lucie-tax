@@ -12,7 +12,7 @@
 
 import type { Tool, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime";
 import type { Session, PreScreeningQuestion } from "@st-lucie/shared-types";
-import { queryGlobalByPrefix } from "@st-lucie/data-access";
+import { getPool } from "@st-lucie/data-access";
 import { queryKnowledgeBase } from "../../knowledge-base/query.js";
 import { getDecisionTree } from "../../data-loaders/decision-trees.js";
 
@@ -136,19 +136,29 @@ async function handleLoadQuestions(session: Session): Promise<PreScreenToolResul
     .filter((t) => t.status === "active" && !getDecisionTree(t.txnTypeId))
     .map((t) => t.txnTypeId);
 
-  // Load questions for all active transaction types from DynamoDB
+  // Load questions for all active transaction types from PostgreSQL
   const allQuestions: PreScreeningQuestion[] = [];
-  for (const txnTypeId of activeTypes) {
-    const items = await queryGlobalByPrefix("PRESCREENING", txnTypeId, "Q#");
-    for (const item of items) {
+  if (activeTypes.length > 0) {
+    const pool = getPool();
+    const result = await pool.query<{
+      txn_type_id: string;
+      question_text: string;
+      sort_order: number;
+    }>(
+      `SELECT tt.txn_type_id, pq.question_text, pq.sort_order
+       FROM prescreen_questions pq
+       JOIN transaction_types tt ON tt.id = pq.txn_type_id
+       WHERE tt.txn_type_id = ANY($1)
+       ORDER BY pq.sort_order`,
+      [activeTypes],
+    );
+    for (const row of result.rows) {
       allQuestions.push({
-        questionKey: item.questionKey as string,
-        questionText: item.questionText as string,
-        answerType: item.answerType as string as PreScreeningQuestion["answerType"],
-        blockingRule: item.blockingRule as string | undefined,
-        blockingMessage: item.blockingMessage as string | undefined,
-        txnTypeId: item.txnTypeId as string,
-        sequence: item.sequence as number,
+        questionKey: `${row.txn_type_id}#q${row.sort_order}`,
+        questionText: row.question_text,
+        answerType: "text",
+        txnTypeId: row.txn_type_id,
+        sequence: row.sort_order,
       });
     }
   }
@@ -221,22 +231,19 @@ async function handleRecordAnswer(
     .filter((t) => t.status === "active")
     .map((t) => t.txnTypeId);
 
-  // Load the question to check blocking rules
-  let blockingRule: string | undefined;
-  let blockingMessage: string | undefined;
+  // Determine which txn types this question applies to
   const appliedTo: string[] = [];
+  const blockingRule: string | undefined = undefined;
+  const blockingMessage: string | undefined = undefined;
 
-  for (const txnTypeId of activeTypes) {
-    const items = await queryGlobalByPrefix("PRESCREENING", txnTypeId, "Q#");
-    for (const item of items) {
-      if (item.questionKey === questionKey) {
-        appliedTo.push(txnTypeId);
-        if (item.blockingRule) {
-          blockingRule = item.blockingRule as string;
-          blockingMessage = item.blockingMessage as string;
-        }
-      }
-    }
+  // questionKey format: "txnTypeId#qN" — extract the txnTypeId
+  const qkParts = questionKey.split("#");
+  const qkTxnType = qkParts[0];
+  if (qkTxnType && activeTypes.includes(qkTxnType)) {
+    appliedTo.push(qkTxnType);
+  } else {
+    // Apply to all active types if key doesn't embed a txnTypeId
+    appliedTo.push(...activeTypes);
   }
 
   // Evaluate blocking rule.

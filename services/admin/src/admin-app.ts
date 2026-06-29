@@ -1,6 +1,6 @@
 /**
  * Admin dashboard Express app — read-only view over the chatbot's
- * DynamoDB partition. Mirror of services/chatbot/src/local-server-app.ts:
+ * PostgreSQL tables. Mirror of services/chatbot/src/local-server-app.ts:
  * exports an `app` (no listen call) so it can be served by both the local
  * dev launcher (admin/src/local-server.ts) and the Lambda handler
  * (admin/src/handlers/express-app.handler.ts).

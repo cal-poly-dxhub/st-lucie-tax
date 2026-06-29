@@ -17,6 +17,8 @@ app.listen(PORT, () => {
   console.log(
     `Using Bedrock model: ${process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-20250514-v1:0"}`,
   );
-  console.log(`DynamoDB table: ${process.env.DYNAMODB_TABLE_NAME || "st-lucie-platform"}`);
+  console.log(
+    `PostgreSQL: ${process.env.PGHOST || "127.0.0.1"}:${process.env.PGPORT || "5432"}/${process.env.PGDATABASE || "stlucie"}`,
+  );
   console.log(`Tenant: ${process.env.TENANT_ID || "stlucie"}`);
 });

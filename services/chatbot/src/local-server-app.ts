@@ -14,7 +14,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import type { HotButton } from "@st-lucie/shared-types";
-import { getConfigValue, query } from "@st-lucie/data-access";
+import { getPool, getChatSession, getChatMessages } from "@st-lucie/data-access";
 import { createSession } from "./session/create-session.js";
 import { getSession } from "./session/get-session.js";
 import { processMessage, runAutoGreet } from "./conversation/process-message.js";
@@ -252,7 +252,14 @@ app.post("/chatbot/sessions", sessionCreateLimiter, async (req, res) => {
       betaTesterEmail: req.betaEmail,
       isTestSession,
     });
-    const buttons = ((await getConfigValue(TENANT_ID, "HOT_BUTTONS")) as HotButton[]) || [];
+    const pool = getPool();
+    const hbResult = await pool.query<{ label: string; prompt: string }>(
+      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
+    );
+    const buttons: HotButton[] = hbResult.rows.map((r) => ({
+      label: r.label,
+      transactionTypeId: r.prompt,
+    }));
     res.status(201).json({
       sessionId: session.sessionId,
       state: session.currentState,
@@ -389,14 +396,18 @@ app.get("/chatbot/sessions/:sessionId/rehydrate", async (req, res) => {
       return;
     }
 
-    const historyItems = await query(TENANT_ID, "SESSION", sid, "HISTORY#");
-    const messages = historyItems
-      .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
-      .map((h) => ({
-        role: (h.role as "user" | "assistant") ?? "assistant",
-        content: String(h.content ?? ""),
-        timestamp: String(h.timestamp ?? ""),
-      }));
+    const sessionRow = await getChatSession(sid);
+    const historyRows = sessionRow ? await getChatMessages(sessionRow.id) : [];
+    const messages = historyRows
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => {
+        const content = m.content as Record<string, unknown>;
+        return {
+          role: m.role as "user" | "assistant",
+          content: (content.text as string) ?? "",
+          timestamp: m.created_at,
+        };
+      });
 
     let reauth: { embedUrl: string; transactionId: string } | undefined;
     if (session.authIdAccountNumber && session.structuredContext.identity?.confirmed) {
@@ -443,14 +454,22 @@ app.get("/chatbot/sessions/:sessionId/rehydrate", async (req, res) => {
 app.get("/chatbot/debug/session-logs/:sessionId", debugGate, async (req, res) => {
   try {
     const sid = String(req.params.sessionId);
-    const items = await query(TENANT_ID, "SESSION", sid, "LOG#");
-    const logs = items
-      .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
-      .map((it) => ({
-        timestamp: String(it.timestamp ?? ""),
-        eventType: String(it.eventType ?? ""),
-        payload: it.payload,
-      }));
+    const sessionRow = await getChatSession(sid);
+    if (!sessionRow) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    const allMessages = await getChatMessages(sessionRow.id);
+    const logs = allMessages
+      .filter((m) => m.role === "system" && (m.content as Record<string, unknown>).eventType)
+      .map((m) => {
+        const content = m.content as Record<string, unknown>;
+        return {
+          timestamp: (content.timestamp as string) ?? m.created_at,
+          eventType: content.eventType as string,
+          payload: content.payload,
+        };
+      });
     res.json({
       sessionId: sid,
       count: logs.length,
@@ -465,8 +484,11 @@ app.get("/chatbot/debug/session-logs/:sessionId", debugGate, async (req, res) =>
 // GET /chatbot/hot-buttons
 app.get("/chatbot/hot-buttons", async (_req, res) => {
   try {
-    const buttons = (await getConfigValue(TENANT_ID, "HOT_BUTTONS")) as HotButton[];
-    res.json(buttons || []);
+    const pool = getPool();
+    const result = await pool.query<{ label: string; prompt: string }>(
+      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
+    );
+    res.json(result.rows.map((r) => ({ label: r.label, transactionTypeId: r.prompt })));
   } catch (err) {
     console.error("Failed to load hot buttons:", err);
     res.json([]);
@@ -475,49 +497,36 @@ app.get("/chatbot/hot-buttons", async (_req, res) => {
 
 // GET /chatbot/all-transactions
 // Returns every active transaction with a one-click natural-language phrase.
-// Used by the frontend's "View all transactions" toggle so the customer can
-// pick from the full 31-txn menu instead of the 6-family default. Each entry
-// has an `opener` string the chip click sends to the bot — typically the
-// first commonPhrase from the txn's metadata so the LLM identifies it
-// reliably without the customer having to type.
 app.get("/chatbot/all-transactions", async (_req, res) => {
   try {
-    const { DynamoDBClient } = await import("@aws-sdk/client-dynamodb");
-    const { DynamoDBDocumentClient, ScanCommand } = await import("@aws-sdk/lib-dynamodb");
-    const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
-    const docClient = DynamoDBDocumentClient.from(client);
-    const items: Record<string, unknown>[] = [];
-    let lastKey: Record<string, unknown> | undefined;
-    do {
-      const r: { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> } =
-        await docClient.send(
-          new ScanCommand({
-            TableName: process.env.DYNAMODB_TABLE_NAME || "st-lucie-platform",
-            FilterExpression: "entityType = :et",
-            ExpressionAttributeValues: { ":et": "TXNTYPE" },
-            ExclusiveStartKey: lastKey,
-          }),
-        );
-      if (r.Items) items.push(...r.Items);
-      lastKey = r.LastEvaluatedKey;
-    } while (lastKey);
-
-    const out = items
-      .filter((i) => i.status === "active")
-      .map((i) => {
-        const desc = i.description as
-          | { commonPhrases?: string[]; summary?: string; category?: string }
-          | undefined;
-        const phrases = desc?.commonPhrases ?? [];
-        return {
-          txnTypeId: i.txnTypeId as string,
-          name: i.name as string,
-          category: desc?.category ?? "Other",
-          opener: phrases[0] ?? `I need help with ${(i.name as string).toLowerCase()}`,
-          summary: desc?.summary,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const pool = getPool();
+    const result = await pool.query<{
+      txn_type_id: string;
+      name: string;
+      description: string | null;
+    }>(
+      `SELECT txn_type_id, name, description
+       FROM transaction_types
+       WHERE status = 'active' AND office_id IS NULL
+       ORDER BY name`,
+    );
+    const out = result.rows.map((r) => {
+      const desc = r.description
+        ? (JSON.parse(r.description) as {
+            commonPhrases?: string[];
+            summary?: string;
+            category?: string;
+          })
+        : null;
+      const phrases = desc?.commonPhrases ?? [];
+      return {
+        txnTypeId: r.txn_type_id,
+        name: r.name,
+        category: desc?.category ?? "Other",
+        opener: phrases[0] ?? `I need help with ${r.name.toLowerCase()}`,
+        summary: desc?.summary,
+      };
+    });
     res.json(out);
   } catch (err) {
     console.error("Failed to load all transactions:", err);
@@ -1160,8 +1169,7 @@ app.post("/chatbot/sessions/:sessionId/transcript-pdf", async (req, res) => {
 
     // Prefer client-supplied messages because they carry the per-turn
     // messageId needed to attach feedback comments inline. Fall back to the
-    // server's HISTORY# table for sessions where the client list is missing
-    // (e.g. someone hits the endpoint directly).
+    // server's chat_messages table for sessions where the client list is missing.
     let messages: Array<{
       role: "user" | "assistant";
       content: string;
@@ -1176,23 +1184,31 @@ app.post("/chatbot/sessions/:sessionId/transcript-pdf", async (req, res) => {
         messageId: typeof m.messageId === "string" ? m.messageId : undefined,
       }));
     } else {
-      const historyItems = await query(TENANT_ID, "SESSION", sid, "HISTORY#");
-      messages = historyItems
-        .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
-        .map((h) => ({
-          role: (h.role as "user" | "assistant") ?? "assistant",
-          content: String(h.content ?? ""),
-          timestamp: String(h.timestamp ?? ""),
-        }));
+      const sessionRow = await getChatSession(sid);
+      const allMsgs = sessionRow ? await getChatMessages(sessionRow.id) : [];
+      messages = allMsgs
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => {
+          const c = m.content as Record<string, unknown>;
+          return {
+            role: m.role as "user" | "assistant",
+            content: (c.text as string) ?? "",
+            timestamp: m.created_at,
+          };
+        });
     }
-    const logItems = await query(TENANT_ID, "SESSION", sid, "LOG#");
-    const debugLogs = logItems
-      .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
-      .map((it) => ({
-        timestamp: String(it.timestamp ?? ""),
-        eventType: String(it.eventType ?? ""),
-        payload: it.payload,
-      }));
+    const pdfSessionRow = await getChatSession(sid);
+    const allPdfMsgs = pdfSessionRow ? await getChatMessages(pdfSessionRow.id) : [];
+    const debugLogs = allPdfMsgs
+      .filter((m) => m.role === "system" && (m.content as Record<string, unknown>).eventType)
+      .map((m) => {
+        const c = m.content as Record<string, unknown>;
+        return {
+          timestamp: (c.timestamp as string) ?? m.created_at,
+          eventType: c.eventType as string,
+          payload: c.payload,
+        };
+      });
     const pdf = await buildTranscriptPdf({
       session,
       messages,
@@ -1294,11 +1310,14 @@ app.post("/chatbot/prescreening", async (req, res) => {
 
 // --- Legacy /api/* routes (backwards compat with vanilla JS frontend) ---
 
-// GET /api/hot-buttons — read from DynamoDB config
+// GET /api/hot-buttons — read from PostgreSQL
 app.get("/api/hot-buttons", async (_req, res) => {
   try {
-    const buttons = (await getConfigValue(TENANT_ID, "HOT_BUTTONS")) as HotButton[];
-    res.json(buttons || []);
+    const pool = getPool();
+    const result = await pool.query<{ label: string; prompt: string }>(
+      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
+    );
+    res.json(result.rows.map((r) => ({ label: r.label, transactionTypeId: r.prompt })));
   } catch (err) {
     console.error("Failed to load hot buttons:", err);
     res.json([]);

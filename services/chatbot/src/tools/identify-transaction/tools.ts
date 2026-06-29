@@ -1,10 +1,10 @@
 /**
  * Tools for the identify-transaction state.
- * Ported from prototype src/tools.ts — reads from DynamoDB instead of JSON.
  */
 
 import type { Tool, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime";
 import type { IdentifiedTransaction, TransactionType, Session } from "@st-lucie/shared-types";
+import { getPool } from "@st-lucie/data-access";
 import { queryKnowledgeBase } from "../../knowledge-base/query.js";
 import { classifyIntentTools, handleClassifyIntentTool } from "../classify-intent/tools.js";
 import {
@@ -13,47 +13,49 @@ import {
 } from "../suggest-transactions/tools.js";
 import { recordFactsTools, handleRecordFactsTool } from "../record-facts/tools.js";
 
-// Cached transaction types (loaded once per Lambda cold start)
 let cachedTypes: TransactionType[] | null = null;
 
 async function loadTransactionTypes(): Promise<TransactionType[]> {
   if (cachedTypes) return cachedTypes;
 
-  // Scan all GLOBAL#TXNTYPE# items, paginating until the table is exhausted.
-  // A single 1MB Scan page in a heterogeneous table (sessions, history, logs)
-  // can finish before all TXNTYPE rows are returned — without LastEvaluatedKey
-  // we'd silently drop transactions like vessel-registration.
-  const { DynamoDBClient } = await import("@aws-sdk/client-dynamodb");
-  const { DynamoDBDocumentClient, ScanCommand } = await import("@aws-sdk/lib-dynamodb");
+  const pool = getPool();
+  const result = await pool.query<{
+    txn_type_id: string;
+    name: string;
+    description: string | null;
+    avg_duration_min: number;
+    available_from: string | null;
+    available_until: string | null;
+    status: string;
+  }>(
+    `SELECT txn_type_id, name, description, avg_duration_min, available_from, available_until, status
+     FROM transaction_types
+     WHERE office_id IS NULL
+     ORDER BY name`,
+  );
 
-  const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
-  const docClient = DynamoDBDocumentClient.from(client);
-
-  const items: Record<string, unknown>[] = [];
-  let lastEvaluatedKey: Record<string, unknown> | undefined;
-  do {
-    const result: {
-      Items?: Record<string, unknown>[];
-      LastEvaluatedKey?: Record<string, unknown>;
-    } = await docClient.send(
-      new ScanCommand({
-        TableName: process.env.DYNAMODB_TABLE_NAME || "st-lucie-platform",
-        FilterExpression: "entityType = :et",
-        ExpressionAttributeValues: { ":et": "TXNTYPE" },
-        ExclusiveStartKey: lastEvaluatedKey,
-      }),
-    );
-    if (result.Items) items.push(...result.Items);
-    lastEvaluatedKey = result.LastEvaluatedKey;
-  } while (lastEvaluatedKey);
-
-  cachedTypes = items.map((item) => ({
-    txnTypeId: item.txnTypeId as string,
-    name: item.name as string,
-    description: item.description as TransactionType["description"],
-    averageDurationMinutes: item.averageDurationMinutes as number,
-    serviceHours: item.serviceHours as TransactionType["serviceHours"],
-    status: item.status as TransactionType["status"],
+  cachedTypes = result.rows.map((row) => ({
+    txnTypeId: row.txn_type_id,
+    name: row.name,
+    description: row.description
+      ? JSON.parse(row.description)
+      : {
+          summary: "",
+          keywords: [],
+          commonPhrases: [],
+          requiredDocumentSummary: "",
+          requiredDocuments: [],
+          onlineEligible: false,
+          relatedTransactionIds: [],
+          relatedPrompts: {},
+          notes: "",
+        },
+    averageDurationMinutes: row.avg_duration_min,
+    serviceHours:
+      row.available_from && row.available_until
+        ? { start: row.available_from, end: row.available_until }
+        : undefined,
+    status: row.status as TransactionType["status"],
   }));
 
   return cachedTypes;

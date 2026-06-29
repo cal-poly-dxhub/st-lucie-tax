@@ -4,7 +4,7 @@
 
 import type { Tool, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime";
 import type { Session } from "@st-lucie/shared-types";
-import { getConfigValue } from "@st-lucie/data-access";
+import { getPool } from "@st-lucie/data-access";
 
 export const checkoutTools: Tool[] = [
   {
@@ -52,33 +52,28 @@ export async function handleCheckoutTool(
 }
 
 async function handleCheckEligibility(session: Session): Promise<CheckoutToolResult> {
-  // Load all transaction types to check onlineEligible
-  const { DynamoDBClient } = await import("@aws-sdk/client-dynamodb");
-  const { DynamoDBDocumentClient, ScanCommand } = await import("@aws-sdk/lib-dynamodb");
-  const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
-  const docClient = DynamoDBDocumentClient.from(client);
-
-  const result = await docClient.send(
-    new ScanCommand({
-      TableName: process.env.DYNAMODB_TABLE_NAME || "st-lucie-platform",
-      FilterExpression: "entityType = :et",
-      ExpressionAttributeValues: { ":et": "TXNTYPE" },
-    }),
-  );
-
-  const txnTypes = new Map<string, Record<string, unknown>>();
-  for (const item of result.Items || []) {
-    txnTypes.set(item.txnTypeId as string, item);
-  }
+  const pool = getPool();
 
   const activeTransactions = session.structuredContext.transactions.filter(
     (t) => t.status === "active",
   );
-  const eligible = activeTransactions.filter((t) => {
-    const txnType = txnTypes.get(t.txnTypeId);
-    const desc = txnType?.description as Record<string, unknown> | undefined;
-    return desc?.onlineEligible === true;
-  });
+  const activeTxnIds = activeTransactions.map((t) => t.txnTypeId);
+
+  const result = await pool.query<{
+    txn_type_id: string;
+    is_online_eligible: boolean;
+    online_redirect_url: string | null;
+  }>(
+    `SELECT txn_type_id, is_online_eligible, online_redirect_url
+     FROM transaction_types
+     WHERE txn_type_id = ANY($1) AND office_id IS NULL`,
+    [activeTxnIds],
+  );
+
+  const eligibleSet = new Set(
+    result.rows.filter((r) => r.is_online_eligible).map((r) => r.txn_type_id),
+  );
+  const eligible = activeTransactions.filter((t) => eligibleSet.has(t.txnTypeId));
 
   if (eligible.length === 0) {
     return {
@@ -95,7 +90,7 @@ async function handleCheckEligibility(session: Session): Promise<CheckoutToolRes
     };
   }
 
-  const checkoutUrl = ((await getConfigValue(session.tenantId, "CHECKOUT_URL")) as string) || "";
+  const checkoutUrl = result.rows.find((r) => r.online_redirect_url)?.online_redirect_url ?? "";
 
   return {
     content: [

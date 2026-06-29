@@ -311,41 +311,45 @@ let cachedTypes: TransactionType[] | null = null;
 async function loadTransactionTypes(): Promise<TransactionType[]> {
   if (cachedTypes) return cachedTypes;
 
-  const { DynamoDBClient } = await import("@aws-sdk/client-dynamodb");
-  const { DynamoDBDocumentClient, ScanCommand } = await import("@aws-sdk/lib-dynamodb");
+  const { getPool } = await import("@st-lucie/data-access");
+  const pool = getPool();
+  const result = await pool.query<{
+    txn_type_id: string;
+    name: string;
+    description: string | null;
+    avg_duration_min: number;
+    available_from: string | null;
+    available_until: string | null;
+    status: string;
+  }>(
+    `SELECT txn_type_id, name, description, avg_duration_min, available_from, available_until, status
+     FROM transaction_types
+     WHERE office_id IS NULL
+     ORDER BY name`,
+  );
 
-  const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
-  const docClient = DynamoDBDocumentClient.from(client);
-
-  // Paginate through every Scan page. The table has many non-TXNTYPE items
-  // (sessions, history, logs, etc.) and a single 1MB scan page can finish
-  // before we've seen all 30+ TXNTYPE rows — silently dropping transactions
-  // like vessel-registration that landed late in the sort order.
-  const items: Record<string, unknown>[] = [];
-  let lastEvaluatedKey: Record<string, unknown> | undefined;
-  do {
-    const result: {
-      Items?: Record<string, unknown>[];
-      LastEvaluatedKey?: Record<string, unknown>;
-    } = await docClient.send(
-      new ScanCommand({
-        TableName: process.env.DYNAMODB_TABLE_NAME || "st-lucie-platform",
-        FilterExpression: "entityType = :et",
-        ExpressionAttributeValues: { ":et": "TXNTYPE" },
-        ExclusiveStartKey: lastEvaluatedKey,
-      }),
-    );
-    if (result.Items) items.push(...result.Items);
-    lastEvaluatedKey = result.LastEvaluatedKey;
-  } while (lastEvaluatedKey);
-
-  cachedTypes = items.map((item) => ({
-    txnTypeId: item.txnTypeId as string,
-    name: item.name as string,
-    description: item.description as TransactionType["description"],
-    averageDurationMinutes: item.averageDurationMinutes as number,
-    serviceHours: item.serviceHours as TransactionType["serviceHours"],
-    status: item.status as TransactionType["status"],
+  cachedTypes = result.rows.map((row) => ({
+    txnTypeId: row.txn_type_id,
+    name: row.name,
+    description: row.description
+      ? JSON.parse(row.description)
+      : {
+          summary: "",
+          keywords: [],
+          commonPhrases: [],
+          requiredDocumentSummary: "",
+          requiredDocuments: [],
+          onlineEligible: false,
+          relatedTransactionIds: [],
+          relatedPrompts: {},
+          notes: "",
+        },
+    averageDurationMinutes: row.avg_duration_min,
+    serviceHours:
+      row.available_from && row.available_until
+        ? { start: row.available_from, end: row.available_until }
+        : undefined,
+    status: row.status as TransactionType["status"],
   }));
 
   return cachedTypes;

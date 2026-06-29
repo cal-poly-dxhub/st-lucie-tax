@@ -9,8 +9,6 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.700.0",
-    "@aws-sdk/lib-dynamodb": "^3.700.0",
     "@codegenie/serverless-express": "^4.17.1",
     "@st-lucie/data-access": "*",
     "@st-lucie/shared-types": "*",
