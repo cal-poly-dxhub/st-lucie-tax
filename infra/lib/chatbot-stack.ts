@@ -336,14 +336,16 @@ function handler(event) {
       },
     }));
 
-    // CORS for chatbot doc upload bucket (presigned upload PUTs from the browser)
+    // CORS for chatbot doc upload bucket (presigned upload PUTs from the browser).
+    // Use a wildcard for CloudFront to avoid a circular dependency
+    // (DocBucket → Distribution → ChatbotApi → ChatbotFn → DocBucket).
     const cfnDocBucket = docBucket.node.defaultChild as s3.CfnBucket;
     cfnDocBucket.addPropertyOverride("CorsConfiguration", {
       CorsRules: [
         {
           AllowedMethods: ["PUT", "GET"],
           AllowedOrigins: [
-            `https://${distribution.distributionDomainName}`,
+            "https://*.cloudfront.net",
             "http://localhost:3000",
             "http://localhost:5173",
           ],
