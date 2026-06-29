@@ -17,6 +17,7 @@ import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cw_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
+import * as cr from "aws-cdk-lib/custom-resources";
 
 export interface ChatbotStackProps extends StackProps {
   vpc: ec2.Vpc;
@@ -64,6 +65,48 @@ export class ChatbotStack extends Stack {
     });
 
     // ── Knowledge Base: Bedrock KB with S3 Vectors ──────────────────────────
+    const kbVectorBucket = new s3.Bucket(this, "KbVectorBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // Create the S3 Vectors index via SDK (no CloudFormation resource exists).
+    // Titan Embed Text v2 produces 1024-dimension vectors.
+    const kbIndexName = "st-lucie-tax-index";
+    const vectorIndex = new cr.AwsCustomResource(this, "VectorIndex", {
+      onCreate: {
+        service: "S3Vectors",
+        action: "createIndex",
+        parameters: {
+          vectorBucketName: kbVectorBucket.bucketName,
+          indexName: kbIndexName,
+          dataType: "float32",
+          dimension: 1024,
+          distanceMetric: "cosine",
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(kbIndexName),
+      },
+      onDelete: {
+        service: "S3Vectors",
+        action: "deleteIndex",
+        parameters: {
+          vectorBucketName: kbVectorBucket.bucketName,
+          indexName: kbIndexName,
+        },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ["s3vectors:CreateIndex", "s3vectors:DeleteIndex"],
+          resources: [kbVectorBucket.bucketArn, `${kbVectorBucket.bucketArn}/*`],
+        }),
+      ]),
+    });
+
+    const indexArn = `arn:aws:s3vectors:${this.region}:${this.account}:vector-bucket/${kbVectorBucket.bucketName}/index/${kbIndexName}`;
+
     const kbRole = new iam.Role(this, "KbRole", {
       assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
       inlinePolicies: {
@@ -78,6 +121,15 @@ export class ChatbotStack extends Stack {
             new iam.PolicyStatement({
               actions: ["s3:GetObject", "s3:ListBucket"],
               resources: [kbDataBucket.bucketArn, `${kbDataBucket.bucketArn}/*`],
+            }),
+            new iam.PolicyStatement({
+              actions: [
+                "s3vectors:QueryVectors",
+                "s3vectors:PutVectors",
+                "s3vectors:DeleteVectors",
+                "s3vectors:ListVectors",
+              ],
+              resources: [kbVectorBucket.bucketArn, `${kbVectorBucket.bucketArn}/*`],
             }),
           ],
         }),
@@ -96,9 +148,14 @@ export class ChatbotStack extends Stack {
       },
       storageConfiguration: {
         type: "S3_VECTORS",
-        s3VectorsConfiguration: {},
+        s3VectorsConfiguration: {
+          vectorBucketArn: kbVectorBucket.bucketArn,
+          indexName: kbIndexName,
+          indexArn,
+        },
       },
     });
+    knowledgeBase.node.addDependency(vectorIndex);
 
     new bedrock.CfnDataSource(this, "KbDataSource", {
       name: "tcslc-documents",
