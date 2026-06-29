@@ -65,10 +65,13 @@ export class ChatbotStack extends Stack {
     });
 
     // ── Knowledge Base: Bedrock KB with S3 Vectors ──────────────────────────
-    // S3 Vectors is a separate service (namespace: s3vectors) with its own
-    // bucket and index types. No CloudFormation resources exist — use SDK calls.
-    const kbVectorBucketName = `st-lucie-tax-vectors-${this.account}-${this.region}`;
+    // S3 Vectors is a separate service (namespace: s3vectors). No CFN resources
+    // exist for vector buckets/indexes, so we create them via Custom Resources.
+    // The KB itself is also created via SDK because CFN's S3VectorsConfiguration
+    // schema is unreliable — the reference implementation uses the Bedrock SDK.
+    const kbVectorBucketName = "st-lucie-tax-vectors";
     const kbIndexName = "st-lucie-tax-index";
+    const indexArn = `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${kbVectorBucketName}/index/${kbIndexName}`;
 
     const vectorBucket = new cr.AwsCustomResource(this, "VectorBucket", {
       installLatestAwsSdk: true,
@@ -85,17 +88,11 @@ export class ChatbotStack extends Stack {
       },
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
-          actions: [
-            "s3vectors:CreateVectorBucket",
-            "s3vectors:DeleteVectorBucket",
-            "s3vectors:GetVectorBucket",
-          ],
+          actions: ["s3vectors:CreateVectorBucket", "s3vectors:DeleteVectorBucket"],
           resources: ["*"],
         }),
       ]),
     });
-
-    const vectorBucketArn = vectorBucket.getResponseField("vectorBucket.vectorBucketArn");
 
     // Titan Embed Text v2 produces 1024-dimension vectors.
     const vectorIndex = new cr.AwsCustomResource(this, "VectorIndex", {
@@ -109,6 +106,9 @@ export class ChatbotStack extends Stack {
           dataType: "float32",
           dimension: 1024,
           distanceMetric: "cosine",
+          metadataConfiguration: {
+            nonFilterableMetadataKeys: ["AMAZON_BEDROCK_TEXT", "AMAZON_BEDROCK_METADATA"],
+          },
         },
         physicalResourceId: cr.PhysicalResourceId.of(kbIndexName),
       },
@@ -145,14 +145,10 @@ export class ChatbotStack extends Stack {
               resources: [kbDataBucket.bucketArn, `${kbDataBucket.bucketArn}/*`],
             }),
             new iam.PolicyStatement({
-              actions: [
-                "s3vectors:QueryVectors",
-                "s3vectors:PutVectors",
-                "s3vectors:DeleteVectors",
-                "s3vectors:ListVectors",
-                "s3vectors:GetIndex",
+              actions: ["s3vectors:*"],
+              resources: [
+                `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${kbVectorBucketName}*`,
               ],
-              resources: [`${vectorBucketArn}/*`],
             }),
           ],
         }),
@@ -172,8 +168,7 @@ export class ChatbotStack extends Stack {
       storageConfiguration: {
         type: "S3_VECTORS",
         s3VectorsConfiguration: {
-          vectorBucketArn,
-          indexName: kbIndexName,
+          indexArn,
         },
       },
     });
