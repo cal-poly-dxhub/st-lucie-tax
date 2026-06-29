@@ -37,6 +37,8 @@ export class BackOfficeStack extends Stack {
   public readonly lambdaSg: ec2.SecurityGroup;
   public readonly httpApiUrl: string;
   public readonly webAclArn: string;
+  public readonly userPoolId: string;
+  public readonly userPoolClientId: string;
 
   constructor(scope: Construct, id: string, props: BackOfficeStackProps) {
     super(scope, id, props);
@@ -193,6 +195,9 @@ export class BackOfficeStack extends Stack {
         scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL],
       },
     });
+    this.userPoolId = userPool.userPoolId;
+    this.userPoolClientId = userPoolClient.userPoolClientId;
+
     for (const group of ["admin", "checkin_clerk", "service_clerk"]) {
       new cognito.CfnUserPoolGroup(this, `Group-${group}`, {
         userPoolId: userPool.userPoolId,
