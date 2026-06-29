@@ -14,11 +14,11 @@ import { ROAD_TEST, ID_CARD, LICENSE_ORIGINAL } from "./helpers/seed-ids.js";
 const db = useDb();
 
 describe("effective transaction types", () => {
-  test("hidden override at office 1 drops road_test only at office 1", async () => {
+  test("hidden override at office 1 drops road-test only at office 1", async () => {
     await db.client.query(
       `INSERT INTO transaction_types
          (txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
+       VALUES ('road-test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     const office1 = await db.client.query(
@@ -27,7 +27,7 @@ describe("effective transaction types", () => {
         WHERE office_id = 1 AND status = 'active'
         ORDER BY global_id`,
     );
-    expect(office1.rows.map((r) => r.txn_type_id)).toEqual(["id_card", "license_original"]);
+    expect(office1.rows.map((r) => r.txn_type_id)).toEqual(["id-card", "license-original"]);
 
     const office2 = await db.client.query(
       `SELECT txn_type_id
@@ -36,9 +36,9 @@ describe("effective transaction types", () => {
         ORDER BY global_id`,
     );
     expect(office2.rows.map((r) => r.txn_type_id)).toEqual([
-      "road_test",
-      "id_card",
-      "license_original",
+      "road-test",
+      "id-card",
+      "license-original",
     ]);
   });
 });
@@ -67,7 +67,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("capacity_exceeded once the slot is full", async () => {
     await clearOfficeDay(db.client);
 
-    // Supply at 09:00 for road_test = 2. Book first two and reject third.
+    // Supply at 09:00 for road-test = 2. Book first two and reject third.
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
@@ -116,7 +116,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("txn_unavailable when slot is outside available_from/until", async () => {
     await clearOfficeDay(db.client);
 
-    // road_test seed window is 09:00-15:00. 08:30 is before available_from.
+    // road-test seed window is 09:00-15:00. 08:30 is before available_from.
     await expect(db.client.query(BOOK_SQL, bookParams({ time: "08:30" }))).rejects.toMatchObject({
       code: PG_ERROR.TXN_UNAVAILABLE,
     });
@@ -128,7 +128,7 @@ describe("book_appt: lock + recheck + insert", () => {
     await db.client.query(
       `INSERT INTO transaction_types
          (txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
+       VALUES ('road-test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     await expect(db.client.query(BOOK_SQL, bookParams())).rejects.toMatchObject({
@@ -139,13 +139,13 @@ describe("book_appt: lock + recheck + insert", () => {
   test("multi-skill booking uses the LATEST available_from across skills", async () => {
     await clearOfficeDay(db.client);
 
-    // road_test available_from to 09:30. license_original has no window (NULL).
-    // A multi-skill [1,3] booking at 09:00 must be rejected as road_test doesn't
+    // road-test available_from to 09:30. license-original has no window (NULL).
+    // A multi-skill [1,3] booking at 09:00 must be rejected as road-test doesn't
     // start until 09:30, so the intersection window starts at 09:30.
     await db.client.query(
       `UPDATE transaction_types
           SET available_from = '09:30'
-        WHERE txn_type_id = 'road_test'
+        WHERE txn_type_id = 'road-test'
           AND office_id IS NULL`,
     );
 
@@ -166,13 +166,13 @@ describe("book_appt: lock + recheck + insert", () => {
   test("multi-skill booking uses the EARLIEST available_until across skills", async () => {
     await clearOfficeDay(db.client);
 
-    // Set license_original available_until to 14:00. road_test stays at 15:00.
+    // Set license-original available_until to 14:00. road-test stays at 15:00.
     // A multi-skill [1,3] total duration = 30 + 20 = 50 min.
-    // Book at 13:11 which ends 14:01 which is past license_original's 14:00 cutoff.
+    // Book at 13:11 which ends 14:01 which is past license-original's 14:00 cutoff.
     await db.client.query(
       `UPDATE transaction_types
           SET available_until = '14:00'
-        WHERE txn_type_id = 'license_original'
+        WHERE txn_type_id = 'license-original'
           AND office_id IS NULL`,
     );
 
@@ -193,12 +193,12 @@ describe("book_appt: lock + recheck + insert", () => {
   test("txn_unavailable when one of the multi-skill txns is hidden at the office", async () => {
     await clearOfficeDay(db.client);
 
-    // Hide road_test at office 1. A multi-skill [1,3] booking should fail
+    // Hide road-test at office 1. A multi-skill [1,3] booking should fail
     // because the office no longer offers one of the required skills.
     await db.client.query(
       `INSERT INTO transaction_types
          (txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('road_test', 1, 'Road Test', 30, 'hidden')`,
+       VALUES ('road-test', 1, 'Road Test', 30, 'hidden')`,
     );
 
     await expect(
@@ -215,7 +215,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("30-min appt at 09:00 occupies 09:15 too", async () => {
     await clearOfficeDay(db.client);
 
-    // Book 2 road_test appts at 09:00 (supply=2, fills slots at 09:00).
+    // Book 2 road-test appts at 09:00 (supply=2, fills slots at 09:00).
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
     await db.client.query(BOOK_SQL, bookParams({ email: "b@x.com" }));
 
@@ -232,7 +232,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("multi-skill appt blocked when one of the two skills is at capacity", async () => {
     await clearOfficeDay(db.client);
 
-    // Skill 3 (license_original) supply at office 1 = 2 (Maria, James).
+    // Skill 3 (license-original) supply at office 1 = 2 (Maria, James).
     // Fill skill 3 with two appts that need ONLY skill 3.
     await db.client.query(
       BOOK_SQL,
@@ -284,7 +284,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("inactive clerks do not count toward supply", async () => {
     await clearOfficeDay(db.client);
 
-    // Mark one of the two road_test clerks inactive — supply drops 2 → 1.
+    // Mark one of the two road-test clerks inactive — supply drops 2 → 1.
     await db.client.query(`UPDATE clerks SET status='inactive' WHERE id = 1`);
 
     await db.client.query(BOOK_SQL, bookParams({ email: "a@x.com" }));
@@ -296,10 +296,10 @@ describe("book_appt: lock + recheck + insert", () => {
   test("appt straddling a lunch window is rejected (multi-block recheck)", async () => {
     await clearOfficeDay(db.client);
 
-    // Remove Angela leaving Maria as the only road_test clerk.
+    // Remove Angela leaving Maria as the only road-test clerk.
     await db.client.query(`UPDATE clerks SET status='inactive' WHERE id = 3`);
 
-    // Maria's lunch is shift 1 (11:30-12:15). A 30-min road_test at 11:15
+    // Maria's lunch is shift 1 (11:30-12:15). A 30-min road-test at 11:15
     // runs 11:15-11:45, crossing the 11:30 lunch boundary. At 11:30 Maria
     // is on lunch so there is no road test supply
     const result = await tryBook(db.client, bookParams({ time: "11:15", email: "straddle@x.com" }));
@@ -313,7 +313,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("boundary: appt ending exactly at available_until succeeds", async () => {
     await clearOfficeDay(db.client);
 
-    // road_test available_until = 15:00, duration = 30. Start at 14:30 ends
+    // road-test available_until = 15:00, duration = 30. Start at 14:30 ends
     // at 15:00 exactly. The gate is `slot_end > available_until` (strict >),
     // so equality must be allowed.
     const ok = await db.client.query(BOOK_SQL, bookParams({ time: "14:30", email: "edge@x.com" }));
@@ -337,10 +337,10 @@ describe("book_appt: lock + recheck + insert", () => {
     expect(ok.rows[0].id).toBeTypeOf("number");
   });
 
-  test("boundary: appt ending exactly at office close succeeds (id_card)", async () => {
+  test("boundary: appt ending exactly at office close succeeds (id-card)", async () => {
     await clearOfficeDay(db.client);
 
-    // id_card has no available_from/until (NULL). Its gate is the office's
+    // id-card has no available_from/until (NULL). Its gate is the office's
     // 17:00 close. avg_duration=15 → start at 16:45 ends at 17:00 exactly.
     const ok = await db.client.query(
       BOOK_SQL,
@@ -356,7 +356,7 @@ describe("book_appt: lock + recheck + insert", () => {
   test("boundary: appt ending one minute past close rejected", async () => {
     await clearOfficeDay(db.client);
 
-    // license_original is 20 min and has no override. Start 16:41 ends 17:01.
+    // license-original is 20 min and has no override. Start 16:41 ends 17:01.
     await expect(
       db.client.query(
         BOOK_SQL,
@@ -373,7 +373,7 @@ describe("book_appt: lock + recheck + insert", () => {
     await clearOfficeDay(db.client);
 
     // At 11:45 (inside Maria's 11:30-12:15 lunch shift), Maria is excluded.
-    // Supply for road_test drops 2 → 1. Second booking at 11:45 must fail.
+    // Supply for road-test drops 2 → 1. Second booking at 11:45 must fail.
     const first = await tryBook(
       db.client,
       bookParams({
@@ -394,7 +394,7 @@ describe("book_appt: lock + recheck + insert", () => {
 
     // At 12:15: Maria's shift-1 lunch ended (end_time strict >, so 12:15 is
     // free for her). Angela is on shift-2 lunch (12:15-13:00) so she IS on
-    // lunch at 12:15. Net road_test supply at 12:15 = 1 (Maria only).
+    // lunch at 12:15. Net road-test supply at 12:15 = 1 (Maria only).
     // The 11:45 appt's end_at = 12:15 — equality fails the strict > demand
     // check, so it doesn't overlap 12:15.
     const okOne = await tryBook(
@@ -477,13 +477,13 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
     await clearOfficeDay(db.client);
 
     // Office 1 shift 2 (12:15-13:00): James(2) + Angela(3) on lunch. Only Maria on floor.
-    // Book at 12:00 (30-min road_test, ends 12:30). At 12:00: 3 on floor, OK.
+    // Book at 12:00 (30-min road-test, ends 12:30). At 12:00: 3 on floor, OK.
     await db.client.query(
       BOOK_SQL,
       bookParams({ time: "12:00", skills: [ROAD_TEST], email: "pre18@x.com" }),
     );
 
-    // Try booking at 12:10 (15-min id_card, ends 12:25). Spans into shift 2.
+    // Try booking at 12:10 (15-min id-card, ends 12:25). Spans into shift 2.
     // At 12:15 change-point: 1 on floor (Maria), 1 existing still running → concurrent=1, cap=1, deskAvail=0.
     const result = await tryBook(
       db.client,
@@ -565,7 +565,7 @@ describe("total concurrent cap (run_rate_pct + lunch)", () => {
   test("multi-skill appt spanning lunch rejected when specialist is on break", async () => {
     await clearOfficeDay(db.client);
 
-    // Multi-skill [1,3] = road_test(30) + license_original(25) = 55 min.
+    // Multi-skill [1,3] = road-test(30) + license-original(25) = 55 min.
     // Book at 11:00 → spans 11:00-11:55. Lunch shift 1 starts at 11:30 (inside window).
     // At 11:30: Maria on lunch, James+Angela on floor (2 clerks).
     // Skill [1,3] supply: only Maria has both 1 and 3 → supply=0 at 11:30 (she's on lunch).

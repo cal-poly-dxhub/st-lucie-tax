@@ -5,19 +5,19 @@ import { useToast } from "@/components/toast-context";
 import { Button, Card, SectionLabel } from "@/components/ui";
 
 const TXN_DOCS: Record<string, { docId: string; name: string }[]> = {
-  road_test: [
+  "road-test": [
     { docId: "learner_permit", name: "Learner Permit" },
     { docId: "photo_id", name: "Photo ID" },
     { docId: "vision_cert", name: "Vision Certificate" },
     { docId: "vehicle_reg", name: "Vehicle Registration" },
     { docId: "insurance_card", name: "Insurance Card" },
   ],
-  id_card: [
+  "id-card": [
     { docId: "birth_cert", name: "Birth Certificate" },
     { docId: "proof_address", name: "Proof of Residency" },
     { docId: "ssn_proof", name: "Social Security Proof" },
   ],
-  license_original: [
+  "license-original": [
     { docId: "learner_permit", name: "Learner Permit" },
     { docId: "photo_id", name: "Photo ID" },
     { docId: "proof_address", name: "Proof of Residency" },

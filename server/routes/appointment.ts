@@ -320,9 +320,9 @@ router.post("/walk-in", async (req, res) => {
     if (!txnTypeIds.length) return res.status(400).json({ error: "No valid transaction types" });
 
     const txnDocMap: Record<string, string[]> = {
-      road_test: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
-      id_card: ["birth_cert", "proof_address", "ssn_proof"],
-      license_original: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+      "road-test": ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+      "id-card": ["birth_cert", "proof_address", "ssn_proof"],
+      "license-original": ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
     };
     const seen = new Set<string>();
     const requiredDocs: string[] = [];
@@ -390,7 +390,7 @@ router.post("/send-confirmation", async (req, res) => {
 
     const result = await withTransaction(async (client) => {
       const { rows: txnRows } = await client.query(
-        `SELECT id FROM transaction_types WHERE txn_type_id = 'road_test' AND office_id IS NULL LIMIT 1`,
+        `SELECT id FROM transaction_types WHERE txn_type_id = 'road-test' AND office_id IS NULL LIMIT 1`,
       );
       const txnTypeId = txnRows[0]?.id ?? 1;
 
@@ -558,9 +558,9 @@ router.post("/demo-book", async (req, res) => {
       [txnTypeIds],
     );
     const txnDocMap: Record<string, string[]> = {
-      road_test: ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
-      id_card: ["birth_cert", "proof_address", "ssn_proof"],
-      license_original: ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
+      "road-test": ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
+      "id-card": ["birth_cert", "proof_address", "ssn_proof"],
+      "license-original": ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
     };
     const seen = new Set<string>();
     const requiredDocs: string[] = [];

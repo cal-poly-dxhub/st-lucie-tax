@@ -92,7 +92,7 @@ describe("register_walk_in", () => {
     await db.client.query(
       `INSERT INTO transaction_types
          (txn_type_id, office_id, name, avg_duration_min, status)
-       VALUES ('id_card', 1, 'ID Card', 15, 'hidden')`,
+       VALUES ('id-card', 1, 'ID Card', 15, 'hidden')`,
     );
 
     await expect(db.client.query(WALK_IN_SQL, walkInParams())).rejects.toMatchObject({

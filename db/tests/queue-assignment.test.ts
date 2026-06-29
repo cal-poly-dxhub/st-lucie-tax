@@ -108,7 +108,7 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
   });
 
   test("returns null when clerk lacks required skills for queued customer", async () => {
-    await loginClerk(db.client, ANGELA, 3); // Angela: road_test + id_card only
+    await loginClerk(db.client, ANGELA, 3); // Angela: road-test + id-card only
 
     const appt = await createAppointment(db.client, {
       txnTypes: [LICENSE_ORIGINAL],
@@ -165,10 +165,10 @@ describe("assign_next_customer FIFO based on clerk skill match", () => {
   });
 
   test("multi-skill appointment only assignable to clerk with all required skills", async () => {
-    await loginClerk(db.client, JAMES, 2); // skills: id_card + license_original
-    await loginClerk(db.client, ANGELA, 3); // skills: road_test + id_card
+    await loginClerk(db.client, JAMES, 2); // skills: id-card + license-original
+    await loginClerk(db.client, ANGELA, 3); // skills: road-test + id-card
 
-    // Needs both id_card AND license_original — only James qualifies
+    // Needs both id-card AND license-original — only James qualifies
     const appt = await createAppointment(db.client, {
       txnTypes: [ID_CARD, LICENSE_ORIGINAL],
     });
@@ -210,7 +210,7 @@ describe("assign_next_customer with concurrent clerk summon race", () => {
     await setup.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
     await setup.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
 
-    // Create 10 clerks with id_card skill and log them in
+    // Create 10 clerks with id-card skill and log them in
     const clerkIds: number[] = [];
     for (let i = 0; i < 10; i++) {
       const { rows } = await setup.query(
