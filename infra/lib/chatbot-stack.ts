@@ -85,11 +85,17 @@ export class ChatbotStack extends Stack {
       },
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
-          actions: ["s3vectors:CreateVectorBucket", "s3vectors:DeleteVectorBucket"],
+          actions: [
+            "s3vectors:CreateVectorBucket",
+            "s3vectors:DeleteVectorBucket",
+            "s3vectors:GetVectorBucket",
+          ],
           resources: ["*"],
         }),
       ]),
     });
+
+    const vectorBucketArn = vectorBucket.getResponseField("vectorBucket.vectorBucketArn");
 
     // Titan Embed Text v2 produces 1024-dimension vectors.
     const vectorIndex = new cr.AwsCustomResource(this, "VectorIndex", {
@@ -122,8 +128,6 @@ export class ChatbotStack extends Stack {
       ]),
     });
     vectorIndex.node.addDependency(vectorBucket);
-
-    const vectorBucketArn = `arn:aws:s3:::${kbVectorBucketName}`;
 
     const kbRole = new iam.Role(this, "KbRole", {
       assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
