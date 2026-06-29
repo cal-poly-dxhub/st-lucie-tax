@@ -682,3 +682,50 @@ BEGIN
 
   RETURN v_queue_id;
 END $$;
+
+-- =============================================================================
+-- Chat Tables
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id              SERIAL PRIMARY KEY,
+  session_uuid    UUID NOT NULL DEFAULT gen_random_uuid(),
+  email           TEXT,
+  state           TEXT NOT NULL DEFAULT 'landing'
+                  CHECK (state IN ('landing', 'identify-transaction', 'universal-blockers',
+                         'resolve-facts', 'verify-identity', 'confirm-facts',
+                         'upload-docs', 'checkout-check', 'schedule', 'confirm')),
+  structured_context JSONB NOT NULL DEFAULT '{}',
+  appointment_id  INT REFERENCES appointments(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_at     TIMESTAMPTZ,
+  expires_at      TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '30 days'
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_sessions_uuid ON chat_sessions(session_uuid);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_email ON chat_sessions(email);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_state ON chat_sessions(state);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_created ON chat_sessions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_expires ON chat_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id              SERIAL PRIMARY KEY,
+  session_id      INT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content         JSONB NOT NULL,
+  state           TEXT NOT NULL,
+  feedback_reaction TEXT CHECK (feedback_reaction IN ('up', 'down')),
+  feedback_comment  TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_auth_tokens (
+  id              SERIAL PRIMARY KEY,
+  email           TEXT NOT NULL,
+  token_hash      TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at      TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '30 days',
+  UNIQUE (email, token_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_auth_expires ON chat_auth_tokens(expires_at);
