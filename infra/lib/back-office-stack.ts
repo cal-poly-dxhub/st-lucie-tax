@@ -19,7 +19,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { EnvConfig, PG_ENGINE } from "./env-config";
 
-export interface OfficeInfraStackProps extends StackProps {
+export interface BackOfficeStackProps extends StackProps {
   config: EnvConfig;
 }
 
@@ -30,7 +30,7 @@ export interface OfficeInfraStackProps extends StackProps {
 // + WAF). The appointment and queue domains are deployed as independent
 // functions with their own reserved concurrency so a failure in one cannot
 // take down the other.
-export class OfficeInfraStack extends Stack {
+export class BackOfficeStack extends Stack {
   public readonly vpc: ec2.Vpc;
   public readonly proxy: rds.DatabaseProxy;
   public readonly dbSecret: rds.DatabaseSecret;
@@ -38,7 +38,7 @@ export class OfficeInfraStack extends Stack {
   public readonly httpApiUrl: string;
   public readonly webAclArn: string;
 
-  constructor(scope: Construct, id: string, props: OfficeInfraStackProps) {
+  constructor(scope: Construct, id: string, props: BackOfficeStackProps) {
     super(scope, id, props);
     const { config } = props;
     const repoRoot = path.join(__dirname, "..", "..");

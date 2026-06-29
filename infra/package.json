@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "commonjs",
   "bin": {
-    "office-infra": "bin/app.js"
+    "back-office": "bin/app.js"
   },
   "scripts": {
     "build": "tsc",
