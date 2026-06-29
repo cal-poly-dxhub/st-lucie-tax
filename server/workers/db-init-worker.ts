@@ -19,7 +19,8 @@ async function getSchemaSql(): Promise<string> {
   if (!bucket || !key) throw new Error("SCHEMA_BUCKET/SCHEMA_KEY not set");
   const s3 = new S3Client({ region: process.env.AWS_REGION ?? "us-west-2" });
   const resp = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-  return await resp.Body!.transformToString("utf-8");
+  if (!resp.Body) throw new Error(`S3 object s3://${bucket}/${key} returned empty Body`);
+  return await resp.Body.transformToString("utf-8");
 }
 
 // Plain invokable handler — NOT a CloudFormation custom resource. Deployed by
