@@ -1,6 +1,6 @@
 import express from "express";
 import { SERVICE } from "./config.js";
-import appointmentRouter from "./routes/appointment.js";
+import appointmentRouter, { publicRouter } from "./routes/appointment.js";
 import queueRouter from "./routes/queue.js";
 import adminRouter from "./routes/admin.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -18,6 +18,8 @@ const mountAppointment = SERVICE === "appointment" || SERVICE === "all";
 const mountQueue = SERVICE === "queue" || SERVICE === "all";
 
 if (mountAppointment) {
+  // Public routes first (prescreen, config) — no auth required
+  app.use("/api", publicRouter);
   app.use("/api", requireAuth(), appointmentRouter);
   app.use("/api/admin", requireAuth("admin"), adminRouter);
 }

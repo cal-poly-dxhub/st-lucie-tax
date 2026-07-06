@@ -6,6 +6,8 @@ import { RemovalPolicy } from "aws-cdk-lib";
 export interface EnvConfig {
   // Sender + reply address used by SES. Must be a verified SES identity.
   senderEmail: string;
+  // Base URL for email links (CloudFront distribution URL).
+  baseUrl: string;
   // Aurora Serverless v2 capacity (ACUs)
   dbMinCapacity: number;
   dbMaxCapacity: number;
@@ -28,6 +30,7 @@ export function envConfig(): EnvConfig {
   }
   return {
     senderEmail: process.env.SENDER_EMAIL,
+    baseUrl: process.env.BASE_URL ?? "https://EXAMPLEDIST0003.cloudfront.net",
     dbMinCapacity: 0.5,
     dbMaxCapacity: 2,
     dbDeletionProtection: false,

@@ -231,6 +231,14 @@ export const api = {
   setDemoEmail: (email: string) =>
     post<{ ok: boolean; email: string; note: string }>("/api/set-demo-email", { email }),
 
+  verifyEmail: (email: string) =>
+    post<{ ok: boolean; status: string }>("/api/verify-email", { email }),
+
+  verifyEmailStatus: (email: string) =>
+    get<{ email: string; verified: boolean }>(
+      `/api/verify-email-status?email=${encodeURIComponent(email)}`,
+    ),
+
   // Queue / Clerk
   clerks: (officeId: number) => get<{ clerks: Clerk[] }>(`/api/clerks?officeId=${officeId}`),
 

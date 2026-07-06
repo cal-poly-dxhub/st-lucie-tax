@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, Send } from "lucide-react";
+import { Calendar, Send, Mail, CheckCircle } from "lucide-react";
 import { api, type ConfigResponse } from "@/lib/api";
 import { useToast } from "@/components/toast-context";
 import { Badge, Button, Card, SectionLabel } from "@/components/ui";
@@ -17,6 +17,9 @@ export function ConfirmationPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [selectedTxns, setSelectedTxns] = useState<number[]>([]);
   const [officeId, setOfficeId] = useState<number | undefined>(undefined);
   const [preferredTime, setPreferredTime] = useState<"morning" | "afternoon" | "">("");
@@ -39,6 +42,45 @@ export function ConfirmationPage() {
 
   function toggleTxn(id: number) {
     setSelectedTxns((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  }
+
+  async function handleVerifyEmail() {
+    if (!email.trim()) {
+      notify("error", "Please enter your email address.");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const res = await api.verifyEmail(email.trim());
+      if (res.status === "already_verified") {
+        setEmailVerified(true);
+        notify("success", "Email already verified! You can book your appointment.");
+      } else {
+        setVerificationSent(true);
+        notify("success", "Verification email sent! Check your inbox and click the link, then come back to book.");
+      }
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Failed to send verification.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleCheckVerification() {
+    setVerifying(true);
+    try {
+      const res = await api.verifyEmailStatus(email.trim());
+      if (res.verified) {
+        setEmailVerified(true);
+        notify("success", "Email verified! You can now book your appointment.");
+      } else {
+        notify("error", "Email not yet verified. Please check your inbox and click the verification link.");
+      }
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Failed to check status.");
+    } finally {
+      setVerifying(false);
+    }
   }
 
   async function handleBook() {
@@ -213,16 +255,48 @@ export function ConfirmationPage() {
         </div>
         <div>
           <SectionLabel>Email Address</SectionLabel>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400"
-          />
-          <p className="mt-1 text-xs text-civic-400">
-            Confirmation email will be sent here automatically.
-          </p>
+          <div className="mt-1 flex gap-2">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setEmailVerified(false);
+                setVerificationSent(false);
+              }}
+              placeholder="you@example.com"
+              disabled={emailVerified}
+              className="w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm focus:border-civic-400 focus:outline-none focus:ring-1 focus:ring-civic-400 disabled:bg-civic-50"
+            />
+            {!emailVerified && !verificationSent && (
+              <Button variant="outline" loading={verifying} onClick={handleVerifyEmail}>
+                <Mail size={14} /> Verify
+              </Button>
+            )}
+            {verificationSent && !emailVerified && (
+              <Button variant="go" loading={verifying} onClick={handleCheckVerification}>
+                <CheckCircle size={14} /> I Verified
+              </Button>
+            )}
+            {emailVerified && (
+              <Badge tone="go">Verified</Badge>
+            )}
+          </div>
+          {!emailVerified && !verificationSent && (
+            <p className="mt-1 text-xs text-civic-400">
+              Verify your email to receive a confirmation after booking.
+            </p>
+          )}
+          {verificationSent && !emailVerified && (
+            <p className="mt-1 text-xs text-amber-600">
+              Check your inbox for a verification email from AWS, then click "I Verified" above.
+            </p>
+          )}
+          {emailVerified && (
+            <p className="mt-1 text-xs text-green-600">
+              Email verified — confirmation will be sent after booking.
+            </p>
+          )}
         </div>
       </Card>
 
@@ -304,9 +378,14 @@ export function ConfirmationPage() {
       </Card>
 
       <Card className="p-6">
-        <Button variant="civic" loading={booking} onClick={handleBook}>
+        <Button variant="civic" loading={booking} onClick={handleBook} disabled={!emailVerified}>
           <Send size={16} /> Find Slot & Book Appointment
         </Button>
+        {!emailVerified && email.trim() && (
+          <p className="mt-2 text-xs text-civic-400">
+            Please verify your email above before booking.
+          </p>
+        )}
       </Card>
     </main>
   );
