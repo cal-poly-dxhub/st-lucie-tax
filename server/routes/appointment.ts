@@ -652,7 +652,13 @@ router.post("/demo-book", async (req, res) => {
       qrCodeDataUrl: qrDataUrl,
       fromEmail: EMAIL,
     });
-    await sendEmail(ses, emailInput);
+    let emailSent = false;
+    try {
+      await sendEmail(ses, emailInput);
+      emailSent = true;
+    } catch (emailErr: unknown) {
+      console.error("Confirmation email failed (non-fatal):", (emailErr as Error).message);
+    }
 
     res.json({
       ok: true,
@@ -664,8 +670,48 @@ router.post("/demo-book", async (req, res) => {
       time: slot.slotTime,
       dateFormatted: dateStr,
       timeFormatted: timeStr,
+      emailSent,
     });
   } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/verify-email ──────────────────────────────────────────────────
+// Trigger SES email identity verification for a recipient address.
+router.post("/verify-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "email required" });
+
+    const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
+    await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+    res.json({ ok: true, status: "verification_sent" });
+  } catch (err: unknown) {
+    const code = (err as { name?: string }).name;
+    if (code === "AlreadyExistsException") {
+      return res.json({ ok: true, status: "already_verified" });
+    }
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── GET /api/verify-email-status ────────────────────────────────────────────
+// Check whether a recipient email is verified in SES.
+router.get("/verify-email-status", async (req, res) => {
+  try {
+    const email = req.query.email as string;
+    if (!email) return res.status(400).json({ error: "email query param required" });
+
+    const { GetEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
+    const result = await ses.send(new GetEmailIdentityCommand({ EmailIdentity: email }));
+    const verified = result.VerifiedForSendingStatus === true;
+    res.json({ email, verified });
+  } catch (err: unknown) {
+    const code = (err as { name?: string }).name;
+    if (code === "NotFoundException") {
+      return res.json({ email: req.query.email, verified: false });
+    }
     sendError(res, err, "appointment");
   }
 });
@@ -704,3 +750,65 @@ router.post("/set-demo-email", requireAuth("admin"), async (req, res) => {
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Public routes (no auth required) — mounted separately in app.ts
+// ═══════════════════════════════════════════════════════════════════════════════
+export const publicRouter = Router();
+
+// Load prescreen questions for a confirmation code
+publicRouter.get("/prescreen/:confirmationCode", async (req, res) => {
+  try {
+    const match = await lookupByConfirmationCode(pool, req.params.confirmationCode);
+    if (!match) return res.status(404).json({ error: "Appointment not found" });
+
+    const { rows } = await pool.query(
+      `SELECT first_name, last_name, txn_type_ids, prescreen_completed FROM appointments WHERE id = $1`,
+      [match.appointmentId],
+    );
+    if (!rows.length) return res.status(404).json({ error: "Appointment not found" });
+    const appt = rows[0];
+
+    const questions = await getPrescreenQuestions(pool, appt.txn_type_ids);
+    res.json({
+      appointmentId: match.appointmentId,
+      firstName: appt.first_name,
+      lastName: appt.last_name,
+      prescreenCompleted: appt.prescreen_completed,
+      questions,
+    });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// Submit prescreen responses (auto check-in if flagged)
+publicRouter.post("/prescreen/:confirmationCode/submit", async (req, res) => {
+  try {
+    const match = await lookupByConfirmationCode(pool, req.params.confirmationCode);
+    if (!match) return res.status(404).json({ error: "Appointment not found" });
+
+    const responses: Record<string, boolean> = req.body?.responses || {};
+    await savePrescreenResponses(pool, match.appointmentId, responses);
+
+    const autoCheckIn: boolean = req.body?.autoCheckIn || false;
+    const priority: boolean = req.body?.priority || false;
+
+    if (autoCheckIn) {
+      if (priority) {
+        await setAppointmentPriority(pool, match.appointmentId, true);
+      }
+      const queueResult = await checkInToQueue(
+        pool,
+        match.officeId,
+        match.appointmentId,
+        undefined,
+      );
+      return res.json({ ok: true, checkedIn: true, queueNumber: queueResult.queueNumber });
+    }
+
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});

@@ -247,6 +247,7 @@ export class BackOfficeStack extends Stack {
       PGSSL: "true",
       NODE_ENV: "production",
       EMAIL: config.senderEmail,
+      BASE_URL: config.baseUrl,
       DOCUMENTS_BUCKET: documentsBucket.bucketName,
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
       COGNITO_USER_POOL_ID: userPool.userPoolId,
@@ -291,10 +292,13 @@ export class BackOfficeStack extends Stack {
     }
     documentsBucket.grantReadWrite(appointmentFn); // presign + inline upload
     emailQueue.grantSendMessages(queueFn); // summon emails
-    const sesIdentityArn = `arn:aws:ses:${this.region}:${this.account}:identity/${config.senderEmail}`;
+    const sesIdentityArn = `arn:aws:ses:${this.region}:${this.account}:identity/*`;
     for (const fn of [appointmentFn, queueFn]) {
       fn.addToRolePolicy(
-        new iam.PolicyStatement({ actions: ["ses:SendEmail"], resources: [sesIdentityArn] }),
+        new iam.PolicyStatement({
+          actions: ["ses:SendEmail", "ses:CreateEmailIdentity", "ses:GetEmailIdentity"],
+          resources: [sesIdentityArn],
+        }),
       );
     }
 
