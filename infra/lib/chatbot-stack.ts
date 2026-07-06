@@ -423,12 +423,19 @@ function handler(event) {
     });
 
     // ── SPA Deployment: all three frontends ──────────────────────────────────
+    // prune: false on OfficeFrontendDeploy is critical: it shares the bucket
+    // root prefix ("") with RuntimeConfig below. With pruning enabled (the
+    // default), whichever of the two BucketDeployment custom resources runs
+    // last (CFN runs them concurrently, order is not guaranteed) deletes any
+    // file at that prefix it doesn't recognize as its own source — including
+    // config.json, since OfficeFrontendDeploy's source is only frontend/dist.
     new s3deploy.BucketDeployment(this, "OfficeFrontendDeploy", {
       sources: [s3deploy.Source.asset(path.join(repoRoot, "frontend", "dist"))],
       destinationBucket: frontendBucket,
       destinationKeyPrefix: "",
       distribution,
       distributionPaths: ["/*"],
+      prune: false,
     });
 
     new s3deploy.BucketDeployment(this, "ChatbotFrontendDeploy", {
@@ -448,6 +455,7 @@ function handler(event) {
     });
 
     // Runtime config — frontends fetch this on load instead of baking values at build time.
+    // prune: false here too, for the same reason as OfficeFrontendDeploy above.
     new s3deploy.BucketDeployment(this, "RuntimeConfig", {
       sources: [
         s3deploy.Source.jsonData("config.json", {
@@ -461,6 +469,7 @@ function handler(event) {
       destinationBucket: frontendBucket,
       distribution,
       distributionPaths: ["/config.json"],
+      prune: false,
     });
 
     // ── Monitoring ───────────────────────────────────────────────────────────
@@ -512,6 +521,9 @@ function handler(event) {
     });
     new CfnOutput(this, "DistributionId", {
       value: distribution.distributionId,
+    });
+    new CfnOutput(this, "FrontendBucketName", {
+      value: frontendBucket.bucketName,
     });
     new CfnOutput(this, "ChatbotApiUrl", {
       value: chatbotApi.url,
