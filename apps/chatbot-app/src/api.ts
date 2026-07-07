@@ -590,6 +590,9 @@ export interface SchedulingBookResponse {
   status: "booked";
   appointmentId: number;
   qrCode: string;
+  officeName: string;
+  dateFormatted: string;
+  timeFormatted: string;
   scheduling: {
     selectedSlot: { locationName: string; date: string; startTime: string };
     appointmentId: string;
@@ -629,5 +632,31 @@ export async function bookSchedulingAppointment(
       reason: "slot-taken",
     });
   if (!res.ok) throw httpError(res.status, "We couldn't book that. Try again, or call the office.");
+  return res.json();
+}
+
+export async function verifySchedulingEmail(
+  sessionId: string,
+  email: string,
+): Promise<{ status: "verification_sent" | "already_verified" }> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/scheduling/verify-email`, {
+    method: "POST",
+    headers: await buildHeaders(),
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw httpError(res.status, "Could not verify email. Try again.");
+  return res.json();
+}
+
+export async function checkSchedulingEmailStatus(
+  sessionId: string,
+  email: string,
+): Promise<{ verified: boolean }> {
+  const getHeaders = await buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/verify-email-status?email=${encodeURIComponent(email)}`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok) throw httpError(res.status, "Could not check email status.");
   return res.json();
 }
