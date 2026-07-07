@@ -40,6 +40,11 @@ import {
 } from "./authid/client.js";
 import { decide, extractIdentity } from "./authid/decision.js";
 import { findSlot, book, schedulingEnabled } from "./scheduling/client.js";
+import {
+  verifyEmailIdentity,
+  checkEmailVerified,
+  sendConfirmationEmail,
+} from "./scheduling/email.js";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 
 export const app = express();
@@ -903,15 +908,74 @@ app.post("/chatbot/sessions/:sessionId/scheduling/book", async (req, res) => {
     };
     await updateSession(session);
 
+    // Format date/time for email
+    const apptDate = new Date(result.slot.date + "T00:00:00");
+    const dateStr = apptDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+    const [h, m] = result.slot.time.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+    // Send confirmation email (non-blocking — don't fail the booking)
+    sendConfirmationEmail({
+      recipientEmail: email,
+      firstName,
+      confirmationCode: result.qrCode,
+      appointmentDate: dateStr,
+      appointmentTime: timeStr,
+      officeName: result.slot.officeName,
+    }).catch((err) => console.error("Confirmation email failed (non-fatal):", err));
+
     res.json({
       status: "booked",
       appointmentId: result.appointmentId,
       qrCode: result.qrCode,
+      officeName: result.slot.officeName,
+      dateFormatted: dateStr,
+      timeFormatted: timeStr,
       scheduling: session.structuredContext.scheduling,
     });
   } catch (err) {
     console.error("Scheduling book error:", err);
     res.status(502).json({ error: "scheduling-unreachable" });
+  }
+});
+
+// POST /chatbot/sessions/:sessionId/scheduling/verify-email
+app.post("/chatbot/sessions/:sessionId/scheduling/verify-email", async (req, res) => {
+  try {
+    const { email } = req.body ?? {};
+    if (!email) {
+      res.status(400).json({ error: "email required" });
+      return;
+    }
+    const status = await verifyEmailIdentity(email);
+    res.json({ status });
+  } catch (err) {
+    console.error("Email verify error:", err);
+    res.status(500).json({ error: "verify-failed" });
+  }
+});
+
+// GET /chatbot/sessions/:sessionId/scheduling/verify-email-status
+app.get("/chatbot/sessions/:sessionId/scheduling/verify-email-status", async (req, res) => {
+  try {
+    const email = req.query.email as string;
+    if (!email) {
+      res.status(400).json({ error: "email query param required" });
+      return;
+    }
+    const verified = await checkEmailVerified(email);
+    res.json({ verified });
+  } catch (err) {
+    console.error("Email status error:", err);
+    res.status(500).json({ error: "status-check-failed" });
   }
 });
 

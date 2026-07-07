@@ -223,6 +223,7 @@ export class ChatbotStack extends Stack {
         AUTHID_API_KEY_ID: process.env.AUTHID_API_KEY_ID || "",
         AUTHID_API_KEY_VALUE: process.env.AUTHID_API_KEY_VALUE || "",
         AUTHID_DL_DOC_TYPE_CODE: process.env.AUTHID_DL_DOC_TYPE_CODE || "5",
+        EMAIL: process.env.SENDER_EMAIL || "noreply@stlucie.local",
       },
       bundling: {
         format: lambdaNode.OutputFormat.CJS,
@@ -302,7 +303,7 @@ export class ChatbotStack extends Stack {
     );
     chatbotFn.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ["ses:SendEmail"],
+        actions: ["ses:SendEmail", "ses:CreateEmailIdentity", "ses:GetEmailIdentity"],
         resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
       }),
     );
