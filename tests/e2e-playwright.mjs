@@ -1,10 +1,10 @@
 import { chromium } from "playwright";
 import { mkdirSync } from "fs";
+import { getOfficeCredentials, getCloudFrontUrl, getScreenshotDir } from "./test-credentials.mjs";
 
-const BASE = "CLOUDFRONT_URL";
-const CREDS = { email: "EMAIL", password: "PASSWORD" };
-const SCREENSHOT_DIR =
-  "/Users/njriley/dxhub/customer_projects/st-lucie/st-lucie-tax/tests/screenshots/e2e";
+const BASE = getCloudFrontUrl();
+const CREDS = getOfficeCredentials();
+const SCREENSHOT_DIR = getScreenshotDir();
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
 let passed = 0;
@@ -399,7 +399,7 @@ async function run() {
         throw new Error("No questions, already-completed, or greeting visible");
       }
       console.log(
-        `    State: ${hasQuestions ? "questions shown" : hasAlready ? "already done" : "greeting"}`,
+        `    State: ${hasQuestions ? "questions shown" : hasAlready ? "already done" : "greeting"}`
       );
       await psPage.close();
     });

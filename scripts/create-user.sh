@@ -17,7 +17,7 @@ echo "==> Creating user ${EMAIL} in pool ${USER_POOL_ID}..."
 aws cognito-idp admin-create-user \
   --user-pool-id "$USER_POOL_ID" \
   --username "$EMAIL" \
-  --temporary-password "Temp1234!" \
+  --temporary-password "$(openssl rand -base64 16)Aa1!" \
   --user-attributes Name=email,Value="$EMAIL" Name=email_verified,Value=true \
   --message-action SUPPRESS 2>&1 || echo "  (user may already exist, continuing)"
 
