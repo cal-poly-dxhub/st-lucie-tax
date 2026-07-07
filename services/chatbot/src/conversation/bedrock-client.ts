@@ -19,7 +19,7 @@ const client = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || "us-east-1",
 });
 
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-20250514-v1:0";
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-6";
 const MAX_TOOL_ROUNDS = 10;
 
 // Intermittently (~0.05% of turns, observed across a month of beta) the model

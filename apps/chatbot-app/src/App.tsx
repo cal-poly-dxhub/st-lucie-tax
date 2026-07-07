@@ -7,10 +7,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   createSession, fetchHotButtons, sendMessage, getSessionState, submitMessageFeedback,
-  skipVerifyIdentity,
-  loadBetaAuth, clearBetaAuth, type BetaAuthState,
+  skipVerifyIdentity, setCachedToken,
   type HotButton, type SessionContext,
 } from './api';
+import { getCurrentUser, signOut, type AuthUser } from './lib/auth';
 import { LoginPage } from './components/LoginPage';
 import { useSession } from './hooks/useSession';
 import { usePolling } from './hooks/usePolling';
@@ -28,12 +28,18 @@ import { BetaBanner } from './components/BetaBanner';
 import { useResizableWidth } from './hooks/useResizableWidth';
 
 export default function App() {
-  // Auth gate. When auth state is null (no token in localStorage), the
-  // whole app is replaced with the login screen. Setting it via the
-  // LoginPage's onLogin or clearing it via "Log out" toggles between
-  // the gated UI and the chatbot UI.
-  const [auth, setAuth] = useState<BetaAuthState | null>(() => loadBetaAuth());
+  const [auth, setAuth] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) {
+        setAuth(user);
+        setCachedToken(user.idToken);
+      }
+    }).finally(() => setAuthLoading(false));
+  }, []);
 
   const { session, isLoading, setIsLoading, addUserMessage, updateFromResponse, updateState, reset, rehydrating, recordMessageFeedback, setGeneralFeedbackNotes } = useSession();
   // Surface the save-and-resume pill the first time a sessionId is assigned —
@@ -229,18 +235,23 @@ export default function App() {
   const optionalUploads = session.context?.resolvedBuckets?.optionalUploads ?? [];
 
   const handleLogout = useCallback(() => {
-    clearBetaAuth();
+    signOut();
+    setCachedToken(null);
     setAuth(null);
     setAuthNotice(null);
     reset();
   }, [reset]);
 
-  // Auth gate: show login when no token is present.
+  if (authLoading) {
+    return <div className="login-page"><div className="login-card"><p>Loading…</p></div></div>;
+  }
+
   if (!auth) {
     return (
       <LoginPage
-        onLogin={(state) => {
-          setAuth(state);
+        onLogin={(user) => {
+          setAuth(user);
+          setCachedToken(user.idToken);
           setAuthNotice(null);
         }}
         notice={authNotice ?? undefined}

@@ -1,24 +1,8 @@
-/**
- * Beta-tester login screen. Shown when there's no auth state in
- * localStorage. Single shared master password (handed out manually);
- * email is captured per-tester so submitted feedback / transcripts can
- * be attributed.
- *
- * Email is also tied to the session at create-time on the server, so a
- * tester resuming a session URL needs to sign in with the matching email
- * (or click "New session" to start fresh).
- */
-
 import { useState } from 'react';
-import { login, saveBetaAuth, type BetaAuthState } from '../api';
+import { signIn, type AuthUser } from '../lib/auth';
 
 interface Props {
-  onLogin: (state: BetaAuthState) => void;
-  /**
-   * Optional inline message shown above the form. Set when the parent
-   * forces a re-login (e.g. session-belongs-to-another-tester rejection
-   * from rehydrate). Shown in a yellow notice box.
-   */
+  onLogin: (user: AuthUser) => void;
   notice?: string;
 }
 
@@ -37,16 +21,20 @@ export function LoginPage({ onLogin, notice }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const result = await login(email.trim(), password);
-      if ('error' in result) {
-        setError(result.error);
-        setSubmitting(false);
-        return;
-      }
-      saveBetaAuth(result);
-      onLogin(result);
+      const user = await signIn(email.trim(), password);
+      onLogin(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      if (err instanceof Error) {
+        if (err.message === 'NEW_PASSWORD_REQUIRED') {
+          setError('You need to set a new password. Contact your administrator.');
+        } else if (err.message.includes('Incorrect') || err.message.includes('NotAuthorizedException')) {
+          setError('Incorrect email or password.');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Sign-in failed.');
+      }
       setSubmitting(false);
     }
   }
@@ -56,7 +44,7 @@ export function LoginPage({ onLogin, notice }: Props) {
       <div className="login-card">
         <div className="login-header">
           <h1>St. Lucie County Chatbot</h1>
-          <p className="login-subtitle">Beta tester sign-in</p>
+          <p className="login-subtitle">Sign in to continue</p>
         </div>
 
         {notice && (
@@ -67,7 +55,7 @@ export function LoginPage({ onLogin, notice }: Props) {
 
         <form onSubmit={handleSubmit} className="login-form">
           <label className="login-label">
-            <span>Your email</span>
+            <span>Email</span>
             <input
               type="email"
               value={email}
@@ -80,13 +68,12 @@ export function LoginPage({ onLogin, notice }: Props) {
           </label>
 
           <label className="login-label">
-            <span>Beta password</span>
+            <span>Password</span>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
-              placeholder="Provided by Mason"
               required
             />
           </label>
@@ -110,10 +97,6 @@ export function LoginPage({ onLogin, notice }: Props) {
           Conversations are recorded for development purposes. Don't enter real
           Social Security numbers, full driver license numbers, or financial
           account details.
-        </p>
-        <p className="login-footer login-footer--contact">
-          Having trouble? Contact{' '}
-          <a href="mailto:maintainer@example.com">maintainer@example.com</a>
         </p>
       </div>
     </div>

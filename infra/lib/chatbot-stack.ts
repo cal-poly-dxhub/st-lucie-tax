@@ -217,8 +217,8 @@ export class ChatbotStack extends Stack {
         BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
         BEDROCK_KB_ID: knowledgeBase.attrKnowledgeBaseId,
         AWS_ACCOUNT_ID: this.account,
-        BETA_PASSWORD: process.env.BETA_PASSWORD || "",
-        BETA_AUTH_SECRET: process.env.BETA_AUTH_SECRET || "",
+        COGNITO_USER_POOL_ID: props.userPoolId,
+        COGNITO_CLIENT_ID: props.userPoolClientId,
         AUTHID_BASE_URL: process.env.AUTHID_BASE_URL || "https://id-uat.authid.ai",
         AUTHID_API_KEY_ID: process.env.AUTHID_API_KEY_ID || "",
         AUTHID_API_KEY_VALUE: process.env.AUTHID_API_KEY_VALUE || "",
@@ -235,9 +235,11 @@ export class ChatbotStack extends Stack {
             return [];
           },
           afterBundling(inputDir: string, outputDir: string): string[] {
-            return [
-              `cp -r ${inputDir}/services/chatbot/data ${outputDir}/data 2>/dev/null || true`,
-            ];
+            // No `|| true` here on purpose: if this copy ever fails (wrong
+            // path, missing dir), bundling should fail loudly at synth/deploy
+            // time rather than shipping a Lambda that 500s on every request
+            // once `resolveDataDir()` throws at module init.
+            return [`cp -r ${inputDir}/services/chatbot/src/data ${outputDir}/data`];
           },
         },
       },
@@ -287,7 +289,8 @@ export class ChatbotStack extends Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
         resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/us.anthropic.claude-sonnet-4-*`,
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0",
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0`,
         ],
       }),
     );
