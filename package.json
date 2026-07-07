@@ -51,6 +51,7 @@
     "@emnapi/core": "^1.11.1",
     "@emnapi/runtime": "^1.11.1",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@types/aws-lambda": "^8.10.162",
     "@types/node": "^22.20.0",
     "@types/pg": "^8.20.0",

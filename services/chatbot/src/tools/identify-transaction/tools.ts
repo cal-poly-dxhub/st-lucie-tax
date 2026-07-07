@@ -3,8 +3,35 @@
  */
 
 import type { Tool, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime";
-import type { IdentifiedTransaction, TransactionType, Session } from "@st-lucie/shared-types";
+import type {
+  IdentifiedTransaction,
+  TransactionType,
+  TransactionTypeMetadata,
+  Session,
+} from "@st-lucie/shared-types";
 import { getPool } from "@st-lucie/data-access";
+
+const DEFAULT_METADATA: TransactionTypeMetadata = {
+  summary: "",
+  keywords: [],
+  commonPhrases: [],
+  requiredDocumentSummary: "",
+  requiredDocuments: [],
+  onlineEligible: false,
+  relatedTransactionIds: [],
+  relatedPrompts: {},
+  notes: "",
+};
+
+function parseDescription(raw: string | null): TransactionTypeMetadata {
+  if (!raw) return DEFAULT_METADATA;
+  try {
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_METADATA, ...parsed };
+  } catch {
+    return { ...DEFAULT_METADATA, summary: raw };
+  }
+}
 import { queryKnowledgeBase } from "../../knowledge-base/query.js";
 import { classifyIntentTools, handleClassifyIntentTool } from "../classify-intent/tools.js";
 import {
@@ -37,19 +64,7 @@ async function loadTransactionTypes(): Promise<TransactionType[]> {
   cachedTypes = result.rows.map((row) => ({
     txnTypeId: row.txn_type_id,
     name: row.name,
-    description: row.description
-      ? JSON.parse(row.description)
-      : {
-          summary: "",
-          keywords: [],
-          commonPhrases: [],
-          requiredDocumentSummary: "",
-          requiredDocuments: [],
-          onlineEligible: false,
-          relatedTransactionIds: [],
-          relatedPrompts: {},
-          notes: "",
-        },
+    description: parseDescription(row.description),
     averageDurationMinutes: row.avg_duration_min,
     serviceHours:
       row.available_from && row.available_until

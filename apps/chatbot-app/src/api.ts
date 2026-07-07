@@ -5,120 +5,34 @@
  * in local dev (Vite proxy → Express) and production (CloudFront → API Gateway).
  */
 
+import { getIdToken } from "./lib/auth";
+
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-const AUTH_STORAGE_KEY = "stlucie-beta-auth-v1";
+let _cachedToken: string | null = null;
 
-export interface BetaAuthState {
-  token: string;
-  email: string;
+export function setCachedToken(token: string | null): void {
+  _cachedToken = token;
 }
 
-export function loadBetaAuth(): BetaAuthState | null {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<BetaAuthState>;
-    if (!parsed.token || !parsed.email) return null;
-    return { token: parsed.token, email: parsed.email };
-  } catch {
-    return null;
-  }
-}
-
-export function saveBetaAuth(state: BetaAuthState): void {
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state));
-}
-
-export function clearBetaAuth(): void {
-  localStorage.removeItem(AUTH_STORAGE_KEY);
-}
-
-// SEC-05 sliding expiry: the backend re-issues a token once it's past half-life
-// and returns it in the `X-Refreshed-Token` response header. Install a single
-// fetch wrapper (covers all API calls, present and future) that swaps the new
-// token into localStorage so an actively-used session never expires out from
-// under a tester. No-op when not logged in or no header present.
-//
-// Idempotent: guarded so React StrictMode's double-invoke / HMR can't stack
-// wrappers.
-const FETCH_PATCH_FLAG = "__stlucieRefreshPatch";
-if (
-  typeof window !== "undefined" &&
-  !(window.fetch as unknown as Record<string, boolean>)[FETCH_PATCH_FLAG]
-) {
-  const original = window.fetch.bind(window);
-  const patched: typeof window.fetch = async (...args) => {
-    const res = await original(...args);
-    try {
-      const refreshed = res.headers.get("X-Refreshed-Token");
-      if (refreshed) {
-        const current = loadBetaAuth();
-        if (current) saveBetaAuth({ ...current, token: refreshed });
-      }
-    } catch {
-      // Never let token-refresh bookkeeping break a real response.
-    }
-    return res;
-  };
-  (patched as unknown as Record<string, boolean>)[FETCH_PATCH_FLAG] = true;
-  window.fetch = patched;
-}
-
-/**
- * Build a headers object for fetch calls. Always sets Content-Type;
- * conditionally adds `x-api-key` when VITE_API_KEY is configured at
- * build time AND `Authorization: Bearer <token>` when the user has logged in.
- * Local dev (no key set, no token) keeps working unchanged.
- */
-function buildHeaders(extra?: Record<string, string>): Record<string, string> {
+async function buildHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
   const apiKey = import.meta.env.VITE_API_KEY;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers["x-api-key"] = apiKey;
-  const auth = loadBetaAuth();
-  if (auth) headers["Authorization"] = `Bearer ${auth.token}`;
+  const token = _cachedToken || (await getIdToken());
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (extra) Object.assign(headers, extra);
   return headers;
 }
 
-/**
- * Same as buildHeaders but for GET requests where Content-Type is
- * irrelevant. Attaches x-api-key + Authorization when set.
- */
-function buildGetHeaders(): Record<string, string> | undefined {
+async function buildGetHeaders(): Promise<Record<string, string> | undefined> {
   const apiKey = import.meta.env.VITE_API_KEY;
-  const auth = loadBetaAuth();
-  if (!apiKey && !auth) return undefined;
+  const token = _cachedToken || (await getIdToken());
+  if (!apiKey && !token) return undefined;
   const h: Record<string, string> = {};
   if (apiKey) h["x-api-key"] = apiKey;
-  if (auth) h["Authorization"] = `Bearer ${auth.token}`;
+  if (token) h["Authorization"] = `Bearer ${token}`;
   return h;
-}
-
-/**
- * POST /chatbot/auth/login — exchange password + email for a bearer token.
- * Returns null on bad password (401) or invalid email (400). Throws on
- * network / 5xx so callers can show a generic error.
- */
-export async function login(
-  email: string,
-  password: string,
-): Promise<BetaAuthState | { error: string }> {
-  const apiKey = import.meta.env.VITE_API_KEY;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers["x-api-key"] = apiKey;
-  const res = await fetch(`${API_BASE}/chatbot/auth/login`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ email, password }),
-  });
-  if (res.status === 401 || res.status === 400) {
-    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
-    return { error: typeof body.error === "string" ? body.error : "Sign-in failed." };
-  }
-  if (!res.ok) throw new Error(`Login HTTP ${res.status}`);
-  const body = (await res.json()) as BetaAuthState;
-  return body;
 }
 
 /**
@@ -266,7 +180,7 @@ export async function createSession(
 ): Promise<CreateSessionResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ channel, walkInLocationId }),
   });
   if (!res.ok)
@@ -275,7 +189,7 @@ export async function createSession(
 }
 
 export async function fetchHotButtons(): Promise<HotButton[]> {
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/hot-buttons`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -293,7 +207,7 @@ export interface AllTransaction {
 }
 
 export async function fetchAllTransactions(): Promise<AllTransaction[]> {
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/all-transactions`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -307,7 +221,7 @@ export async function fetchAllTransactions(): Promise<AllTransaction[]> {
 export async function sendMessage(sessionId: string, message: string): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/messages`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ message }),
   });
   if (!res.ok)
@@ -321,7 +235,7 @@ export async function sendMessage(sessionId: string, message: string): Promise<C
 // --- Polling (5s interval) ---
 
 export async function getSessionState(sessionId: string): Promise<SessionState> {
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/session-state/${sessionId}`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -355,7 +269,7 @@ export interface RehydrateResponse {
 }
 
 export async function rehydrateSession(sessionId: string): Promise<RehydrateResponse | null> {
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/sessions/${sessionId}/rehydrate`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -395,7 +309,7 @@ export async function getUploadUrl(
 ): Promise<UploadUrlResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/upload-url`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ documentType, filename }),
   });
   if (!res.ok)
@@ -449,7 +363,7 @@ export async function fetchDebugTrees(
 ): Promise<{ trees: DebugTree[]; factDefinitions: DebugFactDefinition[] }> {
   const params =
     txnTypeIds.length > 0 ? `?txnTypeIds=${encodeURIComponent(txnTypeIds.join(","))}` : "";
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/debug/trees${params}`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -464,7 +378,7 @@ export async function skipState(
 ): Promise<{ previousState: string; newState: string; warning: string }> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/skip`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ stateName }),
   });
   if (!res.ok) throw httpError(res.status, "We couldn't skip ahead — try the next step instead.");
@@ -493,7 +407,7 @@ export async function editFacts(
 ): Promise<EditFactsResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/edit-facts`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ edits }),
   });
   if (!res.ok) throw httpError(res.status, "We couldn't save that change. Try once more.");
@@ -511,7 +425,7 @@ export async function confirmFacts(
 ): Promise<ConfirmFactsResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/confirm-facts`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify(emailOptIn ? { emailOptIn } : {}),
   });
   if (!res.ok) {
@@ -533,7 +447,7 @@ export async function sendTranscript(
 ): Promise<{ status: "sent" | "skipped" | "failed"; messageId?: string; reason?: string }> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/send-transcript`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ to }),
   });
   if (!res.ok)
@@ -556,7 +470,7 @@ export async function submitMessageFeedback(
 ): Promise<{ status: "ok" }> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/message-feedback`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify({ messageId, reaction, comment }),
   });
   if (!res.ok) throw httpError(res.status, "We couldn't record your feedback right now.");
@@ -582,7 +496,7 @@ export async function submitSessionFeedback(
 ): Promise<{ status: "ok"; submissionSk: string }> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/feedback`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify(payload),
   });
   if (!res.ok)
@@ -611,7 +525,7 @@ export async function downloadTranscriptPdf(
   // pages.
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/transcript-pdf`, {
     method: "POST",
-    headers: buildHeaders({ Accept: "application/pdf" }),
+    headers: await buildHeaders({ Accept: "application/pdf" }),
     body: JSON.stringify(options),
   });
   if (!res.ok)
@@ -636,7 +550,7 @@ export interface AuthIdResultResponse {
 export async function submitAuthIdResult(sessionId: string): Promise<AuthIdResultResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/authid-result`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
   });
   if (!res.ok)
     throw httpError(
@@ -656,7 +570,7 @@ export interface SkipVerifyResponse {
 export async function skipVerifyIdentity(sessionId: string): Promise<SkipVerifyResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/skip-verify`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
   });
   if (!res.ok) throw httpError(res.status, "We couldn't skip that step. Try again.");
   return res.json();
@@ -683,7 +597,7 @@ export interface SchedulingBookResponse {
 }
 
 export async function fetchSchedulingSlot(sessionId: string): Promise<SchedulingSlotResponse> {
-  const getHeaders = buildGetHeaders();
+  const getHeaders = await buildGetHeaders();
   const res = await fetch(
     `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/slot`,
     getHeaders ? { headers: getHeaders } : undefined,
@@ -707,7 +621,7 @@ export async function bookSchedulingAppointment(
 ): Promise<SchedulingBookResponse> {
   const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/scheduling/book`, {
     method: "POST",
-    headers: buildHeaders(),
+    headers: await buildHeaders(),
     body: JSON.stringify(body),
   });
   if (res.status === 409)

@@ -34,7 +34,27 @@
  */
 
 import type { Tool, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime";
-import type { Session, TransactionType } from "@st-lucie/shared-types";
+import type { Session, TransactionType, TransactionTypeMetadata } from "@st-lucie/shared-types";
+const DEFAULT_METADATA: TransactionTypeMetadata = {
+  summary: "",
+  keywords: [],
+  commonPhrases: [],
+  requiredDocumentSummary: "",
+  requiredDocuments: [],
+  onlineEligible: false,
+  relatedTransactionIds: [],
+  relatedPrompts: {},
+  notes: "",
+};
+
+function parseDescriptionJson(raw: string | null): TransactionTypeMetadata {
+  if (!raw) return DEFAULT_METADATA;
+  try {
+    return { ...DEFAULT_METADATA, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_METADATA, summary: raw };
+  }
+}
 
 export interface LifeEventCluster {
   id: string;
@@ -331,19 +351,7 @@ async function loadTransactionTypes(): Promise<TransactionType[]> {
   cachedTypes = result.rows.map((row) => ({
     txnTypeId: row.txn_type_id,
     name: row.name,
-    description: row.description
-      ? JSON.parse(row.description)
-      : {
-          summary: "",
-          keywords: [],
-          commonPhrases: [],
-          requiredDocumentSummary: "",
-          requiredDocuments: [],
-          onlineEligible: false,
-          relatedTransactionIds: [],
-          relatedPrompts: {},
-          notes: "",
-        },
+    description: parseDescriptionJson(row.description),
     averageDurationMinutes: row.avg_duration_min,
     serviceHours:
       row.available_from && row.available_until

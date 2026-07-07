@@ -40,14 +40,7 @@ import {
 } from "./authid/client.js";
 import { decide, extractIdentity } from "./authid/decision.js";
 import { findSlot, book, schedulingEnabled } from "./scheduling/client.js";
-import {
-  isAuthEnabled,
-  checkPassword,
-  issueToken,
-  verifyToken,
-  isValidEmail,
-  normalizeEmail,
-} from "./auth/beta-auth.js";
+import { CognitoJwtVerifier } from "aws-jwt-verify";
 
 export const app = express();
 
@@ -65,6 +58,21 @@ function cascadeAutoAdvance(session: Parameters<typeof shouldAutoAdvance>[0]): v
 const TENANT_ID = process.env.TENANT_ID || "stlucie";
 
 app.use(express.json());
+
+// Path normalization: API Gateway stage 'api' adds a prefix to the path.
+// CloudFront routes /api/chat/* to this API, so the Lambda receives paths like
+// CloudFront sends /api/chat/chatbot/... but Express expects /chatbot/...
+// Strip the /api/chat prefix when running in Lambda.
+if (process.env.ORIGIN_SECRET) {
+  app.use((req, res, next) => {
+    if (req.url.startsWith("/api/chat/")) {
+      req.url = req.url.replace(/^\/api\/chat/, "");
+    } else if (req.url.startsWith("/chat/")) {
+      req.url = req.url.replace(/^\/chat/, "");
+    }
+    next();
+  });
+}
 
 // Origin-secret gate: reject direct API Gateway access (must come through CloudFront).
 const ORIGIN_SECRET = process.env.ORIGIN_SECRET;
@@ -134,17 +142,11 @@ const messageLimiter = rateLimit({
   message: { error: "You are sending messages too quickly. Please slow down." },
 });
 
-// --- Beta auth ---
-//
-// Only active when BOTH BETA_PASSWORD and BETA_AUTH_SECRET env vars are set.
-// In tsx-dev (no envs) this whole block is a no-op — the existing local
-// development flow keeps working without anyone needing a token.
-//
-// POST /chatbot/auth/login validates the master password + a tester email.
-// On success it returns an HMAC-signed token; the frontend stores it in
-// localStorage and sends it as Authorization: Bearer <token> on every
-// subsequent request. Middleware below parses the header and attaches
-// req.betaEmail when valid; protected routes require it.
+// --- Cognito auth ---
+
+const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
+const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID;
+const isDev = !COGNITO_USER_POOL_ID || !COGNITO_CLIENT_ID;
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -152,88 +154,55 @@ declare module "express-serve-static-core" {
   }
 }
 
-// POST /chatbot/auth/login
-// Body: { email, password }
-// Returns: { token, email } on success, 401 on invalid password.
-app.post("/chatbot/auth/login", (req, res) => {
-  if (!isAuthEnabled()) {
-    // No-op in dev — return a token so the frontend's auth flow can still
-    // exercise the UX path without needing to set the env vars.
-    const email = normalizeEmail(req.body?.email ?? "dev@local");
-    return res.json({ token: "dev-no-auth", email });
-  }
-  const email = normalizeEmail(req.body?.email ?? "");
-  const password = String(req.body?.password ?? "");
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: "Invalid email format." });
-  }
-  if (!checkPassword(password)) {
-    return res.status(401).json({ error: "Wrong password. Check the email Mason sent." });
-  }
-  const token = issueToken(email);
-  return res.json({ token, email });
-});
+let verifier: { verify: (token: string) => Promise<Record<string, unknown>> } | null = null;
+function getVerifier() {
+  if (verifier) return verifier;
+  verifier = CognitoJwtVerifier.create({
+    userPoolId: COGNITO_USER_POOL_ID!,
+    tokenUse: "id",
+    clientId: COGNITO_CLIENT_ID!,
+  });
+  return verifier;
+}
 
-// Auth middleware — runs before every /chatbot/* request EXCEPT the login
-// endpoint, the all-transactions catalog (public OK for fetching the menu),
-// hot-buttons (legacy public), and OPTIONS preflights. Sets req.betaEmail
-// when the token is valid; rejects with 401 when missing/invalid.
 const PUBLIC_ROUTES = new Set([
-  "/chatbot/auth/login",
   "/chatbot/all-transactions",
   "/chatbot/hot-buttons",
   "/api/hot-buttons",
 ]);
 
-// SEC-16: the /chatbot/debug/* endpoints expose full Bedrock payloads (with
-// citizen PII) and every decision-tree's internals — enough for a holder of a
-// leaked beta token to reconstruct the system prompt + routing logic for
-// targeted prompt injection. They are dev/ops tooling, never citizen-facing,
-// so they are OFF by default in any deployed environment.
-//
-// Enabled only when EITHER:
-//   - auth is disabled (local `npm run dev` — no BETA_* envs), where these
-//     endpoints are the whole point of the debug panel, OR
-//   - ENABLE_DEBUG_ENDPOINTS=1 is explicitly set (opt-in for an ops session).
-// The deployed Lambda has auth ON and the flag unset → debug routes 404.
 function debugEndpointsEnabled(): boolean {
-  return !isAuthEnabled() || process.env.ENABLE_DEBUG_ENDPOINTS === "1";
+  return isDev || process.env.ENABLE_DEBUG_ENDPOINTS === "1";
 }
 function debugGate(_req: express.Request, res: express.Response, next: express.NextFunction): void {
   if (!debugEndpointsEnabled()) {
-    // 404 (not 403) so the route is indistinguishable from "doesn't exist" —
-    // don't advertise the surface to a token holder probing for it.
     res.status(404).json({ error: "Not found" });
     return;
   }
   next();
 }
 
-app.use((req, res, next) => {
-  if (!isAuthEnabled()) return next(); // dev mode
-  if (req.method === "OPTIONS") return next(); // CORS preflight
+app.use(async (req, res, next) => {
+  if (isDev) {
+    req.betaEmail = "dev@local";
+    return next();
+  }
+  if (req.method === "OPTIONS") return next();
   if (PUBLIC_ROUTES.has(req.path)) return next();
   if (!req.path.startsWith("/chatbot/") && !req.path.startsWith("/api/")) return next();
 
-  const auth = req.header("authorization") ?? req.header("Authorization");
-  if (!auth || !auth.toLowerCase().startsWith("bearer ")) {
+  const authHeader = req.header("authorization") ?? req.header("Authorization");
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
     return res.status(401).json({ error: "Sign in to continue." });
   }
-  const token = auth.slice(7).trim();
-  const verified = verifyToken(token);
-  if (!verified) {
+  const token = authHeader.slice(7).trim();
+  try {
+    const claims = await getVerifier().verify(token);
+    req.betaEmail = (claims.email as string) ?? "";
+    next();
+  } catch {
     return res.status(401).json({ error: "Your session expired. Please sign in again." });
   }
-  req.betaEmail = verified.email;
-  // SEC-05 sliding expiry: once a still-valid token is past half-life, mint a
-  // fresh one and hand it back via a response header. The SPA swaps it into
-  // localStorage so an actively-used token never expires out from under a
-  // tester, while an idle/stolen token still dies within its 30-day TTL.
-  if (verified.needsRefresh) {
-    res.setHeader("X-Refreshed-Token", issueToken(verified.email));
-    res.setHeader("Access-Control-Expose-Headers", "X-Refreshed-Token");
-  }
-  next();
 });
 
 // --- API routes (mounted at /chatbot/* via API Gateway proxy) ---
@@ -521,13 +490,14 @@ app.get("/chatbot/all-transactions", async (_req, res) => {
        ORDER BY name`,
     );
     const out = result.rows.map((r) => {
-      const desc = r.description
-        ? (JSON.parse(r.description) as {
-            commonPhrases?: string[];
-            summary?: string;
-            category?: string;
-          })
-        : null;
+      let desc: { commonPhrases?: string[]; summary?: string; category?: string } | null = null;
+      if (r.description) {
+        try {
+          desc = JSON.parse(r.description);
+        } catch {
+          desc = { summary: r.description };
+        }
+      }
       const phrases = desc?.commonPhrases ?? [];
       return {
         txnTypeId: r.txn_type_id,
