@@ -1,7 +1,9 @@
--- St. Lucie Tax System — Seed Data for Scheduling Engine Queries
--- Adapted from schedule-engine-poc branch, aligned to current database-design.md schema.
--- Fixed date range: 2026-05-12 through 2026-05-22 (weekdays only)
--- 2 offices, 3 clerks each, 32 transaction types, ~50% capacity bookings
+-- St. Lucie Tax System — Consolidated Seed Data
+-- Config, offices, hours, lunch shifts, transaction types, document registry,
+-- prescreen questions, clerks, clerk schedules, and a sparse set of sample
+-- appointments (~10% of capacity) for local dev / demo purposes.
+
+BEGIN;
 
 -- =============================================================================
 -- Config (single row)
@@ -43,46 +45,45 @@ INSERT INTO office_lunch_shifts (office_id, shift_num, start_time, end_time) VAL
     (2, 2, '12:15', '13:00');
 
 -- =============================================================================
--- Transaction Types (all 32 chatbot transaction types)
--- skill_ids reference: 1=road-test, 2=id-card, 3=license-original
+-- Transaction Types (32 types, source: chatbot-prototype branch)
+-- Insertion order determines serial id 1-32, referenced below by clerk skill_ids
 -- =============================================================================
-INSERT INTO transaction_types (txn_type_id, name, description, avg_duration_min, status, available_from, available_until) VALUES
-    ('road-test',                    'Road Test',                       'Behind-the-wheel driving test',                       30, 'active', '09:00', '15:00'),
-    ('id-card',                      'State ID Card',                   'Non-driver identification card',                      15, 'active', NULL,    NULL),
-    ('license-original',             'Original Driver License',         'First-time FL driver license',                        20, 'active', NULL,    NULL),
-    ('business-tax-receipt',         'Business Tax Receipt',            'Local business tax receipt application or renewal',    15, 'active', NULL,    NULL),
-    ('cdl',                          'Commercial Driver License',       'CDL original, renewal, or endorsement',               30, 'active', NULL,    NULL),
-    ('concealed-weapon',             'Concealed Weapon Permit',         'Concealed weapon or firearm license application',     20, 'active', NULL,    NULL),
-    ('dealer-title-dropoff',         'Dealer Title Drop-off',           'Dealer title work drop-off',                          15, 'active', NULL,    NULL),
-    ('dl-address-change',            'DL Address Change',               'Update address on driver license',                    10, 'active', NULL,    NULL),
-    ('dl-name-change',               'DL Name Change',                  'Update name on driver license',                       15, 'active', NULL,    NULL),
-    ('dl-renewal',                   'DL Renewal',                      'Renew an existing driver license',                    15, 'active', NULL,    NULL),
-    ('dl-replacement',               'DL Replacement',                  'Replace a lost or damaged driver license',            15, 'active', NULL,    NULL),
-    ('dl-sanctions-lift',            'DL Sanctions Lift',               'Reinstate a suspended or revoked driver license',     20, 'active', NULL,    NULL),
-    ('dl-transfer',                  'DL Transfer',                     'Transfer out-of-state license to Florida',            20, 'active', NULL,    NULL),
-    ('duplicate-title',              'Duplicate Title',                 'Obtain a duplicate vehicle title',                    15, 'active', NULL,    NULL),
-    ('handicap-placard',             'Handicap Placard',                'Apply for or renew a disabled parking permit',        10, 'active', NULL,    NULL),
-    ('hunting-fishing',              'Hunting/Fishing License',         'Hunting or fishing license purchase',                 10, 'active', NULL,    NULL),
-    ('learner-permit',               'Learner Permit',                  'First-time learner permit application',               20, 'active', NULL,    NULL),
-    ('mobile-home-retire',           'Mobile Home Retirement',          'Retire a mobile home title',                          20, 'active', NULL,    NULL),
-    ('mobile-home-title',            'Mobile Home Title',               'Title a mobile home',                                 25, 'active', NULL,    NULL),
-    ('new-vehicle-title',            'New Vehicle Title',               'Title a newly purchased vehicle',                     20, 'active', NULL,    NULL),
-    ('plate-surrender',              'Plate Surrender',                 'Surrender a license plate',                           10, 'active', NULL,    NULL),
-    ('property-tax',                 'Property Tax',                    'Property tax payment or inquiry',                     15, 'active', NULL,    NULL),
-    ('real-id-upgrade',              'REAL ID Upgrade',                 'Upgrade existing license to REAL ID compliant',       20, 'active', NULL,    NULL),
-    ('registration-renewal',         'Registration Renewal',            'Renew vehicle registration',                          10, 'active', NULL,    NULL),
-    ('specialty-plate',              'Specialty Plate',                 'Order or renew a specialty license plate',            15, 'active', NULL,    NULL),
-    ('tag-replacement',              'Tag Replacement',                 'Replace a lost or damaged license plate tag',         10, 'active', NULL,    NULL),
-    ('tangible-personal-property-tax','Tangible Personal Property Tax', 'Tangible personal property tax filing or payment',    15, 'active', NULL,    NULL),
-    ('tourist-development-tax',      'Tourist Development Tax',         'Tourist development tax filing or payment',           15, 'active', NULL,    NULL),
-    ('trailer-registration',         'Trailer Registration',            'Register a trailer',                                  15, 'active', NULL,    NULL),
-    ('vehicle-registration',         'Vehicle Registration',            'Register a vehicle',                                  15, 'active', NULL,    NULL),
-    ('vehicle-title-transfer',       'Vehicle Title Transfer',          'Transfer vehicle title to a new owner',              20, 'active', NULL,    NULL),
-    ('vessel-registration',          'Vessel Registration',             'Register a boat or vessel',                           20, 'active', NULL,    NULL),
-    ('written-test',                 'Written Test',                    'Written knowledge test for driver license',           30, 'active', '09:00', '15:00');
+INSERT INTO transaction_types (txn_type_id, name, description, avg_duration_min, status, is_online_eligible, online_redirect_url, available_from, available_until) VALUES
+('dl-transfer', 'Driver License Transfer (Out-of-State)', 'Transfer an out-of-state or out-of-country driver license to Florida. Required for new Florida residents within 30 days of establishing residency.', 25, 'active', FALSE, NULL, NULL, NULL),
+('dl-renewal', 'Driver License Renewal', 'Renew an existing Florida driver license or ID card. Available for Florida residents with a current or recently expired FL DL/ID.', 15, 'active', TRUE, 'https://mydmvportal.flhsmv.gov/Home/en/Account/Landing', NULL, NULL),
+('dl-name-change', 'Driver License Name Change', 'Update your legal name on your Florida driver license or ID card due to marriage, divorce, or court order.', 20, 'active', FALSE, NULL, NULL, NULL),
+('dl-address-change', 'Driver License Address Change', 'Update your residential address on your Florida driver license or ID card after moving within Florida.', 10, 'active', TRUE, 'https://mydmvportal.flhsmv.gov/Home/en/Account/Landing', NULL, NULL),
+('vehicle-title-transfer', 'Vehicle Title Transfer', 'Transfer a vehicle title into your name after purchase, gift, or inheritance. Also covers transferring an out-of-state title to Florida.', 20, 'active', FALSE, NULL, NULL, NULL),
+('vehicle-registration', 'Vehicle Registration (New or Transfer)', 'Register a vehicle in Florida for the first time, or transfer an out-of-state registration to Florida.', 15, 'active', FALSE, NULL, NULL, NULL),
+('registration-renewal', 'Vehicle Registration Renewal', 'Renew an existing Florida vehicle registration. Can often be completed online or at an express lane.', 10, 'active', TRUE, 'https://payment.myeasygov.com/MEGPlatform/entryPoint?agencyID=1001&productTypeID=1&deliveryMethodID=0', NULL, NULL),
+('road-test', 'Driving Road Test', 'Schedule and take a driving road test for a Florida Class E driver license. Available for first-time drivers and teens.', 45, 'active', FALSE, NULL, '09:00', '15:30'),
+('property-tax', 'Property Tax Payment', 'Pay real property taxes for St. Lucie County. Includes annual property taxes, delinquent taxes, and tax certificate redemptions.', 10, 'active', TRUE, 'https://stlucie.county-taxes.com/tcb/app/re/accounts', NULL, NULL),
+('concealed-weapon', 'Concealed Weapon Permit', 'Apply for or renew a Florida Concealed Weapon or Firearm License (CWFL). Fingerprinting and application processing.', 30, 'active', FALSE, NULL, '09:00', '16:00'),
+('hunting-fishing', 'Hunting & Fishing License', 'Purchase or renew Florida hunting and fishing licenses and permits.', 10, 'active', TRUE, 'https://myfwc.com/license/recreational/how-to-order/', NULL, NULL),
+('vessel-registration', 'Vessel / Boat Registration', 'Register a vessel or boat in Florida, transfer registration from another state, or renew an existing registration.', 20, 'active', TRUE, 'https://renewexpress.com/stlucie/renewals', NULL, NULL),
+('handicap-placard', 'Disabled Parking Permit (Handicap Placard)', 'Apply for, renew, or replace a disabled parking permit (handicap placard). Long-term permits are free and valid for 4 years. Temporary permits cost $15 and are valid up to 6 months.', 10, 'active', FALSE, NULL, NULL, NULL),
+('dl-replacement', 'Driver License / ID Card Replacement', 'Replace a lost, stolen, or damaged Florida driver license or ID card. A duplicate credential is issued with the same expiration date.', 15, 'active', FALSE, NULL, NULL, NULL),
+('id-card', 'Florida Identification Card', 'Apply for or renew a Florida state identification card. For residents who do not drive but need official state-issued photo identification.', 20, 'active', FALSE, NULL, NULL, NULL),
+('real-id-upgrade', 'REAL ID Upgrade', 'Upgrade your existing Florida driver license or ID card to be REAL ID-compliant (gold star). Required for domestic air travel and entering federal buildings. Must be done in person.', 20, 'active', FALSE, NULL, NULL, NULL),
+('cdl', 'Commercial Driver License (CDL)', 'Apply for, renew, or upgrade a Commercial Driver License. Required for operating vehicles over 26,001 lbs GVWR, hazardous materials transport, or vehicles carrying 16+ passengers.', 30, 'active', FALSE, NULL, NULL, NULL),
+('learner-permit', 'Learner''s Permit', 'Apply for a Florida learner''s permit. For first-time drivers (teens under 18 and adults 18+). Teens must complete required courses before applying.', 30, 'active', FALSE, NULL, NULL, NULL),
+('written-test', 'Written Knowledge Exam (Road Rules & Signs)', 'Take the written knowledge exam (Road Rules and Signs test) required for a Florida driver license. 50 multiple-choice questions with one hour to complete.', 45, 'active', FALSE, NULL, '09:00', '15:30'),
+('duplicate-title', 'Duplicate Vehicle Title', 'Apply for a duplicate vehicle title when the original has been lost, stolen, or damaged. Only the registered owner or lienholder on record may apply.', 15, 'active', FALSE, NULL, NULL, NULL),
+('new-vehicle-title', 'New Vehicle Title Application (Dealer Purchase)', 'Title application for a newly purchased vehicle from a dealership. Florida dealers are required by law to process your title, but you may need to visit if there are issues or if you purchased from an out-of-state dealer.', 20, 'active', FALSE, NULL, NULL, NULL),
+('tag-replacement', 'Lost or Stolen Tag / Decal Replacement', 'Replace a lost, stolen, or damaged license plate (tag) or registration decal. If stolen, report to law enforcement first.', 10, 'active', FALSE, NULL, NULL, NULL),
+('plate-surrender', 'License Plate Surrender', 'Return/surrender your Florida license plates and registration. Required when selling a vehicle, moving out of state, canceling insurance, or after a vehicle is repossessed.', 10, 'active', FALSE, NULL, NULL, NULL),
+('specialty-plate', 'Specialty or Personalized License Plate', 'Order a specialty license plate with a unique design supporting a specific organization, or a personalized plate with custom characters.', 15, 'active', FALSE, NULL, NULL, NULL),
+('mobile-home-title', 'Mobile Home Title & Registration', 'Title and register a mobile home in Florida. Includes new titles, transfers, and annual registration decal renewals. Decals expire December 31 each year.', 20, 'active', FALSE, NULL, NULL, NULL),
+('mobile-home-retire', 'Retire Mobile Home Title (Convert to Deed)', 'Retire a mobile home''s DMV title and convert it to a warranty deed. This makes the mobile home part of the real property (land), so future transfers are done via deed rather than motor vehicle title application.', 20, 'active', FALSE, NULL, NULL, NULL),
+('dl-sanctions-lift', 'Driver License Reinstatement (After Suspension or Revocation)', 'Reinstate a suspended, revoked, or cancelled Florida driver license. Covers DUI, traffic-court suspensions, child-support delinquency, failure-to-comply, course-completion issues, and related scenarios.', 30, 'active', FALSE, NULL, NULL, NULL),
+('business-tax-receipt', 'Local Business Tax Receipt (BTR)', 'Apply for or renew a St. Lucie County Local Business Tax Receipt. Required for any business or profession located in St. Lucie County per County Ordinance 07-016.', 20, 'active', FALSE, NULL, NULL, NULL),
+('tourist-development-tax', 'Tourist Development Tax (TDT) Registration', 'Register a short-term rental property (rentals of 6 months or less) for the St. Lucie County Tourist Development Tax -- a 5% charge on rental revenue, in addition to state sales tax.', 15, 'active', TRUE, NULL, NULL, NULL),
+('tangible-personal-property-tax', 'Tangible Personal Property Tax', 'Pay a Tangible Personal Property (TPP) tax bill from the St. Lucie County Tax Collector. TPP applies to business equipment, fixtures, furnishings in rental units, machinery, leased equipment, and mobile home attachments on rented land.', 10, 'active', TRUE, NULL, NULL, NULL),
+('dealer-title-dropoff', 'Motor Vehicle Dealer Title Paperwork Drop-Off', 'Licensed Florida motor-vehicle dealers submitting customer title and registration paperwork for vehicles they''ve sold. This is a B2B counter service, not a consumer transaction.', 25, 'active', FALSE, NULL, NULL, NULL),
+('trailer-registration', 'Trailer Registration', 'Register a trailer in Florida -- homemade or manufactured, any size. Sub-2,000 lb trailers are registration-only; 2,000-lb-and-up trailers must also be titled.', 20, 'active', FALSE, NULL, NULL, NULL);
 
 -- =============================================================================
--- Document Registry (required documents per transaction type)
+-- Document Registry (required documents referenced by prescreen/booking flows)
 -- =============================================================================
 INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
     ('photo_id',       'Photo ID',                'Government-issued photo identification',         '{"passport","military_id"}'),
@@ -95,42 +96,57 @@ INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
     ('insurance_card', 'Insurance Card',          'Proof of insurance for test vehicle',            '{}');
 
 -- =============================================================================
--- Prescreen Questions (per transaction type)
--- txn_type_id: 1=road-test, 2=id-card, 3=license-original
+-- Prescreen Questions
+-- Global across ALL transaction types (road-test + id-card question sets,
+-- applied uniformly regardless of the actual transaction being screened).
 -- =============================================================================
-INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text) VALUES
-    (1, 1, 'Do you currently hold a valid Florida learner permit?'),
-    (1, 2, 'Have you completed the required 50 hours of supervised driving?'),
-    (1, 3, 'Is the vehicle you will use for the test registered and insured in Florida?'),
-    (1, 4, 'Are all mirrors, lights, and signals on the test vehicle functioning properly?'),
-    (2, 1, 'Are you a U.S. citizen or lawful permanent resident?'),
-    (2, 2, 'Do you have a valid Social Security Number?'),
-    (2, 3, 'Do you have two forms of proof of residential address?'),
-    (3, 1, 'Are you a U.S. citizen or lawful permanent resident?'),
-    (3, 2, 'Do you have a valid Social Security Number?'),
-    (3, 3, 'Have you passed the written knowledge test (or hold a valid learner permit)?'),
-    (3, 4, 'Do you have proof of completion of a traffic law and substance abuse course?'),
-    (3, 5, 'Do you currently wear corrective lenses for driving?');
+INSERT INTO prescreen_questions (txn_type_id, sort_order, question_text)
+SELECT tt.id, q.sort_order, q.question_text
+FROM transaction_types tt
+CROSS JOIN (VALUES
+    (1, 'Do you currently hold a valid Florida learner permit?'),
+    (2, 'Have you completed the required 50 hours of supervised driving?'),
+    (3, 'Is the vehicle you will use for the test registered and insured in Florida?'),
+    (4, 'Are all mirrors, lights, and signals on the test vehicle functioning properly?'),
+    (5, 'Are you a U.S. citizen or lawful permanent resident?'),
+    (6, 'Do you have a valid Social Security Number?'),
+    (7, 'Do you have two forms of proof of residential address?')
+) AS q(sort_order, question_text)
+WHERE tt.office_id IS NULL;
 
 -- =============================================================================
--- Clerks (3 per office, distributed skills)
---   Maria  (Fort Pierce): all skills — the only road-test + license-original clerk here
---   James  (Fort Pierce): id-card + license-original
---   Angela (Fort Pierce): road-test + id-card
---   Jennifer (SL West):   all skills
---   Thomas   (SL West):   id-card + license-original
---   Nancy    (SL West):   road-test + id-card
+-- Clerks (3 per office)
+-- skill_ids reference the serial ids of the 32 transaction_types inserted
+-- above (1=dl-transfer ... 32=trailer-registration). Each clerk is randomly
+-- assigned ~75% of the 32 skills, seeded for reproducibility.
+--   Maria    (Fort Pierce)
+--   James    (Fort Pierce)
+--   Angela   (Fort Pierce)
+--   Jennifer (SL West)
+--   Thomas   (SL West)
+--   Nancy    (SL West)
 -- =============================================================================
-INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids) VALUES
-    ('Maria',    'Santos',   'maria.santos@stlucie.gov',   'active', '{1,2,3}', '{1}'),
-    ('James',    'Wilson',   'james.wilson@stlucie.gov',   'active', '{2,3}',   '{1}'),
-    ('Angela',   'Brown',    'angela.brown@stlucie.gov',   'active', '{1,2}',   '{1}'),
-    ('Jennifer', 'Clark',    'jennifer.clark@stlucie.gov', 'active', '{1,2,3}', '{2}'),
-    ('Thomas',   'Lewis',    'thomas.lewis@stlucie.gov',   'active', '{2,3}',   '{2}'),
-    ('Nancy',    'Robinson', 'nancy.robinson@stlucie.gov', 'active', '{1,2}',   '{2}');
+SELECT setseed(0.42);
+
+INSERT INTO clerks (first_name, last_name, email, status, skill_ids, office_ids)
+SELECT c.first_name, c.last_name, c.email, 'active',
+    array_agg(tt.id ORDER BY tt.id),
+    c.office_ids
+FROM (VALUES
+    ('Maria',    'Santos',   'maria.santos@stlucie.gov',   '{1}'::int[]),
+    ('James',    'Wilson',   'james.wilson@stlucie.gov',   '{1}'::int[]),
+    ('Angela',   'Brown',    'angela.brown@stlucie.gov',   '{1}'::int[]),
+    ('Jennifer', 'Clark',    'jennifer.clark@stlucie.gov', '{2}'::int[]),
+    ('Thomas',   'Lewis',    'thomas.lewis@stlucie.gov',   '{2}'::int[]),
+    ('Nancy',    'Robinson', 'nancy.robinson@stlucie.gov', '{2}'::int[])
+) AS c(first_name, last_name, email, office_ids)
+CROSS JOIN transaction_types tt
+WHERE tt.office_id IS NULL
+  AND random() < 0.75
+GROUP BY c.first_name, c.last_name, c.email, c.office_ids;
 
 -- =============================================================================
--- Clerk Schedules (weekdays 2026-05-12 through 2026-05-22)
+-- Clerk Schedules (weekdays, full year from today)
 -- All 3 Fort Pierce clerks scheduled every weekday at office 1
 -- All 3 St. Lucie West clerks scheduled every weekday at office 2
 -- =============================================================================
@@ -144,7 +160,7 @@ SELECT c.id, 1, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series('2026-05-12'::date, '2026-05-22'::date, '1 day') d
+    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 1 AND 3;
@@ -159,14 +175,15 @@ SELECT c.id, 2, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series('2026-05-12'::date, '2026-05-22'::date, '1 day') d
+    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 4 AND 6;
 
 -- =============================================================================
--- Appointments (~40-45 per office per day, ~50% capacity)
--- Randomly distributed across 15-min slots from 08:00–16:45
+-- Sample Appointments (sparse, ~10% of capacity)
+-- Randomly distributed across the next 10 weekdays and 15-min slots from
+-- 08:00-16:45, using one of the 32 seeded transaction types per appointment.
 -- =============================================================================
 DO $$
 DECLARE
@@ -186,50 +203,43 @@ DECLARE
         'Young','Allen','King','Wright','Scott','Torres','Nguyen','Hill','Flores',
         'Green','Adams','Nelson','Baker','Hall','Rivera','Campbell','Mitchell',
         'Carter','Roberts'];
-    -- Required docs by txn_type_id: 1=road-test, 2=id-card, 3=license-original
-    road_test_docs TEXT[] := ARRAY['learner_permit','photo_id','vision_cert','vehicle_reg','insurance_card'];
-    id_card_docs TEXT[] := ARRAY['birth_cert','proof_address','ssn_proof'];
-    license_docs TEXT[] := ARRAY['learner_permit','photo_id','proof_address','ssn_proof'];
+    txn_ids INT[];
     day_date DATE;
     office_id_val INT;
     appt_count INT;
     i INT;
     rand_slot INT;
-    rand_txn INT;
+    rand_txn_id INT;
     slot_time TIME;
     fname TEXT;
     lname TEXT;
     seq INT := 0;
     appt_id INT;
-    req_docs TEXT[];
+    req_docs TEXT[] := ARRAY['photo_id','proof_address'];
     doc_upload_roll FLOAT;
-    doc_idx INT;
 BEGIN
     PERFORM setseed(0.42);
 
+    SELECT array_agg(id ORDER BY id) INTO txn_ids
+    FROM transaction_types WHERE office_id IS NULL;
+
     FOR office_id_val IN 1..2 LOOP
         FOR day_date IN
-            SELECT d::date FROM generate_series('2026-05-12'::date, '2026-05-22'::date, '1 day') d
-            WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
+            SELECT CURRENT_DATE + gs AS dt
+            FROM generate_series(1, 14) gs
+            WHERE EXTRACT(DOW FROM (CURRENT_DATE + gs)) BETWEEN 1 AND 5
         LOOP
-            appt_count := 40 + floor(random() * 6)::int;
+            -- ~10% of full capacity (40-45/day at 100%): 4-5 appointments/day
+            appt_count := 4 + floor(random() * 2)::int;
 
             FOR i IN 1..appt_count LOOP
-                rand_slot := floor(random() * 35)::int;  -- 35 slots × 15 min = 08:00–16:45
-                rand_txn := 1 + floor(random() * 3)::int;
+                rand_slot := floor(random() * 35)::int;  -- 35 slots x 15 min = 08:00-16:45
+                rand_txn_id := txn_ids[1 + floor(random() * array_length(txn_ids, 1))::int];
                 slot_time := '08:00'::time + (rand_slot * interval '15 minutes');
                 fname := first_names[1 + floor(random() * 50)::int];
                 lname := last_names[1 + floor(random() * 50)::int];
                 seq := seq + 1;
 
-                -- Determine required docs based on txn type
-                CASE rand_txn
-                    WHEN 1 THEN req_docs := road_test_docs;
-                    WHEN 2 THEN req_docs := id_card_docs;
-                    WHEN 3 THEN req_docs := license_docs;
-                END CASE;
-
-                -- Prescreen: ~70% completed, ~30% not
                 INSERT INTO appointments (
                     office_id, first_name, last_name,
                     contact_email, contact_phone, txn_type_ids, required_doc_ids,
@@ -239,46 +249,24 @@ BEGIN
                     office_id_val, fname, lname,
                     lower(fname) || '.' || lower(lname) || seq || '@email.com',
                     '772-555-' || lpad(seq::text, 4, '0'),
-                    ARRAY[rand_txn], req_docs,
+                    ARRAY[rand_txn_id], req_docs,
                     day_date, slot_time,
                     gen_random_uuid()::text,
                     'scheduled', FALSE,
                     random() < 0.70
                 ) RETURNING id INTO appt_id;
 
-                -- Document upload distribution:
-                --   60% all docs uploaded (mix of accept/reject)
-                --   20% partial upload (some missing)
-                --   20% no docs uploaded
                 doc_upload_roll := random();
                 IF doc_upload_roll < 0.60 THEN
-                    -- All docs uploaded with realistic AI review mix:
-                    -- 75% all accepted, 20% one rejected, 5% multiple rejected
-                    FOR doc_idx IN 1..array_length(req_docs, 1) LOOP
-                        INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
-                        VALUES (appt_id, req_docs[doc_idx],
-                                (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = req_docs[doc_idx]),
-                                CASE
-                                    WHEN random() < 0.80 THEN 'accept'
-                                    ELSE 'reject'
-                                END);
-                    END LOOP;
-                ELSIF doc_upload_roll < 0.80 THEN
-                    -- Partial upload: upload random subset (at least 1, less than all)
-                    FOR doc_idx IN 1..array_length(req_docs, 1) LOOP
-                        IF random() < 0.55 THEN
-                            INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
-                            VALUES (appt_id, req_docs[doc_idx],
-                                    (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = req_docs[doc_idx]),
-                                    CASE
-                                        WHEN random() < 0.75 THEN 'accept'
-                                        ELSE 'reject'
-                                    END);
-                        END IF;
-                    END LOOP;
+                    INSERT INTO documents (appointment_id, doc_id, name, ai_review_status)
+                    SELECT appt_id, d, (SELECT dr.name FROM document_registry dr WHERE dr.doc_id = d),
+                           CASE WHEN random() < 0.80 THEN 'accept' ELSE 'reject' END
+                    FROM unnest(req_docs) AS d;
                 END IF;
-                -- else: no docs uploaded (20%)
+                -- else: no docs uploaded (~40%)
             END LOOP;
         END LOOP;
     END LOOP;
 END $$;
+
+COMMIT;
