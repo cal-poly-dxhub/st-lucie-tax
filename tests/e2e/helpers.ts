@@ -11,12 +11,62 @@ import { type Page, expect } from "@playwright/test";
 export const ARTIFACT_DIR = resolve(".cache/test-pass/2-playwright");
 mkdirSync(ARTIFACT_DIR, { recursive: true });
 
-export const BACKEND = process.env.BACKEND || "http://localhost:3000";
-export const FRONTEND = process.env.FRONTEND || "http://localhost:5180";
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value)
+    throw new Error(
+      `${name} environment variable is required. Set it in .env.test or your CI environment.`,
+    );
+  return value;
+}
+
+export const BACKEND = requireEnv("BACKEND");
+export const FRONTEND = requireEnv("PLAYWRIGHT_FRONTEND_URL");
 
 const API_KEY = process.env.API_KEY;
-function authHeaders(): Record<string, string> {
-  return API_KEY ? { "x-api-key": API_KEY } : {};
+
+import { CognitoUserPool, CognitoUser, AuthenticationDetails } from "amazon-cognito-identity-js";
+
+let _idToken: string | null = null;
+
+async function getCognitoToken(): Promise<string | null> {
+  if (_idToken) return _idToken;
+  const email = process.env.BETA_EMAIL;
+  const password = process.env.BETA_PASSWORD;
+  const frontendUrl = process.env.PLAYWRIGHT_FRONTEND_URL;
+  if (!email || !password || !frontendUrl) return null;
+
+  const origin = new URL(frontendUrl).origin;
+  const configRes = await fetch(`${origin}/config.json`);
+  if (!configRes.ok) return null;
+  const config = (await configRes.json()) as {
+    userPoolId: string;
+    userPoolClientId: string;
+  };
+
+  const pool = new CognitoUserPool({
+    UserPoolId: config.userPoolId,
+    ClientId: config.userPoolClientId,
+  });
+  const user = new CognitoUser({ Username: email, Pool: pool });
+  const authDetails = new AuthenticationDetails({ Username: email, Password: password });
+
+  _idToken = await new Promise<string | null>((resolve) => {
+    user.authenticateUser(authDetails, {
+      onSuccess: (session) => resolve(session.getIdToken().getJwtToken()),
+      onFailure: () => resolve(null),
+      newPasswordRequired: () => resolve(null),
+    });
+  });
+  return _idToken;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (API_KEY) headers["x-api-key"] = API_KEY;
+  const token = await getCognitoToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
 }
 
 export interface SessionState {
@@ -34,7 +84,7 @@ export interface SessionState {
 export async function createSession(): Promise<string> {
   const r = await fetch(`${BACKEND}/chatbot/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ channel: "web" }),
   });
   if (!r.ok) throw new Error(`createSession HTTP ${r.status}`);
@@ -48,7 +98,7 @@ export async function sendMessage(
 ): Promise<{ state: string; assistantMsg: string }> {
   const r = await fetch(`${BACKEND}/chatbot/sessions/${sid}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ message: msg }),
   });
   if (!r.ok) throw new Error(`sendMessage HTTP ${r.status}`);
@@ -58,7 +108,7 @@ export async function sendMessage(
 
 export async function getSessionState(sid: string): Promise<SessionState> {
   const r = await fetch(`${BACKEND}/chatbot/sessions/${sid}/rehydrate`, {
-    headers: authHeaders(),
+    headers: await authHeaders(),
   });
   if (!r.ok) throw new Error(`rehydrate HTTP ${r.status}`);
   const j = await r.json();
@@ -96,7 +146,7 @@ export async function confirmIdentity(
   }
   const r = await fetch(`${BACKEND}/chatbot/sessions/${sid}/confirm-identity`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(identity),
   });
   if (!r.ok) throw new Error(`confirmIdentity HTTP ${r.status}`);
@@ -268,7 +318,7 @@ async function pickSmartReply(sid: string, st: SessionState, turn: number): Prom
   }
   try {
     const r = await fetch(`${BACKEND}/chatbot/sessions/${sid}/unresolved-facts`, {
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
     if (r.ok) {
       const j = await r.json();
