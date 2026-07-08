@@ -19,7 +19,7 @@
 
 import { test, expect } from "@playwright/test";
 
-const FRONTEND = process.env.PLAYWRIGHT_FRONTEND_URL ?? "https://d2ewptrrn0hvd3.cloudfront.net";
+const FRONTEND = requireEnv("PLAYWRIGHT_FRONTEND_URL");
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -30,13 +30,14 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const EMAIL = requireEnv("BETA_EMAIL");
 const PASSWORD = requireEnv("BETA_PASSWORD");
 
-async function login(page: import("@playwright/test").Page, email: string) {
+async function login(page: import("@playwright/test").Page, email?: string) {
   await page.setExtraHTTPHeaders({ "x-test-session": "1" });
   await page.goto(FRONTEND);
-  await page.getByRole("textbox", { name: "Your email" }).fill(email);
-  await page.getByRole("textbox", { name: "Beta password" }).fill(PASSWORD);
+  await page.getByRole("textbox", { name: "Email" }).fill(email ?? EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.locator('input[type="text"]').first().waitFor({ state: "visible", timeout: 15000 });
 }
@@ -51,7 +52,7 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 test("homemade motorcycle trailer routes to trailer-registration (not vehicle-registration)", async ({
   page,
 }) => {
-  await login(page, `tr-homemade-light-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(page, "I need to register a homemade motorcycle trailer");
   await page.waitForTimeout(25000);
   const transcript = await page.locator(".chat-panel").first().innerText();
@@ -72,7 +73,7 @@ test("homemade trailer flow gets through universal-blockers without rogue checkl
   // behavior: trailer-registration confirms, the photo-ID blocker fires,
   // and the bot does NOT improvise a doc list when the user pushes for
   // "next step" (trees-as-source-of-truth defense in depth).
-  await login(page, `tr-weight-q-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(page, "register my homemade trailer");
   await page.waitForTimeout(25000);
   await page
@@ -91,7 +92,7 @@ test("homemade trailer flow gets through universal-blockers without rogue checkl
 test('"I bought a used utility trailer from a neighbor" routes to trailer-registration', async ({
   page,
 }) => {
-  await login(page, `tr-used-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(
     page,
     "I bought a used utility trailer from my neighbor and need to register it",
@@ -106,7 +107,7 @@ test('"I bought a used utility trailer from a neighbor" routes to trailer-regist
 test('"I bought a car" still asks for clarification (sanity check — not affected by trailer additions)', async ({
   page,
 }) => {
-  await login(page, `tr-control-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(page, "I bought a car");
   await page.waitForTimeout(25000);
   const transcript = await page.locator(".chat-panel").first().innerText();
