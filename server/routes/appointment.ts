@@ -177,54 +177,66 @@ router.post("/lookup", async (req, res) => {
 });
 
 // ─── POST /api/lookup-by-id ──────────────────────────────────────────────────
-router.post("/lookup-by-id", async (req, res) => {
-  try {
-    const appointmentId = parseInt(req.body?.appointmentId);
-    if (!appointmentId) return res.status(400).json({ error: "appointmentId required" });
+// Staff-only: returns full citizen PII by raw numeric ID, which is otherwise
+// enumerable. Scoped to roles that legitimately look up walk-ins (check-in
+// desk, service clerk, admin) rather than any authenticated user.
+router.post(
+  "/lookup-by-id",
+  requireAuth("admin", "checkin_clerk", "service_clerk"),
+  async (req, res) => {
+    try {
+      const appointmentId = parseInt(req.body?.appointmentId);
+      if (!appointmentId) return res.status(400).json({ error: "appointmentId required" });
 
-    const { rows: apptRows } = await pool.query(
-      `SELECT office_id, status, confirmation_code FROM appointments WHERE id = $1`,
-      [appointmentId],
-    );
-    if (!apptRows.length) return res.json({ found: false });
+      const { rows: apptRows } = await pool.query(
+        `SELECT office_id, status, confirmation_code FROM appointments WHERE id = $1`,
+        [appointmentId],
+      );
+      if (!apptRows.length) return res.json({ found: false });
 
-    const [info, docs] = await Promise.all([
-      getAppointmentInfo(pool, appointmentId),
-      getRequiredDocsStatus(pool, appointmentId),
-    ]);
+      const [info, docs] = await Promise.all([
+        getAppointmentInfo(pool, appointmentId),
+        getRequiredDocsStatus(pool, appointmentId),
+      ]);
 
-    res.json({
-      found: true,
-      appointmentId,
-      confirmationCode: apptRows[0].confirmation_code,
-      officeId: apptRows[0].office_id,
-      status: apptRows[0].status,
-      firstName: info.firstName,
-      lastName: info.lastName,
-      identityVerified: info.identityVerified,
-      prescreenCompleted: info.prescreenCompleted,
-      requiredDocIds: info.requiredDocIds,
-      docs,
-    });
-  } catch (err: unknown) {
-    sendError(res, err, "appointment");
-  }
-});
+      res.json({
+        found: true,
+        appointmentId,
+        confirmationCode: apptRows[0].confirmation_code,
+        officeId: apptRows[0].office_id,
+        status: apptRows[0].status,
+        firstName: info.firstName,
+        lastName: info.lastName,
+        identityVerified: info.identityVerified,
+        prescreenCompleted: info.prescreenCompleted,
+        requiredDocIds: info.requiredDocIds,
+        docs,
+      });
+    } catch (err: unknown) {
+      sendError(res, err, "appointment");
+    }
+  },
+);
 
 // ─── POST /api/search-name ───────────────────────────────────────────────────
-router.post("/search-name", async (req, res) => {
-  try {
-    const query = String(req.body?.query ?? "").trim();
-    const officeId = parseInt(req.body?.officeId) || 1;
-    const date = req.body?.date || DEFAULT_DATE;
-    if (!query) return res.status(400).json({ error: "query required" });
+// Staff-only: same PII exposure rationale as /lookup-by-id above.
+router.post(
+  "/search-name",
+  requireAuth("admin", "checkin_clerk", "service_clerk"),
+  async (req, res) => {
+    try {
+      const query = String(req.body?.query ?? "").trim();
+      const officeId = parseInt(req.body?.officeId) || 1;
+      const date = req.body?.date || DEFAULT_DATE;
+      if (!query) return res.status(400).json({ error: "query required" });
 
-    const results = await lookupByName(pool, query, officeId, date);
-    res.json(results);
-  } catch (err: unknown) {
-    sendError(res, err, "appointment");
-  }
-});
+      const results = await lookupByName(pool, query, officeId, date);
+      res.json(results);
+    } catch (err: unknown) {
+      sendError(res, err, "appointment");
+    }
+  },
+);
 
 // ─── POST /api/verify-identity ───────────────────────────────────────────────
 router.post("/verify-identity", async (req, res) => {

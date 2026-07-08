@@ -19,6 +19,14 @@ import * as cw_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as cr from "aws-cdk-lib/custom-resources";
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is required for CDK synthesis`);
+  }
+  return value;
+}
+
 export interface ChatbotStackProps extends StackProps {
   vpc: ec2.Vpc;
   proxy: rds.DatabaseProxy;
@@ -147,7 +155,14 @@ export class ChatbotStack extends Stack {
               resources: [kbDataBucket.bucketArn, `${kbDataBucket.bucketArn}/*`],
             }),
             new iam.PolicyStatement({
-              actions: ["s3vectors:*"],
+              actions: [
+                "s3vectors:GetVectors",
+                "s3vectors:PutVectors",
+                "s3vectors:QueryVectors",
+                "s3vectors:DeleteVectors",
+                "s3vectors:ListVectors",
+                "s3vectors:GetIndex",
+              ],
               resources: [
                 `arn:aws:s3vectors:${this.region}:${this.account}:bucket/${kbVectorBucketName}*`,
               ],
@@ -270,8 +285,8 @@ export class ChatbotStack extends Stack {
         PGDATABASE: "stlucie",
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
-        ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
-        ADMIN_AUTH_SECRET: process.env.ADMIN_AUTH_SECRET || "",
+        ADMIN_PASSWORD: requireEnv("ADMIN_PASSWORD"),
+        ADMIN_AUTH_SECRET: requireEnv("ADMIN_AUTH_SECRET"),
       },
       bundling: {
         format: lambdaNode.OutputFormat.CJS,
@@ -311,7 +326,9 @@ export class ChatbotStack extends Stack {
     // ── Origin secret: CloudFront-only access ──────────────────────────────
     // A shared secret header injected by CloudFront and validated by the
     // Lambdas. Prevents direct API Gateway URL access (bypassing WAF).
-    const originSecret = process.env.ORIGIN_SECRET || "stlucie-cf-origin-2026";
+    // Must be supplied explicitly — a hardcoded fallback here would let
+    // anyone bypass CloudFront/WAF using a value visible in source control.
+    const originSecret = requireEnv("ORIGIN_SECRET");
 
     chatbotFn.addEnvironment("ORIGIN_SECRET", originSecret);
     adminFn.addEnvironment("ORIGIN_SECRET", originSecret);
