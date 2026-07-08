@@ -15,6 +15,19 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const PASSWORD = process.env.ADMIN_PASSWORD ?? "";
 const SECRET = process.env.ADMIN_AUTH_SECRET ?? "";
 
+// Fail closed outside local dev: an unset password/secret must never mean
+// "no auth required" in a deployed environment. Local dev opts in
+// explicitly via ADMIN_AUTH_DISABLED=true.
+if (
+  (!PASSWORD || !SECRET) &&
+  process.env.NODE_ENV === "production" &&
+  process.env.ADMIN_AUTH_DISABLED !== "true"
+) {
+  throw new Error(
+    "ADMIN_PASSWORD and ADMIN_AUTH_SECRET must be set in production (set ADMIN_AUTH_DISABLED=true to explicitly opt out)",
+  );
+}
+
 // 30-day lifetime; re-issue once past half-life (15 days).
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_REISSUE_AFTER_MS = TOKEN_TTL_MS / 2;

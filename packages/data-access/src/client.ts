@@ -23,7 +23,14 @@ let cachedPassword: string | undefined;
 async function resolvePassword(): Promise<string> {
   if (process.env.PGPASSWORD) return process.env.PGPASSWORD;
   const arn = process.env.PGPASSWORD_SECRET_ARN;
-  if (!arn) return "localdev";
+  if (!arn) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "PGPASSWORD or PGPASSWORD_SECRET_ARN must be set in production — no default credential is available",
+      );
+    }
+    return "localdev";
+  }
   if (cachedPassword) return cachedPassword;
   const sm = new SecretsManagerClient({ region: process.env.AWS_REGION ?? "us-east-1" });
   const out = await sm.send(new GetSecretValueCommand({ SecretId: arn }));
