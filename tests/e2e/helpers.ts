@@ -27,14 +27,25 @@ const API_KEY = process.env.API_KEY;
 
 import { CognitoUserPool, CognitoUser, AuthenticationDetails } from "amazon-cognito-identity-js";
 
+const TEST_USER_COUNT = 1;
+
+// Each Playwright worker is a separate process, so a module-level cache is
+// naturally per-worker — no cross-worker collision risk.
+function workerTestEmail(baseEmail: string): string {
+  const workerIndex = Number(process.env.TEST_WORKER_INDEX ?? "0") % TEST_USER_COUNT;
+  const [local, domain] = baseEmail.split("@");
+  return `${local}+pw${workerIndex}@${domain}`;
+}
+
 let _idToken: string | null = null;
 
 async function getCognitoToken(): Promise<string | null> {
   if (_idToken) return _idToken;
-  const email = process.env.BETA_EMAIL;
+  const baseEmail = process.env.BETA_EMAIL;
   const password = process.env.BETA_PASSWORD;
   const frontendUrl = process.env.PLAYWRIGHT_FRONTEND_URL;
-  if (!email || !password || !frontendUrl) return null;
+  if (!baseEmail || !password || !frontendUrl) return null;
+  const email = workerTestEmail(baseEmail);
 
   const origin = new URL(frontendUrl).origin;
   const configRes = await fetch(`${origin}/config.json`);
