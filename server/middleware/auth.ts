@@ -13,6 +13,9 @@ declare module "express-serve-static-core" {
 }
 
 const isDev = process.env.DEV_AUTH_BYPASS === "true";
+if (isDev && process.env.NODE_ENV === "production") {
+  throw new Error("DEV_AUTH_BYPASS must not be set in production");
+}
 
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID;
