@@ -30,13 +30,22 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const EMAIL = requireEnv("BETA_EMAIL");
+const BASE_EMAIL = requireEnv("BETA_EMAIL");
 const PASSWORD = requireEnv("BETA_PASSWORD");
+
+// Each Playwright worker process gets its own Cognito test user (pw0-pw3)
+// so parallel workers don't collide on a single account's session state.
+const TEST_USER_COUNT = 4;
+function workerEmail(): string {
+  const workerIndex = Number(process.env.TEST_WORKER_INDEX ?? "0") % TEST_USER_COUNT;
+  const [local, domain] = BASE_EMAIL.split("@");
+  return `${local}+pw${workerIndex}@${domain}`;
+}
 
 async function login(page: import("@playwright/test").Page, email?: string) {
   await page.setExtraHTTPHeaders({ "x-test-session": "1" });
   await page.goto(FRONTEND);
-  await page.getByRole("textbox", { name: "Email" }).fill(email ?? EMAIL);
+  await page.getByRole("textbox", { name: "Email" }).fill(email ?? workerEmail());
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.locator('input[type="text"]').first().waitFor({ state: "visible", timeout: 15000 });
