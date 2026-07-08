@@ -15,7 +15,7 @@
 
 import { test, expect } from "@playwright/test";
 
-const FRONTEND = process.env.PLAYWRIGHT_FRONTEND_URL ?? "https://EXAMPLEDIST0001.cloudfront.net";
+const FRONTEND = requireEnv("PLAYWRIGHT_FRONTEND_URL");
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -26,21 +26,15 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const EMAIL = requireEnv("BETA_EMAIL");
 const PASSWORD = requireEnv("BETA_PASSWORD");
 
-// The chat input's accessible name changes per state ("Tell me…", "Type yes, no, or…",
-// "Upload your driver license photo, or…"). Find the LAST textbox on the page (the
-// chat input always sits below any state-specific dialog elements).
-async function login(page: import("@playwright/test").Page, email: string) {
-  // Tag every API call from this Playwright context so the admin dashboard
-  // filters these sessions out of the default tester view. Real testers
-  // never send this header.
+async function login(page: import("@playwright/test").Page, email?: string) {
   await page.setExtraHTTPHeaders({ "x-test-session": "1" });
   await page.goto(FRONTEND);
-  await page.getByRole("textbox", { name: "Your email" }).fill(email);
-  await page.getByRole("textbox", { name: "Beta password" }).fill(PASSWORD);
+  await page.getByRole("textbox", { name: "Email" }).fill(email ?? EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  // The chat textbox is the only textbox post-login until a question card appears.
   await page.getByRole("textbox").first().waitFor({ timeout: 15000 });
 }
 
@@ -55,7 +49,7 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 }
 
 test("homemade trailer never gets a free-form checklist before confirm-facts", async ({ page }) => {
-  await login(page, `probe-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(page, "I need to register a homemade motorcycle trailer");
   await page.waitForTimeout(15000);
   await page.getByRole("button", { name: "Yes" }).click();
@@ -77,16 +71,17 @@ test("homemade trailer never gets a free-form checklist before confirm-facts", a
     transcript,
     'must not list "Florida vehicle title" — homemade trailer has none',
   ).not.toMatch(/Florida vehicle title/i);
-  // Either the rewrite-fallback fires, or the state advances naturally.
+  // Either the rewrite-fallback fires, or the state advances naturally
+  // (e.g. asking follow-up questions about the trailer).
   expect(transcript).toMatch(
-    /full list (?:will be )?ready|verify your identity|let me ask|finalize your document/i,
+    /full list (?:will be )?ready|verify your identity|let me ask|finalize your document|couple more questions|few.+questions/i,
   );
 });
 
 test('explicit "what do I need to bring?" gets the canonical list, never improvised', async ({
   page,
 }) => {
-  await login(page, `probe2-${Date.now()}@example.com`);
+  await login(page);
   await sendMessage(page, "Renew my driver license");
   await page.waitForTimeout(15000);
   // Mid-flow: ask for the list. Must get the canonical "I'll have your list ready" punt,
