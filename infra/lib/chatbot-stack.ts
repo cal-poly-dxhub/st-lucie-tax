@@ -285,8 +285,8 @@ export class ChatbotStack extends Stack {
         PGDATABASE: "stlucie",
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
-        ADMIN_PASSWORD: requireEnv("ADMIN_PASSWORD"),
-        ADMIN_AUTH_SECRET: requireEnv("ADMIN_AUTH_SECRET"),
+        COGNITO_USER_POOL_ID: props.userPoolId,
+        COGNITO_CLIENT_ID: props.userPoolClientId,
       },
       bundling: {
         format: lambdaNode.OutputFormat.CJS,
