@@ -1,35 +1,16 @@
 /**
  * Admin dashboard Express app — read-only view over the chatbot's
- * PostgreSQL tables. Mirror of services/chatbot/src/local-server-app.ts:
- * exports an `app` (no listen call) so it can be served by both the local
- * dev launcher (admin/src/local-server.ts) and the Lambda handler
- * (admin/src/handlers/express-app.handler.ts).
- *
- * Auth uses ADMIN_PASSWORD + ADMIN_AUTH_SECRET env vars and an HMAC token
- * in `Authorization: Bearer <token>`. In dev (env vars unset) auth is
- * a no-op so `npm run dev` works without secrets.
+ * PostgreSQL tables. Auth uses Cognito JWT verification, requiring
+ * membership in the "admin" group.
  */
 
 import "dotenv/config";
 import express from "express";
-import {
-  isAuthEnabled,
-  checkPassword,
-  issueToken,
-  verifyToken,
-  isValidEmail,
-  normalizeEmail,
-} from "./auth/admin-auth.js";
+import { isAuthEnabled, requireAdmin } from "./auth/admin-auth.js";
 import { getSummary } from "./queries/summary.js";
 import { listSessions } from "./queries/list-sessions.js";
 import { getSessionDetail } from "./queries/get-session.js";
 import { setSessionReviewed } from "./queries/set-reviewed.js";
-
-declare module "express-serve-static-core" {
-  interface Request {
-    adminEmail?: string;
-  }
-}
 
 export const app = express();
 
@@ -42,7 +23,6 @@ app.use(express.json());
 // This middleware must run BEFORE route registration.
 if (process.env.ORIGIN_SECRET) {
   app.use((req, res, next) => {
-    // Strip /admin prefix if present (from CloudFront /api/admin/* routing)
     if (req.path.startsWith("/admin/")) {
       req.url = req.url.replace(/^\/admin/, "");
     }
@@ -74,50 +54,8 @@ app.get("/admin/health", (_req, res) => {
   res.json({ ok: true, authEnabled: isAuthEnabled() });
 });
 
-// Login — same shape as the chatbot's. Returns a bearer token tied to the
-// admin's email so the dashboard can attribute who triggered which view.
-app.post("/admin/auth/login", (req, res) => {
-  if (!isAuthEnabled()) {
-    const email = normalizeEmail(req.body?.email ?? "dev@local");
-    return res.json({ token: "dev-no-auth", email });
-  }
-  const email = normalizeEmail(req.body?.email ?? "");
-  const password = String(req.body?.password ?? "");
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: "Invalid email format." });
-  }
-  if (!checkPassword(password)) {
-    return res.status(401).json({ error: "Wrong password." });
-  }
-  const token = issueToken(email);
-  return res.json({ token, email });
-});
-
-const PUBLIC_ROUTES = new Set(["/admin/auth/login", "/admin/health"]);
-
-app.use((req, res, next) => {
-  if (!isAuthEnabled()) return next();
-  if (req.method === "OPTIONS") return next();
-  if (PUBLIC_ROUTES.has(req.path)) return next();
-  if (!req.path.startsWith("/admin/")) return next();
-
-  const auth = req.header("authorization") ?? req.header("Authorization");
-  if (!auth || !auth.toLowerCase().startsWith("bearer ")) {
-    return res.status(401).json({ error: "Sign in to continue." });
-  }
-  const token = auth.slice(7).trim();
-  const verified = verifyToken(token);
-  if (!verified) {
-    return res.status(401).json({ error: "Your session expired. Please sign in again." });
-  }
-  req.adminEmail = verified.email;
-  // SEC-05 sliding expiry: re-issue past half-life, return via response header.
-  if (verified.needsRefresh) {
-    res.setHeader("X-Refreshed-Token", issueToken(verified.email));
-    res.setHeader("Access-Control-Expose-Headers", "X-Refreshed-Token");
-  }
-  next();
-});
+// All /admin/* routes (except health) require Cognito "admin" group.
+app.use("/admin", requireAdmin());
 
 // --- Routes ---
 
@@ -163,8 +101,6 @@ app.get("/admin/sessions/:id", async (req, res) => {
   }
 });
 
-// Admin triage: mark a session reviewed / not-reviewed. The dashboard's only
-// write. Targeted single-attribute update — see set-reviewed.ts.
 app.patch("/admin/sessions/:id/reviewed", async (req, res) => {
   try {
     const reviewed = req.body?.reviewed;

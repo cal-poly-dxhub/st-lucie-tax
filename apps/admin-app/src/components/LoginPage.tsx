@@ -1,18 +1,11 @@
-/**
- * Admin login screen — same shape as the chatbot app's tester login but
- * worded for staff/admin use. Master password is the same we hand out to
- * testers UNLESS we set ADMIN_PASSWORD separately at deploy.
- */
-
 import { useState } from 'react';
-import { login, saveAdminAuth, type AdminAuthState } from '../api';
+import { signIn, type AuthUser } from '../api';
 
 interface Props {
-  onLogin: (state: AdminAuthState) => void;
-  notice?: string;
+  onLogin: (user: AuthUser) => void;
 }
 
-export function LoginPage({ onLogin, notice }: Props) {
+export function LoginPage({ onLogin }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -26,16 +19,22 @@ export function LoginPage({ onLogin, notice }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const result = await login(email.trim(), password);
-      if ('error' in result) {
-        setError(result.error);
-        setSubmitting(false);
-        return;
-      }
-      saveAdminAuth(result);
-      onLogin(result);
+      const user = await signIn(email.trim(), password);
+      onLogin(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      if (err instanceof Error) {
+        if (err.message === "NOT_ADMIN") {
+          setError("Your account does not have admin access.");
+        } else if (err.message === "NEW_PASSWORD_REQUIRED") {
+          setError("Password reset required. Please contact your administrator.");
+        } else if (err.message.includes("Incorrect username or password")) {
+          setError("Incorrect email or password.");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Sign-in failed.");
+      }
       setSubmitting(false);
     }
   }
@@ -45,18 +44,12 @@ export function LoginPage({ onLogin, notice }: Props) {
       <div className="login-card">
         <div className="login-header">
           <h1>St. Lucie Chatbot — Admin</h1>
-          <p className="login-subtitle">Read-only dashboard sign-in</p>
+          <p className="login-subtitle">Sign in with your staff account</p>
         </div>
-
-        {notice && (
-          <div className="login-notice" role="status">
-            {notice}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="login-form">
           <label className="login-label">
-            <span>Your email</span>
+            <span>Email</span>
             <input
               type="email"
               value={email}
@@ -69,7 +62,7 @@ export function LoginPage({ onLogin, notice }: Props) {
           </label>
 
           <label className="login-label">
-            <span>Admin password</span>
+            <span>Password</span>
             <input
               type="password"
               value={password}
@@ -91,7 +84,7 @@ export function LoginPage({ onLogin, notice }: Props) {
         </form>
 
         <p className="login-footer">
-          Beta admin dashboard. Sessions, transcripts, feedback — all read-only.
+          Admin dashboard — requires Cognito account with admin group membership.
         </p>
       </div>
     </div>

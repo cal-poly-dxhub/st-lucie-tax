@@ -1,19 +1,13 @@
 /**
  * Admin SPA root. Two pages: overview and session-detail. Routing is a
- * 30-line custom mini-router using pushState + popstate so we don't carry
- * react-router for this scope.
+ * custom mini-router using pushState + popstate.
  *
- * Auth: gates everything behind LoginPage until localStorage carries an
- * admin token. Header has a "Log out" button that clears auth and resets
- * to root.
+ * Auth: gates everything behind LoginPage until Cognito session is valid
+ * and user is in the "admin" group.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  loadAdminAuth,
-  clearAdminAuth,
-  type AdminAuthState,
-} from './api';
+import { getCurrentUser, signOut, type AuthUser } from './api';
 import { LoginPage } from './components/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
@@ -34,8 +28,16 @@ function navigate(path: string) {
 }
 
 export default function App() {
-  const [auth, setAuth] = useState<AdminAuthState | null>(() => loadAdminAuth());
+  const [auth, setAuth] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setAuth(user);
+      setLoading(false);
+    });
+  }, []);
 
   useEffect(() => {
     const onPop = () => setRoute(parseRoute(window.location.pathname));
@@ -43,11 +45,15 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    clearAdminAuth();
+  const handleLogout = useCallback(async () => {
+    await signOut();
     setAuth(null);
     navigate('/');
   }, []);
+
+  if (loading) {
+    return <div className="admin-loading">Loading…</div>;
+  }
 
   if (auth === null) {
     return <LoginPage onLogin={setAuth} />;
