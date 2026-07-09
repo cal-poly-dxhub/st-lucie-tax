@@ -25,13 +25,13 @@ All three services (Office Ops, Chatbot, Admin) connect to the same Aurora insta
 package.json              # Workspaces: packages/*, services/*, apps/*, frontend
 cdk.json                  # CDK entry: infra/bin/app.ts (2 stacks)
 compose.yml               # Local dev (PostgreSQL)
-Dockerfile                # Office Ops Lambda container (LWA)
 
 # Shared Packages
 packages/data-access/     # @st-lucie/data-access — PostgreSQL operations for chat_sessions/messages/tokens
 packages/shared-types/    # @st-lucie/shared-types — Session, ConversationState, TransactionType, API types
 
 # Services
+services/office-ops/      # Office Operations Express backend + business logic + Lambda container (LWA)
 services/chatbot/         # AI Chatbot Express backend (Bedrock, state machine, tools, prompts, decision trees, KB)
 services/admin/           # Admin dashboard Express backend (session list, transcripts, reviewed flag)
 
@@ -39,10 +39,6 @@ services/admin/           # Admin dashboard Express backend (session list, trans
 apps/chatbot-app/         # Chatbot React SPA (chat UI, file upload, AuthID, scheduler, side panel)
 apps/admin-app/           # Admin React SPA (session transcripts, feedback review)
 frontend/                 # Office Operations React SPA (check-in, scheduling, lobby, service-clerk, etc.)
-
-# Office Operations Backend (root-level)
-src/                      # Business logic (booking, check-in, queue, documents, email, etc.)
-server/                   # Express HTTP layer (routes/, workers/, middleware/, app.ts, db.ts)
 
 # Infrastructure & Data
 infra/                    # CDK v2 (2 stacks: BackOffice + Chatbot)
@@ -52,7 +48,7 @@ db/                       # PostgreSQL schema + seed data
 demos/                    # HTML prototypes (admin, scheduling — endpoint source of truth)
 scripts/                  # Deployment automation (post-deploy, frontend deploy)
 docs/                     # Design documentation
-tests/                    # Unit + integration tests (Vitest)
+tests/                    # E2E tests (Playwright)
 ```
 
 ## Key Files
@@ -68,23 +64,23 @@ tests/                    # Unit + integration tests (Vitest)
 
 ### Office Operations
 
-| File                               | Purpose                                                                                                                     |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `server/app.ts`                    | Express app — conditional router mount by SERVICE                                                                           |
-| `server/middleware/auth.ts`        | JWT validation (Cognito) + role-based route access                                                                          |
-| `server/routes/appointment.ts`     | Citizen/booking API endpoints                                                                                               |
-| `server/routes/queue.ts`           | In-office queue/clerk endpoints                                                                                             |
-| `server/routes/admin.ts`           | Admin CRUD endpoints                                                                                                        |
-| `server/workers/db-init-worker.ts` | Schema initialization Lambda (manual post-deploy)                                                                           |
-| `db/schema.sql`                    | Full database DDL (tables, RLS, functions, views, chat tables)                                                              |
-| `db/seed.sql`                      | Consolidated seed data (config, offices, transaction types, docs, prescreen, clerks, schedules, sparse sample appointments) |
-| `infra/lib/back-office-stack.ts`   | BackOffice CDK stack                                                                                                        |
-| `infra/lib/chatbot-stack.ts`       | Chatbot CDK stack (chatbot + admin + CloudFront)                                                                            |
-| `infra/bin/app.ts`                 | CDK App entry (2 stacks)                                                                                                    |
-| `scripts/post-deploy.sh`           | Run after CDK deploy: init DB schema + deploy frontend                                                                      |
-| `docs/st-lucie-design-doc.md`      | Requirements, user stories, architecture decisions                                                                          |
-| `docs/database-design.md`          | Schema overview, capacity model, access patterns                                                                            |
-| `demos/prototype-server.ts`        | Source of endpoints being promoted to production                                                                            |
+| File                                                   | Purpose                                                                                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `services/office-ops/server/app.ts`                    | Express app — conditional router mount by SERVICE                                                                           |
+| `services/office-ops/server/middleware/auth.ts`        | JWT validation (Cognito) + role-based route access                                                                          |
+| `services/office-ops/server/routes/appointment.ts`     | Citizen/booking API endpoints                                                                                               |
+| `services/office-ops/server/routes/queue.ts`           | In-office queue/clerk endpoints                                                                                             |
+| `services/office-ops/server/routes/admin.ts`           | Admin CRUD endpoints                                                                                                        |
+| `services/office-ops/server/workers/db-init-worker.ts` | Schema initialization Lambda (manual post-deploy)                                                                           |
+| `db/schema.sql`                                        | Full database DDL (tables, RLS, functions, views, chat tables)                                                              |
+| `db/seed.sql`                                          | Consolidated seed data (config, offices, transaction types, docs, prescreen, clerks, schedules, sparse sample appointments) |
+| `infra/lib/back-office-stack.ts`                       | BackOffice CDK stack                                                                                                        |
+| `infra/lib/chatbot-stack.ts`                           | Chatbot CDK stack (chatbot + admin + CloudFront)                                                                            |
+| `infra/bin/app.ts`                                     | CDK App entry (2 stacks)                                                                                                    |
+| `scripts/post-deploy.sh`                               | Run after CDK deploy: init DB schema + deploy frontend                                                                      |
+| `docs/st-lucie-design-doc.md`                          | Requirements, user stories, architecture decisions                                                                          |
+| `docs/database-design.md`                              | Schema overview, capacity model, access patterns                                                                            |
+| `demos/prototype-server.ts`                            | Source of endpoints being promoted to production                                                                            |
 
 ### AI Chatbot (`services/chatbot/`)
 
@@ -126,7 +122,7 @@ npm run fix                          # ESLint fix + Prettier write
 
 ```bash
 docker compose up db                 # Local database
-npx tsx server/index.ts              # Server (SERVICE defaults to "all")
+npm -w @st-lucie/office-ops run dev  # Server (SERVICE defaults to "all")
 cd frontend && npm run dev           # Frontend (Vite proxies /api to :3000)
 cd infra && npx cdk deploy BackOffice  # Deploy office stack
 scripts/post-deploy.sh               # DB schema + frontend (run once after CDK)

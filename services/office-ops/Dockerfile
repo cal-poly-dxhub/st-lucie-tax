@@ -4,31 +4,33 @@
 # unchanged from local dev. The same image backs both AppointmentFn and
 # QueueFn; the SERVICE env var (set per-function in CDK) selects which routers
 # mount.
+#
+# Build context: repo root (needed for the root lockfile).
 FROM --platform=linux/arm64 node:22-slim AS build
 WORKDIR /build
-COPY package.json package-lock.json tsconfig.json ./
-RUN npm ci
-COPY src ./src
-COPY server ./server
-RUN npx tsc -p tsconfig.json
+COPY package.json package-lock.json ./
+COPY services/office-ops/package.json ./services/office-ops/
+COPY services/office-ops/tsconfig.json ./services/office-ops/
+RUN npm ci --workspace=@st-lucie/office-ops --include-workspace-root
+COPY services/office-ops/src ./services/office-ops/src
+COPY services/office-ops/server ./services/office-ops/server
+RUN npx tsc -p services/office-ops/tsconfig.json
 
 FROM --platform=linux/arm64 node:22-slim AS deps
 WORKDIR /deps
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+COPY services/office-ops/package.json ./services/office-ops/
+RUN npm ci --workspace=@st-lucie/office-ops --include-workspace-root --omit=dev --ignore-scripts
 
 FROM --platform=linux/arm64 public.ecr.aws/lambda/nodejs:22
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 WORKDIR /var/task
 COPY --from=deps /deps/node_modules ./node_modules
-COPY --from=build /build/dist ./dist
+COPY --from=build /build/services/office-ops/dist ./dist
 
-# LWA configuration: the server listens on PORT and LWA polls /healthz to know
-# the app is ready before forwarding requests.
 ENV PORT=8080
 ENV AWS_LWA_READINESS_CHECK_PATH=/healthz
 ENV AWS_LWA_PORT=8080
 
-# Override the Lambda base image's Node handler entrypoint: run the real server.
 ENTRYPOINT []
 CMD ["node", "dist/server/index.js"]

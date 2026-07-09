@@ -7,7 +7,7 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/cdk.out/**", "**/cdk-lint-out/**", "**/dist/**"],
     coverage: {
       provider: "v8",
-      include: ["src/**/*.ts"],
+      include: ["services/office-ops/src/**/*.ts"],
       reporter: ["text", "html"],
     },
   },

@@ -10,19 +10,25 @@ import {
   getAppointmentInfo,
   checkInToQueue,
   setAppointmentPriority,
-} from "../src/check-in.js";
-import { getRequiredDocsStatus, validateDocument } from "../src/documents.js";
-import { setIdentityVerified } from "../src/identity.js";
-import { getPrescreenQuestions, savePrescreenResponses } from "../src/prescreen.js";
-import { getClerkServiceRecord, sendToWrittenTest } from "../src/service-clerk.js";
-import { completeAppointment } from "../src/complete.js";
-import { assignNextCustomer } from "../src/queue.js";
-import { clerkLogin, setClerkAvailability } from "../src/clerk-session.js";
+} from "../services/office-ops/src/check-in.js";
+import { getRequiredDocsStatus, validateDocument } from "../services/office-ops/src/documents.js";
+import { setIdentityVerified } from "../services/office-ops/src/identity.js";
+import {
+  getPrescreenQuestions,
+  savePrescreenResponses,
+} from "../services/office-ops/src/prescreen.js";
+import {
+  getClerkServiceRecord,
+  sendToWrittenTest,
+} from "../services/office-ops/src/service-clerk.js";
+import { completeAppointment } from "../services/office-ops/src/complete.js";
+import { assignNextCustomer } from "../services/office-ops/src/queue.js";
+import { clerkLogin, setClerkAvailability } from "../services/office-ops/src/clerk-session.js";
 import {
   buildQrConfirmationEmail,
   buildPrescreenLinkEmail,
   buildQueueSummonEmail,
-} from "../src/email.js";
+} from "../services/office-ops/src/email.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();

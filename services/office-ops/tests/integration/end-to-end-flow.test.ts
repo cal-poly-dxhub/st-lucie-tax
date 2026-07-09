@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
-import { useDb } from "../../db/tests/helpers/fixture.js";
+import { useDb } from "../../../../db/tests/helpers/fixture.js";
 import { bookAppointment } from "../../src/book-appt.js";
 import { findAppointment } from "../../src/find-appt.js";
 import {
