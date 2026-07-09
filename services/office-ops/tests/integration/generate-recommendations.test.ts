@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "vitest";
-import { useDb } from "../../db/tests/helpers/fixture.js";
+import { useDb } from "../../../../db/tests/helpers/fixture.js";
 import { generateDurationRecommendations } from "../../src/generate-recommendations.js";
 
 const db = useDb();

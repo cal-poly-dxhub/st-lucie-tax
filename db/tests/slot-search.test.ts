@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import { findAppointment, type FindApptInput } from "../../src/find-appt.js";
+import { findAppointment, type FindApptInput } from "../../services/office-ops/src/find-appt.js";
 import {
   BOOK_SQL,
   bookParams,

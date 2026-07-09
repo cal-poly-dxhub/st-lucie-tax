@@ -124,7 +124,7 @@ export class BackOfficeStack extends Stack {
     const dbInitFn = new lambdaNode.NodejsFunction(this, "DbInitFn", {
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
-      entry: path.join(repoRoot, "server/workers/db-init-worker.ts"),
+      entry: path.join(repoRoot, "services/office-ops/server/workers/db-init-worker.ts"),
       handler: "handler",
       projectRoot: repoRoot,
       depsLockFilePath: path.join(repoRoot, "package-lock.json"),
@@ -236,7 +236,7 @@ export class BackOfficeStack extends Stack {
 
     // ── Compute: shared container image, two functions ────────────────────────
     const dockerCode = lambda.DockerImageCode.fromImageAsset(repoRoot, {
-      file: "Dockerfile",
+      file: "services/office-ops/Dockerfile",
     });
 
     const commonEnv: Record<string, string> = {
@@ -333,7 +333,7 @@ export class BackOfficeStack extends Stack {
     // Email worker drains the SQS queue (decouples SES latency from summons).
     const emailWorker = makeWorker(
       "EmailWorker",
-      "server/workers/email-worker.ts",
+      "services/office-ops/server/workers/email-worker.ts",
       Duration.seconds(30),
     );
     proxy.grantConnect(emailWorker, "stlucie");
@@ -346,7 +346,7 @@ export class BackOfficeStack extends Stack {
     // Nightly duration-recommendation batch.
     const durationRecFn = makeWorker(
       "DurationRecFn",
-      "server/workers/duration-rec-worker.ts",
+      "services/office-ops/server/workers/duration-rec-worker.ts",
       Duration.minutes(2),
     );
     proxy.grantConnect(durationRecFn, "stlucie");

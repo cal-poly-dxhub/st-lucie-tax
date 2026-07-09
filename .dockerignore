@@ -14,8 +14,13 @@ cdk.out
 coverage
 demos
 frontend
+apps
+packages
+services/chatbot
+services/admin
 tests
 docs
+db
 *.md
 .env
 .env.*

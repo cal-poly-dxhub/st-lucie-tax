@@ -5,9 +5,12 @@ import { fileURLToPath } from "url";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import QRCode from "qrcode";
 import { withTransaction, pool } from "./db.js";
-import { findAppointment } from "../src/find-appt.js";
-import { lookupByConfirmationCode, getAppointmentInfo } from "../src/check-in.js";
-import { getRequiredDocsStatus } from "../src/documents.js";
+import { findAppointment } from "../services/office-ops/src/find-appt.js";
+import {
+  lookupByConfirmationCode,
+  getAppointmentInfo,
+} from "../services/office-ops/src/check-in.js";
+import { getRequiredDocsStatus } from "../services/office-ops/src/documents.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);

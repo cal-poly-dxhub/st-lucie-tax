@@ -11,12 +11,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": [
-    "db/**/*.ts",
-    "tests/**/*",
-    "services/office-ops/src/**/*",
-    "services/office-ops/server/**/*",
-    "services/office-ops/tests/**/*",
-    "vitest.config.ts"
-  ]
+  "include": ["src/**/*", "server/**/*"]
 }

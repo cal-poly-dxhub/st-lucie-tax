@@ -11,6 +11,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["bin/**/*.ts", "lib/**/*.ts", "../server/workers/**/*.ts"],
+  "include": ["bin/**/*.ts", "lib/**/*.ts"],
   "exclude": ["node_modules", "cdk.out", "dist"]
 }
