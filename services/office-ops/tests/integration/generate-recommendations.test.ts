@@ -1,11 +1,11 @@
 import { describe, expect, test, beforeEach } from "vitest";
 import { useDb } from "../../../../db/tests/helpers/fixture.js";
+import { ID_CARD as TXN_TYPE_ID_CARD } from "../../../../db/tests/helpers/seed-ids.js";
 import { generateDurationRecommendations } from "../../src/generate-recommendations.js";
 
 const db = useDb();
 
 const OFFICE = 1;
-const TXN_TYPE_ID_CARD = 2; // from seed: avg_duration_min = 15
 
 async function insertServiceHistory(txnTypeId: number, durationSec: number, daysAgo: number = 1) {
   const { rows } = await db.client.query<{ id: number }>(

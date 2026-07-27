@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
 import { useDb } from "../../../../db/tests/helpers/fixture.js";
+import { ID_CARD, MARIA, JAMES } from "../../../../db/tests/helpers/seed-ids.js";
 import { bookAppointment } from "../../src/book-appt.js";
 import { findAppointment } from "../../src/find-appt.js";
 import {
@@ -71,11 +72,6 @@ const db = useDb();
 const OFFICE = 1;
 const DATE = "2026-05-12";
 const FROZEN_NOW = "2026-05-11 18:00";
-
-const ID_CARD = 2;
-
-const MARIA = 1; // skills: {1,2,3}
-const JAMES = 2; // skills: {2,3}
 
 async function loginClerk(clerkId: number, desk: number) {
   await clerkLogin(db.client, clerkId, OFFICE, desk);
@@ -545,7 +541,7 @@ describe("Lookup — QR code and name search", () => {
   });
 
   test("lookupByName respects timezone — appointment on 'today' in office tz", async () => {
-    await bookAppointment(db.client, {
+    const bookResult = await bookAppointment(db.client, {
       officeId: OFFICE,
       date: DATE,
       time: "16:00:00",
@@ -557,6 +553,8 @@ describe("Lookup — QR code and name search", () => {
       contactPhone: "555-0016",
       nowTs: FROZEN_NOW,
     });
+    expect(bookResult.ok).toBe(true);
+    if (!bookResult.ok) throw new Error(`booking failed: ${bookResult.error}`);
 
     // Correct office-local date finds it
     const found = await lookupByName(db.client, "Time", OFFICE, "2026-05-12");
