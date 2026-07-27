@@ -2,148 +2,164 @@
 
 ## What This Is
 
-A PoC replacing the St. Lucie County Tax Collector's static website and appointment system with an AI-powered conversational interface + intelligent office operations platform. Built by AWS CIC/DxHub for the county tax collector's office. MIT licensed, designed for handoff to an implementation partner.
+A PoC replacing the St. Lucie County Tax Collector's static website and appointment system with an AI-powered conversational interface and intelligent office-operations platform. Built by the Cal Poly DxHub for the county tax collector's office. MIT licensed and designed for handoff to an implementation partner.
 
 ## Business Context
 
-Citizens arrive at county offices missing documents or unaware of prerequisites. The current system schedules static 15-20 minute blocks regardless of complexity. This system: pre-screens via AI chatbot, validates documents, dynamically schedules based on transaction complexity + clerk skills + capacity, and routes customers to skill-matched clerks. Target: 1 hour saved/clerk/day across 3 offices (72 hours/day = 9 FTE equivalent).
+Citizens arrive at county offices missing documents or unaware of prerequisites. The current system schedules static 15–20 minute blocks regardless of complexity. This system pre-screens via an AI chatbot, validates documents, dynamically schedules by transaction complexity, clerk skills, and capacity, and routes customers to skill-matched clerks. Target: one hour saved per clerk per day across three offices (72 hours/day, or nine FTE equivalent).
 
 ## Architecture
 
-Unified npm-workspaces monorepo deployed as two CDK stacks sharing a single Aurora PostgreSQL database:
+This is a unified npm-workspaces monorepo deployed as two CDK stacks sharing one Aurora PostgreSQL database through RDS Proxy:
 
-1. **BackOffice Stack** — VPC, Aurora Serverless v2 (PostgreSQL 17.4), RDS Proxy, two fault-isolated Express-on-Lambda functions (AppointmentFn for citizen/booking, QueueFn for in-office operations) behind a single HTTP API with path-based routing. Async workers (email via SQS, nightly duration-rec via EventBridge, schema init). Cognito for staff auth. WAF WebACL.
+1. **BackOffice stack** — VPC, Aurora Serverless v2 (PostgreSQL 17.4), RDS Proxy, and two fault-isolated ARM64 Express-on-Lambda container functions. `AppointmentFn` handles citizen and booking routes; `QueueFn` handles in-office queue and clerk routes. A single API Gateway HTTP API routes requests by path. The stack also deploys Cognito staff authentication, the CloudFront WAF Web ACL, a document bucket, an SQS email worker, a nightly EventBridge duration-recommendation worker, the schema-init Lambda, and an SSM bastion for database port forwarding. Office Operations runs unchanged on Lambda through the AWS Lambda Web Adapter (LWA).
 
-2. **Chatbot Stack** — Receives VPC/proxy/secret from BackOffice. ChatbotFn Lambda (Express, 1536MB, 120s) backed by Claude Sonnet 4 via Bedrock Converse API. AdminFn Lambda (Express, 512MB, 30s) for dashboard API. Two REST API Gateways (chatbot + admin) with API keys. Bedrock Knowledge Base for RAG. S3 for doc uploads + KB data. Single CloudFront distribution serving all three SPAs and routing all API traffic. SNS alarm topic with Bedrock/error/throttle alarms.
+2. **Chatbot stack** — Reuses the BackOffice VPC, RDS Proxy, database secret, security group, WAF, and Cognito client. `ChatbotFn` is an Express 4 Lambda (1536 MB, 120 seconds) using Claude Sonnet 4 through the Bedrock Converse API. `AdminFn` is an Express 4 Lambda (512 MB, 30 seconds) for dashboard APIs. Separate API Gateway REST APIs serve `/api/chat/*` and `/api/admin/*`; CloudFront supplies an `x-origin-secret` header to prevent direct API Gateway access. The stack deploys a single frontend S3 bucket and CloudFront distribution for all three SPAs, a chatbot document-upload bucket, and a Bedrock Knowledge Base with S3 data source and S3 Vectors/Titan Text Embeddings v2 storage. SNS alarms cover Bedrock invocation volume, chatbot errors, and throttling.
 
-All three services (Office Ops, Chatbot, Admin) connect to the same Aurora instance through RDS Proxy. The chatbot uses `@st-lucie/data-access` (PostgreSQL) for session state — DynamoDB is no longer used.
+All three services (Office Ops, Chatbot, and Admin) use the same Aurora instance through RDS Proxy. The chatbot uses `@st-lucie/data-access` to persist session state in PostgreSQL; DynamoDB is not part of the current architecture.
 
 ## Source Layout
 
-```
-# Monorepo Root
+```text
+# Monorepo root
 package.json              # Workspaces: packages/*, services/*, apps/*, frontend
-cdk.json                  # CDK entry: infra/bin/app.ts (2 stacks)
-compose.yml               # Local dev (PostgreSQL)
+cdk.json                  # CDK entry: infra/bin/app.ts (BackOffice and Chatbot)
+compose.yml               # Local PostgreSQL 16 database
 
-# Shared Packages
-packages/data-access/     # @st-lucie/data-access — PostgreSQL operations for chat_sessions/messages/tokens
-packages/shared-types/    # @st-lucie/shared-types — Session, ConversationState, TransactionType, API types
+# Shared packages
+packages/data-access/     # @st-lucie/data-access — PostgreSQL chat-session operations
+packages/shared-types/    # @st-lucie/shared-types — session, conversation, and API types
 
 # Services
-services/office-ops/      # Office Operations Express backend + business logic + Lambda container (LWA)
-services/chatbot/         # AI Chatbot Express backend (Bedrock, state machine, tools, prompts, decision trees, KB)
-services/admin/           # Admin dashboard Express backend (session list, transcripts, reviewed flag)
+services/office-ops/      # Office Operations Express backend, workers, and LWA container
+services/chatbot/         # AI Chatbot Express backend, state machine, tools, prompts, and KB
+services/admin/           # Admin dashboard Express backend for session review
 
-# Frontend Applications
-apps/chatbot-app/         # Chatbot React SPA (chat UI, file upload, AuthID, scheduler, side panel)
-apps/admin-app/           # Admin React SPA (session transcripts, feedback review)
-frontend/                 # Office Operations React SPA (check-in, scheduling, lobby, service-clerk, etc.)
+# Frontend applications
+apps/chatbot-app/         # Chatbot React SPA
+apps/admin-app/           # Admin React SPA
+frontend/                 # Office Operations React SPA
 
-# Infrastructure & Data
-infra/                    # CDK v2 (2 stacks: BackOffice + Chatbot)
-db/                       # PostgreSQL schema + seed data
+# Infrastructure and data
+infra/                    # CDK v2 (BackOffice and Chatbot stacks)
+db/                       # PostgreSQL schema and seed data
 
 # Support
-demos/                    # HTML prototypes (admin, scheduling — endpoint source of truth)
-scripts/                  # Deployment automation (post-deploy, frontend deploy)
-docs/                     # Design documentation
-tests/                    # Unit, integration, and E2E tests (Vitest + Playwright)
+demos/                    # HTML prototypes and reference endpoint implementation
+scripts/                  # Build, deployment, and post-deployment automation
+docs/                     # Design, database, architecture, and scheduling documentation
+tests/                    # Unit, integration, and Playwright E2E tests
 ```
 
 ## Key Files
 
 ### Shared Packages
 
-| File                                            | Purpose                                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------------------ |
-| `packages/data-access/src/operations.ts`        | Typed PostgreSQL CRUD for chat_sessions, chat_messages, chat_auth_tokens |
-| `packages/data-access/src/client.ts`            | Connection pool (Secrets Manager for Lambda, env vars for local)         |
-| `packages/shared-types/src/session.ts`          | Session, StructuredContext, ConversationState, all chatbot domain types  |
-| `packages/shared-types/src/transaction-type.ts` | TransactionType definitions                                              |
+| File                                            | Purpose                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `packages/data-access/src/operations.ts`        | Typed PostgreSQL CRUD for chat sessions, messages, and auth tokens      |
+| `packages/data-access/src/client.ts`            | Connection pool; Secrets Manager in Lambda, environment variables local |
+| `packages/shared-types/src/session.ts`          | Session, structured context, conversation state, and chatbot types      |
+| `packages/shared-types/src/transaction-type.ts` | Transaction type definitions                                            |
 
 ### Office Operations
 
-| File                                                   | Purpose                                                                                                                     |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `services/office-ops/server/app.ts`                    | Express app — conditional router mount by SERVICE                                                                           |
-| `services/office-ops/server/middleware/auth.ts`        | JWT validation (Cognito) + role-based route access                                                                          |
-| `services/office-ops/server/routes/appointment.ts`     | Citizen/booking API endpoints                                                                                               |
-| `services/office-ops/server/routes/queue.ts`           | In-office queue/clerk endpoints                                                                                             |
-| `services/office-ops/server/routes/admin.ts`           | Admin CRUD endpoints                                                                                                        |
-| `services/office-ops/server/workers/db-init-worker.ts` | Schema initialization Lambda (manual post-deploy)                                                                           |
-| `db/schema.sql`                                        | Full database DDL (tables, RLS, functions, views, chat tables)                                                              |
-| `db/seed.sql`                                          | Consolidated seed data (config, offices, transaction types, docs, prescreen, clerks, schedules, sparse sample appointments) |
-| `infra/lib/back-office-stack.ts`                       | BackOffice CDK stack                                                                                                        |
-| `infra/lib/chatbot-stack.ts`                           | Chatbot CDK stack (chatbot + admin + CloudFront)                                                                            |
-| `infra/bin/app.ts`                                     | CDK App entry (2 stacks)                                                                                                    |
-| `scripts/post-deploy.sh`                               | Run after CDK deploy: init DB schema + deploy frontend                                                                      |
-| `docs/st-lucie-design-doc.md`                          | Requirements, user stories, architecture decisions                                                                          |
-| `docs/database-design.md`                              | Schema overview, capacity model, access patterns                                                                            |
-| `demos/prototype-server.ts`                            | Source of endpoints being promoted to production                                                                            |
+| File                                                   | Purpose                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `services/office-ops/server/app.ts`                    | Express app; conditionally mounts routers by `SERVICE`                                                             |
+| `services/office-ops/server/middleware/auth.ts`        | Cognito JWT validation and role-based route access                                                                 |
+| `services/office-ops/server/routes/appointment.ts`     | Citizen and booking API endpoints                                                                                  |
+| `services/office-ops/server/routes/queue.ts`           | In-office queue and clerk endpoints                                                                                |
+| `services/office-ops/server/routes/admin.ts`           | Office Operations admin CRUD endpoints                                                                             |
+| `services/office-ops/server/workers/db-init-worker.ts` | Schema-init Lambda, invoked by `scripts/post-deploy.sh`                                                            |
+| `db/schema.sql`                                        | Database DDL: tables, RLS, functions, views, and chat tables                                                       |
+| `db/seed.sql`                                          | Seed data: config, offices, transaction types, documents, prescreening, clerks, schedules, and sample appointments |
+| `infra/lib/back-office-stack.ts`                       | BackOffice CDK stack                                                                                               |
+| `infra/lib/chatbot-stack.ts`                           | Chatbot CDK stack: chatbot, admin, CloudFront, and frontend deployment                                             |
+| `infra/bin/app.ts`                                     | CDK app entry point                                                                                                |
+| `scripts/post-deploy.sh`                               | Initialize schema, build/upload frontends and runtime config, then invalidate CloudFront                           |
+| `scripts/build-frontends.sh`                           | Build all SPAs; optionally upload them and invalidate CloudFront without a CDK deployment                          |
+| `docs/st-lucie-design-doc.md`                          | Requirements, user stories, and design decisions                                                                   |
+| `docs/database-design.md`                              | Schema overview, capacity model, and access patterns                                                               |
+| `demos/prototype-server.ts`                            | Reference endpoint implementation used by prototypes                                                               |
 
 ### AI Chatbot (`services/chatbot/`)
 
-| File                                  | Purpose                                                            |
-| ------------------------------------- | ------------------------------------------------------------------ |
-| `src/conversation/process-message.ts` | Core message pipeline (scrub → prompt → Bedrock → advance → guard) |
-| `src/conversation/bedrock-client.ts`  | Bedrock Converse API (Sonnet 4, temp 0.3, 7 retries)               |
-| `src/state-machine/states.ts`         | 10-state machine definition + transitions                          |
-| `src/prompts/default-prompts.ts`      | State-specific system prompts                                      |
-| `src/conversation/state-tools.ts`     | 14 state-specific toolsets (~24 tools)                             |
-| `src/knowledge-base/query.ts`         | Bedrock KB RAG (tcslc.com, FLHSMV, FL statutes)                    |
-| `src/middleware/input-scrub.ts`       | PII removal (SSN/card/bank; preserves DL#, ZIP, VIN)               |
-| `data/decision-trees/`                | 26 transaction types (fact-gated trees)                            |
-| `data/fact-definitions.json`          | 100+ facts with question text + allowed values                     |
-| `data/item-catalog.json`              | 300+ required documents with doc types                             |
+| File                                  | Purpose                                                           |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| `src/conversation/process-message.ts` | Core message pipeline: scrub, prompt, Bedrock, advance, and guard |
+| `src/conversation/bedrock-client.ts`  | Bedrock Converse API client for Sonnet 4                          |
+| `src/state-machine/states.ts`         | Conversation-state definitions and transitions                    |
+| `src/prompts/default-prompts.ts`      | State-specific system prompts                                     |
+| `src/conversation/state-tools.ts`     | State-specific tool selection and handlers                        |
+| `src/knowledge-base/query.ts`         | Bedrock Knowledge Base retrieval                                  |
+| `src/middleware/input-scrub.ts`       | Removes sensitive PII while preserving needed transaction facts   |
+| `src/data/decision-trees/`            | Fact-gated transaction decision trees                             |
+| `src/data/fact-definitions.json`      | Facts, question text, and allowed values                          |
+| `src/data/item-catalog.json`          | Required-document catalog and document types                      |
 
 ### Admin Dashboard (`services/admin/`)
 
-| File                           | Purpose                               |
-| ------------------------------ | ------------------------------------- |
-| `src/admin-app.ts`             | Express app (routes, HMAC auth, CORS) |
-| `src/queries/summary.ts`       | Dashboard summary stats               |
-| `src/queries/list-sessions.ts` | Filterable session listing            |
-| `src/queries/get-session.ts`   | Full transcript + debug log           |
-| `src/queries/set-reviewed.ts`  | Mark session reviewed/unreviewed      |
+| File                           | Purpose                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `src/admin-app.ts`             | Express app with Cognito `admin`-group authorization and origin-secret validation |
+| `src/queries/summary.ts`       | Dashboard summary statistics                                                      |
+| `src/queries/list-sessions.ts` | Filterable session listing                                                        |
+| `src/queries/get-session.ts`   | Full transcript and debug-log retrieval                                           |
+| `src/queries/set-reviewed.ts`  | Mark a session reviewed or unreviewed                                             |
 
 ## Development Commands
 
-### Monorepo (Root)
+### Monorepo (Repository Root)
 
 ```bash
-npm install                          # Install all workspaces
-npm test                             # Run all tests (Vitest)
-npm run lint                         # ESLint + Prettier check
-npm run fix                          # ESLint fix + Prettier write
+npm install             # Install all workspaces
+npm test                # Run all Vitest unit and integration tests
+npm run lint            # Run ESLint
+npm run format:check    # Check Prettier formatting
+npm run fix             # Apply ESLint and Prettier fixes
+npm run build:frontends # Build all SPAs without uploading them
 ```
 
 ### Office Operations
 
 ```bash
-docker compose up db                 # Local database
-npm -w @st-lucie/office-ops run dev  # Server (SERVICE defaults to "all")
-cd frontend && npm run dev           # Frontend (Vite proxies /api to :3000)
-cd infra && npx cdk deploy BackOffice  # Deploy office stack
-scripts/post-deploy.sh               # DB schema + frontend (run once after CDK)
-scripts/deploy-frontend.sh           # Frontend-only redeploy
+docker compose up -d db                # Start local PostgreSQL 16
+npm -w @st-lucie/office-ops run dev    # API server; SERVICE defaults to "all"
+cd frontend && npm run dev             # Office UI; /api proxies to :3000
+npx cdk deploy BackOffice              # Deploy from the repository root
+scripts/post-deploy.sh                 # Initialize DB and deploy all frontend assets after CDK
+scripts/build-frontends.sh             # Frontend-only rebuild, upload, and CloudFront invalidation
 ```
 
 ### AI Chatbot
 
 ```bash
-cd services/chatbot && npm run dev   # Backend (hits Bedrock + PostgreSQL directly)
-cd apps/chatbot-app && npm run dev   # Chatbot SPA
-npx playwright test                  # E2E tests
-npx cdk deploy Chatbot              # Deploy chatbot + admin stack
+npm -w @st-lucie/chatbot-service run dev # Backend; requires AWS credentials and Bedrock access
+cd apps/chatbot-app && npm run dev       # Chatbot SPA on :5180
+npx playwright test                      # E2E tests; requires a running frontend/backend and tests/.env.test
+npx cdk deploy Chatbot                   # Deploy the Chatbot stack from the repository root
 ```
+
+The Office Operations and Chatbot backends both default to port `3000`, and their checked-in Vite proxy configurations point there. Run one at a time unless you deliberately change the relevant port and proxy configuration.
 
 ### Admin Dashboard
 
 ```bash
-cd services/admin && npm run dev     # Backend
-cd apps/admin-app && npm run dev     # Admin SPA
+npm -w @st-lucie/admin-service run dev # Backend on :3100
+cd apps/admin-app && npm run dev       # Admin SPA on :5181
 ```
+
+For a first deployment, build frontends without upload, deploy both stacks, then run the post-deploy script:
+
+```bash
+npm run build:frontends
+npx cdk synth
+npx cdk deploy --all
+scripts/post-deploy.sh
+```
+
+`npm run deploy` invokes the frontend upload script first and therefore requires a previously deployed `Chatbot` stack with its frontend bucket and CloudFront distribution.
 
 ## Personas & Surfaces
 
@@ -155,47 +171,48 @@ cd apps/admin-app && npm run dev     # Admin SPA
 | Service Clerk Dashboard | Service Clerk    | `frontend/src/pages/ServiceClerk.tsx`                |
 | Lobby Display           | Public           | `frontend/src/pages/LobbyDisplay.tsx`                |
 | Scheduling              | Citizen          | `frontend/src/pages/SchedulePage.tsx`                |
-| Office Admin Dashboard  | Admin/Supervisor | HTML prototype (`demos/`)                            |
+| Office Admin Dashboard  | Admin/Supervisor | HTML prototype in `demos/`                           |
 
 ## Tech Stack
 
-TypeScript, Express 5, React 19, Vite 8, Tailwind CSS 4, PostgreSQL 17.4 (Aurora Serverless v2), AWS Bedrock (Claude Sonnet 4), Bedrock Knowledge Base (RAG), AWS (Lambda/LWA ARM64, Aurora, RDS Proxy, S3, SES, SQS, Cognito, CloudFront, CloudFront Functions, WAF, EventBridge, CDK v2), AuthID (biometric verification), Docker, Node.js 22, npm workspaces, Vitest, Playwright.
+TypeScript; npm workspaces; Node.js 22; Express 5 for Office Operations and Express 4 for Chatbot/Admin; React 19; Vite 8; Tailwind CSS 4; PostgreSQL 16 for local Compose and Aurora PostgreSQL 17.4 (Serverless v2) in AWS; AWS Bedrock (Claude Sonnet 4); Bedrock Knowledge Bases with S3 Vectors and Titan Text Embeddings v2; Lambda/LWA on ARM64; Aurora; RDS Proxy; S3; API Gateway HTTP and REST APIs; SES; SQS; SNS; Cognito; CloudFront and CloudFront Functions; WAF; EventBridge; Secrets Manager; Systems Manager; CDK v2; AuthID; Docker; Vitest; and Playwright.
 
 ## Design Principles
 
 ### Office Operations
 
-1. **Fault isolation:** Appointment and queue domains fail independently (separate Lambdas, reserved concurrency)
-2. **Serverless-first:** All compute on Lambda (ARM64/Graviton), scales to 67 counties without re-architecting
-3. **Same code local and prod:** LWA runs the real Express server unchanged on Lambda
-4. **Same-origin via CloudFront:** Single distribution serves all SPAs + proxies all APIs (no CORS complexity)
-5. **Polling over WebSocket:** 5s polling for real-time updates (PoC simplicity)
-6. **Optimistic find, pessimistic book:** Slot search is fast; booking acquires row locks and rechecks capacity
-7. **PII scoped to appointment lifecycle:** No long-lived customer table, easy purging
-8. **App-layer auth:** Cognito JWT validation in Express middleware, not API Gateway authorizers
+1. **Fault isolation:** Appointment and queue domains fail independently through separate Lambdas and reserved concurrency.
+2. **Lambda-first workloads:** Business compute runs on Lambda (ARM64/Graviton); the SSM bastion is intentionally retained only for database port forwarding.
+3. **Same code locally and in production:** LWA runs the real Office Operations Express server unchanged on Lambda.
+4. **Same-origin deployment:** One CloudFront distribution serves all SPAs and routes API traffic, avoiding a browser CORS dependency on the deployed path.
+5. **Polling over WebSocket:** Five-second polling provides real-time updates with PoC-level simplicity.
+6. **Optimistic find, pessimistic book:** Slot search is fast; booking acquires row locks and rechecks capacity.
+7. **PII scoped to the appointment lifecycle:** No long-lived customer table; data is easier to purge.
+8. **Application-layer auth:** Office Operations validates Cognito JWTs in Express middleware; public routes remain available without API Gateway authorizers.
 
 ### AI Chatbot
 
-9. **Trees as source of truth:** Decision trees + item catalog are the ONLY authoritative source for "what to bring" — LLM cannot improvise
-10. **Deterministic state machine + LLM dialogue:** 10-state machine controls progression; LLM handles natural language within each state
-11. **Conversation scoped per state:** When state changes, prior turns are left behind (keeps context lean)
-12. **Structured context persists across states:** Identity, transactions, documents, facts survive state resets via `session.structuredContext`
-13. **Defense in depth:** Input scrubbing (PII), prompt rules, tool-call self-healing, post-process guard, WAF + API key + rate limiting
-14. **Conservative routing:** Ambiguous user messages trigger clarification questions, not confident routing
+9. **Trees as source of truth:** Decision trees and the item catalog are the only authoritative source for required documents; the LLM cannot improvise them.
+10. **Deterministic state machine with LLM dialogue:** The state machine controls progression while the LLM handles natural language within each state.
+11. **Conversation scoped per state:** State transitions leave prior turns behind to keep context lean.
+12. **Structured context persists across states:** Identity, transactions, documents, and facts survive state resets in `session.structuredContext`.
+13. **Defense in depth:** Input scrubbing, prompt rules, tool-call self-healing, post-process guards, API throttling, WAF, and CloudFront origin-secret validation protect the system.
+14. **Conservative routing:** Ambiguous messages trigger clarification rather than confident routing.
 
 ### Unified System
 
-15. **Shared database:** All services use the same Aurora instance via RDS Proxy — eliminates DynamoDB and cross-service data sync
-16. **Shared packages:** `@st-lucie/data-access` and `@st-lucie/shared-types` provide consistent data access and type safety across services
-17. **Single distribution:** One CloudFront + one S3 bucket for all frontends and API routing
+15. **Shared database:** All services use the same Aurora instance through RDS Proxy, eliminating DynamoDB and cross-service synchronization.
+16. **Shared packages:** `@st-lucie/data-access` and `@st-lucie/shared-types` provide consistent data access and type safety.
+17. **Single distribution:** One CloudFront distribution and one frontend bucket serve the SPAs and route their APIs.
 
 ## Detailed Documentation
 
-See `.agents/application-summary/` for comprehensive docs:
+Use the current repository documentation rather than the removed `.agents/application-summary/` path:
 
-- `index.md` — Full navigation guide
-- `product.md` — Business problem, value, use cases, personas
-- `architecture.md` — System diagram, design decisions, API reference
-- `infrastructure.md` — AWS resources, environment config, deployment
-- `packages.md` — Complete source tree map
-- `review_notes.md` — Known gaps and recommendations
+- `docs/st-lucie-design-doc.md` — requirements, user stories, and architecture decisions
+- `docs/database-design.md` — schema, capacity model, and access patterns
+- `docs/aws-serverless-architecture.md` — AWS architecture reference
+- `docs/scheduling-design.md` and `docs/scheduling-to-service-flow.md` — scheduling behavior and service flow
+- `docs/queue-design.md` — queue behavior
+- `tests/TESTING.md` — targeted unit, integration, and E2E commands
+- `demos/run_demo.md` — prototype instructions

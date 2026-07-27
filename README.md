@@ -8,7 +8,7 @@ Citizens interact with an AI chatbot that pre-screens their needs, validates doc
 
 The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database:
 
-```text
+```
                                   CloudFront distribution
              ┌───────────────────────┼────────────────────────┐
              │                       │                        │
@@ -23,10 +23,7 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
                    │          (Express + LWA) (Express + LWA) (Express on Lambda)
                    └────────────────┴─────────────┴─────────────┘
                                             │
-                                    ┌───────┴───────┐
-                                    │  Aurora PG    │
-                                    │ (RDS Proxy)   │
-                                    └───────────────┘
+                              Aurora PostgreSQL 17.4 via RDS Proxy
 ```
 
 **BackOffice Stack** — VPC, Aurora Serverless v2 (PostgreSQL 17.4), RDS Proxy, two Express-on-Lambda functions (appointments + queue), Cognito auth, WAF, SQS email worker, EventBridge scheduler.
@@ -37,150 +34,128 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
 
 ```
 ├── services/
-│   ├── office-ops/           # Office Operations Express backend + business logic
-│   │   ├── server/           #   Express HTTP layer (routes, middleware, workers)
-│   │   └── src/              #   Business logic (booking, queue, check-in)
-│   ├── chatbot/              # AI Chatbot Express backend (Bedrock, state machine, tools)
-│   └── admin/                # Admin Dashboard Express backend (session review)
-├── frontend/                 # Office Operations React SPA (check-in, queue, scheduling)
+│   ├── office-ops/           # Office Operations Express backend and Lambda container
+│   │   ├── server/           #   HTTP routes, middleware, and workers
+│   │   ├── src/              #   Booking, queue, and check-in business logic
+│   │   └── tests/            #   Service-level unit and integration tests
+│   ├── chatbot/              # AI Chatbot Express backend, state machine, tools, and prompts
+│   └── admin/                # Admin Dashboard Express backend and session-review API
 ├── apps/
 │   ├── chatbot-app/          # Chatbot React SPA
 │   └── admin-app/            # Admin Dashboard React SPA
+├── frontend/                 # Office Operations React SPA
 ├── packages/
-│   ├── data-access/          # @st-lucie/data-access — shared PostgreSQL operations
-│   └── shared-types/         # @st-lucie/shared-types — shared TypeScript types
-├── infra/                    # CDK v2 infrastructure (2 stacks)
-├── db/                       # PostgreSQL schema + seed data
-├── scripts/                  # Deployment automation
-├── tests/                    # Unit, integration, and E2E tests (Vitest + Playwright)
-└── docs/                     # Design documentation
+│   ├── data-access/          # @st-lucie/data-access PostgreSQL operations
+│   └── shared-types/         # @st-lucie/shared-types domain and API types
+├── infra/                    # CDK v2: BackOffice and Chatbot stacks
+├── db/                       # PostgreSQL schema and seed data
+├── demos/                    # HTML prototypes and reference API endpoints
+├── scripts/                  # Frontend build/deployment and post-deploy automation
+├── tests/                    # Cross-service unit, integration, and Playwright E2E tests
+└── docs/                     # Design and database documentation
 ```
 
 ## Prerequisites
 
 - Node.js 22+
 - Docker (for local PostgreSQL)
-- AWS CLI configured with appropriate permissions
-- AWS account with access to:
-  - Amazon Bedrock (Claude Sonnet model access enabled)
-  - Aurora Serverless v2, RDS Proxy
-  - Lambda, API Gateway, CloudFront, S3, WAF
-  - Cognito, SES (verified sender identity), SQS, SNS
-  - EventBridge, Secrets Manager
+- AWS CLI configured with deployment permissions
+- An AWS account with access to Amazon Bedrock (Claude Sonnet 4 and Titan Text Embeddings v2), Aurora Serverless v2, RDS Proxy, Lambda, API Gateway, CloudFront, S3/S3 Vectors, WAF, Cognito, SES, SQS, SNS, EventBridge, Secrets Manager, and Systems Manager
+- A verified SES sender identity for deployed email delivery
 
 ## Quick Start (Local Development)
 
-1. **Clone and install dependencies:**
+1. **Clone, install, and configure local settings:**
 
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/cal-poly-dxhub/st-lucie-tax
    cd st-lucie-tax
    npm install
-   ```
-
-2. **Set up environment variables:**
-
-   ```bash
    cp .env.example .env
-   # Edit .env with your local database credentials and AWS settings
    ```
 
-3. **Start the local database:**
+   The Compose database defaults to `stlucie` / `stlucie` / `localdev`. If you change the `POSTGRES_*` values, also set the matching `PGDATABASE`, `PGUSER`, and `PGPASSWORD` values used by the services.
+
+2. **Start PostgreSQL with schema and seed data:**
 
    ```bash
-   docker compose up db
+   docker compose up -d db
    ```
 
-   This starts PostgreSQL with the schema and seed data auto-applied.
-
-4. **Run the Office Operations backend:**
+3. **Run a surface and its matching backend in separate terminals:**
 
    ```bash
+   # Office Operations API and UI
    npm -w @st-lucie/office-ops run dev
-   ```
-
-5. **Run a frontend (in a separate terminal):**
-
-   ```bash
-   # Office Operations UI
    cd frontend && npm run dev
 
-   # Chatbot UI
+   # Chatbot API and UI (requires AWS credentials and Bedrock model access)
+   npm -w @st-lucie/chatbot-service run dev
    cd apps/chatbot-app && npm run dev
 
-   # Admin Dashboard
+   # Admin API and UI
+   npm -w @st-lucie/admin-service run dev
    cd apps/admin-app && npm run dev
    ```
 
+   The Office Operations API and Chatbot API both default to port `3000`; run one of them at a time with the checked-in Vite proxy configuration. The Admin API uses port `3100`; the Chatbot and Admin SPAs use ports `5180` and `5181`, respectively.
+
 ## Environment Variables
 
-| Variable               | Required | Description                               |
-| ---------------------- | -------- | ----------------------------------------- |
-| `POSTGRES_DB`          | Yes      | Database name                             |
-| `POSTGRES_USER`        | Yes      | Database user                             |
-| `POSTGRES_PASSWORD`    | Yes      | Database password                         |
-| `PGHOST`               | Yes      | Database host (`localhost` for local dev) |
-| `SENDER_EMAIL`         | Yes      | Verified SES sender email                 |
-| `BASE_URL`             | Deploy   | CloudFront distribution URL               |
-| `AWS_ACCOUNT_ID`       | Deploy   | AWS account for Bedrock Knowledge Base    |
-| `AUTHID_BASE_URL`      | Deploy   | AuthID verification service URL           |
-| `AUTHID_API_KEY_ID`    | Deploy   | AuthID API key ID                         |
-| `AUTHID_API_KEY_VALUE` | Deploy   | AuthID API key value                      |
-| `ORIGIN_SECRET`        | Deploy   | CloudFront-to-origin verification header  |
+| Variable                                                                                  | When needed               | Description                                                                                                                       |
+| ----------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`                                       | Local Compose (optional)  | Database container settings; defaults are `stlucie`, `stlucie`, and `localdev`.                                                   |
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`                                  | Service database override | PostgreSQL connection settings. Local service defaults target `127.0.0.1:5432`, database/user `stlucie`, and password `localdev`. |
+| `SENDER_EMAIL`                                                                            | CDK synthesis/deployment  | Verified SES sender identity; required by the BackOffice stack.                                                                   |
+| `ORIGIN_SECRET`                                                                           | CDK synthesis/deployment  | Required CloudFront-to-chatbot/admin origin header value. Use a strong secret.                                                    |
+| `BASE_URL`                                                                                | Deployment (optional)     | Public CloudFront URL used in email links; the stack has a fallback value.                                                        |
+| `AUTHID_BASE_URL`, `AUTHID_API_KEY_ID`, `AUTHID_API_KEY_VALUE`, `AUTHID_DL_DOC_TYPE_CODE` | AuthID integration        | Optional biometric-verification configuration for the chatbot.                                                                    |
+| `ALARM_EMAIL`                                                                             | Deployment (optional)     | Email recipient for the Chatbot stack’s SNS alarms.                                                                               |
+| `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`                                               | CDK deployment            | Target AWS environment, normally supplied by the AWS CLI/CDK configuration.                                                       |
+
+The CDK app loads the root `.env` file. Do not commit environment files containing credentials or origin secrets.
 
 ## Development Commands
 
 ```bash
-# Monorepo (root)
+# Monorepo
 npm install                    # Install all workspaces
-npm test                       # Run all tests (Vitest)
-npm run lint                   # ESLint check
-npm run fix                    # ESLint fix + Prettier
+npm test                       # Run Vitest unit and integration tests
+npm run lint                   # Run ESLint
+npm run format:check           # Check Prettier formatting
+npm run fix                    # Apply ESLint and Prettier fixes
 
-# Type-check
-npx tsc --noEmit               # Root project
-cd infra && npm run build      # CDK infrastructure
+# TypeScript and CDK
+npx tsc --noEmit               # Check the root TypeScript project
+(cd infra && npm run build)    # Compile CDK infrastructure
+npx cdk synth                  # Synthesize both stacks from the repository root
 
-# Database
-docker compose up db           # Start local PostgreSQL
-docker compose down            # Stop database
-
-# E2E tests
-npx playwright test            # Chatbot end-to-end tests
+# Local database
+docker compose up -d db        # Start local PostgreSQL 16 with schema and seed data
 ```
+
+## Testing
+
+See [`tests/TESTING.md`](tests/TESTING.md) for targeted unit, integration, and Playwright commands.
 
 ## Deployment
 
-```bash
-# Build and synth
-cd infra && npm run build
-npx cdk synth
+Run these commands from the repository root after setting `SENDER_EMAIL` and `ORIGIN_SECRET` in `.env` and bootstrapping the target AWS environment. The frontend build is explicit because CDK packages the existing `dist/` directories; it does not build the SPAs itself.
 
-# Deploy both stacks
+```bash
+# Build fresh frontend assets without uploading them
+npm run build:frontends
+
+# Validate and deploy the two CDK stacks
+npx cdk synth
 npx cdk deploy --all
 
-# Post-deploy: initialize database schema + deploy frontends
+# Initialize the deployed database, upload all SPAs and runtime config, and invalidate CloudFront
 scripts/post-deploy.sh
 ```
 
-After deployment, initialize the database by invoking the `DbInitFn` Lambda (name in stack outputs):
-
-```bash
-aws lambda invoke --function-name <DbInitFnName> /dev/stdout
-```
-
-## Key Design Decisions
-
-- **Decision trees as source of truth** — The AI chatbot uses deterministic decision trees and an item catalog as the authoritative source for document requirements. The LLM cannot improvise requirements.
-- **10-state conversation machine** — A state machine controls chatbot progression; the LLM handles natural language within each state's boundaries.
-- **Fault isolation** — Appointment and queue domains run on separate Lambdas with reserved concurrency.
-- **Single CloudFront distribution** — All three SPAs and all API traffic route through one distribution (no CORS complexity).
-- **Optimistic find, pessimistic book** — Slot search is fast; booking acquires row locks and rechecks capacity to ensure slots aren't double booked.
-
-## Tech Stack
-
-TypeScript, Express 5, React 19, Vite, Tailwind CSS 4, PostgreSQL 17.4, AWS Bedrock (Claude Sonnet), Bedrock Knowledge Base, Lambda (ARM64), Aurora Serverless v2, RDS Proxy, S3, CloudFront, WAF, Cognito, SES, SQS, EventBridge, CDK v2, Vitest, Playwright.
+`npm run deploy` runs the frontend upload script before CDK deploy, so use it only after the `Chatbot` stack has already created the frontend bucket and CloudFront distribution. For frontend-only redeployments, use `scripts/build-frontends.sh`.
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
