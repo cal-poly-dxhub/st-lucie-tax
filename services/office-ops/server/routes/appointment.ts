@@ -318,8 +318,18 @@ router.post("/check-in", async (req, res) => {
 // ─── POST /api/walk-in (create appointment + check in) ───────────────────────
 router.post("/walk-in", async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, txns, officeId, prescreen, priority, notes } =
-      req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      txns,
+      officeId,
+      prescreen,
+      priority,
+      identityVerified,
+      notes,
+    } = req.body;
     if (!firstName || !lastName || !txns?.length || !officeId)
       return res.status(400).json({ error: "firstName, lastName, txns, and officeId required" });
 
@@ -350,9 +360,9 @@ router.post("/walk-in", async (req, res) => {
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
         txn_type_ids, required_doc_ids, appointment_date, appointment_time,
-        status, is_walk_in, prescreen_completed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING id`,
+        status, is_walk_in, is_priority, prescreen_completed, identity_verified
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING id, confirmation_code`,
       [
         officeId,
         firstName,
@@ -365,7 +375,9 @@ router.post("/walk-in", async (req, res) => {
         "09:00",
         "scheduled",
         true,
+        false,
         !!prescreen,
+        !!identityVerified,
       ],
     );
     const appointmentId = rows[0].id;
@@ -376,11 +388,22 @@ router.post("/walk-in", async (req, res) => {
 
     if (!prescreen) {
       // Auto check-in happens after the customer completes prescreen in lobby.
-      return res.json({ ok: true, appointmentId, pendingPrescreen: true });
+      return res.json({
+        ok: true,
+        appointmentId,
+        confirmationCode: rows[0].confirmation_code,
+        pendingPrescreen: true,
+      });
     }
 
     const result = await checkInToQueue(pool, officeId, appointmentId, notes || undefined);
-    res.json({ ok: true, appointmentId, queueId: result.queueId, queueNumber: result.queueNumber });
+    res.json({
+      ok: true,
+      appointmentId,
+      confirmationCode: rows[0].confirmation_code,
+      queueId: result.queueId,
+      queueNumber: result.queueNumber,
+    });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
   }

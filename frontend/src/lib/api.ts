@@ -189,6 +189,19 @@ export const api = {
   validateDocument: (documentId: number) =>
     post<{ ok: boolean }>("/api/validate-document", { documentId }),
 
+  uploadDocument: async (input: { appointmentId: number; docId: string; file: File }) => {
+    const bytes = new Uint8Array(await input.file.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return post<{ ok: boolean; documentId: number; s3Key: string }>("/api/upload-document", {
+      appointmentId: input.appointmentId,
+      docId: input.docId,
+      name: input.file.name,
+      contentType: input.file.type || "application/octet-stream",
+      dataBase64: btoa(binary),
+    });
+  },
+
   checkIn: (appointmentId: number, officeId: number, notes: string, priority: boolean) =>
     post<{ ok: boolean; queueId: number; queueNumber: number }>("/api/check-in", {
       appointmentId,
@@ -290,8 +303,16 @@ export const api = {
     txns: string[];
     officeId: number;
     priority: boolean;
+    identityVerified: boolean;
     notes: string;
-  }) => post<{ ok: boolean; appointmentId?: number; queueNumber?: number }>("/api/walk-in", data),
+  }) =>
+    post<{
+      ok: boolean;
+      appointmentId?: number;
+      confirmationCode?: string;
+      pendingPrescreen?: boolean;
+      queueNumber?: number;
+    }>("/api/walk-in", data),
 
   // Schedule
   scheduleAppointments: (officeId: number, startDate: string, endDate: string) =>

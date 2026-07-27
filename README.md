@@ -8,25 +8,20 @@ Citizens interact with an AI chatbot that pre-screens their needs, validates doc
 
 The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        CloudFront Distribution                       │
-│         (Single origin: S3 for SPAs, API Gateway for APIs)          │
-├──────────┬──────────────┬──────────────┬────────────────────────────┤
-│  /chat   │   /admin     │     /        │         /api/*             │
-│  Chatbot │   Admin      │  Office Ops  │     API Gateway            │
-│   SPA    │    SPA       │     SPA      │                            │
-└──────────┴──────────────┴──────────────┴────────────────────────────┘
-                                                    │
-                    ┌───────────────────────────────┬┴──────────────┐
-                    │               │               │               │
-              ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐
-              │ Chatbot   │  │  Admin    │  │Appointment│  │  Queue    │
-              │  Lambda   │  │  Lambda   │  │  Lambda   │  │  Lambda   │
-              │(Bedrock)  │  │           │  │           │  │           │
-              └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘
-                    │               │               │               │
-                    └───────────────┴───────┬───────┴───────────────┘
+```text
+                                  CloudFront distribution
+             ┌───────────────────────┼────────────────────────┐
+             │                       │                        │
+        S3 frontend origin       API origins                  │
+  ┌──────────┼───────────┐  ┌──────┴──────────────────────────┴──────┐
+  │ /        │ /chat     │  │ /api/*       → BackOffice HTTP API     │
+  │ Office   │ Chatbot   │  │ /api/chat/*  → Chatbot REST API        │
+  │ Ops SPA  │ SPA       │  │ /api/admin/* → Admin REST API          │
+  └──────────┴─────┬─────┘  └───────┬─────────────┬─────────────┬────┘
+                   │                │             │             │
+              /admin SPA      AppointmentFn     QueueFn     ChatbotFn / AdminFn
+                   │          (Express + LWA) (Express + LWA) (Express on Lambda)
+                   └────────────────┴─────────────┴─────────────┘
                                             │
                                     ┌───────┴───────┐
                                     │  Aurora PG    │

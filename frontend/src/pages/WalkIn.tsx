@@ -37,6 +37,7 @@ export function WalkIn() {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [identityVerified, setIdentityVerified] = useState(false);
+  const [pendingPrescreenUrl, setPendingPrescreenUrl] = useState<string | null>(null);
 
   useEffect(() => {
     api.config().then((cfg) => {
@@ -80,6 +81,7 @@ export function WalkIn() {
       return;
     }
     setBusy(true);
+    setPendingPrescreenUrl(null);
     try {
       const res = await api.walkIn({
         firstName: firstName.trim(),
@@ -89,6 +91,7 @@ export function WalkIn() {
         txns: selectedTxns,
         officeId,
         priority,
+        identityVerified,
         notes: notes.trim(),
       });
       if (res.ok) {
@@ -96,6 +99,13 @@ export function WalkIn() {
           ? `Walk-in registered! Queue #${res.queueNumber}${priority ? " (Priority)" : ""}`
           : "Walk-in registered! Pending pre-screen completion.";
         notify("success", msg);
+        if (res.pendingPrescreen && res.confirmationCode) {
+          const query = new URLSearchParams({ autoCheckIn: "1" });
+          if (priority) query.set("priority", "1");
+          setPendingPrescreenUrl(
+            `${window.location.origin}/prescreen/${res.confirmationCode}?${query.toString()}`,
+          );
+        }
         setFirstName("");
         setLastName("");
         setEmail("");
@@ -177,7 +187,9 @@ export function WalkIn() {
               className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
             >
               {config.offices.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
               ))}
             </select>
           </div>
@@ -254,12 +266,7 @@ export function WalkIn() {
           className="w-full resize-y rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-civic-300 focus:border-civic-400 min-h-[60px]"
         />
         <div className="flex gap-3">
-          <Button
-            variant="civic"
-            className="flex-1"
-            loading={busy}
-            onClick={() => register(false)}
-          >
+          <Button variant="civic" className="flex-1" loading={busy} onClick={() => register(false)}>
             <ArrowRight size={16} /> Check In to Queue
           </Button>
           <Button
@@ -271,6 +278,17 @@ export function WalkIn() {
             <Zap size={16} /> Priority
           </Button>
         </div>
+        {pendingPrescreenUrl && (
+          <div className="rounded-lg border border-civic-200 bg-civic-50 px-4 py-3 text-sm">
+            <p className="font-semibold text-civic-800">Pre-screen required before queue entry.</p>
+            <a
+              href={pendingPrescreenUrl}
+              className="mt-1 inline-block font-semibold text-civic-600 underline hover:text-civic-800"
+            >
+              Open pre-screen
+            </a>
+          </div>
+        )}
       </Card>
     </main>
   );
