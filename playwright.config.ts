@@ -12,7 +12,7 @@ export default defineConfig({
   // 4 workers gives ~4x speedup; backend is single-instance but fully async,
   // and Bedrock retry/backoff in bedrock-client.ts absorbs throttling.
   // Override via PW_WORKERS env var (e.g. PW_WORKERS=1 for serial debugging).
-  workers: parseInt(process.env.PW_WORKERS ?? "4", 10),
+  workers: parseInt(process.env.PW_WORKERS ?? "1", 10),
   reporter: [
     ["list"],
     ["json", { outputFile: ".cache/test-pass/2-playwright/playwright-report.json" }],
