@@ -6,8 +6,12 @@ import { RemovalPolicy } from "aws-cdk-lib";
 export interface EnvConfig {
   // Sender + reply address used by SES. Must be a verified SES identity.
   senderEmail: string;
-  // Base URL for email links (CloudFront distribution URL).
+  // Base URL for email links (CloudFront distribution URL or custom domain).
   baseUrl: string;
+  // Optional CloudFront alternate domain. Requires a matching ACM certificate
+  // imported from us-east-1 because CloudFront certificates are region-bound.
+  customDomainName?: string;
+  customDomainCertificateArn?: string;
   // Aurora Serverless v2 capacity (ACUs)
   dbMinCapacity: number;
   dbMaxCapacity: number;
@@ -28,9 +32,34 @@ export function envConfig(): EnvConfig {
   if (!process.env.SENDER_EMAIL) {
     throw new Error("SENDER_EMAIL environment variable is required for CDK synthesis");
   }
+
+  const customDomainName = process.env.CUSTOM_DOMAIN_NAME?.trim() || undefined;
+  const customDomainCertificateArn = process.env.CUSTOM_DOMAIN_CERTIFICATE_ARN?.trim() || undefined;
+
+  if (Boolean(customDomainName) !== Boolean(customDomainCertificateArn)) {
+    throw new Error(
+      "CUSTOM_DOMAIN_NAME and CUSTOM_DOMAIN_CERTIFICATE_ARN must either both be set or both be omitted",
+    );
+  }
+  if (
+    customDomainName &&
+    (customDomainName.includes("://") ||
+      customDomainName.includes("/") ||
+      customDomainName.includes("?"))
+  ) {
+    throw new Error("CUSTOM_DOMAIN_NAME must be a hostname only, without a protocol or path");
+  }
+  if (customDomainCertificateArn && customDomainCertificateArn.split(":")[3] !== "us-east-1") {
+    throw new Error("CUSTOM_DOMAIN_CERTIFICATE_ARN must reference an ACM certificate in us-east-1");
+  }
+
   return {
     senderEmail: process.env.SENDER_EMAIL,
-    baseUrl: process.env.BASE_URL ?? "https://d3a20qrc894vkj.cloudfront.net",
+    baseUrl:
+      process.env.BASE_URL ??
+      (customDomainName ? `https://${customDomainName}` : "https://d3a20qrc894vkj.cloudfront.net"),
+    customDomainName,
+    customDomainCertificateArn,
     dbMinCapacity: 0.5,
     dbMaxCapacity: 2,
     dbDeletionProtection: false,
