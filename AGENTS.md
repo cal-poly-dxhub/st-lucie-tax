@@ -48,7 +48,7 @@ db/                       # PostgreSQL schema + seed data
 demos/                    # HTML prototypes (admin, scheduling — endpoint source of truth)
 scripts/                  # Deployment automation (post-deploy, frontend deploy)
 docs/                     # Design documentation
-tests/                    # E2E tests (Playwright)
+tests/                    # Unit, integration, and E2E tests (Vitest + Playwright)
 ```
 
 ## Key Files

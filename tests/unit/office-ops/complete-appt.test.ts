@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { completeAppointment, type CompleteAppointmentInput } from "../../src/complete.js";
-import type { Queryable } from "../../src/utils.js";
+import {
+  completeAppointment,
+  type CompleteAppointmentInput,
+} from "../../../services/office-ops/src/complete.js";
+import type { Queryable } from "../../../services/office-ops/src/utils.js";
 
 type Row = Record<string, unknown>;
 

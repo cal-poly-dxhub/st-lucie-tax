@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    globalSetup: "./db/tests/globalSetup.ts",
+    globalSetup: "./tests/integration/db/globalSetup.ts",
     fileParallelism: false,
     exclude: [
       "**/node_modules/**",

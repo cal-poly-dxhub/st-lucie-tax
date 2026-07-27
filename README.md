@@ -44,8 +44,7 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
 ├── services/
 │   ├── office-ops/           # Office Operations Express backend + business logic
 │   │   ├── server/           #   Express HTTP layer (routes, middleware, workers)
-│   │   ├── src/              #   Business logic (booking, queue, check-in)
-│   │   └── tests/            #   Unit + integration tests
+│   │   └── src/              #   Business logic (booking, queue, check-in)
 │   ├── chatbot/              # AI Chatbot Express backend (Bedrock, state machine, tools)
 │   └── admin/                # Admin Dashboard Express backend (session review)
 ├── frontend/                 # Office Operations React SPA (check-in, queue, scheduling)
@@ -58,7 +57,7 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
 ├── infra/                    # CDK v2 infrastructure (2 stacks)
 ├── db/                       # PostgreSQL schema + seed data
 ├── scripts/                  # Deployment automation
-├── tests/                    # E2E tests (Playwright)
+├── tests/                    # Unit, integration, and E2E tests (Vitest + Playwright)
 └── docs/                     # Design documentation
 ```
 

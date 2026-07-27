@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
-import { findAppointment, type FindApptInput } from "../../services/office-ops/src/find-appt.js";
+import { findAppointment, type FindApptInput } from "../../../services/office-ops/src/find-appt.js";
 import {
   BOOK_SQL,
   bookParams,
@@ -12,7 +12,7 @@ import {
   PG_ERROR,
 } from "./helpers/booking.js";
 import { ROAD_TEST } from "./helpers/seed-ids.js";
-import { TEST_FROZEN_NOW as FROZEN_NOW } from "../../tests/config.js";
+import { TEST_FROZEN_NOW as FROZEN_NOW } from "../../config.js";
 
 const db = useDb();
 

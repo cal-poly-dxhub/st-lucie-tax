@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from "vitest";
-import { useDb } from "../../../../db/tests/helpers/fixture.js";
-import { ID_CARD as TXN_TYPE_ID_CARD } from "../../../../db/tests/helpers/seed-ids.js";
-import { generateDurationRecommendations } from "../../src/generate-recommendations.js";
+import { useDb } from "../db/helpers/fixture.js";
+import { ID_CARD as TXN_TYPE_ID_CARD } from "../db/helpers/seed-ids.js";
+import { generateDurationRecommendations } from "../../../services/office-ops/src/generate-recommendations.js";
 
 const db = useDb();
 
