@@ -29,6 +29,7 @@ Thumbs.db
 
 # Test & coverage
 coverage/
+tests/screenshots
 
 # Logs
 *.log
