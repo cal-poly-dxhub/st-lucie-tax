@@ -10,6 +10,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as sns from "aws-cdk-lib/aws-sns";
@@ -36,6 +37,8 @@ export interface ChatbotStackProps extends StackProps {
   webAclArn: string;
   userPoolId: string;
   userPoolClientId: string;
+  customDomainName?: string;
+  customDomainCertificateArn?: string;
 }
 
 export class ChatbotStack extends Stack {
@@ -387,8 +390,22 @@ function handler(event) {
 `),
     });
 
+    const certificate = props.customDomainCertificateArn
+      ? acm.Certificate.fromCertificateArn(
+          this,
+          "FrontendCertificate",
+          props.customDomainCertificateArn,
+        )
+      : undefined;
+
     const distribution = (this.distribution = new cloudfront.Distribution(this, "FrontendDist", {
       defaultRootObject: "index.html",
+      ...(props.customDomainName
+        ? {
+            domainNames: [props.customDomainName],
+            certificate,
+          }
+        : {}),
       webAclId: props.webAclArn,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
@@ -435,6 +452,7 @@ function handler(event) {
           AllowedMethods: ["PUT", "GET"],
           AllowedOrigins: [
             "https://*.cloudfront.net",
+            ...(props.customDomainName ? [`https://${props.customDomainName}`] : []),
             "http://localhost:3000",
             "http://localhost:5173",
           ],
@@ -538,7 +556,7 @@ function handler(event) {
 
     // ── Outputs ──────────────────────────────────────────────────────────────
     new CfnOutput(this, "FrontendUrl", {
-      value: `https://${distribution.distributionDomainName}`,
+      value: `https://${props.customDomainName ?? distribution.distributionDomainName}`,
     });
     new CfnOutput(this, "DistributionId", {
       value: distribution.distributionId,
