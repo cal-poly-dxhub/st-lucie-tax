@@ -837,7 +837,10 @@ app.get("/chatbot/sessions/:sessionId/scheduling/slot", async (req, res) => {
     const result = await findSlot({ chatbotTxnIds });
     res.json(result);
   } catch (err) {
-    console.error("Scheduling slot error:", err);
+    // Log the SQLSTATE so query bugs are distinguishable from a real outage —
+    // a bad query previously surfaced as an opaque "scheduling-unreachable".
+    const pgCode = (err as { code?: string }).code;
+    console.error("Scheduling slot error:", pgCode ? `[${pgCode}]` : "", err);
     res.status(502).json({ error: "scheduling-unreachable" });
   }
 });
@@ -883,8 +886,13 @@ app.post("/chatbot/sessions/:sessionId/scheduling/book", async (req, res) => {
         phone,
       });
     } catch (err) {
-      if ((err as { code?: string }).code === "SLOT_TAKEN") {
+      const code = (err as { code?: string }).code;
+      if (code === "SLOT_TAKEN") {
         res.status(409).json({ error: "slot-taken" });
+        return;
+      }
+      if (code === "OFFICE_CLOSED" || code === "TXN_UNAVAILABLE") {
+        res.status(409).json({ error: "slot-unavailable" });
         return;
       }
       throw err;

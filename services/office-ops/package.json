@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "exports": {
+    "./scheduling": "./src/scheduling.ts"
+  },
   "scripts": {
     "dev": "tsx server/index.ts",
     "build": "tsc",

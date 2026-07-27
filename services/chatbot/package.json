@@ -17,6 +17,7 @@
     "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@codegenie/serverless-express": "^4.17.1",
     "@st-lucie/data-access": "*",
+    "@st-lucie/office-ops": "*",
     "@st-lucie/shared-types": "*",
     "dotenv": "^17.4.1",
     "express": "^4.21.0",
