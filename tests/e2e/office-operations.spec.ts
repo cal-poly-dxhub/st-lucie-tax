@@ -1,4 +1,10 @@
-import { expect, test, type APIResponse, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Page,
+  type Response as PlaywrightResponse,
+} from "@playwright/test";
 
 const BASE_URL = (process.env.CLOUDFRONT_URL ?? "").replace(/\/$/, "");
 const OFFICE_EMAIL = process.env.TEST_OFFICE_EMAIL ?? "";
@@ -53,7 +59,9 @@ interface ServiceRecord {
   lastName: string;
 }
 
-async function responseJson<T>(response: APIResponse): Promise<T> {
+type TestResponse = APIResponse | PlaywrightResponse;
+
+async function responseJson<T>(response: TestResponse): Promise<T> {
   expect(response.ok(), `${response.url()} returned ${response.status()}`).toBeTruthy();
   return response.json() as Promise<T>;
 }
@@ -331,7 +339,7 @@ test.describe("deployed office operations", () => {
             priorityElement.compareDocumentPosition(laterElement) &
             Node.DOCUMENT_POSITION_FOLLOWING,
           ),
-        standardElement,
+        standardElement!,
       );
       expect(priorityRenderedFirst).toBe(true);
     });

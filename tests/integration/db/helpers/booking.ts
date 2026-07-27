@@ -1,6 +1,6 @@
 import type { Client } from "pg";
 import { connect } from "./client.js";
-import { TEST_DATE, TEST_FROZEN_NOW } from "../../../tests/config.js";
+import { TEST_DATE, TEST_FROZEN_NOW } from "../../../config.js";
 import { ROAD_TEST, ID_CARD } from "./seed-ids.js";
 
 export const CONFIRMATION_CODE_FORMAT = /^[0-9A-Z]{8}$/;

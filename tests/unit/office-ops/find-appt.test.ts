@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { findAppointment, type FindApptInput } from "../../src/find-appt.js";
-import type { Queryable } from "../../src/utils.js";
-import { TEST_START_DATE, TEST_FROZEN_NOW } from "../config.js";
+import { findAppointment, type FindApptInput } from "../../../services/office-ops/src/find-appt.js";
+import type { Queryable } from "../../../services/office-ops/src/utils.js";
+import { TEST_START_DATE, TEST_FROZEN_NOW } from "./config.js";
 
 type Row = Record<string, unknown>;
 

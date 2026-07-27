@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { createPrescreenQuestions } from "../../src/prescreen.js";
-import type { Queryable } from "../../src/utils.js";
+import { createPrescreenQuestions } from "../../../services/office-ops/src/prescreen.js";
+import type { Queryable } from "../../../services/office-ops/src/utils.js";
 
 function makeDb(insertedRows: object[]): Queryable {
   let insertIdx = 0;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { useDb } from "./helpers/fixture.js";
 import { CONFIRMATION_CODE_FORMAT, PG_ERROR } from "./helpers/booking.js";
-import { TEST_DATE as DATE } from "../../tests/config.js";
+import { TEST_DATE as DATE } from "../../config.js";
 import { ID_CARD } from "./helpers/seed-ids.js";
 
 const db = useDb();

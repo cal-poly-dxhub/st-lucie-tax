@@ -4,10 +4,10 @@ import { resolve } from "node:path";
 import { Client } from "pg";
 
 export default async function globalSetup() {
-  const resetScript = resolve(__dirname, "..", "reset.sh");
+  const resetScript = resolve(__dirname, "..", "..", "..", "db", "reset.sh");
   execSync(`bash ${resetScript}`, { stdio: "inherit" });
 
-  process.loadEnvFile(resolve(import.meta.dirname, "../../.env"));
+  process.loadEnvFile(resolve(import.meta.dirname, "../../../.env"));
 
   const client = new Client({
     host: process.env.PGHOST,

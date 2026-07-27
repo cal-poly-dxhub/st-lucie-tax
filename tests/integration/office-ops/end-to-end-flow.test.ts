@@ -1,28 +1,36 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
-import { useDb } from "../../../../db/tests/helpers/fixture.js";
-import { ID_CARD, MARIA, JAMES } from "../../../../db/tests/helpers/seed-ids.js";
-import { bookAppointment } from "../../src/book-appt.js";
-import { findAppointment } from "../../src/find-appt.js";
+import { useDb } from "../db/helpers/fixture.js";
+import { ID_CARD, MARIA, JAMES } from "../db/helpers/seed-ids.js";
+import { bookAppointment } from "../../../services/office-ops/src/book-appt.js";
+import { findAppointment } from "../../../services/office-ops/src/find-appt.js";
 import {
   lookupByConfirmationCode,
   lookupByName,
   checkInToQueue,
   registerWalkIn,
   setAppointmentPriority,
-} from "../../src/check-in.js";
+} from "../../../services/office-ops/src/check-in.js";
 import {
   getPrescreenQuestions,
   savePrescreenResponses,
   createPrescreenQuestions,
-} from "../../src/prescreen.js";
-import { uploadDocument, getRequiredDocsStatus, validateDocument } from "../../src/documents.js";
-import { setIdentityVerified } from "../../src/identity.js";
-import { getAppointmentInfo } from "../../src/check-in.js";
-import { assignNextCustomer } from "../../src/queue.js";
-import { completeAppointment } from "../../src/complete.js";
-import { sendEmail, buildQrConfirmationEmail, buildPrescreenLinkEmail } from "../../src/email.js";
-import { cancelAppointment } from "../../src/book-appt.js";
-import { clerkLogin } from "../../src/clerk-session.js";
+} from "../../../services/office-ops/src/prescreen.js";
+import {
+  uploadDocument,
+  getRequiredDocsStatus,
+  validateDocument,
+} from "../../../services/office-ops/src/documents.js";
+import { setIdentityVerified } from "../../../services/office-ops/src/identity.js";
+import { getAppointmentInfo } from "../../../services/office-ops/src/check-in.js";
+import { assignNextCustomer } from "../../../services/office-ops/src/queue.js";
+import { completeAppointment } from "../../../services/office-ops/src/complete.js";
+import {
+  sendEmail,
+  buildQrConfirmationEmail,
+  buildPrescreenLinkEmail,
+} from "../../../services/office-ops/src/email.js";
+import { cancelAppointment } from "../../../services/office-ops/src/book-appt.js";
+import { clerkLogin } from "../../../services/office-ops/src/clerk-session.js";
 import { SESv2Client } from "@aws-sdk/client-sesv2";
 import type { S3Client } from "@aws-sdk/client-s3";
 
@@ -43,8 +51,9 @@ vi.mock("@aws-sdk/client-sesv2", () => {
 });
 
 // Mock the S3 upload stub in documents.ts (it's already a stub but we want to verify calls)
-vi.mock("../../src/documents.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/documents.js")>();
+vi.mock("../../../services/office-ops/src/documents.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../../services/office-ops/src/documents.js")>();
   return {
     ...actual,
     uploadDocument: vi.fn(async (_s3, _bucket, db, input) => {
