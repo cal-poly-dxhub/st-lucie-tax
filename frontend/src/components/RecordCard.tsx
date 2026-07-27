@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ShieldCheck,
   ShieldQuestion,
@@ -12,6 +12,7 @@ import {
   Zap,
   ArrowRight,
   AlertTriangle,
+  Upload,
 } from "lucide-react";
 import { api, type CustomerRecord, type DocStatus } from "@/lib/api";
 import { computeReadiness } from "@/lib/readiness";
@@ -30,7 +31,13 @@ export function RecordCard({ record, onMutated }: Props) {
 
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const isCheckedIn = record.status !== "scheduled";
+  const [checkedIn, setCheckedIn] = useState(record.status !== "scheduled");
+
+  useEffect(() => {
+    setCheckedIn(record.status !== "scheduled");
+  }, [record.appointmentId, record.status]);
+
+  const isCheckedIn = checkedIn || record.status !== "scheduled";
 
   async function run(tag: string, fn: () => Promise<void>, ok?: string) {
     setBusy(tag);
@@ -46,7 +53,11 @@ export function RecordCard({ record, onMutated }: Props) {
   }
 
   const verifyIdentity = () =>
-    run("identity", () => api.verifyIdentity(record.appointmentId).then(() => {}), "Identity verified.");
+    run(
+      "identity",
+      () => api.verifyIdentity(record.appointmentId).then(() => {}),
+      "Identity verified.",
+    );
 
   const validateDoc = (doc: DocStatus) =>
     run(
@@ -56,25 +67,27 @@ export function RecordCard({ record, onMutated }: Props) {
     );
 
   const sendPrescreen = () =>
+    run("prescreen", async () => {
+      const res = await api.sendPrescreen(record.appointmentId);
+      notify("success", `Pre-screen link sent to ${res.sentTo}.`);
+    });
+
+  const uploadDoc = (doc: DocStatus, file: File) =>
     run(
-      "prescreen",
-      async () => {
-        const res = await api.sendPrescreen(record.appointmentId);
-        notify("success", `Pre-screen link sent to ${res.sentTo}.`);
-      },
+      `upload-${doc.docId}`,
+      () =>
+        api
+          .uploadDocument({ appointmentId: record.appointmentId, docId: doc.docId, file })
+          .then(() => {}),
+      `${doc.name} uploaded.`,
     );
 
   const checkIn = (priority: boolean) =>
-    run(
-      priority ? "checkin-priority" : "checkin",
-      async () => {
-        const res = await api.checkIn(record.appointmentId, record.officeId, notes, priority);
-        notify(
-          "success",
-          `Checked in — Queue #${res.queueNumber}${priority ? " · Priority" : ""}.`,
-        );
-      },
-    );
+    run(priority ? "checkin-priority" : "checkin", async () => {
+      const res = await api.checkIn(record.appointmentId, record.officeId, notes, priority);
+      setCheckedIn(true);
+      notify("success", `Checked in — Queue #${res.queueNumber}${priority ? " · Priority" : ""}.`);
+    });
 
   return (
     <Card className="animate-rise overflow-hidden">
@@ -114,11 +127,7 @@ export function RecordCard({ record, onMutated }: Props) {
               <Check size={12} strokeWidth={3} /> Verified
             </Badge>
           ) : (
-            <Button
-              variant="go"
-              loading={busy === "identity"}
-              onClick={verifyIdentity}
-            >
+            <Button variant="go" loading={busy === "identity"} onClick={verifyIdentity}>
               <ShieldCheck size={16} /> Verify
             </Button>
           )}
@@ -144,7 +153,9 @@ export function RecordCard({ record, onMutated }: Props) {
 
         {/* ── Documents ── */}
         <div>
-          <SectionLabel>Documents · {r.docsValidated}/{r.docsRequired} validated</SectionLabel>
+          <SectionLabel>
+            Documents · {r.docsValidated}/{r.docsRequired} validated
+          </SectionLabel>
           <div className="mt-3 space-y-2">
             {record.docs.length === 0 && (
               <p className="text-sm text-civic-400">No documents required for this transaction.</p>
@@ -154,7 +165,9 @@ export function RecordCard({ record, onMutated }: Props) {
                 key={doc.docId}
                 doc={doc}
                 busy={busy === `doc-${doc.id}`}
+                uploadBusy={busy === `upload-${doc.docId}`}
                 onValidate={() => validateDoc(doc)}
+                onUpload={(file) => uploadDoc(doc, file)}
               />
             ))}
           </div>
@@ -262,7 +275,9 @@ function Gate({
         <span
           className={cn(
             "grid size-9 place-items-center rounded-lg",
-            tone === "done" ? "bg-go-100 text-go-600" : "bg-white text-civic-400 ring-1 ring-civic-200",
+            tone === "done"
+              ? "bg-go-100 text-go-600"
+              : "bg-white text-civic-400 ring-1 ring-civic-200",
           )}
         >
           {icon}
@@ -280,11 +295,15 @@ function Gate({
 function DocRow({
   doc,
   busy,
+  uploadBusy,
   onValidate,
+  onUpload,
 }: {
   doc: DocStatus;
   busy: boolean;
+  uploadBusy: boolean;
   onValidate: () => void;
+  onUpload: (file: File) => void;
 }) {
   const rejected = doc.aiReviewStatus === "reject";
   const icon = !doc.uploaded ? (
@@ -329,6 +348,27 @@ function DocRow({
         </div>
       </div>
 
+      {!doc.uploaded && (
+        <label
+          className={cn(
+            "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-700 hover:border-civic-400 hover:bg-civic-50",
+            uploadBusy && "cursor-wait opacity-60",
+          )}
+        >
+          <Upload size={13} /> {uploadBusy ? "Uploading…" : "Upload"}
+          <input
+            type="file"
+            accept=".pdf,image/jpeg,image/png"
+            className="sr-only"
+            disabled={uploadBusy}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) onUpload(file);
+            }}
+          />
+        </label>
+      )}
       {doc.uploaded &&
         (doc.clerkValidated ? (
           <Badge tone="go">Validated</Badge>
