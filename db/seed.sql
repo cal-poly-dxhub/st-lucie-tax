@@ -144,7 +144,15 @@ FROM (VALUES
 CROSS JOIN transaction_types tt
 WHERE tt.office_id IS NULL
   AND random() < 0.75
-GROUP BY c.first_name, c.last_name, c.email, c.office_ids;
+GROUP BY c.first_name, c.last_name, c.email, c.office_ids
+ORDER BY CASE c.first_name
+    WHEN 'Maria' THEN 1
+    WHEN 'James' THEN 2
+    WHEN 'Angela' THEN 3
+    WHEN 'Jennifer' THEN 4
+    WHEN 'Thomas' THEN 5
+    WHEN 'Nancy' THEN 6
+END;
 
 -- =============================================================================
 -- Clerk Schedules (weekdays, full year from today)
