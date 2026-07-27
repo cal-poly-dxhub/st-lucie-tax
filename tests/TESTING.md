@@ -54,9 +54,7 @@ Install the browser once, then export the variables in `tests/.env.test` before 
 
 ```bash
 npx playwright install chromium
-set -a
 source tests/.env.test
-set +a
 ```
 
 Run all Playwright end-to-end tests:
