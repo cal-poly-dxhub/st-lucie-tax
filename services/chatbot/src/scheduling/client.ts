@@ -1,12 +1,16 @@
 /**
- * Scheduling integration — queries the shared PostgreSQL directly.
+ * Scheduling integration — thin adapter over the canonical Office Operations
+ * scheduling engine.
  *
- * Now that chatbot and office share a database with unified hyphenated
- * txn_type_id values, we resolve integer IDs and call book_appointment()
- * directly rather than going through an HTTP intermediary.
+ * Office Operations owns slot search and booking (`@st-lucie/office-ops/scheduling`).
+ * This module only translates between the chatbot's hyphenated txn_type_id
+ * strings and the integer transaction IDs that engine expects; it deliberately
+ * carries no scheduling logic of its own, so the chatbot and the office UI can
+ * never disagree about which times exist.
  */
 
 import { getPool } from "@st-lucie/data-access";
+import { findAppointment, bookAppointment } from "@st-lucie/office-ops/scheduling";
 
 export function schedulingEnabled(): boolean {
   return true;
@@ -26,68 +30,73 @@ export interface SlotResult {
   schedulable: boolean;
 }
 
+/** Default search horizon when the caller doesn't specify one. */
+const DEFAULT_LOOKAHEAD_DAYS = 30;
+
+/**
+ * Resolves chatbot txn_type_id strings to the global integer IDs the
+ * scheduling engine takes. Only office-agnostic (`office_id IS NULL`) active
+ * rows are bookable, so anything else counts as unmapped.
+ */
+async function resolveTxnIds(
+  chatbotTxnIds: string[],
+): Promise<{ txnTypeIds: number[]; unmapped: string[] }> {
+  const pool = getPool();
+  const { rows } = await pool.query<{ id: number; txn_type_id: string }>(
+    `SELECT id, txn_type_id FROM transaction_types
+     WHERE txn_type_id = ANY($1) AND office_id IS NULL AND status = 'active'`,
+    [chatbotTxnIds],
+  );
+
+  const mapped = new Set(rows.map((r) => r.txn_type_id));
+  return {
+    txnTypeIds: rows.map((r) => r.id),
+    unmapped: chatbotTxnIds.filter((id) => !mapped.has(id)),
+  };
+}
+
 export async function findSlot(opts: {
   chatbotTxnIds: string[];
   startDate?: string;
   maxDays?: number;
+  /** Local "now" override for deterministic tests; matches book_appointment(p_now_ts). */
+  nowTs?: string;
 }): Promise<SlotResult> {
   const pool = getPool();
+  const { txnTypeIds, unmapped } = await resolveTxnIds(opts.chatbotTxnIds);
 
-  const { rows: txnRows } = await pool.query<{ id: number; txn_type_id: string }>(
-    `SELECT id, txn_type_id FROM transaction_types
-     WHERE txn_type_id = ANY($1) AND office_id IS NULL`,
-    [opts.chatbotTxnIds],
-  );
-
-  const mapped = new Set(txnRows.map((r) => r.txn_type_id));
-  const unmapped = opts.chatbotTxnIds.filter((id) => !mapped.has(id));
-  const txnTypeIds = txnRows.map((r) => r.id);
-
-  if (txnTypeIds.length === 0) {
+  // A partial match means at least one requested transaction isn't bookable;
+  // scheduling a subset would silently drop it from the appointment.
+  if (txnTypeIds.length !== opts.chatbotTxnIds.length) {
     return { slot: null, reason: null, unmapped, schedulable: false };
   }
 
-  const startDate = opts.startDate ?? tomorrow();
-  const maxDays = opts.maxDays ?? 30;
+  const slot = await findAppointment(pool, {
+    targetTxns: txnTypeIds,
+    asap: true,
+    preferredOffice: null,
+    preferredDow: null,
+    preferredTime: null,
+    startDate: opts.startDate ? new Date(`${opts.startDate}T00:00:00Z`) : new Date(),
+    days: opts.maxDays ?? DEFAULT_LOOKAHEAD_DAYS,
+    nowTs: opts.nowTs,
+  });
 
-  const { rows: slotRows } = await pool.query<{
-    office_id: number;
-    office_name: string;
-    slot_date: string;
-    slot_time: string;
-  }>(
-    `WITH candidate_dates AS (
-       SELECT generate_series($1::date, $1::date + ($2 - 1), '1 day')::date AS d
-     ),
-     candidate_slots AS (
-       SELECT o.id AS office_id, o.name AS office_name, cd.d AS slot_date,
-              generate_series(oh.open_time, oh.close_time - interval '1 minute', interval '15 minutes')::time AS slot_time
-       FROM offices o
-       JOIN candidate_dates cd ON true
-       JOIN office_hours oh ON oh.office_id = o.id AND oh.day_of_week = EXTRACT(DOW FROM cd.d)::int
-     )
-     SELECT cs.office_id, cs.office_name, cs.slot_date::text, cs.slot_time::text
-     FROM candidate_slots cs
-     WHERE validate_slot(cs.office_id, cs.slot_date, cs.slot_time, $3, (
-       SELECT COALESCE(SUM(avg_duration_min), 0)::int
-       FROM transaction_types WHERE id = ANY($3) AND office_id IS NULL
-     )) > 0
-     ORDER BY cs.slot_date, cs.slot_time, cs.office_id
-     LIMIT 1`,
-    [startDate, maxDays, txnTypeIds],
-  );
-
-  if (slotRows.length === 0) {
+  if (slot === null) {
     return { slot: null, reason: "no-availability", unmapped, schedulable: true };
   }
 
-  const row = slotRows[0];
+  const { rows: officeRows } = await pool.query<{ name: string }>(
+    `SELECT name FROM offices WHERE id = $1`,
+    [slot.officeId],
+  );
+
   return {
     slot: {
-      officeId: row.office_id,
-      officeName: row.office_name,
-      date: row.slot_date.slice(0, 10),
-      time: row.slot_time,
+      officeId: slot.officeId,
+      officeName: officeRows[0]?.name ?? "",
+      date: slot.slotDate.slice(0, 10),
+      time: slot.slotTime,
     },
     reason: null,
     unmapped,
@@ -110,33 +119,30 @@ export async function book(opts: {
   lastName: string;
   email: string;
   phone: string;
+  nowTs?: string;
 }): Promise<BookResult> {
   const pool = getPool();
+  const { txnTypeIds } = await resolveTxnIds(opts.chatbotTxnIds);
 
-  const { rows: txnRows } = await pool.query<{ id: number }>(
-    `SELECT id FROM transaction_types
-     WHERE txn_type_id = ANY($1) AND office_id IS NULL`,
-    [opts.chatbotTxnIds],
-  );
-  const txnTypeIds = txnRows.map((r) => r.id);
+  if (txnTypeIds.length !== opts.chatbotTxnIds.length) {
+    throw Object.assign(new Error("Transaction not bookable"), { code: "TXN_UNAVAILABLE" });
+  }
 
-  const { rows } = await pool.query<{ id: number; confirmation_code: string }>(
-    `SELECT * FROM book_appointment($1, $2::date, $3::time, $4, '{}',
-       $5, $6, $7, $8)`,
-    [
-      opts.officeId,
-      opts.date,
-      opts.time,
-      txnTypeIds,
-      opts.firstName,
-      opts.lastName,
-      opts.email,
-      opts.phone,
-    ],
-  );
+  const result = await bookAppointment(pool, {
+    officeId: opts.officeId,
+    date: opts.date,
+    time: opts.time,
+    txnTypeIds,
+    requiredDocIds: [],
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    contactEmail: opts.email,
+    contactPhone: opts.phone,
+    nowTs: opts.nowTs,
+  });
 
-  if (rows.length === 0) {
-    throw Object.assign(new Error("Slot just taken"), { code: "SLOT_TAKEN" });
+  if (!result.ok) {
+    throw bookErrorToThrowable(result.error);
   }
 
   const { rows: officeRows } = await pool.query<{ name: string }>(
@@ -145,8 +151,8 @@ export async function book(opts: {
   );
 
   return {
-    appointmentId: rows[0].id,
-    qrCode: rows[0].confirmation_code,
+    appointmentId: result.appointmentId,
+    qrCode: result.confirmationCode,
     slot: {
       officeId: opts.officeId,
       officeName: officeRows[0]?.name ?? "",
@@ -156,8 +162,23 @@ export async function book(opts: {
   };
 }
 
-function tomorrow(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+/**
+ * Turns bookAppointment()'s typed rejections into thrown errors carrying the
+ * codes the route layer maps to HTTP statuses. capacity_exceeded and
+ * slot_in_past are retryable with a fresh slot; the others are terminal.
+ */
+function bookErrorToThrowable(
+  error: "slot_in_past" | "capacity_exceeded" | "office_closed" | "txn_unavailable",
+): Error {
+  switch (error) {
+    case "capacity_exceeded":
+    case "slot_in_past":
+      return Object.assign(new Error("Slot just taken"), { code: "SLOT_TAKEN" });
+    case "office_closed":
+      return Object.assign(new Error("Office closed at that time"), { code: "OFFICE_CLOSED" });
+    case "txn_unavailable":
+      return Object.assign(new Error("Transaction not bookable at that time"), {
+        code: "TXN_UNAVAILABLE",
+      });
+  }
 }
