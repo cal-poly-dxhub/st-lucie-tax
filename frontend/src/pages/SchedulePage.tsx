@@ -54,6 +54,7 @@ export function SchedulePage() {
   const dragStateRef = useRef<DragState | null>(null);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
   const [dropIndicator, setDropIndicator] = useState<{ date: string; pct: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ appt: typeof appointments[0]; x: number; y: number } | null>(null);
   const trackRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const openMin = (() => {
@@ -127,7 +128,13 @@ export function SchedulePage() {
     return { assignments, laneCount: Math.max(laneEnds.length, 1) };
   }
 
+  function handleHover(appt: typeof appointments[0], e: React.MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setTooltip({ appt, x: rect.left + rect.width / 2, y: rect.top - 4 });
+  }
+
   function handleDragStart(appt: typeof appointments[0], e: React.MouseEvent) {
+    setTooltip(null);
     e.preventDefault();
     const initial: DragState = { appt, targetDate: null, targetMin: null };
     setDragState(initial);
@@ -357,6 +364,8 @@ export function SchedulePage() {
                             height: LANE_H - 4,
                           }}
                           onMouseDown={(e) => handleDragStart(appt, e)}
+                          onMouseEnter={(e) => handleHover(appt, e)}
+                          onMouseLeave={() => setTooltip(null)}
                         >
                           {appt.txn_type_ids.map((tid) => {
                             const dur = config.txnTypes.find((t) => t.id === tid)?.duration ?? 0;
@@ -390,6 +399,8 @@ export function SchedulePage() {
                           background: txnColor(appt.txn_type_ids[0]),
                         }}
                         onMouseDown={(e) => handleDragStart(appt, e)}
+                        onMouseEnter={(e) => handleHover(appt, e)}
+                        onMouseLeave={() => setTooltip(null)}
                       >
                         {appt.first_name} {appt.last_name.charAt(0)}.
                       </div>
@@ -401,6 +412,32 @@ export function SchedulePage() {
           );
         })}
       </div>
+
+      {/* Hover tooltip */}
+      {tooltip && !dragState && (
+        <div
+          className="pointer-events-none fixed z-[9998] -translate-x-1/2 -translate-y-full rounded-lg border border-civic-200 bg-white px-3 py-2 shadow-lg"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          <p className="text-sm font-semibold text-civic-800">
+            {tooltip.appt.first_name} {tooltip.appt.last_name}
+          </p>
+          <p className="text-xs text-civic-500">
+            {minToTime(tooltip.appt.startMin)} – {minToTime(tooltip.appt.startMin + tooltip.appt.durationMin)} ({tooltip.appt.durationMin} min)
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {tooltip.appt.txn_type_ids.map((tid) => {
+              const txn = config?.txnTypes.find((t) => t.id === tid);
+              return (
+                <li key={tid} className="flex items-center gap-1.5 text-xs text-civic-700">
+                  <span className="inline-block size-2 rounded-full" style={{ background: txnColor(tid) }} />
+                  {txn?.name ?? `Transaction #${tid}`}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* Drag ghost */}
       {dragState && (
