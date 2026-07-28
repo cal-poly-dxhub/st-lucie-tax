@@ -6,7 +6,9 @@ async function run() {
   const BASE = getCloudFrontUrl();
 
   const browser = await chromium.launch({ headless: true });
-  const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const page = await (
+    await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  ).newPage();
 
   // Listen for API responses
   page.on("response", async (res) => {
@@ -16,7 +18,11 @@ async function run() {
       const ct = res.headers()["content-type"] || "";
       if (status >= 400 || ct.includes("text/html")) {
         let body = "";
-        try { body = (await res.text()).substring(0, 200); } catch {}
+        try {
+          body = (await res.text()).substring(0, 200);
+        } catch {
+          /* body unavailable */
+        }
         console.log(`  [API ${status}] ${url} (${ct}) ${body}`);
       }
     }
@@ -46,7 +52,11 @@ async function run() {
   // Look for error messages or confirmation
   if (bookBodyText.includes("Appointment Confirmed")) {
     console.log("  SUCCESS: Appointment confirmed");
-  } else if (bookBodyText.includes("Failed") || bookBodyText.includes("Error") || bookBodyText.includes("error")) {
+  } else if (
+    bookBodyText.includes("Failed") ||
+    bookBodyText.includes("Error") ||
+    bookBodyText.includes("error")
+  ) {
     const errorParts = bookBodyText.match(/(Failed|Error|error)[^.]{0,100}/g);
     console.log("  ERROR:", errorParts ? errorParts.join(" | ") : "unknown");
   } else {
@@ -70,7 +80,7 @@ async function run() {
   }
 
   // Check what's on screen
-  const clerkBody = await page.textContent("main") || await page.textContent("body");
+  const clerkBody = (await page.textContent("main")) || (await page.textContent("body"));
   console.log("  Page content (truncated):", clerkBody.substring(0, 400));
 
   await browser.close();

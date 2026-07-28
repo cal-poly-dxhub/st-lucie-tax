@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Building2, MapPin, CalendarDays, Loader2 } from "lucide-react";
 import { api, type ConfigResponse, type CustomerRecord } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
+import { useToast } from "@st-lucie/ui";
 import { LookupPanel } from "@/components/LookupPanel";
 import { RecordCard } from "@/components/RecordCard";
 import { ReadinessRail } from "@/components/ReadinessRail";

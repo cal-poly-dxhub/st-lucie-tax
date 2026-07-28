@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { UserPlus, Zap, ArrowRight } from "lucide-react";
 import { api, type ConfigResponse } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
-import { Button, Card, SectionLabel } from "@/components/ui";
+import { Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 const TXN_DOCS: Record<string, { docId: string; name: string }[]> = {
   "road-test": [

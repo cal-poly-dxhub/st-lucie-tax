@@ -8,10 +8,15 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // Typecheck only — Vite owns the emit into dist/.
+    "noEmit": true,
+    // No baseUrl — deprecated in TS 6; these paths resolve relative to this
+    // file, matching frontend/tsconfig.app.json.
+    "paths": {
+      "@/*": ["./src/*"],
+      "@st-lucie/ui": ["../../packages/ui/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

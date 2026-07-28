@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { CheckCircle2, AlertTriangle, X } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { cn } from "./cn";
 import { ToastContext } from "./toast-context";
 
 type ToastKind = "success" | "error";

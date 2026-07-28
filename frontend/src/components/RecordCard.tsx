@@ -16,9 +16,7 @@ import {
 } from "lucide-react";
 import { api, type CustomerRecord, type DocStatus } from "@/lib/api";
 import { computeReadiness } from "@/lib/readiness";
-import { Badge, Button, Card, SectionLabel } from "./ui";
-import { useToast } from "./toast-context";
-import { cn } from "@/lib/cn";
+import { Badge, Button, Card, SectionLabel, useToast, cn } from "@st-lucie/ui";
 
 interface Props {
   record: CustomerRecord;

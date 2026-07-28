@@ -14,9 +14,10 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
              │                       │                        │
         S3 frontend origin       API origins                  │
   ┌──────────┼───────────┐  ┌──────┴──────────────────────────┴──────┐
-  │ /        │ /chat     │  │ /api/*       → BackOffice HTTP API     │
-  │ Office   │ Chatbot   │  │ /api/chat/*  → Chatbot REST API        │
-  │ Ops SPA  │ SPA       │  │ /api/admin/* → Admin REST API          │
+  │ /        │ /chat     │  │ /api/*          → BackOffice HTTP API  │
+  │ Office   │ Chatbot   │  │ /api/ops-admin/*  ↳ office config API  │
+  │ Ops SPA  │ SPA       │  │ /api/chat/*     → Chatbot REST API     │
+  │          │           │  │ /api/admin/*    → Admin REST API       │
   └──────────┴─────┬─────┘  └───────┬─────────────┬─────────────┬────┘
                    │                │             │             │
               /admin SPA      AppointmentFn     QueueFn     ChatbotFn / AdminFn

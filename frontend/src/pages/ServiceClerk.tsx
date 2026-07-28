@@ -10,8 +10,7 @@ import {
   FileCheck2,
 } from "lucide-react";
 import { api, type Clerk, type ServiceRecord, type DocStatus } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
-import { Badge, Button, Card, SectionLabel } from "@/components/ui";
+import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 export function ServiceClerk() {
   const notify = useToast();

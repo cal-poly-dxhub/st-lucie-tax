@@ -29,6 +29,7 @@ compose.yml               # Local PostgreSQL 16 database
 # Shared packages
 packages/data-access/     # @st-lucie/data-access — PostgreSQL chat-session operations
 packages/shared-types/    # @st-lucie/shared-types — session, conversation, and API types
+packages/ui/              # @st-lucie/ui — civic design tokens and shared React primitives
 
 # Services
 services/office-ops/      # Office Operations Express backend, workers, and LWA container
@@ -108,6 +109,30 @@ tests/                    # Unit, integration, and Playwright E2E tests
 | `src/queries/get-session.ts`   | Full transcript and debug-log retrieval                                           |
 | `src/queries/set-reviewed.ts`  | Mark a session reviewed or unreviewed                                             |
 
+### Admin SPA (`apps/admin-app/`)
+
+The SPA serves three surfaces under `BrowserRouter basename="/admin"`: **Sessions**
+(chatbot transcript review, backed by `services/admin`), **Config** (office-operations
+CRUD), and **Performance** (service-time and volume charts). Config and Performance
+call the Office Operations admin router at `/api/ops-admin/*` — not `/api/admin/*`,
+which CloudFront routes to the chatbot `AdminFn`. Presentation comes from the shared
+`@st-lucie/ui` workspace package, consumed as raw `.tsx` source through a Vite alias
+and a tsconfig path.
+
+| File                               | Purpose                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `src/config-api.ts`                | Typed client for every `/ops-admin/*` route                                          |
+| `src/pages/config/`                | Config tabs: global, offices, transactions, clerks, documents, hotbuttons, prescreen |
+| `src/pages/config/use-resource.ts` | Load/mutate hook shared by every config tab                                          |
+| `src/pages/PerformancePage.tsx`    | KPI tiles and Recharts views over `/performance-metrics`                             |
+| `src/pages/OverviewPage.tsx`       | Session list, summary cards, and review toggles                                      |
+| `packages/ui/src/`                 | Civic design tokens, form primitives, table, and matrix                              |
+
+Required documents are **read-only** in this SPA. They live in the chatbot's decision
+trees (`services/chatbot/src/data/decision-trees/*.json`) as `baseItems` plus branch
+`addItems`/`removeItems`; the only write route replaces the whole `steps` column, which
+would destroy the branch logic. Edit the tree source files instead.
+
 ## Development Commands
 
 ### Monorepo (Repository Root)
@@ -163,15 +188,15 @@ scripts/post-deploy.sh
 
 ## Personas & Surfaces
 
-| Surface                 | Persona          | Location                                             |
-| ----------------------- | ---------------- | ---------------------------------------------------- |
-| AI Chatbot              | Citizen          | `apps/chatbot-app/` — served at `/chat`              |
-| Admin Dashboard         | Admin/Reviewer   | `apps/admin-app/` — served at `/admin`               |
-| Check-in Desk           | Check-in Clerk   | `frontend/src/pages/CheckInDesk.tsx` — served at `/` |
-| Service Clerk Dashboard | Service Clerk    | `frontend/src/pages/ServiceClerk.tsx`                |
-| Lobby Display           | Public           | `frontend/src/pages/LobbyDisplay.tsx`                |
-| Scheduling              | Citizen          | `frontend/src/pages/SchedulePage.tsx`                |
-| Office Admin Dashboard  | Admin/Supervisor | HTML prototype in `demos/`                           |
+| Surface                 | Persona          | Location                                                                       |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| AI Chatbot              | Citizen          | `apps/chatbot-app/` — served at `/chat`                                        |
+| Admin Dashboard         | Admin/Reviewer   | `apps/admin-app/` — served at `/admin`; Sessions, Config, and Performance tabs |
+| Check-in Desk           | Check-in Clerk   | `frontend/src/pages/CheckInDesk.tsx` — served at `/`                           |
+| Service Clerk Dashboard | Service Clerk    | `frontend/src/pages/ServiceClerk.tsx`                                          |
+| Lobby Display           | Public           | `frontend/src/pages/LobbyDisplay.tsx`                                          |
+| Scheduling              | Citizen          | `frontend/src/pages/SchedulePage.tsx`                                          |
+| Office Admin Dashboard  | Admin/Supervisor | HTML prototype in `demos/`                                                     |
 
 ## Tech Stack
 

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, Outlet } from "react-router-dom";
-import { ToastProvider } from "@/components/Toast";
+import { ToastProvider } from "@st-lucie/ui";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { chatbotUrl, adminUrl } from "@/lib/app-links";
 import { LoginPage } from "@/pages/LoginPage";
