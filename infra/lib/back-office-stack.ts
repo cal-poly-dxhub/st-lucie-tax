@@ -186,6 +186,13 @@ export class BackOfficeStack extends Stack {
     const userPool = new cognito.UserPool(this, "UserPool", {
       selfSignUpEnabled: false, // staff accounts are admin-created
       signInAliases: { email: true },
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireLowercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
       removalPolicy: config.dbRemovalPolicy,
     });
     const userPoolClient = userPool.addClient("WebClient", {
