@@ -454,7 +454,15 @@ router.put("/clerk-skills/:clerkId", async (req, res) => {
 // ─── Transaction-Office Matrix ───────────────────────────────────────────────
 router.get("/txn-office-matrix", async (_req, res) => {
   try {
-    const { rows: offices } = await pool.query(`SELECT id, name FROM offices ORDER BY id`);
+    const { rows: offices } = await pool.query(
+      `SELECT o.id, o.name,
+              MIN(oh.open_time)::text AS earliest_open,
+              MAX(oh.close_time)::text AS latest_close
+       FROM offices o
+       LEFT JOIN office_hours oh ON oh.office_id = o.id
+       GROUP BY o.id
+       ORDER BY o.id`,
+    );
     const { rows: globalTxns } = await pool.query(
       `SELECT id, txn_type_id, name, status FROM transaction_types WHERE office_id IS NULL ORDER BY id`,
     );
@@ -473,6 +481,35 @@ router.post("/txn-office-override", async (req, res) => {
     const { txnTypeId, officeId, status, availableFrom, availableUntil } = req.body;
     if (!txnTypeId || !officeId)
       return res.status(400).json({ error: "txnTypeId and officeId required" });
+
+    const effectiveStatus = status || "active";
+    const validStatuses = ["active", "hidden", "internal"];
+    if (!validStatuses.includes(effectiveStatus))
+      return res.status(400).json({ error: `status must be one of: ${validStatuses.join(", ")}` });
+
+    // Validate time window is within office hours
+    if (availableFrom || availableUntil) {
+      const { rows: hoursRows } = await pool.query(
+        `SELECT MIN(open_time)::text AS earliest_open, MAX(close_time)::text AS latest_close
+         FROM office_hours WHERE office_id = $1`,
+        [officeId],
+      );
+      if (hoursRows.length && hoursRows[0].earliest_open) {
+        const open = hoursRows[0].earliest_open.slice(0, 5);
+        const close = hoursRows[0].latest_close.slice(0, 5);
+        const from = availableFrom ? availableFrom.slice(0, 5) : null;
+        const until = availableUntil ? availableUntil.slice(0, 5) : null;
+        if (from && from < open)
+          return res
+            .status(400)
+            .json({ error: `availableFrom (${from}) is before office opens (${open})` });
+        if (until && until > close)
+          return res
+            .status(400)
+            .json({ error: `availableUntil (${until}) is after office closes (${close})` });
+      }
+    }
+
     const { rows: globalRows } = await pool.query(
       `SELECT name, description, avg_duration_min FROM transaction_types WHERE txn_type_id = $1 AND office_id IS NULL`,
       [txnTypeId],
@@ -491,7 +528,7 @@ router.post("/txn-office-override", async (req, res) => {
         g.name,
         g.description,
         g.avg_duration_min,
-        status || "active",
+        effectiveStatus,
         availableFrom || null,
         availableUntil || null,
       ],

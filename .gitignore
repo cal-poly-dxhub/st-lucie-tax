@@ -40,5 +40,6 @@ cdk.context.json
 # AI agent artifacts
 .agents/
 .kiro
+.test-users/
 .reviews/
 .claude
