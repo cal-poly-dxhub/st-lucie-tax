@@ -99,8 +99,7 @@ CREATE TABLE hotbuttons (
     id              SERIAL PRIMARY KEY,
     sort_order      INT NOT NULL,
     label           TEXT NOT NULL,
-    prompt          TEXT NOT NULL,
-    description     TEXT
+    prompt          TEXT NOT NULL
 );
 
 CREATE TABLE prescreen_questions (

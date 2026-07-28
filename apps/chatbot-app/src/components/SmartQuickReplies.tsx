@@ -140,7 +140,6 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
               key={btn.label}
               onClick={() => onSelect(btn.transactionTypeId)}
               disabled={disabled}
-              title={btn.description}
             >
               {btn.label}
             </Chip>
