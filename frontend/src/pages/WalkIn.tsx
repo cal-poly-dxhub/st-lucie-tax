@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Zap, ArrowRight } from "lucide-react";
+import { UserPlus, Zap, ArrowRight, Mail, CheckCircle } from "lucide-react";
 import { api, type ConfigResponse } from "@/lib/api";
-import { Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
+import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 const TXN_DOCS: Record<string, { docId: string; name: string }[]> = {
   "road-test": [
@@ -31,6 +31,9 @@ export function WalkIn() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [phone, setPhone] = useState("");
   const [selectedTxns, setSelectedTxns] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -69,6 +72,45 @@ export function WalkIn() {
     const txn = config?.txnTypes.find((t) => t.slug === slug);
     return sum + (txn?.duration ?? 0);
   }, 0);
+
+  async function handleVerifyEmail() {
+    if (!email.trim()) {
+      notify("error", "Please enter an email address.");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const res = await api.verifyEmail(email.trim());
+      if (res.status === "already_verified") {
+        setEmailVerified(true);
+        notify("success", "Email already verified!");
+      } else {
+        setVerificationSent(true);
+        notify("success", "Verification email sent! Check your inbox and click the link.");
+      }
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Failed to send verification.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleCheckVerification() {
+    setVerifying(true);
+    try {
+      const res = await api.verifyEmailStatus(email.trim());
+      if (res.verified) {
+        setEmailVerified(true);
+        notify("success", "Email verified!");
+      } else {
+        notify("error", "Email not yet verified. Please check your inbox and click the verification link.");
+      }
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Failed to check status.");
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   async function register(priority: boolean) {
     if (!firstName.trim() || !lastName.trim()) {
@@ -112,6 +154,8 @@ export function WalkIn() {
         setSelectedTxns([]);
         setNotes("");
         setIdentityVerified(false);
+        setEmailVerified(false);
+        setVerificationSent(false);
       }
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Server error.");
@@ -157,13 +201,43 @@ export function WalkIn() {
           </div>
           <div>
             <label className="text-xs font-semibold text-civic-600">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm outline-none focus:border-civic-400"
-              placeholder="email@example.com"
-            />
+            <div className="mt-1 flex gap-2">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailVerified(false);
+                  setVerificationSent(false);
+                }}
+                disabled={emailVerified}
+                className="w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm outline-none focus:border-civic-400 disabled:bg-civic-50"
+                placeholder="email@example.com"
+              />
+              {!emailVerified && !verificationSent && (
+                <Button variant="outline" loading={verifying} onClick={handleVerifyEmail}>
+                  <Mail size={14} /> Verify
+                </Button>
+              )}
+              {verificationSent && !emailVerified && (
+                <Button variant="go" loading={verifying} onClick={handleCheckVerification}>
+                  <CheckCircle size={14} /> I Verified
+                </Button>
+              )}
+              {emailVerified && (
+                <Badge tone="go">Verified</Badge>
+              )}
+            </div>
+            {verificationSent && !emailVerified && (
+              <p className="mt-1 text-xs text-amber-600">
+                Check your inbox for a verification email from AWS, then click "I Verified" above.
+              </p>
+            )}
+            {emailVerified && (
+              <p className="mt-1 text-xs text-green-600">
+                Email verified — confirmation will be sent after check-in.
+              </p>
+            )}
           </div>
           <div>
             <label className="text-xs font-semibold text-civic-600">Phone</label>
