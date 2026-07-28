@@ -372,7 +372,12 @@ router.post("/walk-in", async (req, res) => {
         txnTypeIds,
         requiredDocs,
         DEFAULT_DATE,
-        "09:00",
+        new Date().toLocaleTimeString("en-US", {
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/New_York",
+        }),
         "scheduled",
         true,
         false,
