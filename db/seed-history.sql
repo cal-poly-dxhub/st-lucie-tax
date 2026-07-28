@@ -37,22 +37,26 @@ FROM generate_series(
 WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Build a pool of transaction types with their avg durations for sampling.
--- We pick the top ~20 most common types to keep the distribution realistic.
+-- Build a weighted array of transaction type IDs for sampling.
+-- Each type appears N times proportional to its frequency weight.
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TEMP TABLE txn_pool AS
-SELECT id AS txn_type_id, avg_duration_min,
-       -- Relative frequency weight: common txns get picked more often
-       CASE
-           WHEN id IN (2, 7, 9)       THEN 5   -- dl-renewal, reg-renewal, property-tax (high volume)
-           WHEN id IN (1, 4, 5, 6)    THEN 4   -- dl-transfer, dl-address-change, title-transfer, registration
-           WHEN id IN (3, 14, 16)     THEN 3   -- dl-name-change, dl-replacement, real-id-upgrade
-           WHEN id IN (11, 13, 15)    THEN 2   -- hunting-fishing, handicap-placard, id-card
-           WHEN id IN (8, 10, 17, 18) THEN 1   -- road-test, concealed-weapon, cdl, learner-permit
-           ELSE 1
-       END AS weight
+CREATE TEMP TABLE txn_weighted_pool AS
+SELECT ROW_NUMBER() OVER (ORDER BY id, n) AS idx, id AS txn_type_id
 FROM transaction_types
+CROSS JOIN LATERAL generate_series(1,
+    CASE
+        WHEN id IN (2, 7, 9)       THEN 5   -- dl-renewal, reg-renewal, property-tax (high volume)
+        WHEN id IN (1, 4, 5, 6)    THEN 4   -- dl-transfer, dl-address-change, title-transfer, registration
+        WHEN id IN (3, 14, 16)     THEN 3   -- dl-name-change, dl-replacement, real-id-upgrade
+        WHEN id IN (11, 13, 15)    THEN 2   -- hunting-fishing, handicap-placard, id-card
+        WHEN id IN (8, 10, 17, 18) THEN 1   -- road-test, concealed-weapon, cdl, learner-permit
+        ELSE 1
+    END
+) AS copies(n)
 WHERE status = 'active';
+
+-- Count for modular indexing
+DO $$ BEGIN PERFORM set_config('seed.pool_size', (SELECT COUNT(*)::text FROM txn_weighted_pool), true); END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Generate appointments and service visits.
@@ -61,7 +65,8 @@ WHERE status = 'active';
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Step 1: Create appointments (completed status)
--- Each work day, each office gets 15-25 completed appointments
+-- Each work day, each office gets 15-25 completed appointments.
+-- We pre-assign txn_type_ids in the temp table to avoid subquery caching.
 CREATE TEMP TABLE gen_appointments AS
 WITH daily_counts AS (
     SELECT
@@ -96,13 +101,15 @@ SELECT
     e.work_date,
     e.office_id,
     e.seq,
-    -- ~30% walk-ins
     (random() < 0.30) AS is_walk_in,
-    -- Appointment time spread across the day (8:00 - 16:00)
-    ('08:00'::time + (FLOOR(random() * 32) * interval '15 minutes'))::time AS appt_time
+    ('08:00'::time + (FLOOR(random() * 32) * interval '15 minutes'))::time AS appt_time,
+    -- Assign a random row number into the weighted pool (1-based)
+    (1 + FLOOR(random() * current_setting('seed.pool_size')::int))::int AS txn_idx1,
+    (1 + FLOOR(random() * current_setting('seed.pool_size')::int))::int AS txn_idx2,
+    (random() < 0.80) AS is_single_txn
 FROM expanded e;
 
--- Insert appointments
+-- Insert appointments, joining to the weighted pool to resolve txn IDs
 INSERT INTO appointments (
     office_id, first_name, last_name, contact_email, contact_phone,
     txn_type_ids, appointment_date, appointment_time,
@@ -112,28 +119,25 @@ SELECT
     ga.office_id,
     (ARRAY['John','Jane','Robert','Maria','David','Lisa','Michael','Sarah',
            'William','Jennifer','Richard','Angela','Thomas','Nancy','James',
-           'Patricia','Charles','Karen','Joseph','Betty'])[FLOOR(random() * 20 + 1)],
+           'Patricia','Charles','Karen','Joseph','Betty'])[1 + (ga.seq % 20)],
     (ARRAY['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller',
            'Davis','Rodriguez','Martinez','Wilson','Anderson','Taylor','Thomas',
-           'Jackson','White','Harris','Martin','Thompson','Clark'])[FLOOR(random() * 20 + 1)],
-    'customer' || (ROW_NUMBER() OVER ()) || '@example.com',
-    '772555' || LPAD(FLOOR(random() * 10000)::text, 4, '0'),
-    -- Pick 1-2 transaction types (80% single, 20% double)
+           'Jackson','White','Harris','Martin','Thompson','Clark'])[1 + ((ga.seq * 7) % 20)],
+    'customer' || ROW_NUMBER() OVER () || '@example.com',
+    '772555' || LPAD((ga.seq * 13 % 10000)::text, 4, '0'),
     CASE
-        WHEN random() < 0.80 THEN
-            ARRAY[(SELECT txn_type_id FROM txn_pool ORDER BY random() * weight DESC LIMIT 1)]
-        ELSE
-            (SELECT ARRAY_AGG(txn_type_id) FROM (
-                SELECT txn_type_id FROM txn_pool ORDER BY random() * weight DESC LIMIT 2
-            ) sub)
+        WHEN ga.is_single_txn THEN ARRAY[p1.txn_type_id]
+        ELSE ARRAY[p1.txn_type_id, p2.txn_type_id]
     END,
     ga.work_date,
     ga.appt_time,
     'completed',
     ga.is_walk_in,
-    (random() < 0.05),  -- 5% priority
-    ga.work_date - (FLOOR(random() * 7) || ' days')::interval  -- created 0-7 days before
-FROM gen_appointments ga;
+    (ga.seq % 20 = 0),  -- 5% priority
+    ga.work_date - ((ga.seq % 7) || ' days')::interval
+FROM gen_appointments ga
+JOIN txn_weighted_pool p1 ON p1.idx = ga.txn_idx1
+JOIN txn_weighted_pool p2 ON p2.idx = ga.txn_idx2;
 
 -- Step 2: Create queue entries for each appointment
 -- Queue tracks check-in → service start (wait time)
@@ -194,8 +198,9 @@ WHERE q.status = 'done';
 
 -- Step 4: Create service_history_txn_types junction records
 -- Link each service_history entry to its transaction type(s)
+-- Use DISTINCT to handle cases where both txn slots got the same type
 INSERT INTO service_history_txn_types (service_history_id, txn_type_id)
-SELECT sh.id, unnest(a.txn_type_ids)
+SELECT DISTINCT sh.id, unnest(a.txn_type_ids)
 FROM service_history sh
 JOIN appointments a ON a.id = sh.appointment_id;
 
@@ -230,7 +235,7 @@ INSERT INTO duration_recommendations (txn_type_id, current_avg_min, recommended_
 -- Clean up temp tables
 -- ─────────────────────────────────────────────────────────────────────────────
 DROP TABLE IF EXISTS gen_appointments;
-DROP TABLE IF EXISTS txn_pool;
+DROP TABLE IF EXISTS txn_weighted_pool;
 DROP TABLE IF EXISTS work_days;
 
 COMMIT;
