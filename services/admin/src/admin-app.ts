@@ -16,14 +16,17 @@ export const app = express();
 
 app.use(express.json());
 
-// Path normalization: API Gateway stage 'api' adds a prefix to the path.
-// CloudFront routes /api/admin/* to this API, so the Lambda receives paths like
-// /admin/admin/... when Express expects /admin/... Strip the /admin prefix
-// when running in Lambda (detected by presence of ORIGIN_SECRET env var).
+// Path normalization: CloudFront forwards the matched viewer path unchanged.
+// Its Admin behavior is /api/admin/* and the SPA requests /api/admin/admin/*,
+// while Express routes are rooted at /admin/*. Remove only the CloudFront
+// prefix when running in Lambda (detected by ORIGIN_SECRET). Retain the legacy
+// /admin/admin/* form to keep direct API Gateway stage requests compatible.
 // This middleware must run BEFORE route registration.
 if (process.env.ORIGIN_SECRET) {
   app.use((req, res, next) => {
-    if (req.path.startsWith("/admin/")) {
+    if (req.path.startsWith("/api/admin/")) {
+      req.url = req.url.replace(/^\/api\/admin/, "");
+    } else if (req.path.startsWith("/admin/")) {
       req.url = req.url.replace(/^\/admin/, "");
     }
     next();
