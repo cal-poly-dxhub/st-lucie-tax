@@ -11,6 +11,7 @@ import { getCurrentUser, signOut, type AuthUser } from './api';
 import { LoginPage } from './components/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
+import { officeOpsUrl, chatbotUrl } from './app-links';
 
 type Route =
   | { kind: 'overview' }
@@ -66,6 +67,8 @@ export default function App() {
           St. Lucie Chatbot — Admin
         </div>
         <div className="admin-topbar-right">
+          <a className="ghost-btn" href={officeOpsUrl}>Office Ops</a>
+          <a className="ghost-btn" href={chatbotUrl}>Chatbot</a>
           <span className="muted">{auth.email}</span>
           <button className="ghost-btn" onClick={handleLogout}>Log out</button>
         </div>

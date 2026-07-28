@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, Outlet } from "react-router-dom";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { chatbotUrl, adminUrl } from "@/lib/app-links";
 import { LoginPage } from "@/pages/LoginPage";
 import { CheckInDesk } from "@/pages/CheckInDesk";
 import { WalkIn } from "@/pages/WalkIn";
@@ -23,7 +24,10 @@ function NavBar() {
         <span className="mr-4 font-display text-base font-bold text-white">
           St. Lucie Tax Collector
         </span>
-        <NavLink to="/confirmation" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
+        <NavLink
+          to="/confirmation"
+          className={({ isActive }) => `${link} ${isActive ? active : ""}`}
+        >
           Book Appt
         </NavLink>
         <NavLink to="/check-in" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
@@ -44,6 +48,18 @@ function NavBar() {
         <NavLink to="/lobby" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
           Lobby Display
         </NavLink>
+
+        {/* Other SPAs: full page loads, so plain anchors rather than NavLink. */}
+        <span className="mx-1 h-5 w-px bg-civic-800/60" aria-hidden />
+        <a href={chatbotUrl} className={link}>
+          Chatbot
+        </a>
+        {user?.groups.includes("admin") && (
+          <a href={adminUrl} className={link}>
+            Admin
+          </a>
+        )}
+
         {user && (
           <button
             onClick={signOut}
@@ -61,9 +77,7 @@ function RequireAuth() {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-civic-400">
-        Loading...
-      </div>
+      <div className="flex min-h-screen items-center justify-center text-civic-400">Loading...</div>
     );
   }
   if (!user) return <LoginPage />;
