@@ -140,6 +140,35 @@ export async function getEligibleOffices(
   return rows;
 }
 
+/**
+ * Returns the days of the week (0=Sun … 6=Sat) each office is open.
+ * When officeIds is empty, returns data for all offices.
+ */
+export async function getOfficeOpenDays(
+  officeIds?: number[],
+): Promise<Array<{ officeId: number; openDays: number[] }>> {
+  const pool = getPool();
+  const query =
+    officeIds && officeIds.length > 0
+      ? pool.query<{ office_id: number; day_of_week: number }>(
+          `SELECT office_id, day_of_week FROM office_hours WHERE office_id = ANY($1) ORDER BY office_id, day_of_week`,
+          [officeIds],
+        )
+      : pool.query<{ office_id: number; day_of_week: number }>(
+          `SELECT office_id, day_of_week FROM office_hours ORDER BY office_id, day_of_week`,
+        );
+  const { rows } = await query;
+
+  const byOffice = new Map<number, number[]>();
+  for (const row of rows) {
+    const days = byOffice.get(row.office_id) ?? [];
+    days.push(row.day_of_week);
+    byOffice.set(row.office_id, days);
+  }
+
+  return Array.from(byOffice.entries()).map(([officeId, openDays]) => ({ officeId, openDays }));
+}
+
 export interface BookResult {
   appointmentId: number;
   qrCode: string;

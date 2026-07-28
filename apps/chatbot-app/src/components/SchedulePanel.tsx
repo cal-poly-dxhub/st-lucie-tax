@@ -16,7 +16,7 @@ interface Props {
   onBooked: () => void;
 }
 
-type Phase = 'loading' | 'offer' | 'preferences' | 'contact' | 'verify-email' | 'verify-waiting' | 'booking' | 'unavailable' | 'done';
+type Phase = 'loading' | 'offer' | 'preferences' | 'contact' | 'verify-email' | 'verify-waiting' | 'booking' | 'no-match' | 'unavailable' | 'done';
 
 interface BookingConfirmation {
   confirmationCode: string;
@@ -42,12 +42,35 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   const [offices, setOffices] = useState<SchedulingOffice[]>([]);
   const [preferences, setPreferences] = useState<SchedulingPreferences>({});
 
+  /** Compute the set of open days to show in the preferred-day dropdown. */
+  function getAvailableDays(): number[] {
+    if (preferences.preferredOffice != null) {
+      // Show only days when the selected office is open
+      const office = offices.find((o) => o.id === preferences.preferredOffice);
+      return office?.openDays ?? [];
+    }
+    // No specific office selected — show the union of all offices' open days
+    const allDays = new Set<number>();
+    for (const o of offices) {
+      for (const d of o.openDays ?? []) allDays.add(d);
+    }
+    return Array.from(allDays).sort((a, b) => a - b);
+  }
+
   function loadSlot(prefs?: SchedulingPreferences) {
     setPhase('loading');
     setError(null);
     fetchSchedulingSlot(sessionId, prefs)
       .then((r) => {
-        if (r.unavailable || r.schedulable === false || !r.slot) { setPhase('unavailable'); return; }
+        if (r.unavailable || r.schedulable === false) {
+          setPhase('unavailable');
+          return;
+        }
+        if (!r.slot) {
+          // Transaction is schedulable but no slot matched preferences
+          setPhase('no-match');
+          return;
+        }
         setSlot(r.slot);
         setPhase('offer');
       })
@@ -59,7 +82,7 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   function openPreferences() {
     setPhase('preferences');
     setPreferences({});
-    // Load eligible offices
+    // Load eligible offices (includes openDays per office)
     fetchSchedulingOffices(sessionId)
       .then((r) => setOffices(r.offices))
       .catch(() => setOffices([]));
@@ -130,10 +153,22 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   }
 
   if (phase === 'loading') return <div className="schedule-panel">Finding the next available time…</div>;
+
   if (phase === 'unavailable') return (
     <div className="schedule-panel">
       <p>Online scheduling isn't available for your transaction yet. Please call the office to book your visit.</p>
       {error && <p className="schedule-error">{error}</p>}
+    </div>
+  );
+
+  if (phase === 'no-match') return (
+    <div className="schedule-panel">
+      <p>No appointments matched your preferences in the next 30 days. You can change your preferences to find available times.</p>
+      {error && <p className="schedule-error">{error}</p>}
+      <div className="schedule-pref-actions">
+        <button className="schedule-accept" onClick={openPreferences}>Change preferences</button>
+        <button className="schedule-reroll" onClick={() => loadSlot()}>Show earliest available</button>
+      </div>
     </div>
   );
 
@@ -162,63 +197,78 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
     </div>
   );
 
-  if (phase === 'preferences') return (
-    <div className="schedule-panel" data-phase="preferences">
-      {error && <div className="schedule-error" role="alert">{error}</div>}
-      <div className="schedule-preferences">
-        <h3>What would you like to change?</h3>
-        <p className="schedule-preferences-hint">Pick one or more preferences, then search.</p>
+  if (phase === 'preferences') {
+    const availableDays = getAvailableDays();
+    return (
+      <div className="schedule-panel" data-phase="preferences">
+        {error && <div className="schedule-error" role="alert">{error}</div>}
+        <div className="schedule-preferences">
+          <h3>What would you like to change?</h3>
+          <p className="schedule-preferences-hint">Pick one or more preferences, then search.</p>
 
-        <label className="schedule-pref-label">
-          Preferred office
-          <select
-            value={preferences.preferredOffice ?? ''}
-            onChange={(e) => setPreferences((p) => ({
-              ...p,
-              preferredOffice: e.target.value ? Number(e.target.value) : undefined,
-            }))}
-          >
-            <option value="">Any office</option>
-            {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        </label>
+          <label className="schedule-pref-label">
+            Preferred office
+            <select
+              value={preferences.preferredOffice ?? ''}
+              onChange={(e) => {
+                const officeId = e.target.value ? Number(e.target.value) : undefined;
+                setPreferences((p) => {
+                  const next = { ...p, preferredOffice: officeId };
+                  // Clear preferred day if it's no longer valid for the new office
+                  if (next.preferredDow != null && officeId != null) {
+                    const office = offices.find((o) => o.id === officeId);
+                    if (office?.openDays && !office.openDays.includes(next.preferredDow)) {
+                      next.preferredDow = undefined;
+                    }
+                  }
+                  return next;
+                });
+              }}
+            >
+              <option value="">Any office</option>
+              {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </label>
 
-        <label className="schedule-pref-label">
-          Preferred day
-          <select
-            value={preferences.preferredDow ?? ''}
-            onChange={(e) => setPreferences((p) => ({
-              ...p,
-              preferredDow: e.target.value !== '' ? Number(e.target.value) : undefined,
-            }))}
-          >
-            <option value="">Any day</option>
-            {DAY_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-          </select>
-        </label>
+          <label className="schedule-pref-label">
+            Preferred day
+            <select
+              value={preferences.preferredDow ?? ''}
+              onChange={(e) => setPreferences((p) => ({
+                ...p,
+                preferredDow: e.target.value !== '' ? Number(e.target.value) : undefined,
+              }))}
+            >
+              <option value="">Any day</option>
+              {availableDays.map((dayNum) => (
+                <option key={dayNum} value={dayNum}>{DAY_NAMES[dayNum]}</option>
+              ))}
+            </select>
+          </label>
 
-        <label className="schedule-pref-label">
-          Preferred time
-          <select
-            value={preferences.preferredTime ?? ''}
-            onChange={(e) => setPreferences((p) => ({
-              ...p,
-              preferredTime: (e.target.value as 'morning' | 'afternoon') || undefined,
-            }))}
-          >
-            <option value="">Any time</option>
-            <option value="morning">Morning (before noon)</option>
-            <option value="afternoon">Afternoon (noon or later)</option>
-          </select>
-        </label>
+          <label className="schedule-pref-label">
+            Preferred time
+            <select
+              value={preferences.preferredTime ?? ''}
+              onChange={(e) => setPreferences((p) => ({
+                ...p,
+                preferredTime: (e.target.value as 'morning' | 'afternoon') || undefined,
+              }))}
+            >
+              <option value="">Any time</option>
+              <option value="morning">Morning (before noon)</option>
+              <option value="afternoon">Afternoon (noon or later)</option>
+            </select>
+          </label>
 
-        <div className="schedule-pref-actions">
-          <button className="schedule-accept" onClick={searchWithPreferences}>Search</button>
-          <button className="schedule-reroll" onClick={() => loadSlot()}>Back to earliest</button>
+          <div className="schedule-pref-actions">
+            <button className="schedule-accept" onClick={searchWithPreferences}>Search</button>
+            <button className="schedule-reroll" onClick={() => loadSlot()}>Back to earliest</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="schedule-panel" data-phase={phase}>
