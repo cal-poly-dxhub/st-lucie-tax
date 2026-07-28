@@ -7,17 +7,18 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
-    // Build output and test artifacts. Playwright's test-results/ and the
-    // .cache/ run markers can hold tens of MB of generated files; linting them
-    // produces a report large enough to crash ESLint's formatter.
+    // Build output and test artifacts. Note the `**/` prefixes: a flat-config
+    // ignore pattern containing a slash is anchored to the repo root, so a bare
+    // `dist/` would miss the per-workspace dist directories and ESLint would
+    // lint thousands of generated files.
     ignores: [
-      "dist/",
-      "node_modules/",
+      "**/dist/",
+      "**/node_modules/",
       ".claude/",
       ".cache/",
       "test-results/",
       "playwright-report/",
-      "*.js",
+      "**/*.js",
     ],
   },
   {
