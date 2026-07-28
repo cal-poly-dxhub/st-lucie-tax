@@ -258,7 +258,16 @@ export class ChatbotStack extends Stack {
             // path, missing dir), bundling should fail loudly at synth/deploy
             // time rather than shipping a Lambda that 500s on every request
             // once `resolveDataDir()` throws at module init.
-            return [`cp -r ${inputDir}/services/chatbot/src/data ${outputDir}/data`];
+            return [
+              `cp -r ${inputDir}/services/chatbot/src/data ${outputDir}/data`,
+              // pdfkit reads AFM font metrics and the ICC profile via
+              // `fs.readFileSync(__dirname + '/data/...')`. esbuild's CJS
+              // output preserves __dirname as the bundle's directory, so these
+              // files must live at ${outputDir}/data alongside the chatbot
+              // data files copied above.
+              `cp ${inputDir}/node_modules/pdfkit/js/data/*.afm ${outputDir}/data/`,
+              `cp ${inputDir}/node_modules/pdfkit/js/data/*.icc ${outputDir}/data/`,
+            ];
           },
         },
       },
