@@ -39,7 +39,13 @@ import {
   buildVerifiedEmbedUrl,
 } from "./authid/client.js";
 import { decide, extractIdentity } from "./authid/decision.js";
-import { findSlot, book, schedulingEnabled, getEligibleOffices } from "./scheduling/client.js";
+import {
+  findSlot,
+  book,
+  schedulingEnabled,
+  getEligibleOffices,
+  getOfficeOpenDays,
+} from "./scheduling/client.js";
 import {
   verifyEmailIdentity,
   checkEmailVerified,
@@ -867,6 +873,7 @@ app.get("/chatbot/sessions/:sessionId/scheduling/slot", async (req, res) => {
 // GET /chatbot/sessions/:sessionId/scheduling/offices
 // Returns offices eligible to handle the session's active transactions.
 // Used by the "Find Another" preference picker to show office choices.
+// Also returns open days per office for filtering the preferred-day picker.
 app.get("/chatbot/sessions/:sessionId/scheduling/offices", async (req, res) => {
   try {
     if (!schedulingEnabled()) {
@@ -882,7 +889,16 @@ app.get("/chatbot/sessions/:sessionId/scheduling/offices", async (req, res) => {
       .filter((t) => t.status === "active")
       .map((t) => t.txnTypeId);
     const offices = await getEligibleOffices(chatbotTxnIds);
-    res.json({ offices });
+    const openDaysData = await getOfficeOpenDays(offices.map((o) => o.id));
+
+    // Merge open days into office entries
+    const openDaysMap = new Map(openDaysData.map((d) => [d.officeId, d.openDays]));
+    const officesWithDays = offices.map((o) => ({
+      ...o,
+      openDays: openDaysMap.get(o.id) ?? [],
+    }));
+
+    res.json({ offices: officesWithDays });
   } catch (err) {
     console.error("Scheduling offices error:", err);
     res.status(502).json({ error: "scheduling-unreachable" });

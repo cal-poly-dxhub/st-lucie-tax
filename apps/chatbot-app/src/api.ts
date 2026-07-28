@@ -588,6 +588,7 @@ export interface SchedulingSlotResponse {
 export interface SchedulingOffice {
   id: number;
   name: string;
+  openDays?: number[];
 }
 
 export interface SchedulingOfficesResponse {
