@@ -7,13 +7,11 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
-    // Build output and test artifacts. Note the `**/` prefixes: a flat-config
-    // ignore pattern containing a slash is anchored to the repo root, so a bare
-    // `dist/` would miss the per-workspace dist directories and ESLint would
-    // lint thousands of generated files.
     ignores: [
       "**/dist/",
       "**/node_modules/",
+
+      "**/cdk.out/",
       ".claude/",
       ".cache/",
       "test-results/",
