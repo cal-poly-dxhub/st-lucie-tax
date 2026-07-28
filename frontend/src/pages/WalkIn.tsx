@@ -338,18 +338,26 @@ export function WalkIn() {
           placeholder="Special circumstances, repeat visitor context..."
           className="w-full resize-y rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-civic-300 focus:border-civic-400 min-h-[60px]"
         />
-        <div className="flex gap-3">
-          <Button variant="civic" className="flex-1" loading={busy} onClick={() => register(false)}>
-            <ArrowRight size={16} /> Check In to Queue
-          </Button>
-          <Button
-            variant="outline"
-            className="border-warn-200 text-warn-700 hover:bg-warn-50"
-            loading={busy}
-            onClick={() => register(true)}
-          >
-            <Zap size={16} /> Priority
-          </Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-3">
+            <Button variant="civic" className="flex-1" loading={busy} disabled={!emailVerified} onClick={() => register(false)}>
+              <ArrowRight size={16} /> Check In to Queue
+            </Button>
+            <Button
+              variant="outline"
+              className="border-warn-200 text-warn-700 hover:bg-warn-50"
+              loading={busy}
+              disabled={!emailVerified}
+              onClick={() => register(true)}
+            >
+              <Zap size={16} /> Priority
+            </Button>
+          </div>
+          {!emailVerified && (
+            <p className="text-xs text-amber-600">
+              Email must be verified before checking in.
+            </p>
+          )}
         </div>
         {pendingPrescreenUrl && (
           <div className="rounded-lg border border-civic-200 bg-civic-50 px-4 py-3 text-sm">
