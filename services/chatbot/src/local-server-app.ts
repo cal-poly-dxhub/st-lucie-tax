@@ -237,12 +237,15 @@ app.post("/chatbot/sessions", sessionCreateLimiter, async (req, res) => {
       isTestSession,
     });
     const pool = getPool();
-    const hbResult = await pool.query<{ label: string; prompt: string }>(
-      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
-    );
+    const hbResult = await pool.query<{
+      label: string;
+      prompt: string;
+      description: string | null;
+    }>(`SELECT label, prompt, description FROM hotbuttons ORDER BY sort_order`);
     const buttons: HotButton[] = hbResult.rows.map((r) => ({
       label: r.label,
       transactionTypeId: r.prompt,
+      ...(r.description ? { description: r.description } : {}),
     }));
     res.status(201).json({
       sessionId: session.sessionId,
@@ -469,10 +472,16 @@ app.get("/chatbot/debug/session-logs/:sessionId", debugGate, async (req, res) =>
 app.get("/chatbot/hot-buttons", async (_req, res) => {
   try {
     const pool = getPool();
-    const result = await pool.query<{ label: string; prompt: string }>(
-      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
+    const result = await pool.query<{ label: string; prompt: string; description: string | null }>(
+      `SELECT label, prompt, description FROM hotbuttons ORDER BY sort_order`,
     );
-    res.json(result.rows.map((r) => ({ label: r.label, transactionTypeId: r.prompt })));
+    res.json(
+      result.rows.map((r) => ({
+        label: r.label,
+        transactionTypeId: r.prompt,
+        ...(r.description ? { description: r.description } : {}),
+      })),
+    );
   } catch (err) {
     console.error("Failed to load hot buttons:", err);
     res.json([]);
@@ -1404,10 +1413,16 @@ app.post("/chatbot/prescreening", async (req, res) => {
 app.get("/api/hot-buttons", async (_req, res) => {
   try {
     const pool = getPool();
-    const result = await pool.query<{ label: string; prompt: string }>(
-      `SELECT label, prompt FROM hotbuttons ORDER BY sort_order`,
+    const result = await pool.query<{ label: string; prompt: string; description: string | null }>(
+      `SELECT label, prompt, description FROM hotbuttons ORDER BY sort_order`,
     );
-    res.json(result.rows.map((r) => ({ label: r.label, transactionTypeId: r.prompt })));
+    res.json(
+      result.rows.map((r) => ({
+        label: r.label,
+        transactionTypeId: r.prompt,
+        ...(r.description ? { description: r.description } : {}),
+      })),
+    );
   } catch (err) {
     console.error("Failed to load hot buttons:", err);
     res.json([]);

@@ -97,6 +97,17 @@ INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
     ('insurance_card', 'Insurance Card',          'Proof of insurance for test vehicle',            '{}');
 
 -- =============================================================================
+-- Hotbuttons (chatbot landing-screen quick-reply categories)
+-- =============================================================================
+INSERT INTO hotbuttons (sort_order, label, prompt, description) VALUES
+    (1, 'Driver License & ID', 'I have a question about my driver license or ID card', 'Renewals, replacements, REAL ID, name/address changes, learner permits, road tests'),
+    (2, 'Vehicles & Plates',   'I have a question about a vehicle, title, or license plate', 'Title transfers, registration, tag replacement, plate surrender, specialty plates'),
+    (3, 'Taxes & Property',    'I have a question about my property taxes', 'Property tax payments, tangible personal property, installment plans'),
+    (4, 'Business',            'I have a question about my business', 'Business tax receipts, short-term rental tax (Airbnb/VRBO)'),
+    (5, 'Outdoors & Other',    'I have a question about hunting, fishing, boats, or concealed weapons', 'Hunting/fishing licenses, vessel registration, concealed weapons, handicap placards'),
+    (6, 'Lost or Replace',     'I lost something or need to replace a credential', 'Lost license, lost title, stolen tag, replacement decals');
+
+-- =============================================================================
 -- Prescreen Questions
 -- Global across ALL transaction types (road-test + id-card question sets,
 -- applied uniformly regardless of the actual transaction being screened).

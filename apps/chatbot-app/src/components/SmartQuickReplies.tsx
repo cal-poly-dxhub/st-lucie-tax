@@ -2,7 +2,7 @@
  * SmartQuickReplies — context-aware quick-reply chips under the chat input.
  *
  * Shows one of three modes depending on the current session state:
- *   - "canned" hot buttons (landing / initial identify-transaction)
+ *   - DB-driven hot buttons (landing / initial identify-transaction)
  *   - state-appropriate one-tap replies (verify-identity, upload-docs, schedule)
  *   - resolve-facts: next unresolved fact's allowedValues as clickable chips
  *     with human-friendly labels so the customer never has to type enum
@@ -20,34 +20,12 @@ import { humanize } from '../utils/humanize';
 
 interface Props {
   session: SessionData;
-  /**
-   * Legacy prop — kept for callsite compatibility. The landing-state UI
-   * now uses a hardcoded 6-family menu plus a "View all transactions"
-   * toggle that fetches /chatbot/all-transactions; the DDB-seeded hot
-   * buttons are no longer rendered. Callers can pass [] safely.
-   */
   hotButtons?: HotButton[];
   onSelect: (text: string) => void;
   disabled: boolean;
 }
 
-/**
- * Family-level entry buttons. Click sends a natural-language opener — the
- * bot's suggest_transactions tool then narrows down to the specific txn.
- * Two-tier flow: families first (low-friction), full 31-txn menu via the
- * blue "View all transactions" chip below for testers who already know
- * exactly what they want.
- */
-const FAMILY_BUTTONS: Array<{ label: string; opener: string; description: string }> = [
-  { label: 'Driver License & ID', opener: 'I have a question about my driver license or ID card', description: 'Renewals, replacements, REAL ID, name/address changes, learner permits, road tests' },
-  { label: 'Vehicles & Plates', opener: 'I have a question about a vehicle, title, or license plate', description: 'Title transfers, registration, tag replacement, plate surrender, specialty plates' },
-  { label: 'Taxes & Property', opener: 'I have a question about my property taxes', description: 'Property tax payments, tangible personal property, installment plans' },
-  { label: 'Business', opener: 'I have a question about my business', description: 'Business tax receipts, short-term rental tax (Airbnb/VRBO)' },
-  { label: 'Outdoors & Other', opener: 'I have a question about hunting, fishing, boats, or concealed weapons', description: 'Hunting/fishing licenses, vessel registration, concealed weapons, handicap placards' },
-  { label: 'Lost or Replace', opener: 'I lost something or need to replace a credential', description: 'Lost license, lost title, stolen tag, replacement decals' },
-];
-
-export function SmartQuickReplies({ session, onSelect, disabled }: Props) {
+export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: Props) {
   const state = session.state;
   const txnIds = session.transactions.map(t => t.txnTypeId);
   const facts: Record<string, FactValue> = session.context?.facts ?? {};
@@ -94,11 +72,9 @@ export function SmartQuickReplies({ session, onSelect, disabled }: Props) {
   // -------- mode selection --------
 
   // 1. Landing / empty identify-transaction: tiered family menu.
-  // Default view shows the 6 high-level families. The "View all
-  // transactions" chip swaps to the full 31-txn list (one chip per
-  // active transaction). Hot-button DDB seeds are intentionally ignored
-  // here — the family curation is a frontend UX decision and we want
-  // a consistent flow regardless of which seeds happen to be in DDB.
+  // Default view shows hot buttons from the DB. The "View all
+  // transactions" chip swaps to the full txn list (one chip per
+  // active transaction).
   if (
     (state === 'landing' || state === 'identify-transaction') &&
     session.transactions.length === 0
@@ -154,18 +130,19 @@ export function SmartQuickReplies({ session, onSelect, disabled }: Props) {
       );
     }
 
-    // Default: 6 family chips + the View-all toggle.
+    // Default: DB-driven hot buttons + the View-all toggle.
+    if (!hotButtons?.length) return null;
     return (
       <div className="smart-chips smart-chips--hot-buttons">
         <ChipRow label="What can we help you with?">
-          {FAMILY_BUTTONS.map(fam => (
+          {hotButtons.map(btn => (
             <Chip
-              key={fam.label}
-              onClick={() => onSelect(fam.opener)}
+              key={btn.label}
+              onClick={() => onSelect(btn.transactionTypeId)}
               disabled={disabled}
-              title={fam.description}
+              title={btn.description}
             >
-              {fam.label}
+              {btn.label}
             </Chip>
           ))}
         </ChipRow>
