@@ -51,6 +51,7 @@ export function SchedulePage() {
   const [weekStart, setWeekStart] = useState<Date | null>(null);
   const [appointments, setAppointments] = useState<(ScheduleAppointment & { startMin: number; durationMin: number })[]>([]);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
   const [dropIndicator, setDropIndicator] = useState<{ date: string; pct: number } | null>(null);
   const trackRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -128,7 +129,9 @@ export function SchedulePage() {
 
   function handleDragStart(appt: typeof appointments[0], e: React.MouseEvent) {
     e.preventDefault();
-    setDragState({ appt, targetDate: null, targetMin: null });
+    const initial: DragState = { appt, targetDate: null, targetMin: null };
+    setDragState(initial);
+    dragStateRef.current = initial;
     setGhostPos({ x: e.clientX + 12, y: e.clientY - 12 });
 
     const onMove = (me: MouseEvent) => {
@@ -140,10 +143,18 @@ export function SchedulePage() {
         const minute = Math.round(openMin + xPct * (closeMin - openMin));
         const snapped = Math.round(minute / 5) * 5;
         setDropIndicator({ date: el.dataset.trackDate!, pct: pct(snapped) });
-        setDragState((prev) => prev ? { ...prev, targetDate: el.dataset.trackDate!, targetMin: snapped } : null);
+        setDragState((prev) => {
+          const next = prev ? { ...prev, targetDate: el.dataset.trackDate!, targetMin: snapped } : null;
+          dragStateRef.current = next;
+          return next;
+        });
       } else {
         setDropIndicator(null);
-        setDragState((prev) => prev ? { ...prev, targetDate: null, targetMin: null } : null);
+        setDragState((prev) => {
+          const next = prev ? { ...prev, targetDate: null, targetMin: null } : null;
+          dragStateRef.current = next;
+          return next;
+        });
       }
     };
 
@@ -152,8 +163,9 @@ export function SchedulePage() {
       document.removeEventListener("mouseup", onUp);
       setDropIndicator(null);
 
-      const state = dragState;
+      const state = dragStateRef.current;
       setDragState(null);
+      dragStateRef.current = null;
 
       if (!state?.targetDate || state.targetMin == null) return;
       if (state.targetDate === appt.appointment_date && state.targetMin === appt.startMin) return;
