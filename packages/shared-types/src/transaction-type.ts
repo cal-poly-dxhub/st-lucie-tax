@@ -44,12 +44,6 @@ export interface HotButton {
    * render as a flat list (back-compat for older seeds).
    */
   category?: string;
-  /**
-   * Optional short helper text shown under the button label on hover/focus.
-   * Useful when a category has several visually-similar buttons (e.g.
-   * "Renew license" vs "Replace license").
-   */
-  description?: string;
 }
 
 export interface IdentifiedTransaction {
