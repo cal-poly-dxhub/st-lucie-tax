@@ -6,8 +6,8 @@ import {
   Field,
   InlineInput,
   Input,
-  Matrix,
   Select,
+  StatusMatrix,
   Table,
   TBody,
   TD,
@@ -15,7 +15,10 @@ import {
   TH,
   THead,
   TR,
-  type MatrixAxis,
+  type CellState,
+  type CellStatus,
+  type StatusMatrixAxis,
+  type TimeBounds,
 } from "@st-lucie/ui";
 import {
   createTransactionType,
@@ -300,11 +303,11 @@ function TypesSection({
 // ─── Availability matrix ─────────────────────────────────────────────────────
 
 /**
- * Per-office availability.
+ * Per-office availability using a status-badge matrix with popover editing.
  *
- * A transaction is offered everywhere by default via its global row. Checked
- * means available (default); unchecking creates a 'hidden' override for that
- * office. Checking again deletes the override, returning to the global default.
+ * Each cell shows the effective status (inherited from global, or overridden).
+ * Clicking opens a popover to set status and time window. "Clear" removes the
+ * override and returns to the global default.
  */
 function AvailabilitySection({
   matrix,
@@ -316,125 +319,105 @@ function AvailabilitySection({
   mutate: Mutate;
 }) {
   const [busyCell, setBusyCell] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<number | null>(null);
 
-  const rows: MatrixAxis[] = useMemo(
+  const rows: StatusMatrixAxis[] = useMemo(
     () => matrix.globalTxns.map((t) => ({ id: t.txn_type_id, label: t.name })),
     [matrix],
   );
-  const cols: MatrixAxis[] = useMemo(
+  const cols: StatusMatrixAxis[] = useMemo(
     () => matrix.offices.map((o) => ({ id: String(o.id), label: o.name })),
     [matrix],
   );
 
-  const overrideFor = useCallback(
-    (slug: string, officeId: string) =>
-      matrix.overrides.find((o) => o.txn_type_id === slug && String(o.office_id) === officeId),
+  const getCell = useCallback(
+    (slug: string, officeId: string): CellState => {
+      const ov = matrix.overrides.find(
+        (o) => o.txn_type_id === slug && String(o.office_id) === officeId,
+      );
+      if (ov) {
+        return {
+          status: ov.status as CellStatus,
+          from: ov.available_from,
+          until: ov.available_until,
+          inherited: false,
+        };
+      }
+      const g = matrix.globalTxns.find((t) => t.txn_type_id === slug);
+      return {
+        status: (g?.status ?? "active") as CellStatus,
+        from: null,
+        until: null,
+        inherited: true,
+      };
+    },
     [matrix],
   );
 
-  const officeName = (id: number) =>
-    matrix.offices.find((o) => o.id === id)?.name ?? `Office ${id}`;
-
-  async function toggle(slug: string, officeId: string, next: boolean) {
+  async function handleSave(
+    slug: string,
+    officeId: string,
+    status: CellStatus,
+    from: string | null,
+    until: string | null,
+  ) {
     const cell = `${slug}|${officeId}`;
     setBusyCell(cell);
     try {
-      if (next) {
-        // Re-checking: remove the 'hidden' override to restore global availability
-        const existing = overrideFor(slug, officeId);
-        if (existing) {
-          await mutate(
-            () => deleteTxnOfficeOverride(existing.id),
-            "Restored to available at that office.",
-          );
-        }
-      } else {
-        // Unchecking: create a 'hidden' override to suppress at this office
-        await mutate(
-          () =>
-            setTxnOfficeOverride({
-              txnTypeId: slug,
-              officeId: Number(officeId),
-              status: "hidden",
-            }),
-          "Hidden at that office.",
-        );
-      }
+      await mutate(
+        () =>
+          setTxnOfficeOverride({
+            txnTypeId: slug,
+            officeId: Number(officeId),
+            status,
+            availableFrom: from,
+            availableUntil: until,
+          }),
+        "Override saved.",
+      );
     } finally {
       setBusyCell(null);
     }
   }
 
+  async function handleClear(slug: string, officeId: string) {
+    const ov = matrix.overrides.find(
+      (o) => o.txn_type_id === slug && String(o.office_id) === officeId,
+    );
+    if (!ov) return;
+    const cell = `${slug}|${officeId}`;
+    setBusyCell(cell);
+    try {
+      await mutate(() => deleteTxnOfficeOverride(ov.id), "Override cleared.");
+    } finally {
+      setBusyCell(null);
+    }
+  }
+
+  const getTimeBounds = useCallback(
+    (officeId: string): TimeBounds | null => {
+      const office = matrix.offices.find((o) => String(o.id) === officeId);
+      if (!office?.earliest_open || !office?.latest_close) return null;
+      return { open: office.earliest_open, close: office.latest_close };
+    },
+    [matrix],
+  );
+
   return (
     <Section
       title="Office availability"
-      description="All transactions are available at every office by default. Uncheck a cell to hide that transaction at a specific office."
+      description="Click any cell to customize. Dashed badges inherit the global setting — click to create an office-specific override."
     >
-      <Matrix
+      <StatusMatrix
         rows={rows}
         cols={cols}
         rowHeader="Transaction"
         emptyMessage="Add a transaction type and an office to configure availability."
-        isOn={(slug, officeId) => {
-          const ov = overrideFor(slug, officeId);
-          // No override = global default = available (checked)
-          // Override with status 'active' = still available (checked)
-          // Override with status 'hidden' = suppressed (unchecked)
-          return !ov || ov.status === "active";
-        }}
+        getCell={getCell}
+        getTimeBounds={getTimeBounds}
+        onSave={handleSave}
+        onClear={handleClear}
         isBusy={(slug, officeId) => busyCell === `${slug}|${officeId}`}
-        isDisabled={() => saving}
-        onToggle={toggle}
       />
-
-      {matrix.overrides.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-1 text-sm font-bold text-civic-800">Office-specific rows</h3>
-          <p className="mb-2 text-sm text-civic-500">
-            Clearing a row removes the override entirely and returns that office to the global
-            setting.
-          </p>
-          <Table>
-            <THead>
-              <TR className="hover:bg-transparent">
-                <TH>Transaction</TH>
-                <TH>Office</TH>
-                <TH className="w-24">Status</TH>
-                <TH className="w-32">From</TH>
-                <TH className="w-32">Until</TH>
-                <TH align="right" className="w-40" />
-              </TR>
-            </THead>
-            <TBody>
-              {matrix.overrides.map((o) => (
-                <TR key={o.id}>
-                  <TD className="font-medium text-civic-800">{o.name}</TD>
-                  <TD>{officeName(o.office_id)}</TD>
-                  <TD>
-                    <Badge tone={o.status === "active" ? "go" : "neutral"}>{o.status}</Badge>
-                  </TD>
-                  <TD className="text-civic-500">{o.available_from ?? "—"}</TD>
-                  <TD className="text-civic-500">{o.available_until ?? "—"}</TD>
-                  <TD align="right">
-                    <DeleteButton
-                      label="Clear"
-                      confirming={confirmId === o.id}
-                      disabled={saving}
-                      onArm={() => setConfirmId(o.id)}
-                      onCancel={() => setConfirmId(null)}
-                      onConfirm={async () => {
-                        await mutate(() => deleteTxnOfficeOverride(o.id), "Override cleared.");
-                        setConfirmId(null);
-                      }}
-                    />
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      )}
     </Section>
   );
 }

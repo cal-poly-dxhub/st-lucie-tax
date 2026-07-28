@@ -232,7 +232,12 @@ export const updateTransactionFlow = (txnTypeId: number, steps: unknown) =>
 // ─── Transaction × office availability ───────────────────────────────────────
 
 export interface TxnOfficeMatrix {
-  offices: { id: number; name: string }[];
+  offices: {
+    id: number;
+    name: string;
+    earliest_open: string | null;
+    latest_close: string | null;
+  }[];
   globalTxns: { id: number; txn_type_id: string; name: string; status: string }[];
   overrides: {
     id: number;
