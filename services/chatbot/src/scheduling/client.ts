@@ -59,6 +59,9 @@ export async function findSlot(opts: {
   chatbotTxnIds: string[];
   startDate?: string;
   maxDays?: number;
+  preferredOffice?: number | null;
+  preferredDow?: number | null;
+  preferredTime?: "morning" | "afternoon" | null;
   /** Local "now" override for deterministic tests; matches book_appointment(p_now_ts). */
   nowTs?: string;
 }): Promise<SlotResult> {
@@ -71,12 +74,15 @@ export async function findSlot(opts: {
     return { slot: null, reason: null, unmapped, schedulable: false };
   }
 
+  const hasPreference =
+    opts.preferredOffice != null || opts.preferredDow != null || opts.preferredTime != null;
+
   const slot = await findAppointment(pool, {
     targetTxns: txnTypeIds,
-    asap: true,
-    preferredOffice: null,
-    preferredDow: null,
-    preferredTime: null,
+    asap: !hasPreference,
+    preferredOffice: opts.preferredOffice ?? null,
+    preferredDow: opts.preferredDow ?? null,
+    preferredTime: opts.preferredTime ?? null,
     startDate: opts.startDate ? new Date(`${opts.startDate}T00:00:00Z`) : new Date(),
     days: opts.maxDays ?? DEFAULT_LOOKAHEAD_DAYS,
     nowTs: opts.nowTs,
@@ -102,6 +108,36 @@ export async function findSlot(opts: {
     unmapped,
     schedulable: true,
   };
+}
+
+/**
+ * Returns offices eligible to handle all requested transactions.
+ * Used by the "Find Another" preference picker to show office choices.
+ */
+export async function getEligibleOffices(
+  chatbotTxnIds: string[],
+): Promise<Array<{ id: number; name: string }>> {
+  const pool = getPool();
+  const { txnTypeIds, unmapped } = await resolveTxnIds(chatbotTxnIds);
+
+  if (txnTypeIds.length !== chatbotTxnIds.length || unmapped.length > 0) {
+    return [];
+  }
+
+  const { rows } = await pool.query<{ id: number; name: string }>(
+    `SELECT o.id, o.name
+     FROM offices o
+     WHERE (
+       SELECT COUNT(*) FROM effective_transaction_types ett
+       WHERE ett.office_id = o.id
+         AND ett.global_id = ANY($1::int[])
+         AND ett.status    = 'active'
+     ) = $2
+     ORDER BY o.name`,
+    [txnTypeIds, txnTypeIds.length],
+  );
+
+  return rows;
 }
 
 export interface BookResult {

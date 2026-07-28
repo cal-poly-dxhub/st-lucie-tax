@@ -39,7 +39,7 @@ import {
   buildVerifiedEmbedUrl,
 } from "./authid/client.js";
 import { decide, extractIdentity } from "./authid/decision.js";
-import { findSlot, book, schedulingEnabled } from "./scheduling/client.js";
+import { findSlot, book, schedulingEnabled, getEligibleOffices } from "./scheduling/client.js";
 import {
   verifyEmailIdentity,
   checkEmailVerified,
@@ -820,6 +820,7 @@ app.post("/chatbot/sessions/:sessionId/skip-verify", async (req, res) => {
 // GET /chatbot/sessions/:sessionId/scheduling/slot
 // Proxies to the scheduling service for ONE offered slot for the session's
 // active transactions. Degrades gracefully when scheduling is unconfigured.
+// Accepts optional preference query params: preferredOffice, preferredDow, preferredTime
 app.get("/chatbot/sessions/:sessionId/scheduling/slot", async (req, res) => {
   try {
     if (!schedulingEnabled()) {
@@ -834,13 +835,50 @@ app.get("/chatbot/sessions/:sessionId/scheduling/slot", async (req, res) => {
     const chatbotTxnIds = session.structuredContext.transactions
       .filter((t) => t.status === "active")
       .map((t) => t.txnTypeId);
-    const result = await findSlot({ chatbotTxnIds });
+
+    // Parse optional preference query params
+    const preferredOffice = req.query.preferredOffice
+      ? Number(req.query.preferredOffice)
+      : undefined;
+    const preferredDow =
+      req.query.preferredDow != null ? Number(req.query.preferredDow) : undefined;
+    const preferredTime =
+      req.query.preferredTime === "morning" || req.query.preferredTime === "afternoon"
+        ? req.query.preferredTime
+        : undefined;
+
+    const result = await findSlot({ chatbotTxnIds, preferredOffice, preferredDow, preferredTime });
     res.json(result);
   } catch (err) {
     // Log the SQLSTATE so query bugs are distinguishable from a real outage —
     // a bad query previously surfaced as an opaque "scheduling-unreachable".
     const pgCode = (err as { code?: string }).code;
     console.error("Scheduling slot error:", pgCode ? `[${pgCode}]` : "", err);
+    res.status(502).json({ error: "scheduling-unreachable" });
+  }
+});
+
+// GET /chatbot/sessions/:sessionId/scheduling/offices
+// Returns offices eligible to handle the session's active transactions.
+// Used by the "Find Another" preference picker to show office choices.
+app.get("/chatbot/sessions/:sessionId/scheduling/offices", async (req, res) => {
+  try {
+    if (!schedulingEnabled()) {
+      res.json({ offices: [] });
+      return;
+    }
+    const session = await getSession(TENANT_ID, req.params.sessionId);
+    if (!session) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    const chatbotTxnIds = session.structuredContext.transactions
+      .filter((t) => t.status === "active")
+      .map((t) => t.txnTypeId);
+    const offices = await getEligibleOffices(chatbotTxnIds);
+    res.json({ offices });
+  } catch (err) {
+    console.error("Scheduling offices error:", err);
     res.status(502).json({ error: "scheduling-unreachable" });
   }
 });

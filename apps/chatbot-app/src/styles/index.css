@@ -2568,6 +2568,12 @@ abbr.acronym {
 .schedule-offer-actions { display: flex; gap: 0.5rem; }
 .schedule-accept { padding: 0.55rem 1rem; border: none; border-radius: 6px; background: var(--brand-deep, #14467a); color: #fff; cursor: pointer; }
 .schedule-reroll { padding: 0.55rem 1rem; border: 1px solid var(--border, #d0d7de); border-radius: 6px; background: #fff; cursor: pointer; }
+.schedule-preferences { display: flex; flex-direction: column; gap: 0.6rem; }
+.schedule-preferences h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+.schedule-preferences-hint { margin: 0; font-size: 0.85rem; color: var(--muted, #666); }
+.schedule-pref-label { display: flex; flex-direction: column; font-size: 0.85rem; gap: 0.2rem; }
+.schedule-pref-label select { padding: 0.45rem; border: 1px solid var(--border, #d0d7de); border-radius: 6px; font: inherit; }
+.schedule-pref-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
 .schedule-contact { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
 .schedule-contact label { display: flex; flex-direction: column; font-size: 0.85rem; gap: 0.2rem; }
 .schedule-contact input { padding: 0.45rem; border: 1px solid var(--border, #d0d7de); border-radius: 6px; }

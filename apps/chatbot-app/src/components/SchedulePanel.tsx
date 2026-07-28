@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
   fetchSchedulingSlot,
+  fetchSchedulingOffices,
   bookSchedulingAppointment,
   verifySchedulingEmail,
   checkSchedulingEmailStatus,
   type SchedulingSlotResponse,
-  type SchedulingBookResponse,
+  type SchedulingOffice,
+  type SchedulingPreferences,
 } from '../api';
 
 interface Props {
@@ -14,7 +16,7 @@ interface Props {
   onBooked: () => void;
 }
 
-type Phase = 'loading' | 'offer' | 'contact' | 'verify-email' | 'verify-waiting' | 'booking' | 'unavailable' | 'done';
+type Phase = 'loading' | 'offer' | 'preferences' | 'contact' | 'verify-email' | 'verify-waiting' | 'booking' | 'unavailable' | 'done';
 
 interface BookingConfirmation {
   confirmationCode: string;
@@ -23,6 +25,8 @@ interface BookingConfirmation {
   timeFormatted: string;
   email: string;
 }
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -34,10 +38,14 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   const [emailVerified, setEmailVerified] = useState(false);
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
 
-  function loadSlot() {
+  // Preference picker state
+  const [offices, setOffices] = useState<SchedulingOffice[]>([]);
+  const [preferences, setPreferences] = useState<SchedulingPreferences>({});
+
+  function loadSlot(prefs?: SchedulingPreferences) {
     setPhase('loading');
     setError(null);
-    fetchSchedulingSlot(sessionId)
+    fetchSchedulingSlot(sessionId, prefs)
       .then((r) => {
         if (r.unavailable || r.schedulable === false || !r.slot) { setPhase('unavailable'); return; }
         setSlot(r.slot);
@@ -46,7 +54,20 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
       .catch((e: Error) => { setError(e.message); setPhase('unavailable'); });
   }
 
-  useEffect(loadSlot, [sessionId]);
+  useEffect(() => { loadSlot(); }, [sessionId]);
+
+  function openPreferences() {
+    setPhase('preferences');
+    setPreferences({});
+    // Load eligible offices
+    fetchSchedulingOffices(sessionId)
+      .then((r) => setOffices(r.offices))
+      .catch(() => setOffices([]));
+  }
+
+  function searchWithPreferences() {
+    loadSlot(preferences);
+  }
 
   async function handleVerifyEmail() {
     if (!email.trim()) { setError('Please enter your email.'); return; }
@@ -141,6 +162,64 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
     </div>
   );
 
+  if (phase === 'preferences') return (
+    <div className="schedule-panel" data-phase="preferences">
+      {error && <div className="schedule-error" role="alert">{error}</div>}
+      <div className="schedule-preferences">
+        <h3>What would you like to change?</h3>
+        <p className="schedule-preferences-hint">Pick one or more preferences, then search.</p>
+
+        <label className="schedule-pref-label">
+          Preferred office
+          <select
+            value={preferences.preferredOffice ?? ''}
+            onChange={(e) => setPreferences((p) => ({
+              ...p,
+              preferredOffice: e.target.value ? Number(e.target.value) : undefined,
+            }))}
+          >
+            <option value="">Any office</option>
+            {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </label>
+
+        <label className="schedule-pref-label">
+          Preferred day
+          <select
+            value={preferences.preferredDow ?? ''}
+            onChange={(e) => setPreferences((p) => ({
+              ...p,
+              preferredDow: e.target.value !== '' ? Number(e.target.value) : undefined,
+            }))}
+          >
+            <option value="">Any day</option>
+            {DAY_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+          </select>
+        </label>
+
+        <label className="schedule-pref-label">
+          Preferred time
+          <select
+            value={preferences.preferredTime ?? ''}
+            onChange={(e) => setPreferences((p) => ({
+              ...p,
+              preferredTime: (e.target.value as 'morning' | 'afternoon') || undefined,
+            }))}
+          >
+            <option value="">Any time</option>
+            <option value="morning">Morning (before noon)</option>
+            <option value="afternoon">Afternoon (noon or later)</option>
+          </select>
+        </label>
+
+        <div className="schedule-pref-actions">
+          <button className="schedule-accept" onClick={searchWithPreferences}>Search</button>
+          <button className="schedule-reroll" onClick={() => loadSlot()}>Back to earliest</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="schedule-panel" data-phase={phase}>
       {error && <div className="schedule-error" role="alert">{error}</div>}
@@ -153,7 +232,7 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
           {phase === 'offer' && (
             <div className="schedule-offer-actions">
               <button className="schedule-accept" onClick={() => setPhase('contact')}>Book this time</button>
-              <button className="schedule-reroll" onClick={loadSlot}>Find another</button>
+              <button className="schedule-reroll" onClick={openPreferences}>Find another</button>
             </div>
           )}
         </div>
