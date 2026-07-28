@@ -99,13 +99,13 @@ INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
 -- =============================================================================
 -- Hotbuttons (chatbot landing-screen quick-reply categories)
 -- =============================================================================
-INSERT INTO hotbuttons (sort_order, label, prompt, description) VALUES
-    (1, 'Driver License & ID', 'I have a question about my driver license or ID card', 'Renewals, replacements, REAL ID, name/address changes, learner permits, road tests'),
-    (2, 'Vehicles & Plates',   'I have a question about a vehicle, title, or license plate', 'Title transfers, registration, tag replacement, plate surrender, specialty plates'),
-    (3, 'Taxes & Property',    'I have a question about my property taxes', 'Property tax payments, tangible personal property, installment plans'),
-    (4, 'Business',            'I have a question about my business', 'Business tax receipts, short-term rental tax (Airbnb/VRBO)'),
-    (5, 'Outdoors & Other',    'I have a question about hunting, fishing, boats, or concealed weapons', 'Hunting/fishing licenses, vessel registration, concealed weapons, handicap placards'),
-    (6, 'Lost or Replace',     'I lost something or need to replace a credential', 'Lost license, lost title, stolen tag, replacement decals');
+INSERT INTO hotbuttons (sort_order, label, prompt) VALUES
+    (1, 'Driver License & ID', 'I have a question about my driver license or ID card'),
+    (2, 'Vehicles & Plates',   'I have a question about a vehicle, title, or license plate'),
+    (3, 'Taxes & Property',    'I have a question about my property taxes'),
+    (4, 'Business',            'I have a question about my business'),
+    (5, 'Outdoors & Other',    'I have a question about hunting, fishing, boats, or concealed weapons'),
+    (6, 'Lost or Replace',     'I lost something or need to replace a credential');
 
 -- =============================================================================
 -- Prescreen Questions
