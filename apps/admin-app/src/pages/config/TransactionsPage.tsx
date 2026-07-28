@@ -302,11 +302,9 @@ function TypesSection({
 /**
  * Per-office availability.
  *
- * A transaction is offered everywhere by default via its global row. A checked
- * cell means an office-specific row exists and is active; unchecking sets that
- * row inactive rather than deleting it, so the office's own date window
- * survives. "Clear" in the override table deletes the row entirely and returns
- * the office to the global setting.
+ * A transaction is offered everywhere by default via its global row. Checked
+ * means available (default); unchecking creates a 'hidden' override for that
+ * office. Checking again deletes the override, returning to the global default.
  */
 function AvailabilitySection({
   matrix,
@@ -342,15 +340,27 @@ function AvailabilitySection({
     const cell = `${slug}|${officeId}`;
     setBusyCell(cell);
     try {
-      await mutate(
-        () =>
-          setTxnOfficeOverride({
-            txnTypeId: slug,
-            officeId: Number(officeId),
-            status: next ? "active" : "inactive",
-          }),
-        next ? "Enabled for that office." : "Disabled for that office.",
-      );
+      if (next) {
+        // Re-checking: remove the 'hidden' override to restore global availability
+        const existing = overrideFor(slug, officeId);
+        if (existing) {
+          await mutate(
+            () => deleteTxnOfficeOverride(existing.id),
+            "Restored to available at that office.",
+          );
+        }
+      } else {
+        // Unchecking: create a 'hidden' override to suppress at this office
+        await mutate(
+          () =>
+            setTxnOfficeOverride({
+              txnTypeId: slug,
+              officeId: Number(officeId),
+              status: "hidden",
+            }),
+          "Hidden at that office.",
+        );
+      }
     } finally {
       setBusyCell(null);
     }
@@ -359,14 +369,20 @@ function AvailabilitySection({
   return (
     <Section
       title="Office availability"
-      description="Transactions without an office row are offered at every office. Checking a cell creates an office-specific row; unchecking marks it inactive there."
+      description="All transactions are available at every office by default. Uncheck a cell to hide that transaction at a specific office."
     >
       <Matrix
         rows={rows}
         cols={cols}
         rowHeader="Transaction"
         emptyMessage="Add a transaction type and an office to configure availability."
-        isOn={(slug, officeId) => overrideFor(slug, officeId)?.status === "active"}
+        isOn={(slug, officeId) => {
+          const ov = overrideFor(slug, officeId);
+          // No override = global default = available (checked)
+          // Override with status 'active' = still available (checked)
+          // Override with status 'hidden' = suppressed (unchecked)
+          return !ov || ov.status === "active";
+        }}
         isBusy={(slug, officeId) => busyCell === `${slug}|${officeId}`}
         isDisabled={() => saving}
         onToggle={toggle}
