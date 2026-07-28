@@ -586,6 +586,21 @@ export interface SchedulingSlotResponse {
   unmapped?: string[];
 }
 
+export interface SchedulingOffice {
+  id: number;
+  name: string;
+}
+
+export interface SchedulingOfficesResponse {
+  offices: SchedulingOffice[];
+}
+
+export interface SchedulingPreferences {
+  preferredOffice?: number;
+  preferredDow?: number;
+  preferredTime?: "morning" | "afternoon";
+}
+
 export interface SchedulingBookResponse {
   status: "booked";
   appointmentId: number;
@@ -599,14 +614,34 @@ export interface SchedulingBookResponse {
   };
 }
 
-export async function fetchSchedulingSlot(sessionId: string): Promise<SchedulingSlotResponse> {
+export async function fetchSchedulingSlot(
+  sessionId: string,
+  preferences?: SchedulingPreferences,
+): Promise<SchedulingSlotResponse> {
   const getHeaders = await buildGetHeaders();
-  const res = await fetch(
-    `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/slot`,
-    getHeaders ? { headers: getHeaders } : undefined,
-  );
+  const params = new URLSearchParams();
+  if (preferences?.preferredOffice != null)
+    params.set("preferredOffice", String(preferences.preferredOffice));
+  if (preferences?.preferredDow != null)
+    params.set("preferredDow", String(preferences.preferredDow));
+  if (preferences?.preferredTime) params.set("preferredTime", preferences.preferredTime);
+  const qs = params.toString();
+  const url = `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/slot${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, getHeaders ? { headers: getHeaders } : undefined);
   if (!res.ok)
     throw httpError(res.status, "We couldn't reach scheduling. You can call the office to book.");
+  return res.json();
+}
+
+export async function fetchSchedulingOffices(
+  sessionId: string,
+): Promise<SchedulingOfficesResponse> {
+  const getHeaders = await buildGetHeaders();
+  const res = await fetch(
+    `${API_BASE}/chatbot/sessions/${sessionId}/scheduling/offices`,
+    getHeaders ? { headers: getHeaders } : undefined,
+  );
+  if (!res.ok) throw httpError(res.status, "Could not load office list.");
   return res.json();
 }
 
