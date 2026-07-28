@@ -15,9 +15,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path alias */
+    /* Path aliases — @st-lucie/ui resolves to source, mirroring vite.config.ts */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@st-lucie/ui": ["../packages/ui/src/index.ts"]
     },
 
     /* Linting */

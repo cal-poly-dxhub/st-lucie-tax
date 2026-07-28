@@ -16,11 +16,19 @@ async function run() {
       const status = res.status();
       if (status >= 400) {
         let body = "";
-        try { body = (await res.text()).substring(0, 200); } catch {}
+        try {
+          body = (await res.text()).substring(0, 200);
+        } catch {
+          /* body unavailable */
+        }
         console.log(`  [API ${status}] ${url} → ${body}`);
       } else if (url.includes("prescreen")) {
         let body = "";
-        try { body = (await res.text()).substring(0, 300); } catch {}
+        try {
+          body = (await res.text()).substring(0, 300);
+        } catch {
+          /* body unavailable */
+        }
         console.log(`  [API ${status}] ${url} → ${body}`);
       }
     }
@@ -58,7 +66,7 @@ async function run() {
 
     // Submit
     const submitBtn = page.locator('button:has-text("Submit")');
-    if (await submitBtn.count() > 0) {
+    if ((await submitBtn.count()) > 0) {
       console.log("  Clicking Submit...");
       await submitBtn.click();
       await page.waitForTimeout(5000);

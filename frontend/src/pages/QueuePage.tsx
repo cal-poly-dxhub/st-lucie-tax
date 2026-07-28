@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Users, Zap } from "lucide-react";
 import { api, type QueueEntry, type ClerkSession, type TxnType } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
-import { Badge, Button, Card, SectionLabel } from "@/components/ui";
+import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 export function QueuePage() {
   const notify = useToast();

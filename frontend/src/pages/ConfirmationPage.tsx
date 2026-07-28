@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Calendar, Send, Mail, CheckCircle } from "lucide-react";
 import { api, type ConfigResponse } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
-import { Badge, Button, Card, SectionLabel } from "@/components/ui";
+import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 interface BookingResult {
   confirmationCode: string;

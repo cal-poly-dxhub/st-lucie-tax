@@ -1,7 +1,7 @@
 import { Check, Circle, ShieldCheck, ClipboardList, FileCheck2, Minus } from "lucide-react";
 import type { CustomerRecord } from "@/lib/api";
 import { computeReadiness } from "@/lib/readiness";
-import { cn } from "@/lib/cn";
+import { cn } from "@st-lucie/ui";
 
 interface StepProps {
   icon: React.ReactNode;

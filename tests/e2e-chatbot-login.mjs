@@ -41,7 +41,10 @@ async function run() {
 
   // Wait for either chat UI or error
   try {
-    await page.waitForSelector('textarea, input[placeholder*="message"], [role="alert"], .welcome-hero', { timeout: 15000 });
+    await page.waitForSelector(
+      'textarea, input[placeholder*="message"], [role="alert"], .welcome-hero',
+      { timeout: 15000 },
+    );
   } catch {
     console.log("   Timed out waiting for post-login UI");
   }
@@ -55,13 +58,17 @@ async function run() {
     }
   }
 
-  const errorEls = await page.locator("[role='alert'], [class*='error'], [class*='red-']").allTextContents();
+  const errorEls = await page
+    .locator("[role='alert'], [class*='error'], [class*='red-']")
+    .allTextContents();
   if (errorEls.length > 0) {
     console.log("\n=== UI Errors ===", errorEls);
   }
 
   // Step 3: Check if we're in the chat now
-  const chatInput = page.locator('textarea, input[placeholder*="message"], input[placeholder*="type"]');
+  const chatInput = page.locator(
+    'textarea, input[placeholder*="message"], input[placeholder*="type"]',
+  );
   if ((await chatInput.count()) === 0) {
     console.log("3. No chat input found after login. Page text:");
     console.log((await page.textContent("body")).substring(0, 800));
@@ -77,10 +84,16 @@ async function run() {
 
   // Wait for bot response (Bedrock can take up to 60s)
   try {
-    await page.waitForFunction(() => {
-      const msgs = document.querySelectorAll('.message-row');
-      return msgs.length >= 2;
-    }, { timeout: 60000 });
+    await page.waitForFunction(
+      () => {
+        // This callback is serialized and run in the browser, so `document` is
+        // defined there, not in this Node script.
+        // eslint-disable-next-line no-undef
+        const msgs = document.querySelectorAll(".message-row");
+        return msgs.length >= 2;
+      },
+      { timeout: 60000 },
+    );
   } catch {
     console.log("   Timed out waiting for bot response");
   }

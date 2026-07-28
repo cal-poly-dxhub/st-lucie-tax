@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "./cn";
 
 type Tone = "go" | "civic" | "warn" | "stop" | "neutral";
 
@@ -33,13 +33,16 @@ export function Badge({
   );
 }
 
-type Variant = "go" | "civic" | "ghost" | "outline";
+type Variant = "go" | "civic" | "ghost" | "outline" | "danger";
 
 const buttonVariant: Record<Variant, string> = {
   go: "bg-go-500 text-white hover:bg-go-600 active:bg-go-700 shadow-sm shadow-go-700/20",
-  civic: "bg-civic-500 text-white hover:bg-civic-600 active:bg-civic-700 shadow-sm shadow-civic-900/20",
-  outline: "border border-civic-200 bg-white text-civic-700 hover:border-civic-400 hover:bg-civic-50",
+  civic:
+    "bg-civic-500 text-white hover:bg-civic-600 active:bg-civic-700 shadow-sm shadow-civic-900/20",
+  outline:
+    "border border-civic-200 bg-white text-civic-700 hover:border-civic-400 hover:bg-civic-50",
   ghost: "text-civic-600 hover:bg-civic-50",
+  danger: "border border-stop-200 bg-white text-stop-700 hover:bg-stop-50",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

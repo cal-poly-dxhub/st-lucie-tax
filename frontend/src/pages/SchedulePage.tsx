@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { api, type ConfigResponse, type ScheduleAppointment } from "@/lib/api";
-import { useToast } from "@/components/toast-context";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, useToast } from "@st-lucie/ui";
 
 const TXN_COLORS = [
   "#22c55e", "#c2410c", "#16a34a", "#7c3aed", "#a855f7",

@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { QrCode, Search, ScanLine, UserSearch, Clock } from "lucide-react";
 import { api, type NameMatch } from "@/lib/api";
-import { Button, Card, SectionLabel } from "./ui";
-import { useToast } from "./toast-context";
+import { Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
 
 interface Props {
   officeId: number;

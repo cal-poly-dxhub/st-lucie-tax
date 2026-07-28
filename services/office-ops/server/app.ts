@@ -21,7 +21,10 @@ if (mountAppointment) {
   // Public routes first (prescreen, config) — no auth required
   app.use("/api", publicRouter);
   app.use("/api", requireAuth(), appointmentRouter);
-  app.use("/api/admin", requireAuth("admin"), adminRouter);
+  // "ops-admin", not "admin": CloudFront routes /api/admin/* to the Chatbot
+  // stack's AdminFn (session review), which would otherwise shadow this router
+  // entirely. /api/ops-admin/* falls through to the /api/* office origin.
+  app.use("/api/ops-admin", requireAuth("admin"), adminRouter);
 }
 if (mountQueue) {
   app.use("/api", requireAuth("checkin_clerk", "service_clerk"), queueRouter);
