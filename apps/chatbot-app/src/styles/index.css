@@ -2513,6 +2513,18 @@ abbr.acronym {
   border-color: var(--brand);
   color: var(--brand-deep);
 }
+.header-app-link {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.header-app-link:hover {
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
 
 /* AuthID widget renders as a fullscreen overlay above all panels.
    The web-component paints its own backdrop; this wrapper just

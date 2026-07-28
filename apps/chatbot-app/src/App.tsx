@@ -26,6 +26,7 @@ import { ConfirmFacts } from './components/ConfirmFacts';
 import { SaveResumeHint, shouldShowSaveResumeHint } from './components/SaveResumeHint';
 import { BetaBanner } from './components/BetaBanner';
 import { useResizableWidth } from './hooks/useResizableWidth';
+import { officeOpsUrl, adminUrl, isStaff } from './lib/app-links';
 
 export default function App() {
   const [auth, setAuth] = useState<AuthUser | null>(null);
@@ -289,6 +290,23 @@ export default function App() {
           </span>
           <div className="auth-badge" title={auth.email}>
             <span className="auth-email">{auth.email}</span>
+            {/* Staff-only escape hatch back to the other SPAs. Separate
+                bundles, so these are plain anchors (full page load); the
+                chatbot rehydrates from ?s=<sessionId> on return. Hidden in
+                walk-in kiosk mode — an unattended kiosk shouldn't advertise
+                staff surfaces. */}
+            {!session.isWalkIn && isStaff(auth.groups) && (
+              <>
+                <a className="header-app-link" href={officeOpsUrl}>
+                  Office Ops
+                </a>
+                {auth.groups.includes('admin') && (
+                  <a className="header-app-link" href={adminUrl}>
+                    Admin
+                  </a>
+                )}
+              </>
+            )}
             <button
               type="button"
               className="auth-logout-btn"
