@@ -393,10 +393,33 @@ router.post("/walk-in", async (req, res) => {
 
     if (!prescreen) {
       // Auto check-in happens after the customer completes prescreen in lobby.
+      const confirmationCode = rows[0].confirmation_code;
+
+      // Send prescreen email if the customer provided a real email address
+      if (email && !email.endsWith("@walkin.local")) {
+        try {
+          const prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}?autoCheckIn=1${priority ? "&priority=1" : ""}`;
+          const emailInput = buildPrescreenLinkEmail({
+            recipientEmail: email,
+            firstName,
+            confirmationCode,
+            baseUrl: BASE_URL,
+            fromEmail: EMAIL,
+          });
+          const placeholder = `${BASE_URL}/prescreen/${confirmationCode}`;
+          const html = emailInput.html.replaceAll(placeholder, prescreenUrl);
+          const text = emailInput.text.replaceAll(placeholder, prescreenUrl);
+          await sendEmail(ses, { ...emailInput, html, text });
+        } catch (emailErr) {
+          // Log but don't fail the walk-in registration if email fails
+          console.error("Failed to send prescreen email for walk-in:", emailErr);
+        }
+      }
+
       return res.json({
         ok: true,
         appointmentId,
-        confirmationCode: rows[0].confirmation_code,
+        confirmationCode,
         pendingPrescreen: true,
       });
     }
