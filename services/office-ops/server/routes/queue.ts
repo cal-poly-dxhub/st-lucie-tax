@@ -213,24 +213,90 @@ router.post("/clerk/record-step", async (req, res) => {
 
 // ─── POST /api/seed-queue (demo helper) ─────────────────────────────────────
 router.post("/seed-queue", async (req, res) => {
+  const firstNames = [
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+  ];
+  const lastNames = [
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+  ];
+  const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
   try {
-    const { rows: appointments } = await pool.query(
-      `SELECT a.id, a.office_id FROM appointments a
-       WHERE a.status = 'scheduled'
-         AND NOT EXISTS (SELECT 1 FROM queue q WHERE q.appointment_id = a.id)
-       ORDER BY a.appointment_time
-       LIMIT 5`,
+    // Use office 1 by default; callers can pass officeId in the body
+    const officeId = (req.body.officeId as number) || 1;
+
+    // Pick a random active transaction type for each seeded customer
+    const { rows: txnTypes } = await pool.query<{ id: number }>(
+      `SELECT id FROM transaction_types WHERE office_id IS NULL AND status = 'active'`,
     );
+    if (txnTypes.length === 0) {
+      return res.status(400).json({ error: "No active transaction types found" });
+    }
+
     const seeded = [];
-    for (const appt of appointments) {
-      const { rows } = await pool.query(
-        `INSERT INTO queue (appointment_id, office_id, queue_number, status, checked_in_at)
-         VALUES ($1, $2, (SELECT COALESCE(MAX(queue_number), 0) + 1 FROM queue WHERE office_id = $2), 'waiting', NOW())
-         RETURNING id, queue_number`,
-        [appt.id, appt.office_id],
+    for (let i = 0; i < 5; i++) {
+      const firstName = pick(firstNames);
+      const lastName = pick(lastNames);
+      const txnId = pick(txnTypes).id;
+
+      // Create a walk-in appointment for today
+      const { rows: apptRows } = await pool.query<{ id: number }>(
+        `INSERT INTO appointments (office_id, first_name, last_name, contact_email, contact_phone,
+           txn_type_ids, appointment_date, status, is_walk_in)
+         VALUES ($1, $2, $3, $4, $5, ARRAY[$6], CURRENT_DATE, 'scheduled', TRUE)
+         RETURNING id`,
+        [
+          officeId,
+          firstName,
+          lastName,
+          `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+          "772-555-" + String(Math.floor(Math.random() * 10000)).padStart(4, "0"),
+          txnId,
+        ],
       );
-      await pool.query(`UPDATE appointments SET status = 'scheduled' WHERE id = $1`, [appt.id]);
-      seeded.push(rows[0]);
+      const appointmentId = apptRows[0].id;
+
+      // Check them into the queue
+      const { rows } = await pool.query<{ id: number; queue_number: number }>(
+        `SELECT check_in_to_queue($1, $2, NULL) AS id`,
+        [officeId, appointmentId],
+      );
+      const queueId = rows[0].id;
+      const qRow = await pool.query<{ queue_number: number }>(
+        `SELECT queue_number FROM queue WHERE id = $1`,
+        [queueId],
+      );
+      seeded.push({ id: queueId, queue_number: qRow.rows[0].queue_number });
     }
     res.json({ ok: true, seeded });
   } catch (err: unknown) {
