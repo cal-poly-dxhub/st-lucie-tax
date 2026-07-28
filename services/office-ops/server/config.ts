@@ -10,9 +10,8 @@ export const EMAIL = process.env.EMAIL ?? "noreply@localhost";
 export const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 export const DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET ?? "";
 
-// Demo data is anchored to a fixed date so name/date lookups resolve against
-// the seeded appointments. Override with DEMO_DATE in real deployments.
-export const DEFAULT_DATE = process.env.DEMO_DATE ?? "2026-06-24";
+// Default to today's date. Override with DEMO_DATE env var if needed.
+export const DEFAULT_DATE = process.env.DEMO_DATE ?? new Date().toISOString().slice(0, 10);
 
 // SERVICE selects which router(s) this process mounts. The same code is
 // deployed as two Lambdas: SERVICE=appointment and SERVICE=queue. Unset (local
