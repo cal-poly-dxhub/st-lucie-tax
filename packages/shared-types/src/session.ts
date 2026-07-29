@@ -132,6 +132,73 @@ export interface FactDefinition {
 
 export type ItemBucket = "bring_in" | "optional_upload" | "form";
 
+/**
+ * Which printed date on a document a validity rule reads + compares. Also the
+ * key set the upload vision screen transcribes into ObservedDates.
+ *   issued  — date the document was issued/printed
+ *   dated   — the document's own effective date, if distinct from issued
+ *   signed  — signature / certification date
+ *   expires — printed expiration / valid-through date
+ */
+export type DocumentDateAnchor = "issued" | "dated" | "signed" | "expires";
+
+/**
+ * Dates the upload vision screen transcribed off a document, keyed by anchor.
+ * All optional — a field is present only when a legible, well-formed date was
+ * reported for that anchor. Observation only; the expiry decision consumes it.
+ */
+export type ObservedDates = Partial<Record<DocumentDateAnchor, string>>;
+
+/**
+ * Machine-readable recency/expiry rule for a document (uploaded copies).
+ *   rule 'max-age'   — the `anchor` date must be within `days` of today.
+ *   rule 'unexpired' — the printed `expires` date must be today or later.
+ * `source` is REQUIRED: every rule must cite an FLHSMV/tcslc/statute basis,
+ * mirroring the item `source`/`verified` governance convention. A malformed
+ * rule is rejected by `npm run lint:trees`.
+ */
+/**
+ * A content/status/eligibility check on an uploaded document — an attribute the
+ * document must SHOW (e.g. a Sunbiz printout showing status "Active", a VA
+ * letter stating "100% permanent and total"). Unlike a date rule, this is
+ * ADVISORY ONLY: the vision screen judges whether the attribute is present and,
+ * if it is clearly missing/wrong, the resident gets a soft warning to
+ * self-correct — it NEVER hard-blocks the upload (model judgment is fuzzier than
+ * a date compare, so it must not wrongly reject a valid resident).
+ */
+export interface ContentCheck {
+  /** The visually-checkable attribute the document must show. */
+  requiredAttribute: string;
+  /** Official/tcslc/staff basis for requiring it. */
+  source: string;
+  /** Optional subtype scoping, same semantics as DocumentValidity.appliesWhen. */
+  appliesWhen?: string[];
+}
+
+export interface DocumentValidity {
+  /** Date rule. Optional — an item may carry only contentChecks and no date rule. */
+  rule?: "max-age" | "unexpired";
+  anchor?: DocumentDateAnchor;
+  /** Required for rule 'max-age'; ignored for 'unexpired'. */
+  days?: number;
+  /** Required when a date `rule` is present; the date rule's citation. */
+  source?: string;
+  /**
+   * Subtype scoping for MIXED-bucket items (e.g. address proof, whose one slot
+   * accepts a 60-day utility bill AND a permanent deed). When present, the date
+   * rule only fires if the vision screen's observed document description matches
+   * one of these keywords (case-insensitive substring); otherwise the upload is
+   * not date-screened (fail-open). Absent → the rule applies to the whole item.
+   */
+  appliesWhen?: string[];
+  /**
+   * Advisory content/status checks. Never block; surface a soft warning when the
+   * model reports a required attribute is clearly missing/wrong. Independent of
+   * the date rule — an item may have contentChecks with no date rule at all.
+   */
+  contentChecks?: ContentCheck[];
+}
+
 export interface CatalogItem {
   itemId: string;
   label: string;
@@ -139,6 +206,12 @@ export interface CatalogItem {
   source?: string;
   verified?: string;
   notes?: string;
+  /** Number of upload slots this item needs (e.g. a two-sided permit = 2).
+   * Defaults to 1 when absent. Only meaningful for optional_upload items. */
+  uploadSides?: number;
+  /** Recency/expiry rule for an uploaded copy. Absent → no date screening
+   * (plausibility-only). Populated per item in the Phase 3 policy audit. */
+  validity?: DocumentValidity;
 }
 
 export interface DecisionTreeBranch {
@@ -199,6 +272,7 @@ export interface StructuredContext {
    * non-empty list, or when the customer's intent shifts.
    */
   pendingSuggestedTxnIds?: string[];
+  suggestedReplies?: Array<{ label: string; value: string }>;
 }
 
 export interface ConversationTurn {
@@ -285,7 +359,14 @@ export interface Session {
 
 export interface AuthIdProofSummary {
   operationId: string;
-  decision: "pass" | "review" | "reject";
+  /**
+   * `pass`/`review`/`reject` come from the decision matrix; `failed` records a
+   * transport-level AuthID failure (operation status > 1 — the result was
+   * never usable) so admin triage can tell "AuthID rejected the person" apart
+   * from "AuthID couldn't complete the check." All non-pass/review outcomes
+   * leave the session in verify-identity (Skip + retry stay available).
+   */
+  decision: "pass" | "review" | "reject" | "failed";
   failureReasons: string[];
   matchedAt: string;
 }

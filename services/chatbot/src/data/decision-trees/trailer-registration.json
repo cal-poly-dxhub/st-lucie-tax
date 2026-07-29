@@ -39,7 +39,7 @@
     },
     {
       "when": { "trailer_construction_type": "homemade", "trailer_has_parts_receipts": "no" },
-      "note": "BLOCKED: homemade trailer registration requires receipts so the tax collector can calculate the 6% sales tax on material cost. Without receipts, reconstruct from credit-card statements or contact the office for a market-value estimate before visiting.",
+      "note": "No parts receipts? You can still register the same day: declare the value of the trailer and pay 6% sales tax on that declared value. (Bringing receipts is preferred so tax is figured on actual material cost, but they are not required.) [Confirmed by TCSLC staff — policy-questions REG-1, 2026-07.]",
       "sourceRefs": ["https://www.tcslc.com/302/Trailers"]
     },
     {

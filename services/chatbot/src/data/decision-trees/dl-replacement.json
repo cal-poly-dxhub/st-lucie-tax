@@ -29,6 +29,16 @@
     },
     {
       "when": {
+        "real_id_status": "compliant"
+      },
+      "removeItems": ["primary-id-passport"],
+      "note": "A REAL-ID-compliant (gold star) customer does NOT need to re-present identity documents for an in-office replacement — unless something is changing (name, address, or adding a designation), in which case bring only the document for that change. Exception: a credential marked TEMPORARY must re-present lawful-presence documentation each time. [Confirmed by TCSLC staff — policy-questions DL-8, 2026-07.]",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
         "real_id_status": "not-compliant"
       },
       "addItems": ["social-security-card", "address-proof-1", "address-proof-2"],

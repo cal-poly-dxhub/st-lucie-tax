@@ -124,13 +124,15 @@
     {
       "when": { "btr_exemption_claim": "veteran-discount" },
       "addItems": ["dd214-or-veteran-id"],
-      "note": "Florida's Veterans Licensing Fee Waiver program reduces BTR-related fees for eligible veterans. Present DD-214 or VA documentation.",
+      "removeItems": ["btr-application-fee"],
+      "note": "The county BTR fee is waived in full for eligible veterans. Present a DD-214 showing an Honorable character of service. (The waiver is the same for all eligible veterans — a 100% disability rating does not add any further benefit.)",
       "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
     },
     {
       "when": { "is_100_percent_disabled_veteran": "yes" },
-      "addItems": ["va-100-percent-disability-letter"],
-      "note": "100% total-and-permanent-disabled veterans may qualify for BTR fee reduction under Florida's veterans fee-waiver program. Present VA letter.",
+      "addItems": ["dd214-or-veteran-id"],
+      "removeItems": ["btr-application-fee"],
+      "note": "The county BTR fee is waived in full for eligible veterans; a 100% disability rating carries no additional BTR benefit. Present a DD-214 showing an Honorable character of service.",
       "sourceRefs": ["https://www.tcslc.com/227/Local-Business-Tax"]
     },
     {
