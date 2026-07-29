@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, type QueueEntry } from "@/lib/api";
 
 export function LobbyDisplay() {
@@ -23,6 +24,13 @@ export function LobbyDisplay() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#1a202c] p-8">
+      <Link
+        to="/check-in"
+        className="fixed left-4 top-4 inline-flex items-center gap-1.5 rounded-lg bg-[#4a5568] px-4 py-2.5 text-sm font-semibold text-gray-200 transition-colors hover:bg-[#2d3748] hover:text-white"
+      >
+        ← Office Ops
+      </Link>
+
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold text-white">St. Lucie County Tax Collector</h1>
         <p className="mt-1 text-sm text-gray-400">Now Serving</p>
