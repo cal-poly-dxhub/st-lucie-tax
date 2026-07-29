@@ -52,6 +52,16 @@
     {
       "when": {
         "transfer_reason": "inheritance-deceased-owner",
+        "inheritance_additional_owners": "surviving-co-owner",
+        "has_lien_or_lease": "none"
+      },
+      "addItems": ["death-certificate-inheritance"],
+      "note": "Surviving co-owner (title held jointly, e.g. joined by \"or\"): with no lien on the vehicle, ONLY the certified death certificate plus the title are required — no additional estate affidavit. If the title is lost or electronic, only the certified death certificate is needed. [Confirmed by TCSLC staff — policy-questions TITLE-2, 2026-07.]",
+      "sourceRefs": ["https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/"]
+    },
+    {
+      "when": {
+        "transfer_reason": "inheritance-deceased-owner",
         "inheritance_additional_owners": "sole-owner-deceased",
         "inheritance_has_will": "no-will-no-probate"
       },

@@ -155,7 +155,7 @@
         "placard_special_exception_needed": "no"
       },
       "addItems": ["florida-dl-or-id", "hsmv-83039"],
-      "note": "Permanent placard for a Florida resident — valid 4 years, no fee. Expires on the holder's birthday. Submission options: in person at TCSLC (appointment Mon–Fri 9:00–14:00; walk-ins after 14:30), by mail (TCSLC, P.O. Box 308, Ft. Pierce, FL 34954), or have your physician's office fax HSMV 83039 directly to TCSLC.",
+      "note": "Permanent placard for a Florida resident — valid 4 years, no fee. Expires on the holder's birthday. Submission options: in person at TCSLC (appointment Mon–Fri 9:00–14:00; walk-ins after 14:30), or by mail (TCSLC, P.O. Box 308, Ft. Pierce, FL 34954). A physician's office may fax HSMV 83039 ahead, but a faxed form does NOT waive the visit — the applicant must still come in person unless they ask TCSLC to mail the placard to them. [Confirmed by TCSLC staff — policy-questions TAX-4, 2026-07.]",
       "sourceRefs": [
         "https://www.tcslc.com/218/Handicap-Placards",
         "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
@@ -169,7 +169,7 @@
         "placard_prior_temporary_within_12mo": "no"
       },
       "addItems": ["florida-dl-or-id", "hsmv-83039", "payment-15-original-temporary"],
-      "note": "Temporary placard for a Florida resident — valid up to 6 months (date set by the physician), $15. Submission options: in person, by mail (P.O. Box 308, Ft. Pierce, FL 34954), or physician-faxed HSMV 83039.",
+      "note": "Temporary placard for a Florida resident — valid up to 6 months (date set by the physician), $15. Submission options: in person or by mail (P.O. Box 308, Ft. Pierce, FL 34954). A physician may fax HSMV 83039 ahead, but a faxed form does NOT waive the visit — the applicant must still come in person unless they ask TCSLC to mail the placard. [Confirmed by TCSLC staff — policy-questions TAX-4, 2026-07.]",
       "sourceRefs": [
         "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/temporary-disabled-person-parking-permits/",
         "https://www.flsenate.gov/Laws/Statutes/2024/320.0848"
@@ -183,7 +183,7 @@
         "placard_prior_temporary_within_12mo": "yes"
       },
       "addItems": ["florida-dl-or-id", "hsmv-83039"],
-      "note": "Second temporary placard within 12 months of the prior one — fee waived per §320.0848(1)(a). Submission options: in person, by mail, or physician-faxed.",
+      "note": "Second temporary placard within 12 months of the prior one — fee waived per §320.0848(1)(a). Submission options: in person or by mail. A physician-faxed HSMV 83039 does NOT waive the visit — the applicant must still come in person unless they ask TCSLC to mail the placard. [Confirmed by TCSLC staff — policy-questions TAX-4, 2026-07.]",
       "sourceRefs": [
         "https://www.flsenate.gov/Laws/Statutes/2024/320.0848",
         "https://www.flhsmv.gov/pdf/forms/83039.pdf"
@@ -263,7 +263,7 @@
         "placard_applicant_type": "individual-florida-id"
       },
       "addItems": ["florida-dl-or-id", "hsmv-83039", "expiring-placard-registration-copy"],
-      "note": "Renewal — submit a new HSMV 83039 (signed within the last 12 months) plus a copy of the registration for your expiring permit. Submission options: in person, by mail, by fax from your physician's office, or online via MyDMVPortal.flhsmv.gov.",
+      "note": "Renewal — submit a new HSMV 83039 (signed within the last 12 months) plus a copy of the registration for your expiring permit. Submission options: in person, by mail, or online via MyDMVPortal.flhsmv.gov. A physician may fax HSMV 83039 ahead, but a faxed form does NOT waive the visit — the applicant must still come in person unless they ask TCSLC to mail the placard. [Confirmed by TCSLC staff — policy-questions TAX-4, 2026-07.]",
       "sourceRefs": [
         "https://www.flhsmv.gov/pdf/forms/83039.pdf",
         "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"

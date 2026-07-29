@@ -43,7 +43,7 @@
     {
       "when": { "initial_reg_exemption_path": "immediate-family" },
       "addItems": ["hsmv-82002"],
-      "note": "Vehicle acquired from an immediate family member (blood relative, spouse, parent, cousin, stepchild) where seller and purchaser share a residential address qualifies for the §320.072 Initial Registration Fee exemption. Customer completes HSMV 82002.",
+      "note": "The Initial Registration Fee exemption (§320.072) applies when the vehicle is transferred to an immediate family member: parents, children, spouses, surviving spouses, stepchildren, and other relatives by blood, marriage, or adoption who reside in the same household. Both the previous and new owner must have the SAME residential address in the motor-vehicle issuance system. Customer completes HSMV 82002.",
       "sourceRefs": [
         "https://www.flhsmv.gov/pdf/forms/82002.pdf",
         "https://www.flsenate.gov/Laws/Statutes/2024/320.072"

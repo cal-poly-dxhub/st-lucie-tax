@@ -52,27 +52,41 @@
   },
   {
     "itemId": "social-security-card",
-    "label": "Original Social Security card (copies not accepted)",
+    "label": "Original Social Security card — or an accepted SSN alternative (see notes)",
     "bucket": "bring_in",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/",
-    "verified": "flhsmv-2026-04-20",
-    "notes": "Must be the original physical card. A W-2, 1099, or pay stub with SSN is acceptable only in very limited REAL ID fallback scenarios — ask clerk."
+    "verified": "tcslc-sme-2026-07-01",
+    "notes": "The original card is preferred, but if you don't have it the office routinely accepts an alternative that shows your SSN: a W-2, any 1099 form, Form 1095-C, a pay stub, or the office's self-certification of Social Security number. (Source: tcslc-sme policy-questions DL-1, 2026-07.)"
   },
   {
     "itemId": "address-proof-1",
     "label": "Proof of St. Lucie County residential address #1 (deed, mortgage statement, lease, current utility bill, voter registration card, bank statement, or official mail dated within 60 days)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/",
     "verified": "flhsmv-2026-04-20",
-    "notes": "FLHSMV requires TWO proofs of Florida residential address, each from a different source. Must show residency of more than 30 days and be dated within 60 days."
+    "notes": "FLHSMV requires TWO proofs of Florida residential address, each from a different source. Must show residency of more than 30 days and be dated within 60 days.",
+    "validity": {
+      "rule": "max-age",
+      "anchor": "dated",
+      "days": 60,
+      "source": "FLHSMV ops-manual IR01 + tcslc-sme policy-questions D-5/DL-2 (60-day window applies to transient proofs only; scoped via appliesWhen so permanent proofs — deed/mortgage/lease/voter card — are never date-screened)",
+      "appliesWhen": ["utility bill", "bank statement", "official mail", "government document"]
+    }
   },
   {
     "itemId": "address-proof-2",
     "label": "Proof of St. Lucie County residential address #2 (from a different source than #1)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/what-to-bring/",
     "verified": "flhsmv-2026-04-20",
-    "notes": "FLHSMV requires two documents from different sources."
+    "notes": "FLHSMV requires two documents from different sources.",
+    "validity": {
+      "rule": "max-age",
+      "anchor": "dated",
+      "days": 60,
+      "source": "FLHSMV ops-manual IR01 + tcslc-sme policy-questions D-5/DL-2 (60-day window applies to transient proofs only; scoped via appliesWhen so permanent proofs — deed/mortgage/lease/voter card — are never date-screened)",
+      "appliesWhen": ["utility bill", "bank statement", "official mail", "government document"]
+    }
   },
   {
     "itemId": "declaration-of-domicile",
@@ -129,7 +143,15 @@
     "label": "Copy of military orders (active-duty service members)",
     "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/military/",
-    "verified": "flhsmv-2026-04-20"
+    "verified": "flhsmv-2026-04-20",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The document is active-duty military orders (not a discharge or reserve status) showing the servicemember's name and active-duty status/period",
+          "source": "catalog label 'Copy of military orders (active-duty service members)'; https://www.flhsmv.gov/military/"
+        }
+      ]
+    }
   },
   {
     "itemId": "hsmv-82040",
@@ -171,14 +193,14 @@
   {
     "itemId": "oos-registration",
     "label": "Current out-of-state registration (dated within the last 6 months)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20"
   },
   {
     "itemId": "bill-of-sale-purchase-agreement",
     "label": "Bill of sale or purchase agreement",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20",
     "notes": "Used to prove sales tax paid out of state (if owned less than 6 months) and/or to supply odometer disclosure when the title is missing it."
@@ -186,7 +208,7 @@
   {
     "itemId": "proof-oos-sales-tax",
     "label": "Proof of sales tax paid in previous state (bill of sale, dealer invoice, or tax receipt)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20",
     "notes": "Applies only when vehicle owned less than 6 months. Without proof, FL collects full 6% Use Tax + local option tax."
@@ -194,20 +216,20 @@
   {
     "itemId": "lien-letter",
     "label": "Lienholder letter on letterhead with VIN, make, and year (or copy of OOS title showing the lien)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20"
   },
   {
     "itemId": "lease-agreement-with-lessor-letter",
     "label": "Lease agreement plus lessor letter authorizing Florida 'Registration Only' (VIN, make, and year must appear in the letter)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20"
   },
   {
     "itemId": "fl-insurance-proof",
-    "label": "Proof of current Florida PDL and PIP insurance (insurance ID card with company name + policy number)",
+    "label": "Proof of current Florida PDL and PIP insurance (insurance ID card with company name + policy number; the VIN of the vehicle must be listed on the policy)",
     "bucket": "bring_in",
     "source": "https://www.flhsmv.gov/insurance/",
     "verified": "flhsmv-2026-04-20"
@@ -215,15 +237,23 @@
   {
     "itemId": "sunbiz-registration",
     "label": "Sunbiz 'active' registration printout for the business (showing registered agents)",
-    "bucket": "form",
+    "bucket": "optional_upload",
     "source": "https://search.sunbiz.org/",
     "verified": "sunbiz-2026-04-20",
-    "notes": "Required when title will be in a business name."
+    "notes": "Required when title will be in a business name.",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The Sunbiz entity-detail printout shows status 'Active' (not Inactive/Dissolved) and lists the registered agent",
+          "source": "catalog label 'Sunbiz active-registration printout ... showing registered agents'; https://search.sunbiz.org/"
+        }
+      ]
+    }
   },
   {
     "itemId": "certification-of-trust",
     "label": "Certification of Trust or full Trust Agreement",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "flhsmv-2026-04-20",
     "notes": "Required when title will be held in a trust."
@@ -313,16 +343,16 @@
     "label": "Pass the Hazmat written test (valid only 60 days; available in English or Spanish; may be taken in audio form)",
     "bucket": "bring_in",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/commercial-driver-license/",
-    "verified": "flhsmv-2026-04-20",
-    "notes": "The Walton office does NOT have a hazmat testing machine."
+    "verified": "tcslc-sme-2026-07-01",
+    "notes": "Hazmat fingerprinting is not available at the Walton Road office (no fingerprint machine). Hazmat testing and fingerprinting are handled ONLY at the Tradition and Fort Pierce offices. (Source: tcslc-sme policy-questions CDL-1, 2026-07.)"
   },
   {
     "itemId": "school-employee-letter-or-id",
     "label": "School employment ID card OR letter from the school department on letterhead",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/commercial-driver-license/",
-    "verified": "flhsmv-2026-04-20",
-    "notes": "Required on every original and renewal for school-bus endorsement applicants."
+    "verified": "tcslc-sme-2026-07-01",
+    "notes": "For any school-district employee required to hold a CDL (NOT limited to school-bus endorsement applicants). Required on every original and every renewal and scanned into the record; qualifies the customer for the reduced school-employee CDL fee. (Source: tcslc-sme policy-questions CDL-2, 2026-07.)"
   },
   {
     "itemId": "valid-out-of-state-cdl",
@@ -340,10 +370,11 @@
   },
   {
     "itemId": "poa-document",
-    "label": "Notarized power of attorney document (original signature or DocuSigned) authorizing someone other than the owner to sign title paperwork",
+    "label": "Power of attorney authorizing someone other than the owner to sign the title paperwork (a general, durable, or limited POA is accepted — the HSMV 82053 form is NOT required)",
     "bucket": "form",
     "source": "https://www.flhsmv.gov/pdf/forms/82053.pdf",
-    "verified": "flhsmv-2026-04-20"
+    "verified": "tcslc-sme-2026-07-01",
+    "notes": "Any general, durable, or limited POA is accepted as long as it grants authority to conduct the requested motor-vehicle transaction — HSMV 82053 is one option, not a requirement. A POA executed on or after 2011-10-01 must be signed by the principal, include two witnesses, and be notarized OR contain a perjury clause in lieu of notarization. If a durable POA is used to title the vehicle into the appointee's own name, the ORIGINAL durable POA is required. [Confirmed by TCSLC staff — policy-questions TITLE-6, 2026-07.]"
   },
   {
     "itemId": "odometer-disclosure-bill-of-sale",
@@ -370,16 +401,32 @@
   {
     "itemId": "dd214-or-veteran-id",
     "label": "DD-214 discharge document (any member-copy) or VA-issued veteran ID card to add the 'V' designation",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/military/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "If a DD-214: the character of service shows 'Honorable' (or under honorable conditions). Alternatively a VA-issued veteran ID card.",
+          "source": "tcslc-sme policy-questions TAX-1 ('DD-214 showing an Honorable character of service') + flhsmv.gov/military"
+        }
+      ]
+    }
   },
   {
     "itemId": "va-100-percent-disability-letter",
     "label": "VA letter documenting 100% total and permanent service-connected disability rating (required for no-fee credential per §322.21)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/military/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The letter or VA ID states a 100% TOTAL AND PERMANENT service-connected disability rating (a temporary 100% rating does NOT qualify for the no-fee credential)",
+          "source": "tcslc-sme policy-questions DL-7 ('temporary 100% rating does not qualify') + FLHSMV/military per Fla. Stat. 322.21"
+        }
+      ]
+    }
   },
   {
     "itemId": "ssa-record-updated",
@@ -436,7 +483,7 @@
   {
     "itemId": "hvut-2290-proof",
     "label": "IRS Form 2290 showing the Heavy Vehicle Use Tax has been paid (or proof of exemption, e.g., vehicle purchased within 60 days)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/",
     "verified": "2026-04-23",
     "notes": "Required for vehicles with GVW of 55,000 lbs or more. Must match the VIN on registration and insurance; no alterations accepted."
@@ -444,7 +491,7 @@
   {
     "itemId": "commercial-insurance-limits-proof",
     "label": "Commercial-vehicle insurance policy with correct coverage limits (ACORD Form, Certificate of Liability, or FMCSA Self-Insurance proof)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/insurance/",
     "verified": "2026-04-23"
   },
@@ -486,14 +533,22 @@
   {
     "itemId": "death-certificate",
     "label": "Certified death certificate of the deceased spouse (for surviving-spouse exemption)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "A CERTIFIED death certificate — bears a registrar seal / 'certified copy' certification statement (not a plain informational photocopy) — naming the deceased",
+          "source": "catalog label 'Certified death certificate of the deceased spouse' + tcslc-sme TITLE-1/TITLE-2"
+        }
+      ]
+    }
   },
   {
     "itemId": "existing-physical-plate-or-number",
     "label": "The existing physical license plate you are transferring (or the plate number if the plate is not in hand)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/license-plates-registration/",
     "verified": "2026-04-23"
   },
@@ -507,9 +562,17 @@
   {
     "itemId": "va-summary-of-benefits-letter",
     "label": "VA Summary of Benefits letter specifying either (1) 100% service-connected disability, (2) compensated at the 100% rate, OR (3) DVA-financed vehicle purchase",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/military/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The letter states one of: 100% service-connected disability, compensated at the 100% rate, OR a DVA-financed vehicle purchase — a permanent/total status, not a temporary rating",
+          "source": "tcslc-sme policy-questions DL-7 + item-catalog (flhsmv.gov/military)"
+        }
+      ]
+    }
   },
   {
     "itemId": "hsmv-83146",
@@ -549,7 +612,7 @@
   {
     "itemId": "recipient-plate-or-license-info",
     "label": "The gift recipient's name AND either their license plate number or their driver license number",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/pre-sale-data/",
     "verified": "2026-04-23"
   },
@@ -571,14 +634,20 @@
   {
     "itemId": "hsmv-83039",
     "label": "Application for Disabled Person Parking Permit (HSMV 83039) — top section by you; medical certification by a physician (MD/DO), physician assistant, chiropractor, podiatrist, advanced-practice RN, or optometrist (sight conditions only). Signature must be dated within the last 12 months.",
-    "bucket": "form",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/pdf/forms/83039.pdf",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "rule": "max-age",
+      "anchor": "signed",
+      "days": 365,
+      "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
+    }
   },
   {
     "itemId": "existing-placard-number",
     "label": "Existing parking-placard number (for renewal tracking)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/",
     "verified": "2026-04-23"
   },
@@ -599,7 +668,7 @@
   {
     "itemId": "expiring-placard-registration-copy",
     "label": "Copy of the registration for your expiring parking permit",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/pdf/forms/83039.pdf",
     "verified": "flhsmv-2026-05-30",
     "notes": "Required for renewals — the F-83039 Renewal Instructions list this alongside a fresh medical certification."
@@ -607,9 +676,15 @@
   {
     "itemId": "va-form-letter-27-333",
     "label": "VA Form Letter 27-333 (or equivalent), issued in the last 12 months, certifying permanent and total service-connected disability — substitutes for the HSMV 83039 medical certification at renewal or replacement only",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/",
-    "verified": "flhsmv-2026-05-30"
+    "verified": "flhsmv-2026-05-30",
+    "validity": {
+      "rule": "max-age",
+      "anchor": "issued",
+      "days": 365,
+      "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/permanent-disabled-person-parking-permits/"
+    }
   },
   {
     "itemId": "police-report-stolen-placard",
@@ -621,15 +696,16 @@
   {
     "itemId": "home-country-permit-copy",
     "label": "Copy of your current parking permit issued by your country of residence",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
+    "uploadSides": 2,
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-florida-visitors/",
     "verified": "flhsmv-2026-05-30",
-    "notes": "Out-of-country visitors may submit this in lieu of HSMV 83039's medical certification section."
+    "notes": "Out-of-country visitors may submit this in lieu of HSMV 83039's medical certification section. Requires BOTH sides — the resident uploads a front and a back image."
   },
   {
     "itemId": "org-feid-or-fl-sales-tax",
     "label": "Organization's federal employer ID (FEID) OR Florida sales-tax registration number — one of these is required and will be affixed to the permit",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/organizations/",
     "verified": "flhsmv-2026-05-30",
     "notes": "Sunbiz registration is NOT an accepted identifier for placard organizational applicants — use FEID or FL sales-tax number only."
@@ -700,7 +776,7 @@
   {
     "itemId": "fl-insurance-proof-for-test-vehicle",
     "label": "Proof of current Florida insurance on the vehicle being used for the road test",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/insurance/",
     "verified": "2026-04-23"
   },
@@ -784,7 +860,7 @@
   {
     "itemId": "existing-mobile-home-registration-and-decal",
     "label": "Current mobile home registration and decal number (for decal transfer)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.tcslc.com/192/Mobile-Homes",
     "verified": "2026-04-23"
   },
@@ -812,9 +888,17 @@
   {
     "itemId": "clerk-recorded-documents",
     "label": "Copy of documents recorded with the Clerk of Circuit Court (after the Clerk has completed recording)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://stlucieclerk.gov/departments-top-menu/recording-department",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The document bears the Clerk of Circuit Court recording stamp / instrument (or book-and-page) number showing recording is COMPLETE — not a pre-recording draft",
+          "source": "item-catalog ('after the Clerk has completed recording'); https://stlucieclerk.gov/departments-top-menu/recording-department"
+        }
+      ]
+    }
   },
   {
     "itemId": "all-tangible-taxes-paid",
@@ -826,7 +910,7 @@
   {
     "itemId": "ccw-firearms-training-document",
     "label": "Firearms-training certificate (NRA firearms safety/training course, hunter safety/education course, law-enforcement firearms course, state-certified instructor course, or organized shooting competition documentation) — must include applicant name, instructor name, instructor qualifications and license/certification number",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Acceptable-Firearms-Training-Documentation",
     "verified": "2026-04-23"
   },
@@ -840,16 +924,24 @@
   {
     "itemId": "existing-ccw-license",
     "label": "Current Florida concealed-weapon license (for renewal)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License",
     "verified": "2026-04-23"
   },
   {
     "itemId": "dd214-or-military-orders",
     "label": "DD-214 (for honorably-discharged veterans) OR current call-to-active-duty orders and statement of military service (for active-duty servicemembers age 18-20)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.fdacs.gov/Consumer-Resources/Concealed-Weapon-License/Applying-for-a-Concealed-Weapon-License/Acceptable-Firearms-Training-Documentation",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "If a DD-214: character of service shows Honorable (or under honorable conditions). If call-to-active-duty orders: they show current active-duty status with the statement of military service.",
+          "source": "item-catalog label 'DD-214 (honorably-discharged) OR current call-to-active-duty orders'; flhsmv.gov/military"
+        }
+      ]
+    }
   },
   {
     "itemId": "fwc-license-fee",
@@ -861,14 +953,22 @@
   {
     "itemId": "disabled-person-hunt-fish-certification",
     "label": "Florida Resident Disabled Person's Hunting and Fishing License certification (no-fee; for residents certified as totally and permanently disabled)",
-    "bucket": "form",
+    "bucket": "optional_upload",
     "source": "https://myfwc.com/license/recreational/do-i-need-one/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The certification states the resident is certified as TOTALLY AND PERMANENTLY disabled",
+          "source": "item-catalog label 'Florida Resident Disabled Persons Hunting and Fishing License certification'; https://myfwc.com/license/recreational/do-i-need-one/"
+        }
+      ]
+    }
   },
   {
     "itemId": "military-gold-sportsman-application",
     "label": "Military Gold Sportsman's License application (present current military ID at the tax collector)",
-    "bucket": "form",
+    "bucket": "optional_upload",
     "source": "https://myfwc.com/license/recreational/military-gold/",
     "verified": "2026-04-23"
   },
@@ -1001,7 +1101,7 @@
   {
     "itemId": "dealer-license-active",
     "label": "Active Florida motor-vehicle dealer license from FLHSMV (required on file; verify current before drop-off)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.tcslc.com/DocumentCenter/View/167",
     "verified": "2026-04-23"
   },
@@ -1064,9 +1164,17 @@
   {
     "itemId": "licensed-dui-program-completion",
     "label": "Licensed DUI Program completion certificate (from an FLHSMV-approved Licensed DUI Program)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
-    "verified": "2026-04-23"
+    "verified": "2026-04-23",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "The certificate shows COMPLETION (not merely enrollment) of an FLHSMV-approved Licensed DUI Program, naming the issuing program",
+          "source": "item-catalog label 'Licensed DUI Program completion certificate ... FLHSMV-approved'; https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/"
+        }
+      ]
+    }
   },
   {
     "itemId": "hardship-license-application",
@@ -1078,14 +1186,14 @@
   {
     "itemId": "adi-course-completion",
     "label": "Advanced Driver Improvement (ADI) course completion certificate (or enrollment proof if mid-course). Required for HTO, non-DUI serious-injury, and DUI hardship paths.",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/driver-license-suspensions-revocations/other-suspensions-revocations/",
     "verified": "2026-04-23"
   },
   {
     "itemId": "iid-installation-proof",
     "label": "Ignition Interlock Device (IID) installation proof from an FLHSMV-contracted provider (per §322.2715)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/dui-and-iid/",
     "verified": "2026-04-23"
   },
@@ -1127,7 +1235,7 @@
   {
     "itemId": "builder-receipts",
     "label": "Receipts and bill of materials for parts purchased to build the vehicle (used to calculate sales tax basis)",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "2026-05-26",
     "notes": "Sales tax on a homemade vehicle is calculated from the cost of materials, not a purchase price."
@@ -1149,14 +1257,22 @@
   {
     "itemId": "business-entity-proof",
     "label": "Proof of business entity — any one of: FEID number, FL sales-tax registration number, or Sunbiz active-registration printout",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/disabled-person-parking-permits/disabled-person-parking-permits-for-organizations/",
-    "verified": "2026-05-26"
+    "verified": "2026-05-26",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "If the uploaded proof is a Sunbiz registration printout, it shows status 'Active' (not Inactive/Dissolved). Does not apply to the FEID-number or FL-sales-tax-number variants.",
+          "source": "catalog label 'Sunbiz active-registration printout'; https://search.sunbiz.org/"
+        }
+      ]
+    }
   },
   {
     "itemId": "trust-certification",
     "label": "Trust certification or trust agreement showing the trustee's authority to transfer title",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "2026-05-26"
   },
@@ -1171,7 +1287,7 @@
   {
     "itemId": "parts-receipts-trailer",
     "label": "Receipts for parts purchased to build the trailer (frame, axles, wheels, lights, hitch, hardware) — used to calculate 6% sales tax basis",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.tcslc.com/302/Trailers",
     "verified": "2026-05-29",
     "notes": "Florida charges 6% sales tax on the total material cost for homemade trailers. Bring every receipt you have. If receipts are incomplete, the office may estimate from market value at clerk's discretion."
@@ -1179,7 +1295,7 @@
   {
     "itemId": "prior-owner-bill-of-sale-trailer",
     "label": "Bill of sale signed by the previous owner showing trailer description (make/model/year/VIN if any), purchase price, and date",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "2026-05-29",
     "notes": "Used to calculate 6% sales tax basis on a private-purchase trailer. For trailers <2,000 lb, this is the primary proof of ownership (no title exists)."
@@ -1187,7 +1303,7 @@
   {
     "itemId": "dealer-bill-of-sale-trailer",
     "label": "Dealer bill of sale showing trailer description, purchase price, and dealer-collected sales tax",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "2026-05-29",
     "notes": "Dealers collect FL sales tax at point of sale and provide a bill of sale showing the breakdown. Tax collector verifies tax was collected; otherwise calculates and collects at the counter."
@@ -1203,9 +1319,17 @@
   {
     "itemId": "death-certificate-inheritance",
     "label": "Certified death certificate of the owner named on the title",
-    "bucket": "bring_in",
+    "bucket": "optional_upload",
     "source": "https://www.flhsmv.gov/motor-vehicles-tags-titles/titles/",
     "verified": "tcslc-sme-2026-06-17",
-    "notes": "Inheritance/deceased-owner title transfer. Confirmed by St. Lucie tax-office testers (tax423/tax424) as required to establish the owner is deceased. The ADDITIONAL estate documents beyond the death certificate (will, Letters of Administration, FLHSMV decedent affidavit) depend on the survivorship / will / probate path and are confirmed at the counter — see vehicle-title-transfer.review.md for the per-path checklist still to be finalized with the office."
+    "notes": "Inheritance/deceased-owner title transfer. Confirmed by St. Lucie tax-office testers (tax423/tax424) as required to establish the owner is deceased. The ADDITIONAL estate documents beyond the death certificate (will, Letters of Administration, FLHSMV decedent affidavit) depend on the survivorship / will / probate path and are confirmed at the counter — see vehicle-title-transfer.review.md for the per-path checklist still to be finalized with the office.",
+    "validity": {
+      "contentChecks": [
+        {
+          "requiredAttribute": "A CERTIFIED copy — bears a registrar certification statement/seal, not a plain photocopy — naming the deceased owner on the title",
+          "source": "catalog notes (confirmed by St. Lucie testers tax423/tax424) + tcslc-sme TITLE-1/TITLE-2"
+        }
+      ]
+    }
   }
 ]

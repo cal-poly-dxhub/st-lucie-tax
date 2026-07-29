@@ -36,7 +36,7 @@
       "when": {
         "has_specialty_plate_eligibility_proof": "no"
       },
-      "note": "BLOCKED: Many specialty plates (e.g., university, professional, honor-society) require documented eligibility. Customer must obtain the required proof (alumni letter, membership card, service credential) before applying.",
+      "note": "Most specialty plates require NO eligibility proof — the customer can apply without any membership or credential document. Only two plate families require proof: (1) Fraternal Order of Police — a letter verifying the customer is a member in good standing, or a family member of a lodge member; (2) the Divine Nine plates (Alpha Kappa Alpha, Alpha Phi Alpha, Delta Sigma Theta, Iota Phi Theta, Kappa Alpha Psi, Omega Psi Phi, Phi Beta Sigma, Sigma Gamma Rho, Zeta Phi Beta) — a current unexpired membership card OR a membership letter on organization letterhead. For any other specialty plate, do not require eligibility documentation. [Confirmed by TCSLC staff — policy-questions REG-6, 2026-07.]",
       "sourceRefs": [
         "https://www.flhsmv.gov/motor-vehicles-tags-titles/personalized-specialty-license-plates/specialty-license-plates/"
       ]

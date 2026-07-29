@@ -4,7 +4,8 @@
     "photo-id-all-applicants",
     "mobile-home-title-retirement-application",
     "clerk-recorded-documents",
-    "all-tangible-taxes-paid"
+    "all-tangible-taxes-paid",
+    "dr-402-real-property-declaration"
   ],
   "factsRequired": [
     "owns_land_under_mobile_home",
