@@ -96,6 +96,8 @@ export interface BucketItem {
   bucket: ItemBucket;
   source?: string;
   notes?: string;
+  /** Number of upload slots this item needs (e.g. a two-sided permit = 2). Defaults to 1. */
+  uploadSides?: number;
 }
 
 export interface ResolvedItemsByBucket {
@@ -149,6 +151,7 @@ export interface SessionContext {
   };
   facts?: Record<string, FactValue>;
   resolvedBuckets?: ResolvedItemsByBucket;
+  suggestedReplies?: Array<{ label: string; value: string }>;
 }
 
 export interface SessionState {
@@ -330,6 +333,42 @@ export async function uploadToS3(uploadUrl: string, file: File): Promise<void> {
       "Your file didn't finish uploading. Check your connection and try once more.",
       `Upload failed: ${res.status}`,
     );
+}
+
+export interface ValidateDocumentResponse {
+  verdict: "accept" | "reject";
+  reason?: string;
+  observedDocument?: string;
+  confidence?: number;
+  failOpen?: boolean;
+  /** Non-blocking notice on an accepted upload (e.g. a content/status check
+   *  flagged a concern). The slot still completes; shown as a soft warning. */
+  advisory?: string;
+}
+
+/**
+ * POST /chatbot/sessions/:id/validate-document — synchronous AI pass/reject
+ * screen on a just-uploaded file. Client-side FAIL-OPEN: any non-OK response
+ * (network blip, 5xx) resolves to accept so a real resident is never blocked
+ * by a transport problem. Only an explicit `verdict: 'reject'` should block.
+ */
+export async function validateDocument(
+  sessionId: string,
+  documentType: string,
+  s3Key: string,
+  filename: string,
+): Promise<ValidateDocumentResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/validate-document`, {
+      method: "POST",
+      headers: await buildHeaders(),
+      body: JSON.stringify({ documentType, s3Key, filename }),
+    });
+    if (!res.ok) return { verdict: "accept", failOpen: true };
+    return res.json();
+  } catch {
+    return { verdict: "accept", failOpen: true };
+  }
 }
 
 // --- Debug ---
@@ -533,7 +572,10 @@ export async function downloadTranscriptPdf(
 }
 
 export interface AuthIdResultResponse {
-  status: "pass" | "review" | "rejected" | "authid-failed";
+  // `pending` = AuthID isn't terminal yet within this request's short poll
+  // budget; the caller re-polls (non-blocking — the request never rides past
+  // the API-Gateway timeout). All other statuses are terminal.
+  status: "pending" | "pass" | "review" | "rejected" | "authid-failed";
   reasons?: string[];
   identity?: { name: string; dob: string; address: string };
   sessionState?: string;
@@ -572,6 +614,24 @@ export async function skipVerifyIdentity(sessionId: string): Promise<SkipVerifyR
     headers: await buildHeaders(),
   });
   if (!res.ok) throw httpError(res.status, "We couldn't skip that step. Try again.");
+  return res.json();
+}
+
+export interface RetryAuthIdResponse {
+  // `retrying` = a fresh Proof transaction was created; `pendingAuthIdProof`
+  // carries the new embed URL. `unavailable` = AuthID couldn't be reached.
+  status: "retrying" | "unavailable";
+  pendingAuthIdProof?: { embedUrl: string; operationId: string; mode: "proof" | "verified" };
+}
+
+/** Resident chose "Try again" after a recoverable rejection — mint a fresh Proof. */
+export async function retryAuthIdProof(sessionId: string): Promise<RetryAuthIdResponse> {
+  const res = await fetch(`${API_BASE}/chatbot/sessions/${sessionId}/authid-retry`, {
+    method: "POST",
+    headers: await buildHeaders(),
+  });
+  if (!res.ok)
+    throw httpError(res.status, "We couldn't restart verification. Try again in a moment.");
   return res.json();
 }
 

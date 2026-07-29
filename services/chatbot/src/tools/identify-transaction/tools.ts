@@ -443,9 +443,10 @@ async function handleConfirm(
 
   const totalDuration = confirmed.reduce((sum, t) => sum + t.durationMinutes, 0);
 
-  // Confirm succeeded — clear the stashed suggestions so a future re-search
+  // Confirm succeeded — clear transient state so a future re-search
   // (e.g. customer mentions a NEW service later) starts fresh.
   delete session.structuredContext.pendingSuggestedTxnIds;
+  session.structuredContext.suggestedReplies = [];
 
   // The LLM should only acknowledge what was confirmed in this state — it is
   // explicitly NOT supposed to recite the bring-in list or online channels
