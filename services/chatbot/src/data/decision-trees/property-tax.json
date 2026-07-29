@@ -56,8 +56,8 @@
         "property_tax_intent": "payment-standard",
         "is_past_due": "no"
       },
-      "addItems": ["personal-check-ok", "fl-discount-schedule"],
-      "note": "Standard current-year payment \u2014 personal checks, cash, credit, debit, or cashier's check accepted. Florida discount schedule applies (\u00a7197.162): 4% November, 3% December, 2% January, 1% February, 0% March.",
+      "addItems": ["personal-check-ok", "fl-discount-schedule", "photo-id-all-applicants"],
+      "note": "Standard current-year payment \u2014 personal checks, cash, credit, debit, or cashier's check accepted. Florida discount schedule applies (\u00a7197.162): 4% November, 3% December, 2% January, 1% February, 0% March. A government-issued photo ID is required to make an IN-OFFICE payment (so any refund can be issued to the person who paid); online, mail, and third-party payments don't need one. [Confirmed by TCSLC staff \u2014 policy-questions TAX-5, 2026-07.]",
       "sourceRefs": ["https://www.tcslc.com/203/Tax-Discounts-Deadlines-By-Month"]
     },
     {

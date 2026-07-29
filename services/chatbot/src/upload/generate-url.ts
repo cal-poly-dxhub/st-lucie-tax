@@ -29,10 +29,15 @@ export async function generateUploadUrl(
   // S3 key structure: uploads/{tenantId}/{sessionId}/{documentType}/{filename}
   const s3Key = `uploads/${tenantId}/${sessionId}/${documentType}/${filename}`;
 
+  // Deliberately do NOT set ContentType on the presigned PUT. If we sign a
+  // Content-Type, S3 puts `content-type` in SignedHeaders and the browser's PUT
+  // must byte-match it — but browsers send an empty/variant file.type for HEIC,
+  // which 403s (SignatureDoesNotMatch) before the file even lands. The stored
+  // Content-Type is never trusted anyway: validate-document.ts sniffs the real
+  // format from magic bytes, and no consumer reads the object's Content-Type.
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: s3Key,
-    ContentType: getContentType(filename),
     Metadata: {
       "session-id": sessionId,
       "tenant-id": tenantId,
@@ -49,17 +54,4 @@ export async function generateUploadUrl(
     s3Key,
     expiresIn: URL_EXPIRY_SECONDS,
   };
-}
-
-function getContentType(filename: string): string {
-  const ext = filename.toLowerCase().split(".").pop();
-  const types: Record<string, string> = {
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    pdf: "application/pdf",
-    heic: "image/heic",
-    heif: "image/heif",
-  };
-  return types[ext || ""] || "application/octet-stream";
 }

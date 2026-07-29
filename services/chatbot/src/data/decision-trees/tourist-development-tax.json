@@ -60,7 +60,7 @@
     },
     {
       "when": { "is_military_active_duty": "yes" },
-      "note": "Certain members of the military may qualify for TDT exemptions under Florida Statutes. Check with the Tourist Development Tax office for current eligibility rules before filing.",
+      "note": "A property owner is NOT exempt from Tourist Development Tax on a short-term rental — including a military owner. Any exemption belongs to the person RENTING the property (the tenant/guest). If a guest qualifies, they give the owner documentation supporting the exemption, which the owner keeps on file; without that documentation the owner must collect the 5% TDT.",
       "sourceRefs": ["https://www.tcslc.com/233/Tourist-Development"]
     },
     {

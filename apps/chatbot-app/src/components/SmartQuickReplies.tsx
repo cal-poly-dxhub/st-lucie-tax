@@ -12,11 +12,16 @@
  * LLM reads the message and calls record_facts with the enum value.
  */
 
-import { useEffect, useState } from 'react';
-import type { HotButton, FactValue, AllTransaction } from '../api';
-import { fetchDebugTrees, fetchAllTransactions, type DebugTree, type DebugFactDefinition } from '../api';
-import type { SessionData } from '../hooks/useSession';
-import { humanize } from '../utils/humanize';
+import { useEffect, useState } from "react";
+import type { HotButton, FactValue, AllTransaction } from "../api";
+import {
+  fetchDebugTrees,
+  fetchAllTransactions,
+  type DebugTree,
+  type DebugFactDefinition,
+} from "../api";
+import type { SessionData } from "../hooks/useSession";
+import { humanize } from "../utils/humanize";
 
 interface Props {
   session: SessionData;
@@ -27,7 +32,7 @@ interface Props {
 
 export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: Props) {
   const state = session.state;
-  const txnIds = session.transactions.map(t => t.txnTypeId);
+  const txnIds = session.transactions.map((t) => t.txnTypeId);
   const facts: Record<string, FactValue> = session.context?.facts ?? {};
 
   // Toggle: false = show 6 family chips; true = show full 31-txn menu.
@@ -47,7 +52,7 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
   // Tree + fact-definition cache, loaded whenever active transactions change.
   const [trees, setTrees] = useState<DebugTree[]>([]);
   const [defs, setDefs] = useState<DebugFactDefinition[]>([]);
-  const txnKey = txnIds.slice().sort().join(',');
+  const txnKey = txnIds.slice().sort().join(",");
   useEffect(() => {
     if (!txnKey) {
       setTrees([]);
@@ -55,8 +60,8 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
       return;
     }
     let cancelled = false;
-    fetchDebugTrees(txnKey.split(','))
-      .then(data => {
+    fetchDebugTrees(txnKey.split(","))
+      .then((data) => {
         if (cancelled) return;
         setTrees(data.trees);
         setDefs(data.factDefinitions);
@@ -66,18 +71,47 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
         setTrees([]);
         setDefs([]);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [txnKey]);
 
   // -------- mode selection --------
+
+  // 0. Backend-provided suggested replies (highest priority). The LLM calls
+  // set_suggested_replies after presenting options — these match exactly what
+  // the bot said, so they're always contextually correct.
+  const suggestedReplies = session.context?.suggestedReplies;
+  if (suggestedReplies && suggestedReplies.length > 0) {
+    return (
+      <ChipRow label="Quick replies">
+        {suggestedReplies.map((r: { label: string; value: string }, i: number) => (
+          <button
+            key={`${r.value}-${i}`}
+            className="smart-chip"
+            onClick={() => onSelect(r.value)}
+            disabled={disabled}
+          >
+            {r.label}
+          </button>
+        ))}
+      </ChipRow>
+    );
+  }
 
   // 1. Landing / empty identify-transaction: tiered family menu.
   // Default view shows hot buttons from the DB. The "View all
   // transactions" chip swaps to the full txn list (one chip per
   // active transaction).
+  // ONLY show these landing buttons when this is the very start of the
+  // conversation (no messages yet). Once the user has sent at least one
+  // message, the LLM should be driving chips via set_suggested_replies —
+  // don't revert to the landing menu mid-conversation just because
+  // suggestedReplies is temporarily empty.
   if (
-    (state === 'landing' || state === 'identify-transaction') &&
-    session.transactions.length === 0
+    (state === "landing" || state === "identify-transaction") &&
+    session.transactions.length === 0 &&
+    session.messages.length <= 1
   ) {
     if (showAllTxns) {
       // Full 31-txn menu, grouped by category. Loading state covered while
@@ -93,7 +127,7 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
       const groupOrder: string[] = [];
       const groups = new Map<string, AllTransaction[]>();
       for (const txn of allTxns) {
-        const cat = txn.category ?? 'Other';
+        const cat = txn.category ?? "Other";
         if (!groups.has(cat)) {
           groupOrder.push(cat);
           groups.set(cat, []);
@@ -112,9 +146,9 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
               ← Back to common services
             </button>
           </ChipRow>
-          {groupOrder.map(cat => (
+          {groupOrder.map((cat) => (
             <ChipGroup key={cat} label={cat}>
-              {groups.get(cat)!.map(txn => (
+              {groups.get(cat)!.map((txn) => (
                 <Chip
                   key={txn.txnTypeId}
                   onClick={() => onSelect(txn.opener)}
@@ -135,7 +169,7 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
     return (
       <div className="smart-chips smart-chips--hot-buttons">
         <ChipRow label="What can we help you with?">
-          {hotButtons.map(btn => (
+          {hotButtons.map((btn) => (
             <Chip
               key={btn.label}
               onClick={() => onSelect(btn.transactionTypeId)}
@@ -160,13 +194,13 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
   }
 
   // 2. Identify-transaction after at least one service named (but maybe not confirmed)
-  if (state === 'identify-transaction' && session.transactions.length > 0) {
+  if (state === "identify-transaction" && session.transactions.length > 0) {
     return (
       <ChipRow label="Continue">
         <Chip onClick={() => onSelect("Yes, that's right. Let's continue.")} disabled={disabled}>
           Yes — continue
         </Chip>
-        <Chip onClick={() => onSelect('I need to add another service too.')} disabled={disabled}>
+        <Chip onClick={() => onSelect("I need to add another service too.")} disabled={disabled}>
           Add another service
         </Chip>
         <Chip onClick={() => onSelect("Actually, that's not what I need.")} disabled={disabled}>
@@ -177,7 +211,7 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
   }
 
   // 3. resolve-facts: next unresolved fact's allowed values as chips.
-  if (state === 'resolve-facts' && trees.length > 0) {
+  if (state === "resolve-facts" && trees.length > 0) {
     const nextFact = findNextUnresolvedFact(trees, defs, facts);
     if (nextFact) {
       const { def } = nextFact;
@@ -185,13 +219,13 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
       // prompt and is instructed to use verbatim). Fall back to humanize()
       // for facts that don't yet have valueLabels.
       const labelFor = (v: string): string =>
-        def.valueLabels?.[v] ?? (v === 'unknown' ? 'Not sure' : humanize(v));
+        def.valueLabels?.[v] ?? (v === "unknown" ? "Not sure" : humanize(v));
       const chips = def.allowedValues
-        .filter(v => v !== 'unknown')
-        .map(v => ({ value: v, label: labelFor(v) }));
+        .filter((v) => v !== "unknown")
+        .map((v) => ({ value: v, label: labelFor(v) }));
       return (
         <ChipRow label={def.label}>
-          {chips.map(c => (
+          {chips.map((c) => (
             <Chip
               key={c.value}
               onClick={() => onSelect(c.label)}
@@ -210,20 +244,24 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
   // LLM asks one question per response. "Not sure" was dropped because the
   // questions ("license suspended?", "have a photo ID?") are concrete enough
   // that an unsure answer doesn't help the workflow — it just stalls.
-  if (state === 'universal-blockers') {
+  if (state === "universal-blockers") {
     return (
       <ChipRow label="Quick reply">
-        <Chip onClick={() => onSelect('Yes')} disabled={disabled}>Yes</Chip>
-        <Chip onClick={() => onSelect('No')} disabled={disabled}>No</Chip>
+        <Chip onClick={() => onSelect("Yes")} disabled={disabled}>
+          Yes
+        </Chip>
+        <Chip onClick={() => onSelect("No")} disabled={disabled}>
+          No
+        </Chip>
       </ChipRow>
     );
   }
 
   // 5. upload-docs state
-  if (state === 'upload-docs') {
+  if (state === "upload-docs") {
     return (
       <ChipRow label="Quick actions">
-        <Chip onClick={() => onSelect('All uploaded — please continue.')} disabled={disabled}>
+        <Chip onClick={() => onSelect("All uploaded — please continue.")} disabled={disabled}>
           Done uploading
         </Chip>
         <Chip onClick={() => onSelect("I'll bring everything to the office.")} disabled={disabled}>
@@ -241,11 +279,18 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
   // Tomorrow AM / etc. baited customers into a dead-end conversation.)
 
   // 6. checkout-check
-  if (state === 'checkout-check') {
+  if (state === "checkout-check") {
     return (
       <ChipRow label="How would you like to proceed?">
-        <Chip onClick={() => onSelect('I want to complete this online')} disabled={disabled}>Complete online</Chip>
-        <Chip onClick={() => onSelect('I want to schedule an in-office appointment')} disabled={disabled}>Schedule in office</Chip>
+        <Chip onClick={() => onSelect("I want to complete this online")} disabled={disabled}>
+          Complete online
+        </Chip>
+        <Chip
+          onClick={() => onSelect("I want to schedule an in-office appointment")}
+          disabled={disabled}
+        >
+          Schedule in office
+        </Chip>
       </ChipRow>
     );
   }
@@ -328,13 +373,12 @@ function findNextUnresolvedFact(
       }
     }
   }
-  const defByKey = new Map(defs.map(d => [d.factKey, d]));
+  const defByKey = new Map(defs.map((d) => [d.factKey, d]));
   for (const fk of requiredKeys) {
     const fv = facts[fk];
-    if (fv && fv.confidence !== 'unknown') continue;
+    if (fv && fv.confidence !== "unknown") continue;
     const def = defByKey.get(fk);
     if (def) return { def };
   }
   return null;
 }
-

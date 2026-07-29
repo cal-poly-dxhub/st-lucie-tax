@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2026-04-30",
+  "source": "FLHSMV Driver License Operations Manual MP08 (Revised 03.18.25), extracted 2026-04-30 via scripts/build-ops-manual-index.ts",
+  "sourceChunk": "flhsmv-ops-manual/MP08.txt",
+  "fees": [
+    {
+      "feeId": "id-card",
+      "label": "Florida Identification Card (original or replacement)",
+      "amount": "$25.00",
+      "applicableTo": ["id-card", "real-id-upgrade"]
+    },
+    {
+      "feeId": "dl-class-e-learner",
+      "label": "Class E Learner's Driver License",
+      "amount": "$48.00",
+      "applicableTo": ["learner-permit"]
+    },
+    {
+      "feeId": "dl-class-e",
+      "label": "Class E Driver License (original or renewal)",
+      "amount": "$48.00",
+      "applicableTo": ["dl-renewal", "dl-transfer", "real-id-upgrade"]
+    },
+    {
+      "feeId": "dl-cdl",
+      "label": "Commercial Driver License",
+      "amount": "$75.00",
+      "applicableTo": ["cdl"]
+    },
+    {
+      "feeId": "dl-cdl-school-employee",
+      "label": "Commercial Driver License — School Employee (with employment proof)",
+      "amount": "$48.00",
+      "statuteRef": "§322.21, F.S.",
+      "applicableTo": ["cdl"]
+    },
+    {
+      "feeId": "delinquent-renewal",
+      "label": "Delinquent Renewal (within 1 year of expiration)",
+      "amount": "$15.00",
+      "applicableTo": ["dl-renewal"],
+      "note": "Waivable by passing the full Class E knowledge exam."
+    },
+    {
+      "feeId": "address-change",
+      "label": "Address Change",
+      "amount": "$25.00",
+      "applicableTo": ["dl-address-change"]
+    },
+    {
+      "feeId": "name-change",
+      "label": "Name Change",
+      "amount": "$25.00",
+      "applicableTo": ["dl-name-change"]
+    },
+    {
+      "feeId": "lost-card-replacement",
+      "label": "Lost Card Replacement",
+      "amount": "$25.00",
+      "applicableTo": ["dl-replacement"]
+    },
+    {
+      "feeId": "knowledge-exam-retest",
+      "label": "Knowledge Exam Retest",
+      "amount": "$10.00",
+      "applicableTo": ["written-test", "dl-transfer", "dl-renewal"]
+    },
+    {
+      "feeId": "skill-exam-retest",
+      "label": "Class E Skill Exam Retest",
+      "amount": "$20.00",
+      "applicableTo": ["road-test", "dl-transfer"]
+    },
+    {
+      "feeId": "endorsement",
+      "label": "Endorsement (per endorsement)",
+      "amount": "$7.00",
+      "applicableTo": ["cdl"]
+    },
+    {
+      "feeId": "hazmat-endorsement",
+      "label": "Hazardous Materials Endorsement (CDL) — includes TSA background check",
+      "amount": "$91.00",
+      "applicableTo": ["cdl"]
+    },
+    {
+      "feeId": "tax-collector-service-fee",
+      "label": "Tax Collector Service Fee",
+      "amount": "$6.25",
+      "statuteRef": "§322.135, F.S.",
+      "applicableTo": [
+        "dl-renewal",
+        "dl-transfer",
+        "dl-replacement",
+        "dl-name-change",
+        "dl-address-change",
+        "id-card",
+        "real-id-upgrade",
+        "cdl",
+        "learner-permit"
+      ],
+      "note": "Charged per transaction at the tax collector office on top of the state fee."
+    },
+    {
+      "feeId": "placard-original-temporary",
+      "label": "Disabled Person Parking Permit — temporary placard (original or renewal)",
+      "amount": "$15.00",
+      "statuteRef": "§320.0848(1)(a), F.S.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Per HSMV-Temp and F-83039 §3, the temporary placard fee is $15. Statute distributes the fee: $3.50 DHSMV trust fund, $2.50 tax collector processing, $4.00 Vocational Rehabilitation, $5.00 Transportation Disadvantaged Trust Fund."
+    },
+    {
+      "feeId": "placard-visitor-temporary",
+      "label": "Disabled Person Parking Permit — visitor temporary placard",
+      "amount": "$15.00",
+      "statuteRef": "§320.0848(1)(a), F.S.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Visitor temporary applies when an out-of-state or out-of-country visitor does not have an ISA-marked home placard. Visitor temporary is non-renewable; must re-apply on expiration."
+    },
+    {
+      "feeId": "placard-replacement-default",
+      "label": "Disabled Person Parking Permit — replacement (lost / damaged / defaced / surrendered / stolen-without-report)",
+      "amount": "$1.00",
+      "statuteRef": "§320.0848(2)(d), F.S.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Replacement fee is retained by the issuing agency."
+    },
+    {
+      "feeId": "placard-original-permanent",
+      "label": "Disabled Person Parking Permit — permanent placard (4-year, blue)",
+      "amount": "$0.00",
+      "statuteRef": "§320.0848, F.S.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Permanent placards are issued at no charge. Verified TCSLC-218, HSMV-Perm, F-83039 §3."
+    }
+  ],
+  "noFeeConditions": [
+    {
+      "conditionId": "veteran-designation",
+      "description": "Veteran designation added to an existing credential — no fee with DD-214 or VA ID card.",
+      "statuteRef": "§322.08(5)(b), F.S.",
+      "applicableTo": ["dl-renewal", "dl-replacement", "id-card"]
+    },
+    {
+      "conditionId": "disabled-veteran-100-percent",
+      "description": "100% total-and-permanent disabled veteran — no fee for the original, renewal, or replacement of a Class E DL, ID card, or CDL (including any delinquent-renewal fee). Qualifies with EITHER a valid Florida Dept. of Veterans' Affairs ID card OR a VA 'Summary of Benefits' letter showing a permanent, service-connected 100% disability (a temporary 100% rating does not qualify). [Confirmed by TCSLC staff — policy-questions DL-7, 2026-07.]",
+      "statuteRef": "§322.21(9), F.S.",
+      "applicableTo": [
+        "dl-renewal",
+        "dl-transfer",
+        "dl-replacement",
+        "cdl",
+        "id-card",
+        "real-id-upgrade"
+      ]
+    },
+    {
+      "conditionId": "defective-card",
+      "description": "Defective card (manufacturing or examiner error) — no fee replacement.",
+      "applicableTo": ["dl-replacement", "id-card"]
+    },
+    {
+      "conditionId": "stolen-card-with-police-report",
+      "description": "Stolen card replacement with valid police report — no fee.",
+      "applicableTo": ["dl-replacement", "id-card"]
+    },
+    {
+      "conditionId": "homeless-or-poverty",
+      "description": "Homeless applicant or applicant at/below 100% federal poverty level — no fee for ID card.",
+      "applicableTo": ["id-card"]
+    },
+    {
+      "conditionId": "placard-temporary-second-within-12mo",
+      "description": "Second temporary placard issued within 12 months of the prior temporary — fee waived.",
+      "statuteRef": "§320.0848(1)(a), F.S.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Statute: 'No person will be required to pay a fee … more than once in a 12-month period from the date of the prior fee payment.'"
+    },
+    {
+      "conditionId": "placard-replacement-stolen-with-report",
+      "description": "Replacement placard for a stolen permit with a valid police report — fee waived.",
+      "statuteRef": "§320.0848(2)(d), F.S.",
+      "applicableTo": ["handicap-placard"]
+    },
+    {
+      "conditionId": "placard-replacement-lost-in-transit-180d",
+      "description": "Replacement placard for a permit lost in transit within 180 days of issuance — fee waived.",
+      "applicableTo": ["handicap-placard"],
+      "note": "Verified F-83146 page 2."
+    },
+    {
+      "conditionId": "placard-organization",
+      "description": "Disabled-person parking permits issued to qualifying organizations — no fee per the permanent-placard class. One placard per registered fleet vehicle, valid up to 4 years, expiring June 30.",
+      "applicableTo": ["handicap-placard"],
+      "note": "HSMV-Org is silent on fees; permanent class is $0 and organizations are issued the same form factor."
+    }
+  ]
+}
