@@ -233,6 +233,16 @@ export class ChatbotStack extends Stack {
         PGSSL: "true",
         DOC_BUCKET: docBucket.bucketName,
         BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+        // Cheap vision model for the document-upload pass/reject screen
+        // (upload/validate-document.ts). Runs in its OWN region: Haiku 4.5
+        // model access is enabled in us-east-2, NOT us-east-1, in this account.
+        BEDROCK_VISION_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        BEDROCK_VISION_REGION: "us-east-2",
+        // Doc-screen tuning (upload/validate-document.ts). REJECT_THRESHOLD: min
+        // model confidence for a plausibility reject to block. EXPIRY_ENABLED:
+        // kill-switch for date-based (expiry/recency) rejection.
+        DOC_VALIDATION_REJECT_THRESHOLD: "0.85",
+        DOC_VALIDATION_EXPIRY_ENABLED: "true",
         BEDROCK_KB_ID: knowledgeBase.attrKnowledgeBaseId,
         AWS_ACCOUNT_ID: this.account,
         COGNITO_USER_POOL_ID: props.userPoolId,
@@ -319,6 +329,12 @@ export class ChatbotStack extends Stack {
         resources: [
           "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0",
           `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0`,
+          // Haiku 4.5 vision model for the document-upload screen
+          // (BEDROCK_VISION_MODEL_ID). It is invoked in us-east-2 via a
+          // cross-region inference profile, so the foundation-model region is
+          // wildcarded and the inference-profile ARN is version-wildcarded.
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*",
+          `arn:aws:bedrock:*:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-*`,
         ],
       }),
     );

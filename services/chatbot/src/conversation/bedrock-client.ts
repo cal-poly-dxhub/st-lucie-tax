@@ -81,12 +81,15 @@ const RETRYABLE_ERROR_NAMES = new Set([
 ]);
 const MAX_BEDROCK_ATTEMPTS = 7;
 
-async function sendWithRetry(cmd: ConverseCommand): Promise<ConverseCommandOutput> {
+export async function sendWithRetry(
+  cmd: ConverseCommand,
+  abortSignal?: AbortSignal,
+): Promise<ConverseCommandOutput> {
   let attempt = 0;
   let lastErr: unknown;
   while (attempt < MAX_BEDROCK_ATTEMPTS) {
     try {
-      return await client.send(cmd);
+      return await client.send(cmd, abortSignal ? { abortSignal } : undefined);
     } catch (err) {
       lastErr = err;
       const name = (err as { name?: string } | undefined)?.name ?? "";
@@ -129,6 +132,12 @@ export interface ConversationResult {
   shouldAdvance: boolean;
   updatedMessages: Message[];
   kbSources: KBSource[];
+  /** Names of every tool the model invoked this call (e.g. 'set_suggested_replies',
+   * 'query_knowledge_base'). Used by the chips fallback to know if the LLM set chips. */
+  calledToolNames: Set<string>;
+  /** Concatenated text of every tool result this call (KB answers, item notes).
+   * Used by the fee-fabrication detector to verify a dollar amount was sourced. */
+  toolResultText: string;
 }
 
 export async function callBedrock(
@@ -143,6 +152,14 @@ export async function callBedrock(
   let shouldAdvance = false;
   const allToolResults: Record<string, unknown> = {};
   const collectedKbSources: KBSource[] = [];
+  // Names of every tool the model actually invoked this call (Issue-3 chips
+  // fallback uses this to know whether set_suggested_replies fired). Includes
+  // a synthetic 'record_facts' when the leaked-tool-call salvage path runs.
+  const calledToolNames = new Set<string>();
+  // Concatenated text of every tool result this call (the KB answer text, item
+  // notes, etc.). Used by the fee-fabrication detector to check whether a
+  // dollar amount the model emitted was actually sourced from a tool result.
+  let toolResultText = "";
   // Bounded self-heal: only attempt the leaked-tool-call recovery once per
   // call, so a persistently-misbehaving model can't loop (MAX_TOOL_ROUNDS is
   // the hard backstop).
@@ -228,6 +245,7 @@ export async function callBedrock(
       if (salvaged) {
         try {
           const result = await toolHandler("record_facts", salvaged as Record<string, unknown>);
+          calledToolNames.add("record_facts");
           log("bedrock.toolcall.salvaged", {
             name: "record_facts",
             input: salvaged,
@@ -260,6 +278,7 @@ export async function callBedrock(
         const toolName = toolUse.name!;
         const toolInput = toolUse.input as Record<string, unknown>;
         log("tool.invoke", { name: toolName, input: toolInput });
+        calledToolNames.add(toolName);
 
         const result = await toolHandler(toolName, toolInput);
 
@@ -273,6 +292,10 @@ export async function callBedrock(
               .join("\n")
               .slice(0, 2000)
           : "";
+        // Accumulate tool-result text for the fee-fabrication detector — the KB
+        // answer text and item notes live in result.content (a JSON string),
+        // which never reaches allToolResults below.
+        if (contentPreview) toolResultText += contentPreview + "\n";
         log("tool.result", {
           name: toolName,
           shouldAdvance: !!result.shouldAdvance,
@@ -331,5 +354,7 @@ export async function callBedrock(
     shouldAdvance,
     updatedMessages: workingMessages,
     kbSources: collectedKbSources,
+    calledToolNames,
+    toolResultText,
   };
 }

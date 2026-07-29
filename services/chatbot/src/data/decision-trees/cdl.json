@@ -126,7 +126,8 @@
         "has_tsa_fee": "yes"
       },
       "addItems": ["hazmat-tsa-fee", "hazmat-written-test", "cdl-endorsement-fee-per"],
-      "note": "Hazmat: TSA fee $91 plus $7 endorsement fee plus hazmat written test (English/Spanish, 60-day validity). Walton office does NOT have a hazmat machine \u2014 schedule at a different office."
+      "note": "Hazmat: TSA fee $91 plus $7 endorsement fee plus hazmat written test (English/Spanish, 60-day validity). Hazmat testing and fingerprinting are available ONLY at the Tradition and Fort Pierce offices \u2014 the Walton Road office has no fingerprint machine, so schedule at Tradition or Fort Pierce. [Confirmed by TCSLC staff \u2014 policy-questions CDL-1, 2026-07.]",
+      "sourceRefs": ["https://www.flhsmv.gov/driver-licenses-id-cards/commercial-driver-license/"]
     },
     {
       "when": {

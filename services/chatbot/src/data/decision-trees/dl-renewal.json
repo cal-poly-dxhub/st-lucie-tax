@@ -21,10 +21,34 @@
       },
       "addItems": ["mydmv-portal-referral"],
       "removeItems": ["fl-driver-license-to-renew"],
-      "note": "Customer is eligible for MyDMV online renewal \u2014 no in-office visit needed. Credential mailed within 2-3 weeks. $2 processing fee applies on top of standard renewal fee.",
+      "note": "Customer is eligible for MyDMV online renewal \u2014 no in-office visit needed. Credential mailed within 2-3 weeks. $2 processing fee applies on top of standard renewal fee. EXCEPTION: customers requesting a name change, or on temporary lawful-presence status, cannot renew online and must come into the office \u2014 see the name-change / temporary-status guidance below.",
       "sourceRefs": [
         "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/",
         "https://mydmvportal.flhsmv.gov/"
+      ]
+    },
+    {
+      "when": {
+        "dl_renewal_channel": "online-mydmv",
+        "recent_name_change": "yes-with-docs"
+      },
+      "removeItems": ["mydmv-portal-referral"],
+      "addItems": ["fl-driver-license-to-renew"],
+      "note": "A name change cannot be processed through MyDMV online renewal — the customer must come into the office to complete a renewal that includes a name change. [Confirmed by TCSLC staff — policy-questions DL-3, 2026-07.]",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
+      ]
+    },
+    {
+      "when": {
+        "dl_renewal_channel": "online-mydmv",
+        "is_us_citizen": "temporary-lawful-presence"
+      },
+      "removeItems": ["mydmv-portal-referral"],
+      "addItems": ["fl-driver-license-to-renew"],
+      "note": "Customers on temporary lawful-presence status cannot renew online via MyDMV — they must come into the office and present their current lawful-presence documentation each renewal. [Confirmed by TCSLC staff — policy-questions DL-3, 2026-07.]",
+      "sourceRefs": [
+        "https://www.flhsmv.gov/driver-licenses-id-cards/renew-or-replace-your-florida-driver-license-or-id-card/"
       ]
     },
     {

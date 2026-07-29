@@ -490,7 +490,7 @@
     "scope": "transaction-specific",
     "relevantTransactions": ["vehicle-title-transfer"],
     "valueLabels": {
-      "yes-owner-absent": "Yes \u2014 owner absent, using POA",
+      "yes-owner-absent": "Yes \u2014 owner absent, using a Power of Attorney (POA)",
       "no-owner-present": "No \u2014 owner is present",
       "unknown": "Not sure"
     }
@@ -690,8 +690,8 @@
     "label": "Applicant is a school employee",
     "valueType": "enum",
     "allowedValues": ["yes", "no", "unknown"],
-    "questionText": "Are you a school district employee applying for a school-bus endorsement?",
-    "inferenceHints": "School employees must present school employment ID card or letter from the school department on every original and renewal. CDL customers generally cannot use the Address Certification Form \u2014 school employees are the exception per vendor workflow.",
+    "questionText": "Are you a school district employee who is required to hold a CDL?",
+    "inferenceHints": "Applies to ANY school-district employee required to hold a CDL, not only school-bus (S) endorsement applicants. They present a school employment ID card or a letter from the school department on every original and every renewal (scanned into the record) to qualify for the reduced school-employee CDL fee. CDL customers generally cannot use the Address Certification Form \u2014 school employees are the exception per vendor workflow.",
     "scope": "transaction-specific",
     "relevantTransactions": ["cdl"],
     "valueLabels": {
