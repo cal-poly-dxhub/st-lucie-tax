@@ -21,6 +21,8 @@ import { processMessage, runAutoGreet } from "./conversation/process-message.js"
 import { skipState as doSkipState } from "./state-machine/skip-state.js";
 import { updateSession } from "./session/update-session.js";
 import { generateUploadUrl } from "./upload/generate-url.js";
+import { validateDocument } from "./upload/validate-document.js";
+import { getCatalogItem } from "./data-loaders/item-catalog.js";
 import { advanceState, shouldAutoAdvance } from "./state-machine/transitions.js";
 import { isTerminal } from "./state-machine/states.js";
 import { inferFactsFromIdentity } from "./session/infer-facts-from-identity.js";
@@ -38,7 +40,13 @@ import {
   createVerifiedTransaction,
   buildVerifiedEmbedUrl,
 } from "./authid/client.js";
-import { decide, extractIdentity } from "./authid/decision.js";
+import {
+  pollProofStatus,
+  classifyProof,
+  applyProofOutcomeToSession,
+  applyAuthIdFailureToSession,
+} from "./authid/result-flow.js";
+import { handleVerifyIdentityTool } from "./tools/verify-identity/tools.js";
 import {
   findSlot,
   book,
@@ -638,6 +646,90 @@ app.post("/chatbot/sessions/:sessionId/upload-url", async (req, res) => {
   }
 });
 
+// POST /chatbot/sessions/:sessionId/validate-document
+// Synchronous AI pass/reject screen. Runs right after the SPA PUTs a file to
+// S3, so the resident gets an immediate verdict and can retry. Conservative +
+// FAIL-OPEN: only a high-confidence reject blocks; any error returns accept.
+// A reject is a 200 (it's a business outcome, not an HTTP error).
+app.post("/chatbot/sessions/:sessionId/validate-document", async (req, res) => {
+  try {
+    const sessionId = String(req.params.sessionId);
+    const { documentType, s3Key, filename } = req.body ?? {};
+    if (!documentType || !s3Key || !filename) {
+      res.status(400).json({ error: "documentType, s3Key and filename required" });
+      return;
+    }
+
+    const session = await getSession(TENANT_ID, sessionId);
+    if (!session) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    // Ownership guard — same semantics as rehydrate above. (Swap for
+    // assertSessionOwner once the IDOR-fix helper lands.)
+    if (req.betaEmail && session.betaTesterEmail && session.betaTesterEmail !== req.betaEmail) {
+      res.status(403).json({ error: "session-belongs-to-another-tester" });
+      return;
+    }
+
+    // s3Key is caller-supplied — bind it to THIS session's upload prefix so a
+    // valid token can't point the validator at another session's objects.
+    if (!s3Key.startsWith(`uploads/${TENANT_ID}/${sessionId}/`)) {
+      res.status(400).json({ error: "s3Key does not belong to this session" });
+      return;
+    }
+
+    const result = await validateDocument({
+      tenantId: TENANT_ID,
+      sessionId,
+      documentType: String(documentType),
+      s3Key: String(s3Key),
+      filename: String(filename),
+    });
+
+    // Best-effort session write — the verdict to the SPA is the load-bearing
+    // output. The SPA sends the catalog itemId as documentType, but
+    // session.documents[].documentType is a freeform doc string, so match by
+    // the catalog label (substring, both directions) and skip if no match.
+    try {
+      const item = getCatalogItem(String(documentType));
+      const label = (item?.label ?? String(documentType)).toLowerCase();
+      const labelShort = label.split("(")[0].trim();
+      const doc = session.structuredContext.documents.find((d) => {
+        const dt = d.documentType.toLowerCase();
+        return dt === label || dt.includes(labelShort) || labelShort.includes(dt);
+      });
+      if (doc) {
+        const validationResult = JSON.stringify(result);
+        // Branch on the FINAL verdict, not the plausibility gate: an expiry
+        // reject carries verdict:'reject' with a sub-0.85 (accept-level)
+        // confidence, so mapVerdictToAction would mislabel it 'validated' and
+        // reference its S3 object. The verdict is the load-bearing signal.
+        if (result.verdict === "reject") {
+          doc.status = "failed";
+          doc.validationResult = validationResult;
+          // Leave the rejected S3 object orphaned (not referenced) — bucket TTL clears it.
+        } else {
+          doc.s3Key = String(s3Key);
+          doc.status = "validated";
+          doc.validationResult = validationResult;
+        }
+        await updateSession(session);
+      }
+    } catch (writeErr) {
+      // Never let a session-write hiccup turn a clean verdict into an error.
+      console.error("validate-document session write failed:", writeErr);
+    }
+
+    res.json(result);
+  } catch (err) {
+    // Top-level fail-open: a thrown error must never block a real resident.
+    console.error("Validate document error:", err);
+    res.json({ verdict: "accept", failOpen: true });
+  }
+});
+
 // POST /chatbot/sessions/:sessionId/confirm-identity
 app.post("/chatbot/sessions/:sessionId/confirm-identity", async (req, res) => {
   try {
@@ -699,36 +791,43 @@ app.post("/chatbot/sessions/:sessionId/authid-result", async (req, res) => {
       return;
     }
 
-    const POLL_INTERVAL_MS = 2000;
-    const POLL_MAX_ATTEMPTS = 30;
-    let status = 0;
-    for (let i = 0; i < POLL_MAX_ATTEMPTS; i += 1) {
-      const s = await getOperationStatus(session.authIdOperationId);
-      status = s.Status;
-      if (status === 1) break;
-      if (status > 1) {
-        res.status(200).json({ status: "authid-failed", authIdStatus: status });
-        return;
-      }
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    // Short poll budget: ~4×2s ≈ 8s, well under the 29s API-Gateway integration
+    // timeout. If AuthID isn't terminal yet we return {status:'pending'} (below)
+    // and the frontend re-polls — the request never blocks past the gateway
+    // ceiling, so a slow-but-valid verification no longer surfaces a spurious
+    // 504. NON-BLOCKING: every branch here leaves currentState=verify-identity,
+    // so Skip + a fresh start_authid_proof retry stay reachable.
+    const poll = await pollProofStatus(session.authIdOperationId, {
+      getOperationStatus,
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      maxAttempts: 4,
+      intervalMs: 2000,
+    });
+
+    if (poll.outcome === "pending") {
+      // Non-terminal: keep the in-flight fields so the next re-poll resumes.
+      // No session write needed.
+      res.status(200).json({ status: "pending" });
+      return;
     }
-    if (status !== 1) {
-      res.status(504).json({ error: "Timed out waiting for AuthID result" });
+
+    if (poll.outcome === "failed") {
+      // Transport-level failure (status > 1). Persist a durable failure summary
+      // + clear in-flight state (fixes the prior fail-open path that returned
+      // without any write), then hold at the gate for Skip / retry.
+      applyAuthIdFailureToSession(session, {
+        status: poll.status,
+        matchedAt: new Date().toISOString(),
+      });
+      await updateSession(session);
+      res.status(200).json({ status: "authid-failed", authIdStatus: poll.status });
       return;
     }
 
     const raw = await getProofResult(session.authIdOperationId);
-    const decision = decide(raw);
-    const extracted = extractIdentity(raw);
-
-    session.authIdProofResult = {
-      operationId: session.authIdOperationId,
-      decision: decision.outcome,
-      failureReasons: decision.reasons,
-      matchedAt: new Date().toISOString(),
-    };
-    session.authIdOperationId = undefined;
-    session.pendingAuthIdProof = undefined;
+    const classification = classifyProof(raw);
+    const decision = classification.decision;
+    applyProofOutcomeToSession(session, classification, { matchedAt: new Date().toISOString() });
 
     if (decision.outcome === "reject") {
       await updateSession(session);
@@ -740,12 +839,7 @@ app.post("/chatbot/sessions/:sessionId/authid-result", async (req, res) => {
       return;
     }
 
-    session.structuredContext.identity = {
-      name: extracted.fullName ?? "",
-      dob: extracted.dateOfBirth ?? "",
-      address: extracted.address ?? "",
-      confirmed: true,
-    };
+    // pass / review: identity was written by applyProofOutcomeToSession.
     // AuthID's DL is source-of-truth for the DOB-derived age facts; this may
     // overwrite what the customer self-reported during resolve-facts. Re-run
     // implications + tree resolution so any reopened branch / changed bucket /
@@ -825,6 +919,42 @@ app.post("/chatbot/sessions/:sessionId/skip-verify", async (req, res) => {
     });
   } catch (err) {
     console.error("Skip-verify error:", err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /chatbot/sessions/:sessionId/authid-retry
+// After a rejected / authid-failed outcome the resident may want another
+// attempt. AuthID OneTimeSecrets are single-use, so a retry needs a FRESH Proof
+// transaction — this reuses the exact start_authid_proof tool the bot runs on
+// entry (createProofTransaction + session persist), so there's no duplicated
+// AuthID logic. The session already sits in verify-identity (no failure outcome
+// advances state), so this is purely additive: it re-arms the widget without
+// touching the skip path.
+app.post("/chatbot/sessions/:sessionId/authid-retry", async (req, res) => {
+  try {
+    const session = await getSession(TENANT_ID, req.params.sessionId);
+    if (!session) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (session.currentState !== "verify-identity") {
+      res.status(400).json({ error: `Cannot retry verify in state ${session.currentState}` });
+      return;
+    }
+
+    // startProof mints a fresh transaction, updates the session, and returns a
+    // uiAction — 'authid-proof' on success, 'authid-unavailable' if AuthID is
+    // unreachable (same graceful degradation as first entry).
+    const result = await handleVerifyIdentityTool("start_authid_proof", {}, session);
+    const uiAction = result.uiAction as { type?: string } | undefined;
+    if (uiAction?.type === "authid-proof") {
+      res.json({ status: "retrying", pendingAuthIdProof: session.pendingAuthIdProof });
+      return;
+    }
+    res.json({ status: "unavailable" });
+  } catch (err) {
+    console.error("AuthID retry error:", err);
     res.status(500).json({ error: (err as Error).message });
   }
 });

@@ -53,6 +53,13 @@ const SSN_CONTEXT_RE =
 // random long numbers that aren't real cards).
 const CARD_CANDIDATE_RE = /\b(?:\d[ -]?){12,18}\d\b/g;
 
+// Context-cued card: "card"/"credit card"/"debit card"/"card number" followed by
+// a 13–19 digit run — scrub even if it FAILS Luhn, because the user explicitly
+// labelled it as a card. Covers non-Luhn-compliant test/legacy cards (e.g.
+// 4007 0000 0000 0027) that a real person may still type.
+const CARD_CONTEXT_RE =
+  /\b(?:credit|debit)?\s*card(?:\s*(?:number|no|#|is))?\b[^0-9]{0,20}((?:\d[ -]?){12,18}\d)\b/gi;
+
 // Bank routing: exactly 9 digits, ABA-checksum-valid, with a "routing"/"aba"
 // cue nearby. Account number: 6–17 digits with an "account"/"acct" cue nearby.
 const ROUTING_CONTEXT_RE = /\b(?:routing|aba)(?:\s*(?:number|no|#))?\b[^0-9]{0,24}(\d{9})\b/gi;
@@ -120,8 +127,16 @@ export function scrubSensitiveInput(message: string): ScrubResult {
       return full.replace(num, SCRUB_PLACEHOLDER);
     });
 
-    // 3) Payment cards — Luhn-validated. Done last so a card written as a bare
-    //    16-digit run isn't first mis-caught by account context, etc.
+    // 3a) Context-cued cards: user explicitly said "card" nearby — scrub even
+    //     if Luhn fails (covers non-Luhn test/legacy cards like 4007000000000027).
+    out = out.replace(CARD_CONTEXT_RE, (full, num: string) => {
+      removed.add("card");
+      return full.replace(num, SCRUB_PLACEHOLDER);
+    });
+
+    // 3b) Payment cards — Luhn-validated (no context cue required). Catches bare
+    //     card numbers with no labelling text. Done after 3a so context-cued ones
+    //     are already replaced and won't double-match.
     out = out.replace(CARD_CANDIDATE_RE, (match) => {
       const digits = onlyDigits(match);
       if (digits.length < 13 || digits.length > 19) return match;

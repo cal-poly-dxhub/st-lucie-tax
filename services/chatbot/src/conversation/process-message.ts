@@ -116,6 +116,7 @@ export async function processMessage(
 
   // Advance state if tools indicated we should
   if (result.shouldAdvance) {
+    session.structuredContext.suggestedReplies = [];
     const from = session.currentState;
     advanceState(session);
     void appendLog(tenantId, sessionId, "state.advance", {
@@ -147,6 +148,10 @@ export async function processMessage(
   // — first, is your license suspended?") instead of having to send a dummy
   // turn to advance the conversation.
   let combinedMessage = result.assistantMessage;
+  // Tool provenance across BOTH rounds (main + autoGreet), for the fee detector
+  // and the chips fallback below.
+  let combinedToolResultText = result.toolResultText;
+  const combinedCalledTools = new Set(result.calledToolNames);
   let autoGreetRan = false;
   // autoGreet fires on any state flagged for it — including terminal states
   // like `schedule` that still need to open their widget on entry. Other
@@ -174,6 +179,8 @@ export async function processMessage(
       sessionId,
     });
 
+    combinedToolResultText += greetResult.toolResultText;
+    for (const n of greetResult.calledToolNames) combinedCalledTools.add(n);
     if (greetResult.assistantMessage.trim()) {
       combinedMessage = `${result.assistantMessage}\n\n${greetResult.assistantMessage}`.trim();
       addAssistantTurn(session, greetResult.assistantMessage);
@@ -212,6 +219,53 @@ export async function processMessage(
     });
   }
 
+  // Fee-fabrication monitor (log-only, never rewrites). If the reply states a
+  // dollar amount that did NOT come from a tool result this turn, the model
+  // likely recalled it from training data — the exact failure in session
+  // 17cf4d9a where it invented "$48.00 + $6.25 = $54.25" for DL fees. We don't
+  // scrub (legitimate fees like a KB-sourced "$48.00" or an item-note fee must
+  // survive); we flag for telemetry so the prompt rule's effectiveness is
+  // measurable.
+  const emittedAmounts = (guardedMessage.match(/\$\s?\d[\d,]*(?:\.\d{2})?/g) ?? []).map((a) =>
+    a.replace(/\$\s+/, "$"),
+  );
+  if (emittedAmounts.length > 0) {
+    const sourceText = combinedToolResultText.replace(/\$\s+/g, "$");
+    const unsourced = [...new Set(emittedAmounts)].filter((a) => !sourceText.includes(a));
+    if (unsourced.length > 0) {
+      void appendLog(tenantId, sessionId, "fee.unsourced", {
+        state: session.currentState,
+        amounts: unsourced,
+      });
+    }
+  }
+
+  // Chips fallback (Issue 3). The LLM is told to call set_suggested_replies on
+  // every turn but forgets ~30% of the time, leaving the customer with no
+  // tappable chips. When it skipped the tool AND left chips empty AND the reply
+  // is a parseable numbered option list, harvest the options deterministically.
+  // Tightly gated to avoid clobbering: only when we stayed in the same state
+  // (no reset/advance race), the guard didn't rewrite, the tool wasn't called
+  // (respects an explicit "no chips" empty-array intent), and not in a
+  // doc-rendering state.
+  const suggestedRepliesToolCalled = combinedCalledTools.has("set_suggested_replies");
+  if (
+    session.currentState === stateAtEntry &&
+    !rewritten &&
+    !suggestedRepliesToolCalled &&
+    !RENDERING_STATES.has(session.currentState) &&
+    (session.structuredContext.suggestedReplies?.length ?? 0) === 0
+  ) {
+    const parsed = parseSuggestedRepliesFromMessage(guardedMessage);
+    if (parsed.length >= 2) {
+      session.structuredContext.suggestedReplies = parsed;
+      void appendLog(tenantId, sessionId, "suggested-replies.fallback", {
+        state: session.currentState,
+        count: parsed.length,
+      });
+    }
+  }
+
   // Save session
   await updateSession(session);
 
@@ -222,6 +276,8 @@ export async function processMessage(
     cascadeSteps,
     autoGreetRan,
     rogueChecklistRewritten: rewritten,
+    suggestedRepliesToolCalled,
+    suggestedRepliesFinalCount: session.structuredContext.suggestedReplies?.length ?? 0,
   });
 
   return {
@@ -308,6 +364,11 @@ export function assertNoRogueChecklist(
   const bulletedItems = message.match(/^\s*[-*•]\s+\S/gm) ?? [];
   const total = numberedItems.length + bulletedItems.length;
 
+  // Shared by Rules 1 & 3. Broad keyword set — fine for header/structural rules
+  // that already require a checklist shape; NOT used by Rule 2 (see below).
+  const docKeywords =
+    /\b(HSMV|certificate|title|registration|insurance|passport|social security|VA letter|form|proof of address)\b/i;
+
   // Header-shaped lines (start of line, optional bold/heading marks). Must be
   // line-anchored so a prose mention like "the documents you'll need" doesn't
   // count. Combined with the list-length floor below to avoid clobbering Q&A
@@ -318,20 +379,106 @@ export function assertNoRogueChecklist(
     return { text: FALLBACK_MESSAGE, rewritten: true };
   }
 
-  // A fact question with many answer chips (e.g. "Which primary identity
-  // document do you have? 1. US passport 2. Birth certificate …") looks like a
-  // doc list to a naive keyword count, but it's a QUESTION — the customer is
-  // picking one, not being handed a checklist. Questions contain a '?'; genuine
-  // rogue checklists are declarative. So the keyword-count rule only fires when
-  // the message is NOT a question.
-  const isQuestion = message.includes("?");
-  const docKeywords =
-    /\b(HSMV|certificate|title|registration|insurance|passport|social security|VA letter|form|proof of address)\b/i;
-  if (!isQuestion && total >= 5 && docKeywords.test(message)) {
+  // Rule 3 — multi-category checklist (the turn-7 escape: 4 bold section headers
+  // like "**Primary Identity Document**", 11 bullets, doc keywords, trailing
+  // courtesy "?"). A standalone bold *category-header* line is a line whose
+  // ENTIRE content is a bold span with no '?' inside it. A multiple-choice fact
+  // question has ZERO such lines: its one bold span is the question STEM and
+  // ends with '?', which [^*\n?]+ plus the end anchor exclude. Three+ category
+  // headers + 5+ items + a doc keyword is a "what to bring" dump — fire even
+  // when the reply ends with a trailing courtesy question.
+  const boldHeaderLines = message.match(/^[ \t>]*\*\*[^*\n?]+\*\*[ \t]*$/gm) ?? [];
+  if (boldHeaderLines.length >= 3 && total >= 5 && docKeywords.test(message)) {
+    return { text: FALLBACK_MESSAGE, rewritten: true };
+  }
+
+  // Rule 2 — flat declarative checklist. A genuine framing question puts its '?'
+  // at or above the list (the question STEM, e.g. "Which document do you have?
+  // 1. … 2. …"); a trailing courtesy '?' BELOW the last list item does not make
+  // a declarative list a question. Only a framing question suppresses this rule,
+  // so a flat checklist ending in "…anything else?" is still caught.
+  const lines = message.split("\n");
+  let lastListIdx = -1;
+  let firstQIdx = -1;
+  lines.forEach((l, i) => {
+    if (/^\s*(?:\d+\.|[-*•])\s+\S/.test(l)) lastListIdx = i;
+    if (firstQIdx === -1 && l.includes("?")) firstQIdx = i;
+  });
+  const framingQuestion = firstQIdx !== -1 && (lastListIdx === -1 || firstQIdx <= lastListIdx);
+  // NARROW trigger (NOT the broad docKeywords): a lead phrase OR a doc-ONLY
+  // token. Dropping title/registration/form/insurance and requiring one of
+  // these is what keeps prompt-mandated transaction menus (which contain
+  // "title"/"registration") from being rewritten — verified against the
+  // Top-5-stuck, new-resident, and ambiguous-purchase menus in default-prompts.
+  const leadPhrase =
+    /\b(what to bring|you'?ll need|you will need|bring with you|here'?s what you'?ll|required documents|bring the following)\b/i;
+  const docOnlyKeywords =
+    /\b(HSMV|passport|social security|VA letter|proof of address|birth certificate|naturalization|W-2|pay stub|utility bill)\b/i;
+  if (
+    !framingQuestion &&
+    total >= 5 &&
+    (leadPhrase.test(message) || docOnlyKeywords.test(message))
+  ) {
     return { text: FALLBACK_MESSAGE, rewritten: true };
   }
 
   return { text: message, rewritten: false };
+}
+
+/**
+ * Deterministic fallback for the chips (set_suggested_replies) compliance gap.
+ * When the LLM presents a NUMBERED option list but forgot to call the tool,
+ * harvest the options into quick-reply chips so the customer can still tap.
+ *
+ * NUMBERED lists only — dash bullets are reserved for facts/items per the
+ * formatting rule, so harvesting them risks grabbing a rogue checklist. Each
+ * candidate label is cleaned and validated to look like a short OPTION, not a
+ * sentence or a document name:
+ *   - strip markdown emphasis + a trailing "— gloss" / "(parenthetical)";
+ *   - reject empty, >60 chars, >8 words, ending in '?', or ending in '.'/'!'/';'
+ *     (a procedure step like "1. First, gather your documents." is not an option);
+ *   - reject an internal sentence break (prose, not a label).
+ * Then, if ≥2 surviving labels look like document names, the whole thing is a
+ * rogue doc list, not a menu — return []. Returns [] unless ≥2 chips survive.
+ */
+export function parseSuggestedRepliesFromMessage(
+  message: string,
+): Array<{ label: string; value: string }> {
+  const numbered = message.match(/^\s*\d+\.\s+(.+?)\s*$/gm) ?? [];
+  if (numbered.length < 2) return [];
+
+  const out: Array<{ label: string; value: string }> = [];
+  const seen = new Set<string>();
+  for (const raw of numbered) {
+    let label = raw.replace(/^\s*\d+\.\s+/, "").trim();
+    // Strip markdown emphasis markers.
+    label = label.replace(/[*_`]/g, "").trim();
+    // Strip a trailing "— explanation" / "- explanation" gloss and a trailing
+    // "(parenthetical)" so "Renew online — fastest option" -> "Renew online".
+    label = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    label = label.replace(/\s*[—-]\s+.*$/, "").trim();
+    if (!label) continue;
+    if (label.length > 60) continue;
+    if (label.split(/\s+/).length > 8) continue;
+    if (label.endsWith("?")) continue;
+    if (/[.!;]$/.test(label)) continue; // procedure step / sentence
+    if (/[.?!](\s|$)/.test(label.slice(0, -1))) continue; // internal sentence break
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, value: label });
+    if (out.length >= 8) break;
+  }
+
+  // If multiple options are document names, this is a rogue doc checklist
+  // rendered as a numbered list, not a routing menu — don't make chips of it.
+  // NARROW doc-only set: must NOT include title/registration/form/insurance,
+  // which appear in legitimate transaction menus.
+  const DOC_ONLY =
+    /\b(HSMV|passport|social security|VA letter|proof of address|birth certificate|divorce decree|court order|marriage certificate|naturalization|certified|W-2|pay stub|utility bill|bank statement)\b/i;
+  if (out.filter((o) => DOC_ONLY.test(o.label)).length >= 2) return [];
+
+  return out.length >= 2 ? out : [];
 }
 
 /**

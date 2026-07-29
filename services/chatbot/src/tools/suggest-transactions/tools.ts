@@ -465,6 +465,34 @@ export async function handleSuggestTransactionsTool(
       c.clusterId === "vehicle-purchase-used-private",
   );
   if (ambiguous && !childMatched) {
+    const options = [
+      {
+        label: "New from a dealer",
+        clusterId: "vehicle-purchase-new-dealer",
+        txnTypeIds: ["new-vehicle-title", "vehicle-registration"],
+      },
+      {
+        label: "Used from a private party",
+        clusterId: "vehicle-purchase-used-private",
+        txnTypeIds: ["vehicle-title-transfer", "vehicle-registration"],
+      },
+      {
+        label: "Gift or inheritance",
+        clusterId: "vehicle-purchase-used-private",
+        txnTypeIds: ["vehicle-title-transfer", "vehicle-registration"],
+      },
+      {
+        label: "Trailer (homemade or purchased)",
+        clusterId: "trailer-registration",
+        txnTypeIds: ["trailer-registration"],
+      },
+    ];
+    if (session) {
+      session.structuredContext.suggestedReplies = options.map((o) => ({
+        label: o.label,
+        value: o.label,
+      }));
+    }
     return {
       content: [
         {
@@ -473,28 +501,7 @@ export async function handleSuggestTransactionsTool(
             clarification: {
               question:
                 "Was this a new vehicle from a dealer, a used vehicle from a private party, or a trailer?",
-              options: [
-                {
-                  label: "New from a dealer",
-                  clusterId: "vehicle-purchase-new-dealer",
-                  txnTypeIds: ["new-vehicle-title", "vehicle-registration"],
-                },
-                {
-                  label: "Used from a private party",
-                  clusterId: "vehicle-purchase-used-private",
-                  txnTypeIds: ["vehicle-title-transfer", "vehicle-registration"],
-                },
-                {
-                  label: "Gift or inheritance",
-                  clusterId: "vehicle-purchase-used-private",
-                  txnTypeIds: ["vehicle-title-transfer", "vehicle-registration"],
-                },
-                {
-                  label: "Trailer (homemade or purchased)",
-                  clusterId: "trailer-registration",
-                  txnTypeIds: ["trailer-registration"],
-                },
-              ],
+              options,
             },
             guidance:
               "Present the three options to the customer and wait for their pick. Do NOT call confirm_selections until they choose. Reply with the question and a numbered list.",
@@ -573,6 +580,26 @@ export async function handleSuggestTransactionsTool(
         : directMatches.length > 0
           ? "No cluster match — present these direct matches as candidates and ask the customer to confirm."
           : "No matches. Ask the customer to describe their situation, or suggest calling query_knowledge_base for general inquiries.";
+
+  // Auto-populate suggestedReplies so the frontend renders tappable chips
+  // matching whatever the LLM is about to present. Only when there are
+  // options to choose from (not auto-confirm cases where the bot skips ahead).
+  if (session && !dominantDirect && !singleClusterAutoConfirm) {
+    const replies: Array<{ label: string; value: string }> = [];
+    for (const c of matchedClusters) {
+      for (const t of c.transactions) {
+        replies.push({ label: t.name, value: t.name });
+      }
+    }
+    for (const d of directMatches) {
+      if (!replies.some((r) => r.label === d.name)) {
+        replies.push({ label: d.name, value: d.name });
+      }
+    }
+    if (replies.length > 0) {
+      session.structuredContext.suggestedReplies = replies.slice(0, 8);
+    }
+  }
 
   return {
     content: [
