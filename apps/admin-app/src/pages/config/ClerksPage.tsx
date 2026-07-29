@@ -53,7 +53,7 @@ export function ClerksPage() {
   const [editing, setEditing] = useState<Record<number, Partial<Clerk>>>({});
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [busyCell, setBusyCell] = useState<string | null>(null);
-  const [showSkills, setShowSkills] = useState(false);
+  const [showSkills, setShowSkills] = useState(true);
 
   const [newFirst, setNewFirst] = useState("");
   const [newLast, setNewLast] = useState("");
