@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   fetchSchedulingSlot,
   fetchSchedulingOffices,
@@ -8,7 +8,7 @@ import {
   type SchedulingSlotResponse,
   type SchedulingOffice,
   type SchedulingPreferences,
-} from '../api';
+} from "../api";
 
 interface Props {
   sessionId: string;
@@ -16,7 +16,17 @@ interface Props {
   onBooked: () => void;
 }
 
-type Phase = 'loading' | 'offer' | 'preferences' | 'contact' | 'verify-email' | 'verify-waiting' | 'booking' | 'no-match' | 'unavailable' | 'done';
+type Phase =
+  | "loading"
+  | "offer"
+  | "preferences"
+  | "contact"
+  | "verify-email"
+  | "verify-waiting"
+  | "booking"
+  | "no-match"
+  | "unavailable"
+  | "done";
 
 interface BookingConfirmation {
   confirmationCode: string;
@@ -26,15 +36,18 @@ interface BookingConfirmation {
   email: string;
 }
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [slot, setSlot] = useState<NonNullable<SchedulingSlotResponse['slot']>>();
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [slot, setSlot] = useState<NonNullable<SchedulingSlotResponse["slot"]>>();
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState(defaultName ?? '');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // Non-error notice shown after we auto-reload a fresh slot (e.g. the offered
+  // time was just booked by someone else). Survives loadSlot()'s setError(null).
+  const [notice, setNotice] = useState<string | null>(null);
+  const [name, setName] = useState(defaultName ?? "");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
 
@@ -58,29 +71,34 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   }
 
   function loadSlot(prefs?: SchedulingPreferences) {
-    setPhase('loading');
+    setPhase("loading");
     setError(null);
     fetchSchedulingSlot(sessionId, prefs)
       .then((r) => {
         if (r.unavailable || r.schedulable === false) {
-          setPhase('unavailable');
+          setPhase("unavailable");
           return;
         }
         if (!r.slot) {
           // Transaction is schedulable but no slot matched preferences
-          setPhase('no-match');
+          setPhase("no-match");
           return;
         }
         setSlot(r.slot);
-        setPhase('offer');
+        setPhase("offer");
       })
-      .catch((e: Error) => { setError(e.message); setPhase('unavailable'); });
+      .catch((e: Error) => {
+        setError(e.message);
+        setPhase("unavailable");
+      });
   }
 
-  useEffect(() => { loadSlot(); }, [sessionId]);
+  useEffect(() => {
+    loadSlot();
+  }, [sessionId]);
 
   function openPreferences() {
-    setPhase('preferences');
+    setPhase("preferences");
     setPreferences({});
     // Load eligible offices (includes openDays per office)
     fetchSchedulingOffices(sessionId)
@@ -93,20 +111,23 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   }
 
   async function handleVerifyEmail() {
-    if (!email.trim()) { setError('Please enter your email.'); return; }
+    if (!email.trim()) {
+      setError("Please enter your email.");
+      return;
+    }
     setError(null);
-    setPhase('verify-email');
+    setPhase("verify-email");
     try {
       const result = await verifySchedulingEmail(sessionId, email.trim());
-      if (result.status === 'already_verified') {
+      if (result.status === "already_verified") {
         setEmailVerified(true);
-        setPhase('contact');
+        setPhase("contact");
       } else {
-        setPhase('verify-waiting');
+        setPhase("verify-waiting");
       }
     } catch (e) {
       setError((e as Error).message);
-      setPhase('contact');
+      setPhase("contact");
     }
   }
 
@@ -116,9 +137,11 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
       const result = await checkSchedulingEmailStatus(sessionId, email.trim());
       if (result.verified) {
         setEmailVerified(true);
-        setPhase('contact');
+        setPhase("contact");
       } else {
-        setError('Email not yet verified. Check your inbox for the AWS verification email and click the link.');
+        setError(
+          "Email not yet verified. Check your inbox for the AWS verification email and click the link.",
+        );
       }
     } catch (e) {
       setError((e as Error).message);
@@ -127,14 +150,23 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
 
   async function confirmBooking() {
     if (!slot) return;
-    if (!emailVerified) { handleVerifyEmail(); return; }
-    const [firstName, ...rest] = name.trim().split(' ');
-    const lastName = rest.join(' ') || firstName;
-    setPhase('booking'); setError(null);
+    if (!emailVerified) {
+      handleVerifyEmail();
+      return;
+    }
+    const [firstName, ...rest] = name.trim().split(" ");
+    const lastName = rest.join(" ") || firstName;
+    setPhase("booking");
+    setError(null);
     try {
       const result = await bookSchedulingAppointment(sessionId, {
-        officeId: slot.officeId, date: slot.date, time: slot.time,
-        firstName, lastName, email: email.trim(), phone,
+        officeId: slot.officeId,
+        date: slot.date,
+        time: slot.time,
+        firstName,
+        lastName,
+        email: email.trim(),
+        phone,
       });
       setConfirmation({
         confirmationCode: result.qrCode,
@@ -143,65 +175,115 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
         timeFormatted: result.timeFormatted,
         email: email.trim(),
       });
-      setPhase('done');
+      setPhase("done");
       onBooked();
     } catch (e) {
       const err = e as Error & { reason?: string };
-      if (err.reason === 'slot-taken') { loadSlot(); return; }
-      setError(err.message); setPhase('contact');
+      if (err.reason === "slot-taken") {
+        // Someone booked that time first. Pull a fresh slot and tell the user
+        // WHY they're back at the offer (silently reloading looked broken).
+        setNotice(
+          "That time was just booked by someone else — here’s the next available appointment. Please review and confirm.",
+        );
+        loadSlot();
+        return;
+      }
+      setError(err.message);
+      setPhase("contact");
     }
   }
 
-  if (phase === 'loading') return <div className="schedule-panel">Finding the next available time…</div>;
+  if (phase === "loading")
+    return <div className="schedule-panel">Finding the next available time…</div>;
 
-  if (phase === 'unavailable') return (
-    <div className="schedule-panel">
-      <p>Online scheduling isn't available for your transaction yet. Please call the office to book your visit.</p>
-      {error && <p className="schedule-error">{error}</p>}
-    </div>
-  );
+  if (phase === "unavailable")
+    return (
+      <div className="schedule-panel">
+        <p>
+          Online scheduling isn't available for your transaction yet. Please call the office to book
+          your visit.
+        </p>
+        {error && <p className="schedule-error">{error}</p>}
+      </div>
+    );
 
-  if (phase === 'no-match') return (
-    <div className="schedule-panel">
-      <p>No appointments matched your preferences in the next 30 days. You can change your preferences to find available times.</p>
-      {error && <p className="schedule-error">{error}</p>}
-      <div className="schedule-pref-actions">
-        <button className="schedule-accept" onClick={openPreferences}>Change preferences</button>
-        <button className="schedule-reroll" onClick={() => loadSlot()}>Show earliest available</button>
+  if (phase === "no-match")
+    return (
+      <div className="schedule-panel">
+        <p>
+          No appointments matched your preferences in the next 30 days. You can change your
+          preferences to find available times.
+        </p>
+        {error && <p className="schedule-error">{error}</p>}
+        <div className="schedule-pref-actions">
+          <button className="schedule-accept" onClick={openPreferences}>
+            Change preferences
+          </button>
+          <button className="schedule-reroll" onClick={() => loadSlot()}>
+            Show earliest available
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
 
-  if (phase === 'done' && confirmation) return (
-    <div className="schedule-panel schedule-confirmation">
-      <div className="schedule-confirmed-header">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <h3>Appointment Confirmed</h3>
+  if (phase === "done" && confirmation)
+    return (
+      <div className="schedule-panel schedule-confirmation">
+        <div className="schedule-confirmed-header">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <h3>Appointment Confirmed</h3>
+        </div>
+        <div className="schedule-confirmed-details">
+          <p>
+            <strong>Confirmation Code:</strong>{" "}
+            <span className="schedule-code">{confirmation.confirmationCode}</span>
+          </p>
+          <p>
+            <strong>Date:</strong> {confirmation.dateFormatted}
+          </p>
+          <p>
+            <strong>Time:</strong> {confirmation.timeFormatted}
+          </p>
+          <p>
+            <strong>Location:</strong> {confirmation.officeName}
+          </p>
+        </div>
+        <div className="schedule-qr">
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(confirmation.confirmationCode)}`}
+            alt="QR Code"
+            width={150}
+            height={150}
+          />
+          <p className="schedule-qr-hint">Present this QR code at check-in</p>
+        </div>
+        <p className="schedule-email-note">
+          A confirmation email has been sent to {confirmation.email}.
+        </p>
       </div>
-      <div className="schedule-confirmed-details">
-        <p><strong>Confirmation Code:</strong> <span className="schedule-code">{confirmation.confirmationCode}</span></p>
-        <p><strong>Date:</strong> {confirmation.dateFormatted}</p>
-        <p><strong>Time:</strong> {confirmation.timeFormatted}</p>
-        <p><strong>Location:</strong> {confirmation.officeName}</p>
-      </div>
-      <div className="schedule-qr">
-        <img
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(confirmation.confirmationCode)}`}
-          alt="QR Code"
-          width={150}
-          height={150}
-        />
-        <p className="schedule-qr-hint">Present this QR code at check-in</p>
-      </div>
-      <p className="schedule-email-note">A confirmation email has been sent to {confirmation.email}.</p>
-    </div>
-  );
+    );
 
-  if (phase === 'preferences') {
+  if (phase === "preferences") {
     const availableDays = getAvailableDays();
     return (
       <div className="schedule-panel" data-phase="preferences">
-        {error && <div className="schedule-error" role="alert">{error}</div>}
+        {error && (
+          <div className="schedule-error" role="alert">
+            {error}
+          </div>
+        )}
         <div className="schedule-preferences">
           <h3>What would you like to change?</h3>
           <p className="schedule-preferences-hint">Pick one or more preferences, then search.</p>
@@ -209,7 +291,7 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
           <label className="schedule-pref-label">
             Preferred office
             <select
-              value={preferences.preferredOffice ?? ''}
+              value={preferences.preferredOffice ?? ""}
               onChange={(e) => {
                 const officeId = e.target.value ? Number(e.target.value) : undefined;
                 setPreferences((p) => {
@@ -226,22 +308,30 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
               }}
             >
               <option value="">Any office</option>
-              {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              {offices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
             </select>
           </label>
 
           <label className="schedule-pref-label">
             Preferred day
             <select
-              value={preferences.preferredDow ?? ''}
-              onChange={(e) => setPreferences((p) => ({
-                ...p,
-                preferredDow: e.target.value !== '' ? Number(e.target.value) : undefined,
-              }))}
+              value={preferences.preferredDow ?? ""}
+              onChange={(e) =>
+                setPreferences((p) => ({
+                  ...p,
+                  preferredDow: e.target.value !== "" ? Number(e.target.value) : undefined,
+                }))
+              }
             >
               <option value="">Any day</option>
               {availableDays.map((dayNum) => (
-                <option key={dayNum} value={dayNum}>{DAY_NAMES[dayNum]}</option>
+                <option key={dayNum} value={dayNum}>
+                  {DAY_NAMES[dayNum]}
+                </option>
               ))}
             </select>
           </label>
@@ -249,11 +339,13 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
           <label className="schedule-pref-label">
             Preferred time
             <select
-              value={preferences.preferredTime ?? ''}
-              onChange={(e) => setPreferences((p) => ({
-                ...p,
-                preferredTime: (e.target.value as 'morning' | 'afternoon') || undefined,
-              }))}
+              value={preferences.preferredTime ?? ""}
+              onChange={(e) =>
+                setPreferences((p) => ({
+                  ...p,
+                  preferredTime: (e.target.value as "morning" | "afternoon") || undefined,
+                }))
+              }
             >
               <option value="">Any time</option>
               <option value="morning">Morning (before noon)</option>
@@ -262,8 +354,12 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
           </label>
 
           <div className="schedule-pref-actions">
-            <button className="schedule-accept" onClick={searchWithPreferences}>Search</button>
-            <button className="schedule-reroll" onClick={() => loadSlot()}>Back to earliest</button>
+            <button className="schedule-accept" onClick={searchWithPreferences}>
+              Search
+            </button>
+            <button className="schedule-reroll" onClick={() => loadSlot()}>
+              Back to earliest
+            </button>
           </div>
         </div>
       </div>
@@ -272,50 +368,117 @@ export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
 
   return (
     <div className="schedule-panel" data-phase={phase}>
-      {error && <div className="schedule-error" role="alert">{error}</div>}
+      {error && (
+        <div className="schedule-error" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="schedule-notice" role="status">
+          {notice}
+        </div>
+      )}
       {slot && (
         <div className="schedule-offer">
           <h3>Next available</h3>
           <div className="schedule-offer-when">
-            {slot.officeName} — {new Date(`${slot.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} at {slot.time.slice(0, 5)}
+            {slot.officeName} —{" "}
+            {new Date(`${slot.date}T00:00:00`).toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}{" "}
+            at {slot.time.slice(0, 5)}
           </div>
-          {phase === 'offer' && (
+          {phase === "offer" && (
             <div className="schedule-offer-actions">
-              <button className="schedule-accept" onClick={() => setPhase('contact')}>Book this time</button>
-              <button className="schedule-reroll" onClick={openPreferences}>Find another</button>
+              <button
+                className="schedule-accept"
+                onClick={() => {
+                  setNotice(null);
+                  setPhase("contact");
+                }}
+              >
+                Book this time
+              </button>
+              <button
+                className="schedule-reroll"
+                onClick={() => {
+                  setNotice(null);
+                  openPreferences();
+                }}
+              >
+                Find another
+              </button>
             </div>
           )}
         </div>
       )}
-      {(phase === 'contact' || phase === 'verify-email' || phase === 'verify-waiting') && (
-        <form className="schedule-contact" onSubmit={(e) => { e.preventDefault(); void confirmBooking(); }}>
-          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
+      {(phase === "contact" || phase === "verify-email" || phase === "verify-waiting") && (
+        <form
+          className="schedule-contact"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void confirmBooking();
+          }}
+        >
+          <label>
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
           <label>
             Email
             <div className="schedule-email-row">
-              <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailVerified(false); }} required disabled={emailVerified} />
-              {!emailVerified && phase !== 'verify-waiting' && (
-                <button type="button" className="schedule-verify-btn" onClick={handleVerifyEmail} disabled={phase === 'verify-email'}>
-                  {phase === 'verify-email' ? 'Sending…' : 'Verify'}
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailVerified(false);
+                }}
+                required
+                disabled={emailVerified}
+              />
+              {!emailVerified && phase !== "verify-waiting" && (
+                <button
+                  type="button"
+                  className="schedule-verify-btn"
+                  onClick={handleVerifyEmail}
+                  disabled={phase === "verify-email"}
+                >
+                  {phase === "verify-email" ? "Sending…" : "Verify"}
                 </button>
               )}
               {emailVerified && <span className="schedule-verified-badge">✓ Verified</span>}
             </div>
           </label>
-          {phase === 'verify-waiting' && (
+          {phase === "verify-waiting" && (
             <div className="schedule-verify-notice">
               <p>Check your inbox for a verification email from AWS, then click below.</p>
-              <button type="button" className="schedule-verify-btn" onClick={handleCheckVerification}>I've Verified My Email</button>
+              <button
+                type="button"
+                className="schedule-verify-btn"
+                onClick={handleCheckVerification}
+              >
+                I've Verified My Email
+              </button>
             </div>
           )}
-          <label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
-          <button type="submit" className="schedule-accept" disabled={!emailVerified}>Confirm appointment</button>
-          {!emailVerified && email.trim() && phase === 'contact' && (
-            <p className="schedule-verify-hint">Please verify your email to receive a confirmation.</p>
+          <label>
+            Phone
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+          </label>
+          <button type="submit" className="schedule-accept" disabled={!emailVerified}>
+            Confirm appointment
+          </button>
+          {!emailVerified && email.trim() && phase === "contact" && (
+            <p className="schedule-verify-hint">
+              Please verify your email to receive a confirmation.
+            </p>
           )}
         </form>
       )}
-      {phase === 'booking' && <div className="schedule-booking">Booking…</div>}
+      {phase === "booking" && <div className="schedule-booking">Booking…</div>}
     </div>
   );
 }

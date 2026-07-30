@@ -122,6 +122,9 @@ export default function App() {
   // again" button appears at the gate. Cleared on any advance/skip/retry.
   const [canRetryVerify, setCanRetryVerify] = useState(false);
   const [completedDocUploads, setCompletedDocUploads] = useState<Set<string>>(new Set());
+  // Fingerprints of files already accepted, so the two "different source"
+  // address proofs can't be satisfied with the same file uploaded twice.
+  const [usedFileFingerprints, setUsedFileFingerprints] = useState<Set<string>>(new Set());
   const [docUploadsReady, setDocUploadsReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -654,8 +657,10 @@ export default function App() {
                             : `Upload: ${slot.label}`
                         }
                         accept="image/*,.pdf"
-                        onUploaded={() => {
+                        isDuplicate={(fp) => usedFileFingerprints.has(fp)}
+                        onUploaded={(_s3Key, fingerprint) => {
                           setCompletedDocUploads((prev) => new Set(prev).add(slot.key));
+                          setUsedFileFingerprints((prev) => new Set(prev).add(fingerprint));
                         }}
                       />
                     ))}
