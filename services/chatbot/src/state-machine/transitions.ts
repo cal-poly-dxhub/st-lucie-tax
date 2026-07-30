@@ -83,11 +83,17 @@ export function shouldAutoAdvance(session: Session): boolean {
       return active.every((t) => !getDecisionTree(t.txnTypeId));
     }
     case "upload-docs": {
-      // Skip this state if there is nothing the customer could act on here.
-      // That covers two cases:
-      //   1. No pending docs at all.
-      //   2. Every pending doc is bring-in / form — i.e. no optional_upload,
-      //      so sitting in upload-docs would only let them press "Skip".
+      // Skip this state only if there is nothing the customer could upload here.
+      //
+      // resolvedBuckets is the authoritative post-resolution source (same list
+      // the upload widgets render). When it exists, defer ENTIRELY to
+      // anyDocumentIsUploadable — do NOT short-circuit on ctx.documents, because
+      // ctx.documents is the coarse seed array and is often empty even when the
+      // resolved tree produced optional_upload items (e.g. id-card's address
+      // proofs). Short-circuiting here was skipping upload-docs despite
+      // resolvedBuckets.optionalUploads being populated.
+      if (ctx.resolvedBuckets) return !anyDocumentIsUploadable(session);
+      // Pre-resolution fallback: no buckets yet, use the seed documents array.
       const requiredDocs = ctx.documents.filter((d) => d.status === "pending");
       if (requiredDocs.length === 0) return true;
       return !anyDocumentIsUploadable(session);
