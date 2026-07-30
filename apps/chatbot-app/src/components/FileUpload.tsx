@@ -18,15 +18,17 @@ interface Props {
   accept?: string;
   onUploaded: (s3Key: string, fingerprint: string) => void;
   /**
-   * Optional cross-slot duplicate guard. Returns true if this exact file was
-   * already accepted in ANOTHER slot. Used so the two "different source"
-   * address proofs can't be satisfied by uploading the same file twice.
+   * Optional cross-slot duplicate guard. Given the file about to be uploaded,
+   * returns true iff ANOTHER slot CURRENTLY holds this exact file. "Currently"
+   * is the key word: it reflects what's in the other slots right now, so
+   * re-uploading (replacing) a slot's file never leaves a stale match, and a
+   * rejected/re-tried upload never falsely triggers it.
    */
   isDuplicate?: (fingerprint: string) => boolean;
 }
 
-/** Lightweight client-side file identity — no hashing needed to catch the
- *  "same file in both slots" case (name + size + mtime is unique enough). */
+/** Lightweight client-side file identity (name + size + mtime) — enough to
+ *  catch "the exact same file in two slots" without hashing bytes. */
 function fileFingerprint(f: File): string {
   return `${f.name}|${f.size}|${f.lastModified}`;
 }
@@ -51,19 +53,22 @@ export function FileUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reject the exact same file already accepted in another slot BEFORE
-    // uploading — the two address proofs must come from different sources.
+    // Block ONLY the exact same file that another proof slot currently holds.
+    // Checked live against current slot contents (not a running history), so
+    // re-picking a file after a reject or replacing a slot never false-triggers.
     const fingerprint = fileFingerprint(file);
     if (isDuplicate?.(fingerprint)) {
+      setAdvisory("");
       setFileName(file.name);
       setRejectReason(
-        "This is the same file you already uploaded for another proof. Each proof of address must come from a different source (e.g. a utility bill AND a bank statement).",
+        "That's the same file you just used for the other proof. Each proof of address must come from a different source (e.g. a utility bill AND a bank statement).",
       );
       setStatus("rejected");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
 
+    setRejectReason("");
     setFileName(file.name);
     setStatus("uploading");
 
