@@ -151,3 +151,53 @@ St. Lucie County Tax Collector`;
     text,
   };
 }
+
+export interface RescheduleEmailInput {
+  recipientEmail: string;
+  firstName: string;
+  confirmationCode: string;
+  newDate: string;
+  newTime: string;
+  officeName: string;
+  fromEmail: string;
+}
+
+export function buildRescheduleEmail(input: RescheduleEmailInput): EmailInput {
+  const name = escapeHtml(input.firstName);
+  const code = escapeHtml(input.confirmationCode);
+  const date = escapeHtml(input.newDate);
+  const time = escapeHtml(input.newTime);
+  const office = escapeHtml(input.officeName);
+
+  const html = `<p>Hi ${name},</p>
+<p>Your appointment has been rescheduled:</p>
+<ul>
+  <li><strong>New Date:</strong> ${date}</li>
+  <li><strong>New Time:</strong> ${time}</li>
+  <li><strong>Location:</strong> ${office}</li>
+  <li><strong>Confirmation Code:</strong> ${code}</li>
+</ul>
+<p>If you did not request this change, please contact our office.</p>
+<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
+
+  const text = `Hi ${input.firstName},
+
+Your appointment has been rescheduled:
+- New Date: ${input.newDate}
+- New Time: ${input.newTime}
+- Location: ${input.officeName}
+- Confirmation Code: ${input.confirmationCode}
+
+If you did not request this change, please contact our office.
+
+Thank you,
+St. Lucie County Tax Collector`;
+
+  return {
+    to: input.recipientEmail,
+    from: input.fromEmail,
+    subject: "Appointment Rescheduled",
+    html,
+    text,
+  };
+}
