@@ -39,7 +39,11 @@ import { checkValidity, buildExpiryReason, buildContentAdvisory } from "./check-
 export type { ObservedDates } from "@st-lucie/shared-types";
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
-const BUCKET_NAME = process.env.DOC_BUCKET_NAME || "";
+// Accept either name: our fork used DOC_BUCKET_NAME; the integration CDK stack
+// (infra/lib/chatbot-stack.ts) sets DOC_BUCKET. Read both, else the validator
+// hits `no-bucket-config` and fails open on every upload (no vision/validity
+// check) — silently disabling the smart-rejection screen.
+const BUCKET_NAME = process.env.DOC_BUCKET_NAME || process.env.DOC_BUCKET || "";
 
 // Bedrock Haiku 4.5 cross-region inference profile. The EXACT id is
 // tenant-specific (verify with `aws bedrock list-inference-profiles` before
