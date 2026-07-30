@@ -1,6 +1,5 @@
-import { Check, Circle, ShieldCheck, ClipboardList, FileCheck2, Minus } from "lucide-react";
+import { Check, Circle, ShieldCheck, ClipboardList, FileCheck2, Minus, Users } from "lucide-react";
 import type { CustomerRecord } from "@/lib/api";
-import { computeReadiness } from "@/lib/readiness";
 import { cn } from "@st-lucie/ui";
 
 interface StepProps {
@@ -48,14 +47,18 @@ function Step({ icon, label, detail, state, last }: StepProps) {
 }
 
 export function ReadinessRail({ record }: { record: CustomerRecord | null }) {
-  const r = record ? computeReadiness(record) : null;
+  const isInQueue = record
+    ? record.status === "checked-in" || record.status === "serving"
+    : false;
+  const docsValidated = record ? record.docs.filter((d) => d.clerkValidated).length : 0;
+  const docsRequired = record ? record.docs.length : 0;
 
   return (
     <aside className="lg:sticky lg:top-8">
       <div className="overflow-hidden rounded-2xl border border-civic-800/40 bg-gradient-to-b from-civic-800 to-civic-950 text-white shadow-[0_24px_60px_-30px_rgba(8,37,57,0.9)]">
         <div className="border-b border-white/10 px-5 py-4">
           <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-civic-200">
-            Check-In Status
+            Check-In Progress
           </div>
           {record ? (
             <div className="mt-1 font-display text-xl font-semibold tracking-tight">
@@ -69,31 +72,47 @@ export function ReadinessRail({ record }: { record: CustomerRecord | null }) {
         </div>
 
         <div className="px-5 py-5">
-          {!record || !r ? (
+          {!record ? (
             <p className="text-sm leading-relaxed text-civic-200/70">
-              Scan a QR code or search by name to begin a check-in. The readiness checklist
-              tracks every gate before a customer joins the queue.
+              Scan a QR code or search by name to begin. Verify identity, then send the customer
+              for pre-screen — they'll join the queue automatically.
             </p>
           ) : (
             <ul>
               <Step
                 icon={<ShieldCheck size={16} />}
                 label="Identity verified"
-                detail={record.identityVerified ? "Confirmed in person" : "Verify photo ID"}
+                detail={record.identityVerified ? "Confirmed" : "Verify photo ID in person or via AuthID"}
                 state={record.identityVerified ? "done" : "pending"}
               />
               <Step
                 icon={<ClipboardList size={16} />}
-                label="Pre-screen complete"
-                detail={record.prescreenCompleted ? "Questionnaire submitted" : "Awaiting answers"}
-                state={record.prescreenCompleted ? "done" : "pending"}
+                label="Pre-screen sent"
+                detail={
+                  record.prescreenCompleted
+                    ? "Completed"
+                    : isInQueue
+                      ? "Completed"
+                      : "Sent to customer's email"
+                }
+                state={record.prescreenCompleted || isInQueue ? "done" : "pending"}
+              />
+              <Step
+                icon={<Users size={16} />}
+                label="In queue"
+                detail={isInQueue ? "Waiting or being served" : "Auto-joins after pre-screen"}
+                state={isInQueue ? "done" : "pending"}
               />
               <Step
                 icon={<FileCheck2 size={16} />}
                 label="Documents validated"
-                detail={`${r.docsValidated} of ${r.docsRequired} validated`}
+                detail={
+                  docsRequired === 0
+                    ? "None required"
+                    : `${docsValidated} of ${docsRequired} validated`
+                }
                 state={
-                  r.docsRequired > 0 && r.docsValidated === r.docsRequired ? "done" : "pending"
+                  docsRequired === 0 || docsValidated === docsRequired ? "done" : "pending"
                 }
                 last
               />
@@ -101,21 +120,21 @@ export function ReadinessRail({ record }: { record: CustomerRecord | null }) {
           )}
         </div>
 
-        {record && r && (
+        {record && (
           <div
             className={cn(
               "flex items-center gap-3 border-t px-5 py-4",
-              r.ready ? "border-go-500/30 bg-go-500/10" : "border-white/10 bg-white/5",
+              isInQueue ? "border-go-500/30 bg-go-500/10" : "border-white/10 bg-white/5",
             )}
           >
-            {r.ready ? (
+            {isInQueue ? (
               <>
                 <span className="grid size-8 place-items-center rounded-full bg-go-500 text-white">
                   <Check size={16} strokeWidth={3} />
                 </span>
                 <div>
-                  <div className="text-sm font-bold text-go-300">Ready for queue</div>
-                  <div className="text-xs text-civic-200/70">All gates cleared</div>
+                  <div className="text-sm font-bold text-go-300">In the queue</div>
+                  <div className="text-xs text-civic-200/70">Customer is waiting for service</div>
                 </div>
               </>
             ) : (
@@ -125,10 +144,10 @@ export function ReadinessRail({ record }: { record: CustomerRecord | null }) {
                 </span>
                 <div>
                   <div className="text-sm font-bold text-white">
-                    {r.gaps.length} item{r.gaps.length === 1 ? "" : "s"} remaining
+                    {record.identityVerified ? "Awaiting pre-screen" : "Verify identity to proceed"}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-civic-200/70">
-                    <Circle size={8} className="fill-current" /> Not yet ready
+                    <Circle size={8} className="fill-current" /> Not yet in queue
                   </div>
                 </div>
               </>
