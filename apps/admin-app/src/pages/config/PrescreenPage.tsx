@@ -23,6 +23,8 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import { SortableTH } from "@/components/SortableTH";
 
 interface Data {
   questions: PrescreenQuestion[];
@@ -66,6 +68,12 @@ export function PrescreenPage() {
 
   const draft = (q: PrescreenQuestion) => ({ ...q, ...editing[q.id] });
   const isDirty = (q: PrescreenQuestion) => editing[q.id] !== undefined;
+
+  const { sortCol, sortDir, toggle, sorted: sortQuestions } = useSortableTable("sort_order");
+  const prescreenAccessors = {
+    sort_order: (q: PrescreenQuestion) => q.sort_order,
+    question_text: (q: PrescreenQuestion) => q.question_text,
+  };
 
   function edit(id: number, patch: Partial<PrescreenQuestion>) {
     setEditing((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -130,13 +138,13 @@ export function PrescreenPage() {
                 <Table>
                   <THead>
                     <TR className="hover:bg-transparent">
-                      <TH className="w-20">Order</TH>
-                      <TH>Question</TH>
+                      <SortableTH column="sort_order" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Order</SortableTH>
+                      <SortableTH column="question_text" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Question</SortableTH>
                       <TH align="right" className="w-48" />
                     </TR>
                   </THead>
                   <TBody>
-                    {questions.map((q) => {
+                    {sortQuestions(questions, prescreenAccessors).map((q) => {
                       const d = draft(q);
                       return (
                         <TR key={q.id}>

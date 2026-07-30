@@ -35,6 +35,8 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import { SortableTH } from "@/components/SortableTH";
 
 interface Data {
   txnTypes: TransactionType[];
@@ -90,6 +92,14 @@ function TypesSection({
   // Only global rows are editable here; per-office rows are overrides managed by
   // the availability matrix below.
   const globalTxns = useMemo(() => txnTypes.filter((t) => t.office_id === null), [txnTypes]);
+
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("name");
+  const sortedTxns = sorted(globalTxns, {
+    name: (t) => t.name,
+    txn_type_id: (t) => t.txn_type_id,
+    avg_duration_min: (t) => t.avg_duration_min,
+    status: (t) => t.status,
+  });
 
   const draft = (t: TransactionType) => ({ ...t, ...editing[t.id] });
   const isDirty = (t: TransactionType) => editing[t.id] !== undefined;
@@ -153,10 +163,10 @@ function TypesSection({
         <Table>
           <THead>
             <TR className="hover:bg-transparent">
-              <TH>Name</TH>
-              <TH className="w-44">ID</TH>
-              <TH className="w-20">Min</TH>
-              <TH className="w-28">Status</TH>
+              <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
+              <SortableTH column="txn_type_id" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-44">ID</SortableTH>
+              <SortableTH column="avg_duration_min" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Min</SortableTH>
+              <SortableTH column="status" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-28">Status</SortableTH>
               <TH className="w-20" align="center">
                 Online
               </TH>
@@ -165,10 +175,10 @@ function TypesSection({
             </TR>
           </THead>
           <TBody>
-            {globalTxns.length === 0 ? (
+            {sortedTxns.length === 0 ? (
               <TEmpty colSpan={7}>No transaction types configured yet.</TEmpty>
             ) : (
-              globalTxns.map((t) => {
+              sortedTxns.map((t) => {
                 const d = draft(t);
                 return (
                   <TR key={t.id}>
@@ -311,7 +321,7 @@ function TypesSection({
  */
 function AvailabilitySection({
   matrix,
-  saving,
+  saving: _saving,
   mutate,
 }: {
   matrix: TxnOfficeMatrix;

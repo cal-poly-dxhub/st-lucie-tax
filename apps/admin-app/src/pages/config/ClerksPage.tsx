@@ -31,6 +31,9 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import { SortableTH } from "@/components/SortableTH";
+import { LunchAssignmentSection } from "./LunchAssignmentSection";
 
 interface Data {
   clerks: Clerk[];
@@ -61,6 +64,14 @@ export function ClerksPage() {
 
   const clerks = data?.clerks ?? [];
   const offices = data?.offices ?? [];
+
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("last_name");
+  const sortedClerks = sorted(clerks, {
+    first_name: (c) => c.first_name,
+    last_name: (c) => c.last_name,
+    email: (c) => c.email,
+    status: (c) => c.status,
+  });
 
   const draft = (c: Clerk) => ({ ...c, ...editing[c.id] });
   const isDirty = (c: Clerk) => editing[c.id] !== undefined;
@@ -163,10 +174,10 @@ export function ClerksPage() {
         <Table>
           <THead>
             <TR className="hover:bg-transparent">
-              <TH>First name</TH>
-              <TH>Last name</TH>
-              <TH>Email</TH>
-              <TH className="w-28">Status</TH>
+              <SortableTH column="first_name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>First name</SortableTH>
+              <SortableTH column="last_name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Last name</SortableTH>
+              <SortableTH column="email" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Email</SortableTH>
+              <SortableTH column="status" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-28">Status</SortableTH>
               {offices.map((o) => (
                 <TH key={o.id} align="center" className="w-28">
                   {o.name}
@@ -179,10 +190,10 @@ export function ClerksPage() {
             </TR>
           </THead>
           <TBody>
-            {clerks.length === 0 ? (
+            {sortedClerks.length === 0 ? (
               <TEmpty colSpan={6 + offices.length}>No clerks configured yet.</TEmpty>
             ) : (
-              clerks.map((c) => {
+              sortedClerks.map((c) => {
                 const d = draft(c);
                 return (
                   <TR key={c.id}>
@@ -328,6 +339,8 @@ export function ClerksPage() {
           </p>
         )}
       </Section>
+
+      <LunchAssignmentSection />
     </div>
   );
 }

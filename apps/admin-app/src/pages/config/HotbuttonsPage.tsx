@@ -21,6 +21,8 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import { SortableTH } from "@/components/SortableTH";
 
 export function HotbuttonsPage() {
   const { data, error, loading, saving, mutate } = useResource<Hotbutton[]>(fetchHotbuttons);
@@ -82,6 +84,13 @@ export function HotbuttonsPage() {
 
   const rows = data ?? [];
 
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("sort_order");
+  const sortedRows = sorted(rows, {
+    sort_order: (h) => h.sort_order,
+    label: (h) => h.label,
+    prompt: (h) => h.prompt,
+  });
+
   return (
     <div className="flex flex-col gap-5">
       <Section
@@ -91,17 +100,17 @@ export function HotbuttonsPage() {
         <Table>
           <THead>
             <TR className="hover:bg-transparent">
-              <TH className="w-20">Order</TH>
-              <TH className="w-56">Label</TH>
-              <TH>Prompt</TH>
+              <SortableTH column="sort_order" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Order</SortableTH>
+              <SortableTH column="label" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-56">Label</SortableTH>
+              <SortableTH column="prompt" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Prompt</SortableTH>
               <TH align="right" className="w-48" />
             </TR>
           </THead>
           <TBody>
-            {rows.length === 0 ? (
+            {sortedRows.length === 0 ? (
               <TEmpty colSpan={4}>No hotbuttons configured yet.</TEmpty>
             ) : (
-              rows.map((h) => {
+              sortedRows.map((h) => {
                 const d = draft(h);
                 return (
                   <TR key={h.id}>
