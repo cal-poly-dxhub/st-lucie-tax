@@ -122,9 +122,10 @@ export default function App() {
   // again" button appears at the gate. Cleared on any advance/skip/retry.
   const [canRetryVerify, setCanRetryVerify] = useState(false);
   const [completedDocUploads, setCompletedDocUploads] = useState<Set<string>>(new Set());
-  // Fingerprints of files already accepted, so the two "different source"
-  // address proofs can't be satisfied with the same file uploaded twice.
-  const [usedFileFingerprints, setUsedFileFingerprints] = useState<Set<string>>(new Set());
+  // CURRENT file fingerprint per slot key (not a history). Lets us block the
+  // exact same file being used for two "different source" proofs, while a
+  // re-upload simply replaces that slot's entry — so nothing goes stale.
+  const [slotFingerprints, setSlotFingerprints] = useState<Record<string, string>>({});
   const [docUploadsReady, setDocUploadsReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -657,10 +658,16 @@ export default function App() {
                             : `Upload: ${slot.label}`
                         }
                         accept="image/*,.pdf"
-                        isDuplicate={(fp) => usedFileFingerprints.has(fp)}
+                        isDuplicate={(fp) =>
+                          // duplicate iff SOME OTHER slot currently holds this exact file
+                          Object.entries(slotFingerprints).some(
+                            ([k, v]) => k !== slot.key && v === fp,
+                          )
+                        }
                         onUploaded={(_s3Key, fingerprint) => {
                           setCompletedDocUploads((prev) => new Set(prev).add(slot.key));
-                          setUsedFileFingerprints((prev) => new Set(prev).add(fingerprint));
+                          // Record (replace) THIS slot's current file fingerprint.
+                          setSlotFingerprints((prev) => ({ ...prev, [slot.key]: fingerprint }));
                         }}
                       />
                     ))}
