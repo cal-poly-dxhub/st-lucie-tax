@@ -8,6 +8,8 @@ import {
   Camera,
   CreditCard,
   FileCheck2,
+  UserCheck,
+  Download,
 } from "lucide-react";
 import { api, type Clerk, type ServiceRecord, type DocStatus } from "@/lib/api";
 import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
@@ -334,6 +336,41 @@ export function ServiceClerk() {
                         <FileCheck2 size={14} /> Validate
                       </Button>
                     )}
+                    {doc.uploaded && doc.id && (
+                      <span className="inline-flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          className="px-2 py-1.5 text-xs"
+                          onClick={async () => {
+                            try {
+                              const { url } = await api.getDocumentUrl(doc.id!);
+                              window.open(url, "_blank");
+                            } catch {
+                              notify("error", "Could not load document preview.");
+                            }
+                          }}
+                        >
+                          <Eye size={14} /> View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="px-2 py-1.5 text-xs"
+                          onClick={async () => {
+                            try {
+                              const { url, name } = await api.getDocumentUrl(doc.id!);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = name;
+                              a.click();
+                            } catch {
+                              notify("error", "Could not download document.");
+                            }
+                          }}
+                        >
+                          <Download size={14} /> Download
+                        </Button>
+                      </span>
+                    )}
                   </div>
                 ))
               )}
@@ -345,6 +382,7 @@ export function ServiceClerk() {
             <SectionLabel>Transaction Steps</SectionLabel>
             <div className="mt-3 space-y-2">
               {[
+                { key: "identityAffirmation", label: "Identity Affirmation", icon: <UserCheck size={18} /> },
                 { key: "visionTest", label: "Vision Test", icon: <Eye size={18} /> },
                 { key: "photo", label: "Photo Capture", icon: <Camera size={18} /> },
                 { key: "payment", label: "Payment", icon: <CreditCard size={18} /> },
@@ -388,7 +426,7 @@ export function ServiceClerk() {
                   {(record.prescreenWithText ?? []).map((q) => (
                     <tr key={q.questionId} className="border-b border-civic-50">
                       <td className="py-2 pr-4 text-civic-600">{q.questionText}</td>
-                      <td className="py-2 font-bold">{q.answer ? "Yes" : "No"}</td>
+                      <td className={`py-2 font-bold ${q.answer ? "text-go-600" : "text-stop-600"}`}>{q.answer ? "Yes" : "No"}</td>
                     </tr>
                   ))}
                 </tbody>
