@@ -1,6 +1,6 @@
 /**
- * Decision-tree loader.
- * Reads all JSON files from data/decision-trees/ once per Lambda cold start.
+ * Decision-tree loader with database support.
+ * Attempts to load approved trees from the database; falls back to filesystem.
  *
  * On load, any branch whose `note` starts with "BLOCKED:" but lacks a structured
  * `blocking` field is given a synthesized hard-severity BlockingInfo derived
@@ -14,13 +14,17 @@ import type { DecisionTree, DecisionTreeBranch } from "@st-lucie/shared-types";
 import { resolveDataDir } from "./resolve-data-dir.js";
 
 let cache: Map<string, DecisionTree> | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 60_000; // Re-check DB every 60s
 
 function resolveDecisionTreesDir(): string {
   return resolve(resolveDataDir(), "decision-trees");
 }
 
-export function loadDecisionTrees(): Map<string, DecisionTree> {
-  if (cache) return cache;
+/**
+ * Load decision trees from the filesystem (original behavior).
+ */
+function loadFromFilesystem(): Map<string, DecisionTree> {
   const dirPath = resolveDecisionTreesDir();
   const trees = new Map<string, DecisionTree>();
   for (const file of readdirSync(dirPath)) {
@@ -30,8 +34,74 @@ export function loadDecisionTrees(): Map<string, DecisionTree> {
     synthesizeBranchBlocking(tree);
     trees.set(tree.txnTypeId, tree);
   }
-  cache = trees;
+  return trees;
+}
+
+/**
+ * Try to load approved trees from the database.
+ * Returns null if the database is not available or no trees exist.
+ */
+async function loadFromDatabase(): Promise<Map<string, DecisionTree> | null> {
+  try {
+    // Dynamically import to avoid hard dependency — if data-access isn't available, fall back
+    const { getPool } = await import("@st-lucie/data-access");
+    const pool = getPool();
+    const { rows } = await pool.query<{ tree_id: string; content: DecisionTree }>(
+      `SELECT tree_id, content FROM decision_trees WHERE status = 'approved'`,
+    );
+    if (rows.length === 0) return null;
+    const trees = new Map<string, DecisionTree>();
+    for (const row of rows) {
+      const tree = row.content;
+      tree.txnTypeId = row.tree_id; // Ensure consistency
+      synthesizeBranchBlocking(tree);
+      trees.set(tree.txnTypeId, tree);
+    }
+    return trees;
+  } catch {
+    // Database not available — fall back to filesystem
+    return null;
+  }
+}
+
+/**
+ * Load all decision trees. Tries database first, then filesystem.
+ * Results are cached with a TTL for DB freshness.
+ */
+export function loadDecisionTrees(): Map<string, DecisionTree> {
+  if (cache && Date.now() - cacheTimestamp < CACHE_TTL_MS) return cache;
+
+  // Synchronous load from filesystem (cold start or fallback)
+  const fsTrees = loadFromFilesystem();
+  cache = fsTrees;
+  cacheTimestamp = Date.now();
+
+  // Asynchronously try to overlay DB trees (non-blocking)
+  loadFromDatabase()
+    .then((dbTrees) => {
+      if (dbTrees && dbTrees.size > 0) {
+        // Merge: DB trees override filesystem trees for matching IDs
+        const merged = new Map(fsTrees);
+        for (const [id, tree] of dbTrees) {
+          merged.set(id, tree);
+        }
+        cache = merged;
+        cacheTimestamp = Date.now();
+      }
+    })
+    .catch(() => {
+      // Silently ignore — filesystem fallback is already in place
+    });
+
   return cache;
+}
+
+/**
+ * Force-refresh the cache. Call after admin approves/modifies a tree.
+ */
+export function invalidateDecisionTreeCache(): void {
+  cache = null;
+  cacheTimestamp = 0;
 }
 
 export function getDecisionTree(txnTypeId: string): DecisionTree | undefined {
