@@ -729,3 +729,47 @@ CREATE TABLE IF NOT EXISTS chat_auth_tokens (
   UNIQUE (email, token_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_chat_auth_expires ON chat_auth_tokens(expires_at);
+
+-- =============================================================================
+-- Feedback
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS feedback (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT,
+    message    TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =============================================================================
+-- Audit Log
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          SERIAL PRIMARY KEY,
+    user_email  TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id   TEXT,
+    details     JSONB DEFAULT '{}',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log (entity_type, entity_id);
+
+-- =============================================================================
+-- Decision Trees
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS decision_trees (
+    id          SERIAL PRIMARY KEY,
+    tree_id     TEXT NOT NULL,
+    version     INT NOT NULL DEFAULT 1,
+    content     JSONB NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'draft'
+                CHECK (status IN ('draft', 'approved', 'archived')),
+    created_by  TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_decision_trees_active
+    ON decision_trees (tree_id) WHERE status = 'approved';
+CREATE INDEX IF NOT EXISTS idx_decision_trees_tree_id ON decision_trees (tree_id, version DESC);

@@ -11,7 +11,12 @@ import {
 import { getRequiredDocsStatus, validateDocument, uploadDocument } from "../../src/documents.js";
 import { setIdentityVerified } from "../../src/identity.js";
 import { getPrescreenQuestions, savePrescreenResponses } from "../../src/prescreen.js";
-import { buildPrescreenLinkEmail, buildQrConfirmationEmail, sendEmail } from "../../src/email.js";
+import {
+  buildPrescreenLinkEmail,
+  buildQrConfirmationEmail,
+  buildRescheduleEmail,
+  sendEmail,
+} from "../../src/email.js";
 import { findAppointment } from "../../src/find-appt.js";
 import { bookAppointment } from "../../src/book-appt.js";
 import { sendError } from "../middleware/errors.js";
@@ -137,6 +142,34 @@ router.post("/schedule/reschedule", async (req, res) => {
       );
       return { success: true };
     });
+
+    // Send reschedule notification email (fire-and-forget — SES errors don't block response)
+    if (result.success) {
+      try {
+        const info = await pool.query(
+          `SELECT a.contact_email, a.first_name, a.confirmation_code, o.name AS office_name
+           FROM appointments a
+           JOIN offices o ON o.id = a.office_id
+           WHERE a.id = $1`,
+          [appointmentId],
+        );
+        const row = info.rows[0];
+        if (row?.contact_email) {
+          const email = buildRescheduleEmail({
+            recipientEmail: row.contact_email,
+            firstName: row.first_name,
+            confirmationCode: row.confirmation_code,
+            newDate,
+            newTime,
+            officeName: row.office_name,
+            fromEmail: EMAIL,
+          });
+          await sendEmail(ses, email);
+        }
+      } catch (emailErr) {
+        console.error("Failed to send reschedule email (non-blocking):", emailErr);
+      }
+    }
 
     res.json(result);
   } catch (err: unknown) {
@@ -812,6 +845,23 @@ router.post("/set-demo-email", requireAuth("admin"), async (req, res) => {
   }
 });
 
+// ─── POST /api/feedback ──────────────────────────────────────────────────────
+router.post("/feedback", async (req, res) => {
+  try {
+    const { name, message } = req.body ?? {};
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+    await pool.query(`INSERT INTO feedback (name, message) VALUES ($1, $2)`, [
+      typeof name === "string" && name.trim() ? name.trim() : null,
+      message.trim(),
+    ]);
+    res.status(201).json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
 export default router;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -871,6 +921,193 @@ publicRouter.post("/prescreen/:confirmationCode/submit", async (req, res) => {
     }
 
     res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── GET /api/queue/status/:confirmationCode ─────────────────────────────────
+// Public: citizen checks their queue position by confirmation code.
+publicRouter.get("/queue/status/:confirmationCode", async (req, res) => {
+  try {
+    const match = await lookupByConfirmationCode(pool, req.params.confirmationCode);
+    if (!match) return res.status(404).json({ error: "Appointment not found" });
+
+    // Check if citizen is in the queue
+    const { rows: qRows } = await pool.query(
+      `SELECT q.id, q.queue_number, q.status, q.assigned_desk, q.checked_in_at
+       FROM queue q
+       WHERE q.appointment_id = $1
+       ORDER BY q.checked_in_at DESC
+       LIMIT 1`,
+      [match.appointmentId],
+    );
+
+    if (qRows.length === 0) {
+      // Not checked in yet — show appointment info
+      const { rows: apptRows } = await pool.query(
+        `SELECT a.first_name, a.appointment_date::text, a.appointment_time::text, a.status,
+                o.name AS office_name
+         FROM appointments a
+         JOIN offices o ON o.id = a.office_id
+         WHERE a.id = $1`,
+        [match.appointmentId],
+      );
+      const appt = apptRows[0];
+      return res.json({
+        inQueue: false,
+        appointment: {
+          firstName: appt.first_name,
+          date: appt.appointment_date,
+          time: appt.appointment_time,
+          status: appt.status,
+          officeName: appt.office_name,
+        },
+      });
+    }
+
+    const q = qRows[0];
+
+    // Count how many people are ahead in the queue
+    let positionAhead = 0;
+    if (q.status === "waiting") {
+      const { rows: posRows } = await pool.query(
+        `SELECT COUNT(*)::int AS ahead
+         FROM queue
+         WHERE office_id = $1 AND status = 'waiting' AND checked_in_at < $2`,
+        [match.officeId, q.checked_in_at],
+      );
+      positionAhead = posRows[0]?.ahead ?? 0;
+    }
+
+    // Get first name for personalization
+    const { rows: nameRows } = await pool.query(
+      `SELECT first_name FROM appointments WHERE id = $1`,
+      [match.appointmentId],
+    );
+
+    res.json({
+      inQueue: true,
+      firstName: nameRows[0]?.first_name,
+      queueNumber: q.queue_number,
+      status: q.status,
+      assignedDesk: q.assigned_desk,
+      positionAhead,
+      checkedInAt: q.checked_in_at,
+    });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/appointment/cancel ────────────────────────────────────────────
+// Public: citizen cancels their appointment (verify by code + email).
+publicRouter.post("/appointment/cancel", async (req, res) => {
+  try {
+    const { confirmationCode, email } = req.body ?? {};
+    if (!confirmationCode || !email) {
+      return res.status(400).json({ error: "confirmationCode and email required" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, status FROM appointments
+       WHERE confirmation_code = $1 AND LOWER(contact_email) = LOWER($2)`,
+      [confirmationCode, email],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: "Appointment not found or email does not match" });
+    }
+    const appt = rows[0];
+    if (appt.status === "cancelled") {
+      return res.json({ ok: true, alreadyCancelled: true });
+    }
+    if (appt.status !== "scheduled") {
+      return res.status(400).json({ error: "Only scheduled appointments can be cancelled" });
+    }
+
+    await pool.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [appt.id]);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/appointment/change ────────────────────────────────────────────
+// Public: citizen reschedules their appointment (verify by code + email).
+publicRouter.post("/appointment/change", async (req, res) => {
+  try {
+    const { confirmationCode, email, newDate, newTime } = req.body ?? {};
+    if (!confirmationCode || !email || !newDate || !newTime) {
+      return res.status(400).json({ error: "confirmationCode, email, newDate, newTime required" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, office_id, txn_type_ids, status FROM appointments
+       WHERE confirmation_code = $1 AND LOWER(contact_email) = LOWER($2)`,
+      [confirmationCode, email],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: "Appointment not found or email does not match" });
+    }
+    const appt = rows[0];
+    if (appt.status !== "scheduled") {
+      return res.status(400).json({ error: "Only scheduled appointments can be changed" });
+    }
+
+    // Validate capacity at new slot
+    const durRes = await pool.query(
+      `SELECT SUM(tt.avg_duration_min)::int AS duration
+       FROM unnest($1::int[]) AS tid
+       JOIN transaction_types tt ON tt.id = tid AND tt.office_id IS NULL`,
+      [appt.txn_type_ids],
+    );
+    const duration = durRes.rows[0]?.duration || 0;
+
+    const capRes = await pool.query(
+      `SELECT validate_slot($1, $2::date, $3::time, $4, $5) AS available`,
+      [appt.office_id, newDate, newTime, appt.txn_type_ids, duration],
+    );
+    const available = capRes.rows[0]?.available || 0;
+    if (available <= 0) {
+      return res.status(409).json({ error: "Selected time slot is no longer available" });
+    }
+
+    await pool.query(
+      `UPDATE appointments SET appointment_date = $2, appointment_time = $3 WHERE id = $1`,
+      [appt.id, newDate, newTime],
+    );
+
+    res.json({ ok: true, newDate, newTime });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── GET /api/appointment/lookup/:confirmationCode ───────────────────────────
+// Public: look up basic appointment details for the manage page.
+publicRouter.get("/appointment/lookup/:confirmationCode", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.id, a.first_name, a.appointment_date::text, a.appointment_time::text,
+              a.status, a.contact_email, o.name AS office_name
+       FROM appointments a
+       JOIN offices o ON o.id = a.office_id
+       WHERE a.confirmation_code = $1`,
+      [req.params.confirmationCode],
+    );
+    if (!rows.length) return res.status(404).json({ error: "Appointment not found" });
+    const a = rows[0];
+    // Mask email for privacy: show first 2 chars + ***@domain
+    const [local, domain] = a.contact_email.split("@");
+    const maskedEmail = `${local.slice(0, 2)}***@${domain}`;
+    res.json({
+      firstName: a.first_name,
+      date: a.appointment_date,
+      time: a.appointment_time,
+      status: a.status,
+      officeName: a.office_name,
+      maskedEmail,
+    });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
   }

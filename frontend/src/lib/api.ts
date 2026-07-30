@@ -7,6 +7,7 @@ export interface DocStatus {
   docId: string;
   name: string;
   uploaded: boolean;
+  s3Key: string | null;
   aiReviewStatus: "accept" | "reject" | null;
   aiReviewNotes: string | null;
   clerkValidated: boolean;
@@ -189,6 +190,9 @@ export const api = {
   validateDocument: (documentId: number) =>
     post<{ ok: boolean }>("/api/validate-document", { documentId }),
 
+  getDocumentUrl: (documentId: number) =>
+    get<{ url: string; name: string }>(`/api/clerk/document-url/${documentId}`),
+
   uploadDocument: async (input: { appointmentId: number; docId: string; file: File }) => {
     const bytes = new Uint8Array(await input.file.arrayBuffer());
     let binary = "";
@@ -342,4 +346,7 @@ export const api = {
       `/api/prescreen/${confirmationCode}/submit`,
       { responses, autoCheckIn, priority },
     ),
+
+  submitFeedback: (data: { name?: string; message: string }) =>
+    post<{ ok: boolean }>("/api/feedback", data),
 };
