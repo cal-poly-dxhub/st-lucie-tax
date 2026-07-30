@@ -60,8 +60,35 @@ export function lookupCatalogBucket(
  * True iff at least one pending document in the session can be uploaded.
  * Used by the state machine to auto-skip the upload-docs state when
  * everything left must be brought in person.
+ *
+ * AUTHORITATIVE SOURCE: `resolvedBuckets.optionalUploads`. resolve-facts (order
+ * 3) resolves the decision tree into the same three buckets the UI renders, so
+ * by the time the machine is deciding upload-docs (order 5) this is populated
+ * and is exactly the set of items the upload widgets will show. We trust it
+ * directly — its items were already bucketed from item-catalog.json.
+ *
+ * FALLBACK (only when buckets aren't resolved yet — e.g. a txn with no decision
+ * tree, or a code path that reaches here pre-resolution): classify the coarse
+ * `documents[]` summary strings seeded at identify time. Those strings are the
+ * transaction-types.json `requiredDocuments` blurbs, which rarely substring-
+ * match a catalog label, so this path relies on the legacy pattern matcher in
+ * isUploadable() for the handful of always-uploadable doc kinds (insurance,
+ * registration copies, military orders). Historically this fallback WAS the
+ * whole function — which meant the 2026-07 catalog flip (43 items -> optional_
+ * upload) had no effect on this gate, and upload-docs was wrongly auto-skipped
+ * for id-card and every other flipped transaction whose seed blurbs don't match
+ * a catalog item. Reading resolvedBuckets first is the fix.
  */
 export function anyDocumentIsUploadable(session: Session): boolean {
+  const buckets = session.structuredContext.resolvedBuckets;
+  if (buckets) {
+    return buckets.optionalUploads.some((item) => {
+      const lower = item.label.toLowerCase();
+      // The DL is handled in verify-identity, never in upload-docs.
+      return !lower.includes("driver license") && !lower.includes("driver's license");
+    });
+  }
+
   const docs = session.structuredContext.documents.filter((d) => {
     if (d.status !== "pending") return false;
     const lower = d.documentType.toLowerCase();

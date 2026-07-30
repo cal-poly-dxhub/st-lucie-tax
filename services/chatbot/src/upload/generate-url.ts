@@ -7,7 +7,10 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
-const BUCKET_NAME = process.env.DOC_BUCKET_NAME || "";
+// Accept either name: our fork used DOC_BUCKET_NAME; the integration CDK stack
+// (infra/lib/chatbot-stack.ts) sets DOC_BUCKET. Read both so the presigned-URL
+// generator resolves the bucket regardless of which the deploy provides.
+const BUCKET_NAME = process.env.DOC_BUCKET_NAME || process.env.DOC_BUCKET || "";
 const URL_EXPIRY_SECONDS = 300; // 5 minutes
 
 export interface UploadUrlResult {
