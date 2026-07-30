@@ -172,7 +172,7 @@ export function SmartQuickReplies({ session, hotButtons, onSelect, disabled }: P
           {hotButtons.map((btn) => (
             <Chip
               key={btn.label}
-              onClick={() => onSelect(btn.transactionTypeId)}
+              onClick={() => onSelect(btn.prompt)}
               disabled={disabled}
             >
               {btn.label}

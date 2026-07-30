@@ -54,7 +54,7 @@ function httpError(status: number, displayMessage: string, technical?: string): 
 
 export interface HotButton {
   label: string;
-  transactionTypeId: string;
+  prompt: string;
   category?: string;
 }
 
