@@ -79,12 +79,12 @@ export function HotbuttonsPage() {
     }
   }
 
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("sort_order");
+
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
   if (loading && !data) return <Spinner />;
 
   const rows = data ?? [];
-
-  const { sortCol, sortDir, toggle, sorted } = useSortableTable("sort_order");
   const sortedRows = sorted(rows, {
     sort_order: (h) => h.sort_order,
     label: (h) => h.label,
