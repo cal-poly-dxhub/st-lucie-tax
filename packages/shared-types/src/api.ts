@@ -13,7 +13,7 @@ export interface CreateSessionRequest {
 export interface CreateSessionResponse {
   sessionId: string;
   state: ConversationState;
-  hotButtons: Array<{ label: string; transactionTypeId: string }>;
+  hotButtons: Array<{ label: string; prompt: string }>;
 }
 
 export interface ProcessMessageRequest {

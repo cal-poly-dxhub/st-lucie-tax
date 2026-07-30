@@ -37,7 +37,7 @@ export interface PreScreeningQuestion {
 
 export interface HotButton {
   label: string;
-  transactionTypeId: string;
+  prompt: string;
   /**
    * Optional grouping for the landing-screen quick-reply UI. When present on
    * any button, the UI renders categorized rows; when omitted, all buttons

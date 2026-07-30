@@ -257,7 +257,7 @@ app.post("/chatbot/sessions", sessionCreateLimiter, async (req, res) => {
     }>(`SELECT label, prompt FROM hotbuttons ORDER BY sort_order`);
     const buttons: HotButton[] = hbResult.rows.map((r) => ({
       label: r.label,
-      transactionTypeId: r.prompt,
+      prompt: r.prompt,
     }));
     res.status(201).json({
       sessionId: session.sessionId,
@@ -490,7 +490,7 @@ app.get("/chatbot/hot-buttons", async (_req, res) => {
     res.json(
       result.rows.map((r) => ({
         label: r.label,
-        transactionTypeId: r.prompt,
+        prompt: r.prompt,
       })),
     );
   } catch (err) {
@@ -1562,7 +1562,7 @@ app.get("/api/hot-buttons", async (_req, res) => {
     res.json(
       result.rows.map((r) => ({
         label: r.label,
-        transactionTypeId: r.prompt,
+        prompt: r.prompt,
         ...(r.description ? { description: r.description } : {}),
       })),
     );
