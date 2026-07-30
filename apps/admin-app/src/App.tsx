@@ -33,6 +33,8 @@ import { ClerksPage } from "./pages/config/ClerksPage";
 import { HotbuttonsPage } from "./pages/config/HotbuttonsPage";
 import { PrescreenPage } from "./pages/config/PrescreenPage";
 import { DocumentsPage } from "./pages/config/DocumentsPage";
+import { AuditLogPage } from "./pages/config/AuditLogPage";
+import { DecisionTreesPage } from "./pages/config/DecisionTreesPage";
 import { PerformancePage } from "./pages/PerformancePage";
 import { officeOpsUrl, chatbotUrl } from "./app-links";
 
@@ -156,6 +158,8 @@ export default function App() {
               <Route path="hotbuttons" element={<HotbuttonsPage />} />
               <Route path="prescreen" element={<PrescreenPage />} />
               <Route path="documents" element={<DocumentsPage />} />
+              <Route path="audit-log" element={<AuditLogPage />} />
+              <Route path="decision-trees" element={<DecisionTreesPage />} />
             </Route>
 
             <Route path="/performance" element={<PerformancePage />} />
