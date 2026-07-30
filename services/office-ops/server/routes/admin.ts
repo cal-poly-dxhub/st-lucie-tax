@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { pool, withTransaction } from "../db.js";
 import { sendError } from "../middleware/errors.js";
-import { logAuditEvent } from "../audit.js";
+import { buildAuditLogQueries, logAuditEvent } from "../audit.js";
 import { propagateLunchTemplate, type LunchTemplateAssignment } from "../../src/lunch-template.js";
 
 const router = Router();
 
 const fail = (res: import("express").Response, err: unknown) => sendError(res, err, "admin");
+
+const optionalQueryString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+const isValidAuditTimestamp = (value: string | undefined) =>
+  value === undefined || !Number.isNaN(Date.parse(value));
 
 // ─── Offices ─────────────────────────────────────────────────────────────────
 router.get("/offices", async (_req, res) => {
@@ -51,16 +57,23 @@ router.put("/offices/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, address, totalDesks, runRatePct } = req.body;
-    await pool.query(
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, name, address, total_desks, run_rate_pct FROM offices WHERE id = $1`,
+      [id],
+    );
+    const { rows: afterRows } = await pool.query(
       `UPDATE offices SET name = COALESCE($2, name), address = COALESCE($3, address),
-       total_desks = COALESCE($4, total_desks), run_rate_pct = COALESCE($5, run_rate_pct) WHERE id = $1`,
+       total_desks = COALESCE($4, total_desks), run_rate_pct = COALESCE($5, run_rate_pct)
+       WHERE id = $1
+       RETURNING id, name, address, total_desks, run_rate_pct`,
       [id, name ?? null, address, totalDesks ?? null, runRatePct ?? null],
     );
     await logAuditEvent(req, {
       action: "update",
       entityType: "office",
       entityId: id,
-      details: req.body,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -71,8 +84,19 @@ router.put("/offices/:id", async (req, res) => {
 router.delete("/offices/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM offices WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "office", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM offices WHERE id = $1
+       RETURNING id, name, address, total_desks, run_rate_pct`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "office",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -83,17 +107,24 @@ router.delete("/offices/:id", async (req, res) => {
 router.post("/office-hours", async (req, res) => {
   try {
     const { officeId, dayOfWeek, openTime, closeTime } = req.body;
-    await pool.query(
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, office_id, day_of_week, open_time::text, close_time::text
+       FROM office_hours WHERE office_id = $1 AND day_of_week = $2`,
+      [officeId, dayOfWeek],
+    );
+    const { rows: afterRows } = await pool.query(
       `INSERT INTO office_hours (office_id, day_of_week, open_time, close_time)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (office_id, day_of_week) DO UPDATE SET open_time = $3, close_time = $4`,
+       ON CONFLICT (office_id, day_of_week) DO UPDATE SET open_time = $3, close_time = $4
+       RETURNING id, office_id, day_of_week, open_time::text, close_time::text`,
       [officeId, dayOfWeek, openTime, closeTime],
     );
     await logAuditEvent(req, {
       action: "update",
       entityType: "office_hours",
-      entityId: officeId,
-      details: { dayOfWeek, openTime, closeTime },
+      entityId: afterRows[0]?.id ?? officeId,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -104,8 +135,19 @@ router.post("/office-hours", async (req, res) => {
 router.delete("/office-hours/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM office_hours WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "office_hours", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM office_hours WHERE id = $1
+       RETURNING id, office_id, day_of_week, open_time::text, close_time::text`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "office_hours",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -139,8 +181,19 @@ router.delete("/lunch-shifts/:id", async (req, res) => {
     await pool.query(`UPDATE clerk_schedules SET lunch_shift_id = NULL WHERE lunch_shift_id = $1`, [
       id,
     ]);
-    await pool.query(`DELETE FROM office_lunch_shifts WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "lunch_shift", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM office_lunch_shifts WHERE id = $1
+       RETURNING id, office_id, shift_num, start_time::text, end_time::text`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "lunch_shift",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -219,7 +272,14 @@ router.put("/transaction-types/:id", async (req, res) => {
       isOnlineEligible,
       onlineRedirectUrl,
     } = req.body;
-    await pool.query(
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, txn_type_id, office_id, name, description, avg_duration_min,
+              status, available_from::text, available_until::text,
+              is_online_eligible, online_redirect_url
+       FROM transaction_types WHERE id = $1`,
+      [id],
+    );
+    const { rows: afterRows } = await pool.query(
       `UPDATE transaction_types SET
        name = COALESCE($2, name),
        description = COALESCE($3, description),
@@ -229,7 +289,10 @@ router.put("/transaction-types/:id", async (req, res) => {
        available_until = $7,
        is_online_eligible = COALESCE($8, is_online_eligible),
        online_redirect_url = $9
-       WHERE id = $1`,
+       WHERE id = $1
+       RETURNING id, txn_type_id, office_id, name, description, avg_duration_min,
+                 status, available_from::text, available_until::text,
+                 is_online_eligible, online_redirect_url`,
       [
         id,
         name || null,
@@ -246,7 +309,8 @@ router.put("/transaction-types/:id", async (req, res) => {
       action: "update",
       entityType: "transaction_type",
       entityId: id,
-      details: req.body,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -257,8 +321,21 @@ router.put("/transaction-types/:id", async (req, res) => {
 router.delete("/transaction-types/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM transaction_types WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "transaction_type", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM transaction_types WHERE id = $1
+       RETURNING id, txn_type_id, office_id, name, description, avg_duration_min,
+                 status, available_from::text, available_until::text,
+                 is_online_eligible, online_redirect_url`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "transaction_type",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -303,7 +380,12 @@ router.put("/clerks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { firstName, lastName, email, status, skillIds, officeIds } = req.body;
-    await pool.query(
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, first_name, last_name, email, status, skill_ids, office_ids
+       FROM clerks WHERE id = $1`,
+      [id],
+    );
+    const { rows: afterRows } = await pool.query(
       `UPDATE clerks SET
        first_name = COALESCE($2, first_name),
        last_name = COALESCE($3, last_name),
@@ -311,7 +393,8 @@ router.put("/clerks/:id", async (req, res) => {
        status = COALESCE($5, status),
        skill_ids = COALESCE($6, skill_ids),
        office_ids = COALESCE($7, office_ids)
-       WHERE id = $1`,
+       WHERE id = $1
+       RETURNING id, first_name, last_name, email, status, skill_ids, office_ids`,
       [
         id,
         firstName || null,
@@ -326,7 +409,8 @@ router.put("/clerks/:id", async (req, res) => {
       action: "update",
       entityType: "clerk",
       entityId: id,
-      details: req.body,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -337,8 +421,19 @@ router.put("/clerks/:id", async (req, res) => {
 router.delete("/clerks/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM clerks WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "clerk", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM clerks WHERE id = $1
+       RETURNING id, first_name, last_name, email, status, skill_ids, office_ids`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "clerk",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -416,15 +511,23 @@ router.put("/hotbuttons/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { sortOrder, label, prompt } = req.body;
-    await pool.query(
-      `UPDATE hotbuttons SET sort_order = COALESCE($2, sort_order), label = COALESCE($3, label), prompt = COALESCE($4, prompt) WHERE id = $1`,
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, sort_order, label, prompt FROM hotbuttons WHERE id = $1`,
+      [id],
+    );
+    const { rows: afterRows } = await pool.query(
+      `UPDATE hotbuttons
+       SET sort_order = COALESCE($2, sort_order), label = COALESCE($3, label), prompt = COALESCE($4, prompt)
+       WHERE id = $1
+       RETURNING id, sort_order, label, prompt`,
       [id, sortOrder ?? null, label || null, prompt || null],
     );
     await logAuditEvent(req, {
       action: "update",
       entityType: "hotbutton",
       entityId: id,
-      details: req.body,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -435,8 +538,18 @@ router.put("/hotbuttons/:id", async (req, res) => {
 router.delete("/hotbuttons/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM hotbuttons WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "hotbutton", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM hotbuttons WHERE id = $1 RETURNING id, sort_order, label, prompt`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "hotbutton",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -484,15 +597,23 @@ router.put("/prescreen-questions/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { sortOrder, questionText } = req.body;
-    await pool.query(
-      `UPDATE prescreen_questions SET sort_order = COALESCE($2, sort_order), question_text = COALESCE($3, question_text) WHERE id = $1`,
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, txn_type_id, sort_order, question_text FROM prescreen_questions WHERE id = $1`,
+      [id],
+    );
+    const { rows: afterRows } = await pool.query(
+      `UPDATE prescreen_questions
+       SET sort_order = COALESCE($2, sort_order), question_text = COALESCE($3, question_text)
+       WHERE id = $1
+       RETURNING id, txn_type_id, sort_order, question_text`,
       [id, sortOrder ?? null, questionText || null],
     );
     await logAuditEvent(req, {
       action: "update",
       entityType: "prescreen_question",
       entityId: id,
-      details: req.body,
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -503,8 +624,19 @@ router.put("/prescreen-questions/:id", async (req, res) => {
 router.delete("/prescreen-questions/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await pool.query(`DELETE FROM prescreen_questions WHERE id = $1`, [id]);
-    await logAuditEvent(req, { action: "delete", entityType: "prescreen_question", entityId: id });
+    const { rows } = await pool.query(
+      `DELETE FROM prescreen_questions WHERE id = $1
+       RETURNING id, txn_type_id, sort_order, question_text`,
+      [id],
+    );
+    if (rows[0]) {
+      await logAuditEvent(req, {
+        action: "delete",
+        entityType: "prescreen_question",
+        entityId: id,
+        before: rows[0],
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -531,12 +663,20 @@ router.put("/clerk-skills/:clerkId", async (req, res) => {
     const clerkId = parseInt(req.params.clerkId);
     const { skillIds } = req.body;
     if (!Array.isArray(skillIds)) return res.status(400).json({ error: "skillIds array required" });
-    await pool.query(`UPDATE clerks SET skill_ids = $2 WHERE id = $1`, [clerkId, skillIds]);
+    const { rows: beforeRows } = await pool.query(
+      `SELECT id, skill_ids FROM clerks WHERE id = $1`,
+      [clerkId],
+    );
+    const { rows: afterRows } = await pool.query(
+      `UPDATE clerks SET skill_ids = $2 WHERE id = $1 RETURNING id, skill_ids`,
+      [clerkId, skillIds],
+    );
     await logAuditEvent(req, {
       action: "update",
       entityType: "clerk_skills",
       entityId: clerkId,
-      details: { skillIds },
+      before: beforeRows[0] ?? null,
+      after: afterRows[0] ?? null,
     });
     res.json({ ok: true });
   } catch (err) {
@@ -915,31 +1055,29 @@ router.get("/clerk-performance", async (req, res) => {
 
 router.get("/audit-log", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
-    const offset = parseInt(req.query.offset as string) || 0;
-    const entityType = req.query.entityType as string | undefined;
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const entityType = optionalQueryString(req.query.entityType);
+    const search = optionalQueryString(req.query.search)?.slice(0, 200);
+    const startAt = optionalQueryString(req.query.startAt);
+    const endAt = optionalQueryString(req.query.endAt);
 
-    let query = `SELECT id, user_email, action, entity_type, entity_id, details, created_at
-                 FROM audit_log`;
-    const params: unknown[] = [];
-
-    if (entityType) {
-      params.push(entityType);
-      query += ` WHERE entity_type = $${params.length}`;
+    if (!isValidAuditTimestamp(startAt) || !isValidAuditTimestamp(endAt)) {
+      return res.status(400).json({ error: "startAt and endAt must be valid ISO timestamps" });
+    }
+    if (startAt && endAt && new Date(startAt) > new Date(endAt)) {
+      return res.status(400).json({ error: "startAt must be before endAt" });
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
-
+    const { query, params, countQuery, countParams } = buildAuditLogQueries({
+      limit,
+      offset,
+      entityType,
+      search,
+      startAt,
+      endAt,
+    });
     const { rows } = await pool.query(query, params);
-
-    // Total count for pagination
-    let countQuery = `SELECT COUNT(*)::int AS total FROM audit_log`;
-    const countParams: unknown[] = [];
-    if (entityType) {
-      countParams.push(entityType);
-      countQuery += ` WHERE entity_type = $1`;
-    }
     const { rows: countRows } = await pool.query(countQuery, countParams);
 
     res.json({ entries: rows, total: countRows[0].total });
@@ -1028,7 +1166,7 @@ router.post("/decision-trees/:id/approve", async (req, res) => {
 
     // Get the tree details
     const { rows: treeRows } = await pool.query(
-      `SELECT tree_id, status FROM decision_trees WHERE id = $1`,
+      `SELECT id, tree_id, status, approved_by, approved_at FROM decision_trees WHERE id = $1`,
       [id],
     );
     if (!treeRows.length) return res.status(404).json({ error: "Decision tree not found" });
@@ -1036,24 +1174,29 @@ router.post("/decision-trees/:id/approve", async (req, res) => {
       return res.status(400).json({ error: "Only draft trees can be approved" });
     }
 
-    await withTransaction(async (client) => {
+    const after = await withTransaction(async (client) => {
       // Archive any previously approved version of this tree
       await client.query(
         `UPDATE decision_trees SET status = 'archived' WHERE tree_id = $1 AND status = 'approved'`,
         [treeRows[0].tree_id],
       );
       // Approve this version
-      await client.query(
-        `UPDATE decision_trees SET status = 'approved', approved_by = $2, approved_at = NOW() WHERE id = $1`,
+      const { rows } = await client.query(
+        `UPDATE decision_trees
+         SET status = 'approved', approved_by = $2, approved_at = NOW()
+         WHERE id = $1
+         RETURNING id, tree_id, status, approved_by, approved_at`,
         [id, userEmail],
       );
+      return rows[0] ?? null;
     });
 
     await logAuditEvent(req, {
       action: "update",
       entityType: "decision_tree",
       entityId: id,
-      details: { action: "approve", treeId: treeRows[0].tree_id },
+      before: treeRows[0],
+      after,
     });
 
     res.json({ ok: true });
@@ -1067,9 +1210,11 @@ router.delete("/decision-trees/:id", async (req, res) => {
     const id = parseInt(req.params.id);
 
     // Only allow deleting drafts
-    const { rows } = await pool.query(`SELECT status, tree_id FROM decision_trees WHERE id = $1`, [
-      id,
-    ]);
+    const { rows } = await pool.query(
+      `SELECT id, tree_id, version, status, created_by, created_at, approved_by, approved_at
+       FROM decision_trees WHERE id = $1`,
+      [id],
+    );
     if (!rows.length) return res.status(404).json({ error: "Decision tree not found" });
     if (rows[0].status === "approved") {
       return res.status(400).json({ error: "Cannot delete approved trees. Archive them instead." });
@@ -1080,7 +1225,7 @@ router.delete("/decision-trees/:id", async (req, res) => {
       action: "delete",
       entityType: "decision_tree",
       entityId: id,
-      details: { treeId: rows[0].tree_id },
+      before: rows[0],
     });
     res.json({ ok: true });
   } catch (err) {

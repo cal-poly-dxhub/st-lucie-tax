@@ -515,13 +515,20 @@ export const saveClerkSchedules = (
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────
 
+export type AuditSnapshot = Record<string, unknown> | null;
+
+export interface AuditDetails extends Record<string, unknown> {
+  before?: AuditSnapshot;
+  after?: AuditSnapshot;
+}
+
 export interface AuditLogEntry {
   id: number;
   user_email: string;
   action: string;
   entity_type: string;
   entity_id: string | null;
-  details: Record<string, unknown>;
+  details: AuditDetails;
   created_at: string;
 }
 
@@ -534,11 +541,17 @@ export const fetchAuditLog = (params?: {
   limit?: number;
   offset?: number;
   entityType?: string;
+  search?: string;
+  startAt?: string;
+  endAt?: string;
 }) => {
   const qs = new URLSearchParams();
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.offset) qs.set("offset", String(params.offset));
   if (params?.entityType) qs.set("entityType", params.entityType);
+  if (params?.search) qs.set("search", params.search);
+  if (params?.startAt) qs.set("startAt", params.startAt);
+  if (params?.endAt) qs.set("endAt", params.endAt);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return get<AuditLogResponse>(`/audit-log${suffix}`, "Couldn't load audit log.");
 };
