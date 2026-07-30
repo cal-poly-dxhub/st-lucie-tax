@@ -8,6 +8,8 @@ const TABS = [
   { to: "hotbuttons", label: "Hotbuttons" },
   { to: "prescreen", label: "Pre-Screen" },
   { to: "documents", label: "Documents" },
+  { to: "decision-trees", label: "Decision Trees" },
+  { to: "audit-log", label: "Audit Log" },
 ];
 
 export function ConfigLayout() {

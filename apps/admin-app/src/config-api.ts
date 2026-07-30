@@ -487,3 +487,90 @@ export const approveDurationRecommendation = (id: number) =>
 
 export const rejectDurationRecommendation = (id: number) =>
   post<Ok>(`/duration-recommendations/${id}/reject`, "Couldn't reject that recommendation.");
+
+// ─── Clerk Schedules (weekly lunch template) ─────────────────────────────────
+
+export interface ClerkSchedule {
+  id: number;
+  clerk_id: number;
+  office_id: number;
+  schedule_date: string;
+  lunch_shift_id: number | null;
+}
+
+export const fetchClerkSchedules = (officeId: number, startDate: string, endDate: string) =>
+  get<ClerkSchedule[]>(
+    `/clerk-schedules?officeId=${officeId}&startDate=${startDate}&endDate=${endDate}`,
+    "Couldn't load clerk schedules.",
+  );
+
+export const saveClerkSchedules = (
+  assignments: {
+    clerkId: number;
+    officeId: number;
+    scheduleDate: string;
+    lunchShiftId: number | null;
+  }[],
+) => put<Ok>("/clerk-schedules", "Couldn't save clerk schedules.", { assignments });
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: number;
+  user_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditLogResponse {
+  entries: AuditLogEntry[];
+  total: number;
+}
+
+export const fetchAuditLog = (params?: {
+  limit?: number;
+  offset?: number;
+  entityType?: string;
+}) => {
+  const qs = new URLSearchParams();
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.offset) qs.set("offset", String(params.offset));
+  if (params?.entityType) qs.set("entityType", params.entityType);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return get<AuditLogResponse>(`/audit-log${suffix}`, "Couldn't load audit log.");
+};
+
+// ─── Decision Trees ──────────────────────────────────────────────────────────
+
+export interface DecisionTreeRow {
+  id: number;
+  tree_id: string;
+  version: number;
+  status: "draft" | "approved" | "archived";
+  created_by: string;
+  created_at: string;
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+export interface DecisionTreeDetail extends DecisionTreeRow {
+  content: Record<string, unknown>;
+}
+
+export const fetchDecisionTrees = () =>
+  get<DecisionTreeRow[]>("/decision-trees", "Couldn't load decision trees.");
+
+export const fetchDecisionTree = (id: number) =>
+  get<DecisionTreeDetail>(`/decision-trees/${id}`, "Couldn't load decision tree.");
+
+export const uploadDecisionTree = (body: { treeId: string; content: unknown }) =>
+  post<OkId & { version: number }>("/decision-trees", "Couldn't upload decision tree.", body);
+
+export const approveDecisionTree = (id: number) =>
+  post<Ok>(`/decision-trees/${id}/approve`, "Couldn't approve decision tree.");
+
+export const deleteDecisionTree = (id: number) =>
+  del<Ok>(`/decision-trees/${id}`, "Couldn't delete decision tree.");
