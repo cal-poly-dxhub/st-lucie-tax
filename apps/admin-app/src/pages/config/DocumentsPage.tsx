@@ -24,6 +24,8 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { useSortableTable } from "@/hooks/useSortableTable";
+import { SortableTH } from "@/components/SortableTH";
 
 interface Data {
   docs: DocumentRegistryEntry[];
@@ -59,6 +61,14 @@ export function DocumentsPage() {
   const [newAlternatives, setNewAlternatives] = useState("");
 
   const docs = data?.docs ?? [];
+
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("doc_id");
+  const sortedDocs = sorted(docs, {
+    doc_id: (d) => d.doc_id,
+    name: (d) => d.name,
+    description: (d) => d.description,
+    alternatives: (d) => d.alternatives?.join(", "),
+  });
 
   const draft = (d: DocumentRegistryEntry) => ({ ...d, ...editing[d.doc_id] });
   const isDirty = (d: DocumentRegistryEntry) => editing[d.doc_id] !== undefined;
@@ -124,18 +134,18 @@ export function DocumentsPage() {
         <Table>
           <THead>
             <TR className="hover:bg-transparent">
-              <TH className="w-56">ID</TH>
-              <TH>Name</TH>
-              <TH>Description</TH>
-              <TH>Alternatives</TH>
+              <SortableTH column="doc_id" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-56">ID</SortableTH>
+              <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
+              <SortableTH column="description" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Description</SortableTH>
+              <SortableTH column="alternatives" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Alternatives</SortableTH>
               <TH align="right" className="w-48" />
             </TR>
           </THead>
           <TBody>
-            {docs.length === 0 ? (
+            {sortedDocs.length === 0 ? (
               <TEmpty colSpan={5}>No documents in the registry yet.</TEmpty>
             ) : (
-              docs.map((d) => {
+              sortedDocs.map((d) => {
                 const v = draft(d);
                 return (
                   <TR key={d.doc_id}>
