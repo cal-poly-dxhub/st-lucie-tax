@@ -16,12 +16,31 @@ interface Props {
   documentType: string;
   label: string;
   accept?: string;
-  onUploaded: (s3Key: string) => void;
+  onUploaded: (s3Key: string, fingerprint: string) => void;
+  /**
+   * Optional cross-slot duplicate guard. Returns true if this exact file was
+   * already accepted in ANOTHER slot. Used so the two "different source"
+   * address proofs can't be satisfied by uploading the same file twice.
+   */
+  isDuplicate?: (fingerprint: string) => boolean;
+}
+
+/** Lightweight client-side file identity — no hashing needed to catch the
+ *  "same file in both slots" case (name + size + mtime is unique enough). */
+function fileFingerprint(f: File): string {
+  return `${f.name}|${f.size}|${f.lastModified}`;
 }
 
 type Status = "idle" | "uploading" | "validating" | "done" | "rejected" | "error";
 
-export function FileUpload({ sessionId, documentType, label, accept, onUploaded }: Props) {
+export function FileUpload({
+  sessionId,
+  documentType,
+  label,
+  accept,
+  onUploaded,
+  isDuplicate,
+}: Props) {
   const [status, setStatus] = useState<Status>("idle");
   const [fileName, setFileName] = useState("");
   const [rejectReason, setRejectReason] = useState("");
@@ -31,6 +50,19 @@ export function FileUpload({ sessionId, documentType, label, accept, onUploaded 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Reject the exact same file already accepted in another slot BEFORE
+    // uploading — the two address proofs must come from different sources.
+    const fingerprint = fileFingerprint(file);
+    if (isDuplicate?.(fingerprint)) {
+      setFileName(file.name);
+      setRejectReason(
+        "This is the same file you already uploaded for another proof. Each proof of address must come from a different source (e.g. a utility bill AND a bank statement).",
+      );
+      setStatus("rejected");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
 
     setFileName(file.name);
     setStatus("uploading");
@@ -59,7 +91,7 @@ export function FileUpload({ sessionId, documentType, label, accept, onUploaded 
       // advisory — show it, but the slot completes normally either way.
       if (verdict.advisory) setAdvisory(verdict.advisory);
       setStatus("done");
-      onUploaded(s3Key);
+      onUploaded(s3Key, fingerprint);
     } catch (err) {
       console.error("Upload failed:", err);
       setStatus("error");

@@ -3142,6 +3142,14 @@ abbr.acronym {
   border-radius: 6px;
   margin-bottom: 0.5rem;
 }
+.schedule-notice {
+  padding: 0.6rem;
+  background: #fff7e6;
+  color: #8a5a00;
+  border: 1px solid #ffe0a3;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
 .schedule-offer h3 {
   margin: 0 0 0.4rem;
   font-size: 1rem;
