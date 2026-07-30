@@ -1,6 +1,23 @@
 import { useCallback, useState } from "react";
-import { Badge, Button, Select, Table, TBody, TD, TEmpty, TH, THead, TR } from "@st-lucie/ui";
-import { fetchAuditLog, type AuditLogResponse } from "@/config-api";
+import {
+  Badge,
+  Button,
+  Input,
+  Select,
+  Table,
+  TBody,
+  TD,
+  TEmpty,
+  TH,
+  THead,
+  TR,
+} from "@st-lucie/ui";
+import {
+  fetchAuditLog,
+  type AuditDetails,
+  type AuditLogResponse,
+  type AuditSnapshot,
+} from "@/config-api";
 import { useResource } from "./use-resource";
 import { ErrorBanner, Section, Spinner } from "./parts";
 
@@ -18,7 +35,7 @@ const ENTITY_TYPES = [
   "decision_tree",
 ];
 
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [25, 50, 100];
 
 function actionBadgeTone(action: string): "go" | "warn" | "neutral" {
   switch (action) {
@@ -31,18 +48,85 @@ function actionBadgeTone(action: string): "go" | "warn" | "neutral" {
   }
 }
 
+function hasChangeSnapshots(details: AuditDetails): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(details, "before") ||
+    Object.prototype.hasOwnProperty.call(details, "after")
+  );
+}
+
+function toIsoTimestamp(localDateTime: string): string | undefined {
+  if (!localDateTime) return undefined;
+  const date = new Date(localDateTime);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function Snapshot({ label, value }: { label: string; value: AuditSnapshot | undefined }) {
+  return (
+    <div className="min-w-48 rounded border border-civic-100 bg-civic-50 p-2">
+      <p className="mb-1 text-xs font-semibold text-civic-700">{label}</p>
+      {value === null || value === undefined ? (
+        <p className="text-xs text-civic-500">No value</p>
+      ) : (
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-civic-600">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function AuditDetailsCell({ details }: { details: AuditDetails }) {
+  if (Object.keys(details).length === 0) return <span className="text-civic-400">—</span>;
+
+  const snapshots = hasChangeSnapshots(details);
+  return (
+    <details className="min-w-56">
+      <summary className="cursor-pointer text-xs font-medium text-civic-600 hover:text-civic-800">
+        {snapshots ? "View change" : "View details"}
+      </summary>
+      <div className="mt-2">
+        {snapshots ? (
+          <div className="grid gap-2 lg:grid-cols-2">
+            <Snapshot label="Before" value={details.before} />
+            <Snapshot label="After" value={details.after} />
+          </div>
+        ) : (
+          <Snapshot label="Details" value={details} />
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function AuditLogPage() {
   const [entityFilter, setEntityFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
+  const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
+
+  const resetPage = () => setPage(0);
+  const clearFilters = () => {
+    setEntityFilter("");
+    setSearch("");
+    setStartAt("");
+    setEndAt("");
+    setPage(0);
+  };
 
   const load = useCallback(
     () =>
       fetchAuditLog({
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
+        limit: pageSize,
+        offset: page * pageSize,
         entityType: entityFilter || undefined,
+        search: search.trim() || undefined,
+        startAt: toIsoTimestamp(startAt),
+        endAt: toIsoTimestamp(endAt),
       }),
-    [entityFilter, page],
+    [endAt, entityFilter, page, pageSize, search, startAt],
   );
 
   const { data, error, loading } = useResource<AuditLogResponse>(load);
@@ -52,36 +136,87 @@ export function AuditLogPage() {
   if (!data) return null;
 
   const { entries, total } = data;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.ceil(total / pageSize);
+  const firstResult = total === 0 ? 0 : page * pageSize + 1;
+  const lastResult = Math.min((page + 1) * pageSize, total);
+  const hasFilters = entityFilter || search || startAt || endAt;
 
   return (
     <div className="flex flex-col gap-5">
       <Section
         title="Audit log"
-        description="History of administrative configuration changes. Entries are recorded automatically on every create, update, or delete."
+        description="History of administrative configuration changes. Expand an entry to review its recorded values. Date and time filters use your local time zone."
       >
-        {/* Filters */}
-        <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Input
+            type="search"
+            aria-label="Search audit log"
+            placeholder="Search user, action, entity, ID, or details"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              resetPage();
+            }}
+          />
           <Select
             aria-label="Filter by entity type"
             value={entityFilter}
             onChange={(e) => {
               setEntityFilter(e.target.value);
-              setPage(0);
+              resetPage();
             }}
           >
             <option value="">All entity types</option>
-            {ENTITY_TYPES.filter(Boolean).map((t) => (
-              <option key={t} value={t}>
-                {t.replace(/_/g, " ")}
+            {ENTITY_TYPES.filter(Boolean).map((type) => (
+              <option key={type} value={type}>
+                {type.replace(/_/g, " ")}
               </option>
             ))}
           </Select>
-
-          <span className="text-xs text-civic-400">
-            {total} {total === 1 ? "entry" : "entries"}
-          </span>
+          <Input
+            type="datetime-local"
+            aria-label="Show audit entries from date and time"
+            value={startAt}
+            onChange={(e) => {
+              setStartAt(e.target.value);
+              resetPage();
+            }}
+          />
+          <Input
+            type="datetime-local"
+            aria-label="Show audit entries through date and time"
+            value={endAt}
+            onChange={(e) => {
+              setEndAt(e.target.value);
+              resetPage();
+            }}
+          />
+          <div className="flex gap-2">
+            <Select
+              aria-label="Audit log rows per page"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                resetPage();
+              }}
+            >
+              {PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size} per page
+                </option>
+              ))}
+            </Select>
+            {hasFilters && (
+              <Button variant="outline" onClick={clearFilters} className="shrink-0">
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
+
+        <p className="mb-3 text-xs text-civic-400">
+          Showing {firstResult}–{lastResult} of {total} {total === 1 ? "entry" : "entries"}
+        </p>
 
         <Table>
           <THead>
@@ -98,21 +233,19 @@ export function AuditLogPage() {
             {entries.length === 0 ? (
               <TEmpty colSpan={6}>No audit log entries found.</TEmpty>
             ) : (
-              entries.map((e) => (
-                <TR key={e.id}>
+              entries.map((entry) => (
+                <TR key={entry.id}>
                   <TD className="whitespace-nowrap text-xs text-civic-500">
-                    {new Date(e.created_at).toLocaleString()}
+                    {new Date(entry.created_at).toLocaleString()}
                   </TD>
-                  <TD className="text-xs">{e.user_email}</TD>
+                  <TD className="text-xs">{entry.user_email}</TD>
                   <TD>
-                    <Badge tone={actionBadgeTone(e.action)}>{e.action}</Badge>
+                    <Badge tone={actionBadgeTone(entry.action)}>{entry.action}</Badge>
                   </TD>
-                  <TD className="text-xs">{e.entity_type.replace(/_/g, " ")}</TD>
-                  <TD className="font-mono text-xs text-civic-500">{e.entity_id ?? "—"}</TD>
-                  <TD className="max-w-xs truncate text-xs text-civic-500">
-                    {Object.keys(e.details).length > 0
-                      ? JSON.stringify(e.details).slice(0, 120)
-                      : "—"}
+                  <TD className="text-xs">{entry.entity_type.replace(/_/g, " ")}</TD>
+                  <TD className="font-mono text-xs text-civic-500">{entry.entity_id ?? "—"}</TD>
+                  <TD className="text-xs text-civic-500">
+                    <AuditDetailsCell details={entry.details} />
                   </TD>
                 </TR>
               ))
@@ -120,10 +253,13 @@ export function AuditLogPage() {
           </TBody>
         </Table>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-3 flex items-center justify-between">
-            <Button variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+            <Button
+              variant="outline"
+              disabled={page === 0}
+              onClick={() => setPage((value) => value - 1)}
+            >
               ← Previous
             </Button>
             <span className="text-xs text-civic-500">
@@ -132,7 +268,7 @@ export function AuditLogPage() {
             <Button
               variant="outline"
               disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setPage((value) => value + 1)}
             >
               Next →
             </Button>
