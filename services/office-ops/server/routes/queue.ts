@@ -1,5 +1,8 @@
 import { Router } from "express";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { pool } from "../db.js";
+import { s3, DOCUMENTS_BUCKET } from "../config.js";
 import { sendSummonEmail } from "../notify.js";
 import { clerkLogin, setClerkAvailability } from "../../src/clerk-session.js";
 import { assignNextCustomer } from "../../src/queue.js";
@@ -211,6 +214,35 @@ router.post("/clerk/record-step", async (req, res) => {
   }
 });
 
+// ─── GET /api/clerk/document-url/:documentId ─────────────────────────────────
+router.get("/clerk/document-url/:documentId", async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.documentId);
+    if (!documentId) return res.status(400).json({ error: "documentId required" });
+
+    const { rows } = await pool.query(`SELECT s3_key, name FROM documents WHERE id = $1`, [
+      documentId,
+    ]);
+    if (!rows.length || !rows[0].s3_key) {
+      return res.status(404).json({ error: "Document not found or no file uploaded" });
+    }
+    if (!DOCUMENTS_BUCKET) {
+      return res.status(503).json({ error: "DOCUMENTS_BUCKET not configured" });
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: DOCUMENTS_BUCKET,
+      Key: rows[0].s3_key,
+      ResponseContentDisposition: `inline; filename="${rows[0].name}"`,
+    });
+    const url = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5-minute expiry
+
+    res.json({ url, name: rows[0].name });
+  } catch (err: unknown) {
+    sendError(res, err, "queue");
+  }
+});
+
 // ─── POST /api/seed-queue (demo helper) ─────────────────────────────────────
 router.post("/seed-queue", async (req, res) => {
   const firstNames = [
@@ -273,7 +305,7 @@ router.post("/seed-queue", async (req, res) => {
       const { rows: apptRows } = await pool.query<{ id: number }>(
         `INSERT INTO appointments (office_id, first_name, last_name, contact_email, contact_phone,
            txn_type_ids, appointment_date, status, is_walk_in)
-         VALUES ($1, $2, $3, $4, $5, ARRAY[$6], CURRENT_DATE, 'scheduled', TRUE)
+         VALUES ($1, $2, $3, $4, $5, ARRAY[$6::INT], CURRENT_DATE, 'scheduled', TRUE)
          RETURNING id`,
         [
           officeId,
