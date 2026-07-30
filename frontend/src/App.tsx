@@ -11,6 +11,9 @@ import { ServiceClerk } from "@/pages/ServiceClerk";
 import { LobbyDisplay } from "@/pages/LobbyDisplay";
 import { PrescreenPage } from "@/pages/PrescreenPage";
 import { ConfirmationPage } from "@/pages/ConfirmationPage";
+import { FeedbackPage } from "@/pages/FeedbackPage";
+import { QueueStatusPage } from "@/pages/QueueStatusPage";
+import { ManageAppointmentPage } from "@/pages/ManageAppointmentPage";
 
 function NavBar() {
   const { user, signOut } = useAuth();
@@ -47,6 +50,9 @@ function NavBar() {
         </NavLink>
         <NavLink to="/lobby" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
           Lobby Display
+        </NavLink>
+        <NavLink to="/feedback" className={({ isActive }) => `${link} ${isActive ? active : ""}`}>
+          Feedback
         </NavLink>
 
         {/* Other SPAs: full page loads, so plain anchors rather than NavLink. */}
@@ -102,6 +108,10 @@ export default function App() {
             {/* Public pages — no auth required */}
             <Route path="/lobby" element={<LobbyDisplay />} />
             <Route path="/prescreen/:code" element={<PrescreenPage />} />
+            <Route path="/queue-status/:code" element={<QueueStatusPage />} />
+            <Route path="/queue-status" element={<QueueStatusPage />} />
+            <Route path="/manage/:code" element={<ManageAppointmentPage />} />
+            <Route path="/manage" element={<ManageAppointmentPage />} />
 
             {/* Staff pages — require Cognito auth */}
             <Route element={<RequireAuth />}>
@@ -113,6 +123,7 @@ export default function App() {
                 <Route path="/queue" element={<QueuePage />} />
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/service" element={<ServiceClerk />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
               </Route>
             </Route>
           </Routes>
