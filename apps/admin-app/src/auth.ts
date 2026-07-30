@@ -18,14 +18,18 @@ let configCache: RuntimeConfig | null = null;
 
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
   if (configCache) return configCache;
-  try {
-    const res = await fetch("/config.json");
-    if (res.ok) {
-      configCache = await res.json();
-      return configCache!;
+  // config.json is emitted for deployed builds. Skip the request in Vite so
+  // local development does not log a predictable 404 before using env fallbacks.
+  if (!import.meta.env.DEV) {
+    try {
+      const res = await fetch("/config.json");
+      if (res.ok) {
+        configCache = await res.json();
+        return configCache!;
+      }
+    } catch {
+      // Fall through to build-time configuration.
     }
-  } catch {
-    // Local dev fallback
   }
   configCache = {
     userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "",
@@ -39,9 +43,20 @@ export async function getRuntimeConfig(): Promise<RuntimeConfig> {
 
 let pool: CognitoUserPool | null = null;
 
-async function getPool(): Promise<CognitoUserPool> {
+function hasCognitoConfig(config: RuntimeConfig): boolean {
+  return Boolean(config.userPoolId && config.userPoolClientId);
+}
+
+const LOCAL_ADMIN_USER: AuthUser = {
+  email: "dev@local",
+  groups: ["admin"],
+  idToken: "",
+};
+
+async function getPool(): Promise<CognitoUserPool | null> {
   if (pool) return pool;
   const config = await getRuntimeConfig();
+  if (!hasCognitoConfig(config)) return null;
   pool = new CognitoUserPool({
     UserPoolId: config.userPoolId,
     ClientId: config.userPoolClientId,
@@ -65,7 +80,11 @@ function parseIdToken(session: CognitoUserSession): AuthUser {
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  const config = await getRuntimeConfig();
+  if (import.meta.env.DEV && !hasCognitoConfig(config)) return LOCAL_ADMIN_USER;
+
   const p = await getPool();
+  if (!p) return null;
   const cognitoUser = p.getCurrentUser();
   if (!cognitoUser) return null;
   return new Promise((resolve) => {
@@ -86,6 +105,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
 export async function signIn(email: string, password: string): Promise<AuthUser> {
   const p = await getPool();
+  if (!p) throw new Error("Cognito is not configured.");
   const user = new CognitoUser({ Username: email, Pool: p });
   const authDetails = new AuthenticationDetails({ Username: email, Password: password });
   return new Promise((resolve, reject) => {
@@ -108,7 +128,7 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
 
 export async function signOut(): Promise<void> {
   const p = await getPool();
-  const user = p.getCurrentUser();
+  const user = p?.getCurrentUser();
   if (user) user.signOut();
   clearTokenCache();
 }
@@ -138,7 +158,7 @@ export async function getIdToken(): Promise<string | null> {
 
   tokenInFlight = getCurrentUser()
     .then((u) => {
-      if (!u) {
+      if (!u?.idToken) {
         tokenCache = null;
         return null;
       }

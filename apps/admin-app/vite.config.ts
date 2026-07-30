@@ -19,13 +19,22 @@ export default defineConfig({
     port: 5181,
     strictPort: true,
     proxy: {
-      // Session-review APIs → services/admin (:3100).
-      // Office-ops config APIs → services/office-ops (:3000). Both backends
-      // must be running to exercise the whole dashboard locally.
-      "/admin": {
+      // Proxy only the session-review API routes. A broad /admin proxy would
+      // intercept the SPA's /admin/ base path before Vite can serve index.html.
+      "/admin/health": {
         target: "http://localhost:3100",
         changeOrigin: true,
       },
+      "/admin/summary": {
+        target: "http://localhost:3100",
+        changeOrigin: true,
+      },
+      "/admin/sessions": {
+        target: "http://localhost:3100",
+        changeOrigin: true,
+      },
+      // Office-ops config APIs → services/office-ops (:3000). Both backends
+      // must be running to exercise the whole dashboard locally.
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true,

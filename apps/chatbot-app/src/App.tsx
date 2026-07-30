@@ -17,7 +17,7 @@ import {
   type HotButton,
   type SessionContext,
 } from "./api";
-import { getCurrentUser, signOut, type AuthUser } from "./lib/auth";
+import { getCurrentUser, signOut, authConfigured, type AuthUser } from "./lib/auth";
 import { LoginPage } from "./components/LoginPage";
 import { useSession } from "./hooks/useSession";
 import { usePolling } from "./hooks/usePolling";
@@ -44,14 +44,22 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    getCurrentUser()
-      .then((user) => {
-        if (user) {
-          setAuth(user);
-          setCachedToken(user.idToken);
-        }
-      })
-      .finally(() => setAuthLoading(false));
+    authConfigured().then((configured) => {
+      if (!configured) {
+        const devUser: AuthUser = { email: "dev@local", groups: [], idToken: "" };
+        setAuth(devUser);
+        setAuthLoading(false);
+        return;
+      }
+      getCurrentUser()
+        .then((user) => {
+          if (user) {
+            setAuth(user);
+            setCachedToken(user.idToken);
+          }
+        })
+        .finally(() => setAuthLoading(false));
+    });
   }, []);
 
   const {
