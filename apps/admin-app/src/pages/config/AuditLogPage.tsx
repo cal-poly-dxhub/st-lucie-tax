@@ -61,6 +61,17 @@ function toIsoTimestamp(localDateTime: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+function toLocalDateTimeInput(date: Date): string {
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 16);
+}
+
+function thirtyDaysAgoLocalDateTime(): string {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  return toLocalDateTimeInput(date);
+}
+
 function Snapshot({ label, value }: { label: string; value: AuditSnapshot | undefined }) {
   return (
     <div className="min-w-48 rounded border border-civic-100 bg-civic-50 p-2">
@@ -102,8 +113,8 @@ function AuditDetailsCell({ details }: { details: AuditDetails }) {
 export function AuditLogPage() {
   const [entityFilter, setEntityFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
+  const [startAt, setStartAt] = useState(thirtyDaysAgoLocalDateTime);
+  const [endAt, setEndAt] = useState(() => toLocalDateTimeInput(new Date()));
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
