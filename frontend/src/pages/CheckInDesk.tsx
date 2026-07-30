@@ -113,7 +113,7 @@ export function CheckInDesk() {
           )}
 
           {record ? (
-            <RecordCard record={record} onMutated={refreshRecord} />
+            <RecordCard record={record} onMutated={refreshRecord} onDismiss={() => setRecord(null)} />
           ) : (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-civic-200 bg-white/50 px-6 py-16 text-center">
               <div className="grid size-14 place-items-center rounded-2xl bg-civic-50 text-civic-300">

@@ -10,32 +10,28 @@ import {
   CircleDashed,
   Check,
   Zap,
-  ArrowRight,
+  X,
   AlertTriangle,
   Upload,
 } from "lucide-react";
 import { api, type CustomerRecord, type DocStatus } from "@/lib/api";
-import { computeReadiness } from "@/lib/readiness";
 import { Badge, Button, Card, SectionLabel, useToast, cn } from "@st-lucie/ui";
 
 interface Props {
   record: CustomerRecord;
   onMutated: () => void; // re-fetch the record after a persisted change
+  onDismiss?: () => void; // close the panel
 }
 
-export function RecordCard({ record, onMutated }: Props) {
+export function RecordCard({ record, onMutated, onDismiss }: Props) {
   const notify = useToast();
-  const r = computeReadiness(record);
 
-  const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [checkedIn, setCheckedIn] = useState(record.status !== "scheduled");
+  const [prescreenSent, setPrescreenSent] = useState(false);
 
   useEffect(() => {
-    setCheckedIn(record.status !== "scheduled");
-  }, [record.appointmentId, record.status]);
-
-  const isCheckedIn = checkedIn || record.status !== "scheduled";
+    setPrescreenSent(false);
+  }, [record.appointmentId]);
 
   async function run(tag: string, fn: () => Promise<void>, ok?: string) {
     setBusy(tag);
@@ -57,17 +53,11 @@ export function RecordCard({ record, onMutated }: Props) {
       "Identity verified.",
     );
 
-  const validateDoc = (doc: DocStatus) =>
-    run(
-      `doc-${doc.id}`,
-      () => api.validateDocument(doc.id as number).then(() => {}),
-      `${doc.name} validated.`,
-    );
-
-  const sendPrescreen = () =>
+  const sendPrescreen = (priority: boolean) =>
     run("prescreen", async () => {
-      const res = await api.sendPrescreen(record.appointmentId);
-      notify("success", `Pre-screen link sent to ${res.sentTo}.`);
+      const res = await api.sendPrescreen(record.appointmentId, true, priority);
+      setPrescreenSent(true);
+      notify("success", `Pre-screen link sent to ${res.sentTo}. Customer will auto-join the queue.`);
     });
 
   const uploadDoc = (doc: DocStatus, file: File) =>
@@ -80,12 +70,15 @@ export function RecordCard({ record, onMutated }: Props) {
       `${doc.name} uploaded.`,
     );
 
-  const checkIn = (priority: boolean) =>
-    run(priority ? "checkin-priority" : "checkin", async () => {
-      const res = await api.checkIn(record.appointmentId, record.officeId, notes, priority);
-      setCheckedIn(true);
-      notify("success", `Checked in — Queue #${res.queueNumber}${priority ? " · Priority" : ""}.`);
-    });
+  const validateDoc = (doc: DocStatus) =>
+    run(
+      `doc-${doc.id}`,
+      () => api.validateDocument(doc.id as number).then(() => {}),
+      `${doc.name} validated.`,
+    );
+
+  const isInQueue = record.status === "checked-in" || record.status === "serving";
+  const showSentState = prescreenSent || (record.prescreenCompleted && !isInQueue);
 
   return (
     <Card className="animate-rise overflow-hidden">
@@ -106,9 +99,20 @@ export function RecordCard({ record, onMutated }: Props) {
               <span className="tnum">{record.confirmationCode.slice(0, 8)}</span>
             </div>
           </div>
-          <Badge tone={isCheckedIn ? "go" : "civic"} className="bg-white/90">
-            {record.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge tone={isInQueue ? "go" : "civic"} className="bg-white/90">
+              {isInQueue ? "In queue" : record.status}
+            </Badge>
+            {onDismiss && (
+              <button
+                onClick={onDismiss}
+                className="grid size-8 place-items-center rounded-full bg-white/20 text-white/80 transition-colors hover:bg-white/30 hover:text-white"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -118,7 +122,7 @@ export function RecordCard({ record, onMutated }: Props) {
           icon={record.identityVerified ? <ShieldCheck size={18} /> : <ShieldQuestion size={18} />}
           tone={record.identityVerified ? "done" : "pending"}
           title="Identity Verification"
-          subtitle="Confirm government photo ID in person"
+          subtitle="Confirm government photo ID in person or via AuthID"
         >
           {record.identityVerified ? (
             <Badge tone="go">
@@ -131,119 +135,87 @@ export function RecordCard({ record, onMutated }: Props) {
           )}
         </Gate>
 
-        {/* ── Pre-screen ── */}
-        <Gate
-          icon={<ClipboardList size={18} />}
-          tone={record.prescreenCompleted ? "done" : "pending"}
-          title="Pre-Screen Questions"
-          subtitle="Required before service begins"
-        >
-          {record.prescreenCompleted ? (
-            <Badge tone="go">
-              <Check size={12} strokeWidth={3} /> Completed
-            </Badge>
-          ) : (
-            <Button variant="outline" loading={busy === "prescreen"} onClick={sendPrescreen}>
-              <Send size={16} /> Send link
-            </Button>
-          )}
-        </Gate>
-
-        {/* ── Documents ── */}
-        <div>
-          <SectionLabel>
-            Documents · {r.docsValidated}/{r.docsRequired} validated
-          </SectionLabel>
-          <div className="mt-3 space-y-2">
-            {record.docs.length === 0 && (
-              <p className="text-sm text-civic-400">No documents required for this transaction.</p>
-            )}
-            {record.docs.map((doc) => (
-              <DocRow
-                key={doc.docId}
-                doc={doc}
-                busy={busy === `doc-${doc.id}`}
-                uploadBusy={busy === `upload-${doc.docId}`}
-                onValidate={() => validateDoc(doc)}
-                onUpload={(file) => uploadDoc(doc, file)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Readiness banner ── */}
-        {r.ready ? (
+        {/* ── Pre-screen / Queue status ── */}
+        {isInQueue ? (
           <div className="flex items-center gap-3 rounded-xl border-2 border-go-300 bg-go-50 px-4 py-3.5">
             <span className="grid size-10 place-items-center rounded-full bg-go-500 text-white">
               <Check size={20} strokeWidth={3} />
             </span>
             <div>
-              <div className="font-display text-base font-bold text-go-700">Ready for queue</div>
+              <div className="font-display text-base font-bold text-go-700">In the queue</div>
               <div className="text-xs text-go-600">
-                Identity verified · Pre-screen done · All documents validated
+                Customer will be called when it's their turn.
               </div>
+            </div>
+          </div>
+        ) : showSentState ? (
+          <div className="flex items-center gap-3 rounded-xl border border-civic-200 bg-civic-50/60 px-4 py-3.5">
+            <span className="grid size-10 place-items-center rounded-full bg-civic-100 text-civic-500">
+              <ClipboardList size={20} />
+            </span>
+            <div>
+              <div className="font-display text-base font-bold text-civic-700">Sent for pre-screen</div>
+              <div className="text-xs text-civic-500">
+                Customer will auto-join the queue after completing questions.
+              </div>
+            </div>
+          </div>
+        ) : record.identityVerified ? (
+          <div className="border-t border-civic-100 pt-5">
+            <SectionLabel>Send for pre-screen</SectionLabel>
+            <p className="mt-1 text-xs text-civic-400">
+              Customer will receive pre-screen questions by email. They'll automatically join the queue once complete.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Button
+                variant="go"
+                className="flex-1"
+                loading={busy === "prescreen"}
+                onClick={() => sendPrescreen(false)}
+              >
+                <Send size={16} /> Send pre-screen
+              </Button>
+              <Button
+                variant="outline"
+                className="border-warn-200 text-warn-700 hover:bg-warn-50"
+                loading={busy === "prescreen"}
+                onClick={() => sendPrescreen(true)}
+              >
+                <Zap size={16} /> Priority
+              </Button>
             </div>
           </div>
         ) : (
           <div className="rounded-xl border border-warn-200 bg-warn-50 px-4 py-3.5">
             <div className="flex items-center gap-2 text-sm font-semibold text-warn-700">
-              <AlertTriangle size={16} /> Not ready — {r.gaps.length} item
-              {r.gaps.length === 1 ? "" : "s"} outstanding
+              <AlertTriangle size={16} /> Verify identity first
             </div>
-            <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-              {r.gaps.map((g) => (
-                <li key={g.key} className="flex items-center gap-1.5 text-xs text-warn-700/90">
-                  <CircleDashed size={12} /> {g.label}
-                </li>
-              ))}
-            </ul>
+            <p className="mt-1 text-xs text-warn-600">
+              Confirm the customer's government photo ID before sending pre-screen questions.
+            </p>
           </div>
         )}
 
-        {/* ── Notes + check-in ── */}
-        <div className="border-t border-civic-100 pt-5">
-          <SectionLabel>Notes for service clerk</SectionLabel>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional context to pass along…"
-            disabled={isCheckedIn}
-            className="mt-2 min-h-[64px] w-full resize-y rounded-xl border border-civic-200 bg-civic-50/40 px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-civic-300 focus:border-civic-400 disabled:opacity-60"
-          />
-
-          {isCheckedIn ? (
-            <div className="mt-3 flex items-center gap-2 rounded-xl bg-go-50 px-4 py-3 text-sm font-semibold text-go-700">
-              <Check size={16} strokeWidth={3} /> Customer is in the queue.
+        {/* ── Documents (informational for front desk, validated by service clerk) ── */}
+        {record.docs.length > 0 && (
+          <div>
+            <SectionLabel>
+              Documents · {record.docs.filter((d) => d.clerkValidated).length}/{record.docs.length} validated
+            </SectionLabel>
+            <div className="mt-3 space-y-2">
+              {record.docs.map((doc) => (
+                <DocRow
+                  key={doc.docId}
+                  doc={doc}
+                  busy={busy === `doc-${doc.id}`}
+                  uploadBusy={busy === `upload-${doc.docId}`}
+                  onValidate={() => validateDoc(doc)}
+                  onUpload={(file) => uploadDoc(doc, file)}
+                />
+              ))}
             </div>
-          ) : (
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Button
-                variant="go"
-                className="flex-1"
-                loading={busy === "checkin"}
-                disabled={!r.ready || busy === "checkin-priority"}
-                onClick={() => checkIn(false)}
-              >
-                <ArrowRight size={16} /> Check in to queue
-              </Button>
-              <Button
-                variant="outline"
-                className="border-warn-200 text-warn-700 hover:bg-warn-50"
-                loading={busy === "checkin-priority"}
-                disabled={busy === "checkin"}
-                onClick={() => checkIn(true)}
-              >
-                <Zap size={16} /> Priority check-in
-              </Button>
-            </div>
-          )}
-          {!r.ready && !isCheckedIn && (
-            <p className="mt-2 text-xs text-civic-400">
-              Standard check-in unlocks once all gates clear. Priority overrides for accessibility
-              or urgent needs.
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </Card>
   );
