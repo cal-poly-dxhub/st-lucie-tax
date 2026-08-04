@@ -24,6 +24,18 @@ interface SlotResult {
   timeFormatted: string;
 }
 
+interface Office {
+  id: number;
+  name: string;
+}
+
+async function fetchOffices(): Promise<Office[]> {
+  const res = await fetch(`${API_BASE}/api/config`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.offices ?? [];
+}
+
 async function lookupAppointment(code: string): Promise<AppointmentInfo> {
   const res = await fetch(`${API_BASE}/api/appointment/lookup/${encodeURIComponent(code)}`);
   if (!res.ok) {
@@ -49,6 +61,7 @@ async function findSlot(
   email: string,
   preferredTime: string | null,
   preferredDow: number | null,
+  preferredOffice: number | null,
 ): Promise<SlotResult> {
   const res = await fetch(`${API_BASE}/api/appointment/find-slot`, {
     method: "POST",
@@ -58,6 +71,7 @@ async function findSlot(
       email,
       preferredTime: preferredTime || null,
       preferredDow,
+      preferredOffice,
     }),
   });
   const data = await res.json();
@@ -94,9 +108,15 @@ export function ManageAppointmentPage() {
   const [email, setEmail] = useState("");
   const [preferredTime, setPreferredTime] = useState<"morning" | "afternoon" | "">("");
   const [preferredDow, setPreferredDow] = useState<string>("");
+  const [preferredOffice, setPreferredOffice] = useState<string>("");
+  const [offices, setOffices] = useState<Office[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [foundSlot, setFoundSlot] = useState<SlotResult | null>(null);
+
+  useEffect(() => {
+    fetchOffices().then(setOffices);
+  }, []);
 
   async function load(c: string) {
     if (!c) return;
@@ -160,6 +180,7 @@ export function ManageAppointmentPage() {
         email,
         preferredTime || null,
         preferredDow ? Number(preferredDow) : null,
+        preferredOffice ? Number(preferredOffice) : null,
       );
       setFoundSlot(slot);
     } catch (e) {
@@ -187,6 +208,7 @@ export function ManageAppointmentPage() {
       setEmail("");
       setPreferredTime("");
       setPreferredDow("");
+      setPreferredOffice("");
       setFoundSlot(null);
       // Reload to show updated info
       await load(lookupCode);
@@ -330,7 +352,23 @@ export function ManageAppointmentPage() {
                 className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
                 aria-label="Email for verification"
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-civic-600">
+                    Preferred Office
+                  </label>
+                  <select
+                    value={preferredOffice}
+                    onChange={(e) => setPreferredOffice(e.target.value)}
+                    className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
+                    aria-label="Preferred office"
+                  >
+                    <option value="">No preference</option>
+                    {offices.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-civic-600">
                     Preferred Time
