@@ -227,7 +227,10 @@ router.get("/clerk/document-url/:documentId", async (req, res) => {
       return res.status(404).json({ error: "Document not found or no file uploaded" });
     }
     if (!DOCUMENTS_BUCKET) {
-      return res.status(503).json({ error: "DOCUMENTS_BUCKET not configured" });
+      // Local dev: serve file directly from the local uploads directory
+      const url = `/uploads/${rows[0].s3_key}`;
+      res.json({ url, name: rows[0].name, local: true });
+      return;
     }
 
     const command = new GetObjectCommand({

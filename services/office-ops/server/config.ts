@@ -8,6 +8,11 @@ import { S3Client } from "@aws-sdk/client-s3";
 export const REGION = process.env.AWS_REGION ?? "us-west-2";
 export const EMAIL = process.env.EMAIL ?? "noreply@localhost";
 export const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+// FRONTEND_URL is used for links to client-side routes (prescreen, queue-status).
+// In production CloudFront serves the SPA from the same origin as the API, so
+// BASE_URL works. Locally the Vite dev server is on a different port.
+export const FRONTEND_URL =
+  process.env.FRONTEND_URL ?? process.env.BASE_URL ?? "http://localhost:5173";
 export const DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET ?? "";
 
 // Default to today's date. Override with DEMO_DATE env var if needed.

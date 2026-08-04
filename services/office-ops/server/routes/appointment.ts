@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { pool, withTransaction } from "../db.js";
-import { ses, s3, EMAIL, BASE_URL, DEFAULT_DATE, DOCUMENTS_BUCKET } from "../config.js";
+import { ses, s3, EMAIL, FRONTEND_URL, DEFAULT_DATE, DOCUMENTS_BUCKET } from "../config.js";
 import {
   lookupByConfirmationCode,
   lookupByName,
@@ -335,9 +335,6 @@ router.post("/upload-document", async (req, res) => {
     if (!ALLOWED_CONTENT_TYPES.has(resolvedType)) {
       return res.status(400).json({ error: "File type not allowed. Accepted: pdf, jpg, png" });
     }
-    if (!DOCUMENTS_BUCKET) {
-      return res.status(503).json({ error: "DOCUMENTS_BUCKET not configured" });
-    }
     const fileBuffer = Buffer.from(dataBase64, "base64");
     if (fileBuffer.length > MAX_FILE_SIZE) {
       return res.status(400).json({ error: "File exceeds 5MB limit" });
@@ -448,15 +445,15 @@ router.post("/walk-in", async (req, res) => {
       // Send prescreen email if the customer provided a real email address
       if (email && !email.endsWith("@walkin.local")) {
         try {
-          const prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}?autoCheckIn=1${priority ? "&priority=1" : ""}`;
+          const prescreenUrl = `${FRONTEND_URL}/prescreen/${confirmationCode}?autoCheckIn=1${priority ? "&priority=1" : ""}`;
           const emailInput = buildPrescreenLinkEmail({
             recipientEmail: email,
             firstName,
             confirmationCode,
-            baseUrl: BASE_URL,
+            baseUrl: FRONTEND_URL,
             fromEmail: EMAIL,
           });
-          const placeholder = `${BASE_URL}/prescreen/${confirmationCode}`;
+          const placeholder = `${FRONTEND_URL}/prescreen/${confirmationCode}`;
           const html = emailInput.html.replaceAll(placeholder, prescreenUrl);
           const text = emailInput.text.replaceAll(placeholder, prescreenUrl);
           await sendEmail(ses, { ...emailInput, html, text });
@@ -571,7 +568,7 @@ router.post("/send-prescreen", async (req, res) => {
 
     const autoCheckIn = req.body?.autoCheckIn || false;
     const priority = req.body?.priority || false;
-    let prescreenUrl = `${BASE_URL}/prescreen/${confirmationCode}`;
+    let prescreenUrl = `${FRONTEND_URL}/prescreen/${confirmationCode}`;
     if (autoCheckIn) {
       prescreenUrl += `?autoCheckIn=1${priority ? "&priority=1" : ""}`;
     }
@@ -580,10 +577,10 @@ router.post("/send-prescreen", async (req, res) => {
       recipientEmail: toEmail,
       firstName,
       confirmationCode,
-      baseUrl: BASE_URL,
+      baseUrl: FRONTEND_URL,
       fromEmail: EMAIL,
     });
-    const placeholder = `${BASE_URL}/prescreen/${confirmationCode}`;
+    const placeholder = `${FRONTEND_URL}/prescreen/${confirmationCode}`;
     const html = emailInput.html.replaceAll(placeholder, prescreenUrl);
     const text = emailInput.text.replaceAll(placeholder, prescreenUrl);
     await sendEmail(ses, { ...emailInput, html, text });
@@ -751,7 +748,7 @@ router.post("/demo-book", async (req, res) => {
       appointmentTime: timeStr,
       officeName,
       qrCodeDataUrl: qrDataUrl,
-      baseUrl: BASE_URL,
+      baseUrl: FRONTEND_URL,
       fromEmail: EMAIL,
     });
     let emailSent = false;

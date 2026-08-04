@@ -1,5 +1,6 @@
 import express from "express";
-import { SERVICE } from "./config.js";
+import { join } from "node:path";
+import { SERVICE, DOCUMENTS_BUCKET } from "./config.js";
 import appointmentRouter, { publicRouter } from "./routes/appointment.js";
 import queueRouter from "./routes/queue.js";
 import adminRouter from "./routes/admin.js";
@@ -13,6 +14,11 @@ import { requireAuth } from "./middleware/auth.js";
 // down the other (separate functions, APIs, concurrency in production).
 export const app = express();
 app.use(express.json({ limit: "12mb" })); // 10MB doc uploads + base64 overhead
+
+// Serve locally-uploaded documents in dev when no S3 bucket is configured
+if (!DOCUMENTS_BUCKET) {
+  app.use("/uploads", express.static(join(process.cwd(), "uploads")));
+}
 
 const mountAppointment = SERVICE === "appointment" || SERVICE === "all";
 const mountQueue = SERVICE === "queue" || SERVICE === "all";
