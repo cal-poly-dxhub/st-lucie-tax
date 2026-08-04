@@ -35,6 +35,7 @@ export interface QrConfirmationInput {
   appointmentTime: string;
   officeName: string;
   qrCodeDataUrl: string;
+  baseUrl: string;
   fromEmail: string;
 }
 
@@ -44,6 +45,8 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
   const date = escapeHtml(input.appointmentDate);
   const time = escapeHtml(input.appointmentTime);
   const office = escapeHtml(input.officeName);
+  const queueStatusUrl = `${input.baseUrl}/queue-status/${input.confirmationCode}`;
+  const escapedQueueStatusUrl = escapeHtml(queueStatusUrl);
 
   const html = `<p>Hi ${name},</p>
 <p>Your appointment is confirmed:</p>
@@ -55,6 +58,8 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
 </ul>
 <p>Present this QR code at check-in:</p>
 <img src="${input.qrCodeDataUrl}" alt="QR Code" width="200" height="200" />
+<p>You can check your status in the queue here:<br>
+<a href="${escapedQueueStatusUrl}">${escapedQueueStatusUrl}</a></p>
 <p>Thank you,<br>St. Lucie County Tax Collector</p>`;
 
   const text = `Hi ${input.firstName},
@@ -66,6 +71,9 @@ Your appointment is confirmed:
 - Location: ${input.officeName}
 
 Please present your QR code at check-in (see attached image in the HTML version of this email).
+
+You can check your status in the queue here:
+${queueStatusUrl}
 
 Thank you,
 St. Lucie County Tax Collector`;

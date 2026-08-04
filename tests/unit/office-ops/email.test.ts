@@ -62,6 +62,7 @@ describe("buildQrConfirmationEmail", () => {
       appointmentTime: "09:00:00",
       officeName: "Fort Pierce Office",
       qrCodeDataUrl: "data:image/png;base64,FAKE",
+      baseUrl: "https://example.com",
       fromEmail: FROM,
     });
 
@@ -74,6 +75,8 @@ describe("buildQrConfirmationEmail", () => {
     expect(email.html).toContain('<img src="data:image/png;base64,FAKE"');
     expect(email.text).toContain("Confirmation Code: ABC123");
     expect(email.text).toContain("Location: Fort Pierce Office");
+    expect(email.html).toContain("https://example.com/queue-status/ABC123");
+    expect(email.text).toContain("https://example.com/queue-status/ABC123");
   });
 
   test("escapes HTML in customer-supplied values", () => {
@@ -85,6 +88,7 @@ describe("buildQrConfirmationEmail", () => {
       appointmentTime: "09:00:00",
       officeName: "Fort <Pierce>",
       qrCodeDataUrl: "data:image/png;base64,FAKE",
+      baseUrl: "https://example.com",
       fromEmail: FROM,
     });
 
@@ -94,6 +98,8 @@ describe("buildQrConfirmationEmail", () => {
     expect(email.html).toContain("Fort &lt;Pierce&gt;");
     // Plain-text part stays unescaped.
     expect(email.text).toContain('<script>alert("x")</script>');
+    // Queue-status link uses the raw (unescaped) confirmation code in the URL
+    expect(email.text).toContain("https://example.com/queue-status/A&B");
   });
 });
 

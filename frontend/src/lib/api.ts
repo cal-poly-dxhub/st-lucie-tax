@@ -50,6 +50,7 @@ export interface TxnType {
   name: string;
   duration: number;
   status: string;
+  requiredDocs?: { docId: string; name: string }[];
 }
 
 export interface LunchShift {

@@ -1,28 +1,7 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Zap, ArrowRight, Mail, CheckCircle } from "lucide-react";
+import { UserPlus, Zap, ArrowRight, Mail, CheckCircle, Upload, Check, CircleDashed } from "lucide-react";
 import { api, type ConfigResponse } from "@/lib/api";
-import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
-
-const TXN_DOCS: Record<string, { docId: string; name: string }[]> = {
-  "road-test": [
-    { docId: "learner_permit", name: "Learner Permit" },
-    { docId: "photo_id", name: "Photo ID" },
-    { docId: "vision_cert", name: "Vision Certificate" },
-    { docId: "vehicle_reg", name: "Vehicle Registration" },
-    { docId: "insurance_card", name: "Insurance Card" },
-  ],
-  "id-card": [
-    { docId: "birth_cert", name: "Birth Certificate" },
-    { docId: "proof_address", name: "Proof of Residency" },
-    { docId: "ssn_proof", name: "Social Security Proof" },
-  ],
-  "license-original": [
-    { docId: "learner_permit", name: "Learner Permit" },
-    { docId: "photo_id", name: "Photo ID" },
-    { docId: "proof_address", name: "Proof of Residency" },
-    { docId: "ssn_proof", name: "Social Security Proof" },
-  ],
-};
+import { Badge, Button, Card, SectionLabel, useToast, cn } from "@st-lucie/ui";
 
 export function WalkIn() {
   const notify = useToast();
@@ -40,6 +19,7 @@ export function WalkIn() {
   const [busy, setBusy] = useState(false);
   const [identityVerified, setIdentityVerified] = useState(false);
   const [pendingPrescreenUrl, setPendingPrescreenUrl] = useState<string | null>(null);
+  const [docFiles, setDocFiles] = useState<Record<string, File>>({});
 
   useEffect(() => {
     api.config().then((cfg) => {
@@ -58,7 +38,8 @@ export function WalkIn() {
     const seen = new Set<string>();
     const docs: { docId: string; name: string }[] = [];
     for (const slug of selectedTxns) {
-      for (const d of TXN_DOCS[slug] ?? []) {
+      const txn = config?.txnTypes.find((t) => t.slug === slug);
+      for (const d of txn?.requiredDocs ?? []) {
         if (!seen.has(d.docId)) {
           seen.add(d.docId);
           docs.push(d);
@@ -140,6 +121,23 @@ export function WalkIn() {
           ? `Walk-in registered! Queue #${res.queueNumber}${priority ? " (Priority)" : ""}`
           : "Walk-in registered! Pending pre-screen completion.";
         notify("success", msg);
+
+        // Upload any scanned documents now that the appointment exists
+        const filesToUpload = Object.entries(docFiles);
+        if (filesToUpload.length > 0 && res.appointmentId) {
+          const results = await Promise.allSettled(
+            filesToUpload.map(([docId, file]) =>
+              api.uploadDocument({ appointmentId: res.appointmentId, docId, file }),
+            ),
+          );
+          const failed = results.filter((r) => r.status === "rejected").length;
+          if (failed > 0) {
+            notify("error", `${failed} document(s) failed to upload.`);
+          } else {
+            notify("success", `${filesToUpload.length} document(s) uploaded.`);
+          }
+        }
+
         if (res.pendingPrescreen && res.confirmationCode) {
           const query = new URLSearchParams({ autoCheckIn: "1" });
           if (priority) query.set("priority", "1");
@@ -156,6 +154,7 @@ export function WalkIn() {
         setIdentityVerified(false);
         setEmailVerified(false);
         setVerificationSent(false);
+        setDocFiles({});
       }
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Server error.");
@@ -317,15 +316,63 @@ export function WalkIn() {
             Clerk scans required documents at the desk (human verified).
           </p>
           <div className="space-y-2">
-            {requiredDocs.map((d) => (
-              <div
-                key={d.docId}
-                className="flex items-center gap-3 rounded-lg border border-civic-100 px-3 py-2"
-              >
-                <span className="text-lg">📄</span>
-                <span className="text-sm font-medium text-ink">{d.name}</span>
-              </div>
-            ))}
+            {requiredDocs.map((d) => {
+              const file = docFiles[d.docId];
+              return (
+                <div
+                  key={d.docId}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-civic-100 bg-white px-3.5 py-2.5"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        "grid size-8 shrink-0 place-items-center rounded-lg",
+                        file
+                          ? "text-white bg-go-500"
+                          : "text-civic-300 bg-white ring-1 ring-civic-100",
+                      )}
+                    >
+                      {file ? <Check size={16} strokeWidth={3} /> : <CircleDashed size={16} />}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-ink">{d.name}</div>
+                      <div className="text-xs text-civic-400">
+                        {file ? file.name : "Not uploaded"}
+                      </div>
+                    </div>
+                  </div>
+                  {file ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocFiles((prev) => {
+                          const next = { ...prev };
+                          delete next[d.docId];
+                          return next;
+                        })
+                      }
+                      className="shrink-0 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-500 hover:border-stop-300 hover:text-stop-600"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-700 hover:border-civic-400 hover:bg-civic-50">
+                      <Upload size={13} /> Upload
+                      <input
+                        type="file"
+                        accept=".pdf,image/jpeg,image/png"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const f = event.currentTarget.files?.[0];
+                          event.currentTarget.value = "";
+                          if (f) setDocFiles((prev) => ({ ...prev, [d.docId]: f }));
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
