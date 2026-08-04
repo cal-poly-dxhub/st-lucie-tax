@@ -1143,7 +1143,8 @@ publicRouter.get("/appointment/lookup/:confirmationCode", async (req, res) => {
 // Public: find the best available slot for rescheduling an existing appointment.
 publicRouter.post("/appointment/find-slot", async (req, res) => {
   try {
-    const { confirmationCode, email, preferredTime, preferredDow } = req.body ?? {};
+    const { confirmationCode, email, preferredTime, preferredDow, preferredOffice } =
+      req.body ?? {};
     if (!confirmationCode || !email) {
       return res.status(400).json({ error: "confirmationCode and email required" });
     }
@@ -1164,10 +1165,12 @@ publicRouter.post("/appointment/find-slot", async (req, res) => {
     const startDate = new Date();
     startDate.setUTCDate(startDate.getUTCDate() + 1);
 
+    const resolvedOffice = preferredOffice ?? appt.office_id;
+
     const slot = await findAppointment(pool, {
       targetTxns: appt.txn_type_ids,
-      asap: !preferredTime && preferredDow == null,
-      preferredOffice: appt.office_id,
+      asap: !preferredTime && preferredDow == null && !preferredOffice,
+      preferredOffice: resolvedOffice,
       preferredDow: preferredDow ?? null,
       preferredTime: preferredTime ?? null,
       startDate,
