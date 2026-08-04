@@ -76,7 +76,7 @@ export async function getClerkServiceRecord(
   let docs: DocStatus[] = [];
   if (r.required_doc_ids.length > 0) {
     const docRes = await db.query(
-      `SELECT dr.doc_id, dr.name,
+      `SELECT d.id, dr.doc_id, dr.name,
               (d.id IS NOT NULL) AS uploaded,
               d.s3_key,
               d.ai_review_status,
