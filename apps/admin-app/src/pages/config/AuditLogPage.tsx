@@ -87,14 +87,37 @@ function Snapshot({ label, value }: { label: string; value: AuditSnapshot | unde
   );
 }
 
-function AuditDetailsCell({ details }: { details: AuditDetails }) {
-  if (Object.keys(details).length === 0) return <span className="text-civic-400">—</span>;
+function AuditDetailsCell({
+  action,
+  entityType,
+  details,
+}: {
+  action: string;
+  entityType: string;
+  details: AuditDetails;
+}) {
+  const deletedHotbuttonLabel =
+    action === "delete" && entityType === "hotbutton" && typeof details.before?.label === "string"
+      ? details.before.label
+      : undefined;
+
+  if (Object.keys(details).length === 0) {
+    return action === "delete" && entityType === "hotbutton" ? (
+      <span className="text-civic-400">Deleted hotbutton details were not recorded.</span>
+    ) : (
+      <span className="text-civic-400">—</span>
+    );
+  }
 
   const snapshots = hasChangeSnapshots(details);
   return (
     <details className="min-w-56">
       <summary className="cursor-pointer text-xs font-medium text-civic-600 hover:text-civic-800">
-        {snapshots ? "View change" : "View details"}
+        {deletedHotbuttonLabel
+          ? `Deleted: ${deletedHotbuttonLabel}`
+          : snapshots
+            ? "View change"
+            : "View details"}
       </summary>
       <div className="mt-2">
         {snapshots ? (
@@ -256,7 +279,11 @@ export function AuditLogPage() {
                   <TD className="text-xs">{entry.entity_type.replace(/_/g, " ")}</TD>
                   <TD className="font-mono text-xs text-civic-500">{entry.entity_id ?? "—"}</TD>
                   <TD className="text-xs text-civic-500">
-                    <AuditDetailsCell details={entry.details} />
+                    <AuditDetailsCell
+                      action={entry.action}
+                      entityType={entry.entity_type}
+                      details={entry.details}
+                    />
                   </TD>
                 </TR>
               ))

@@ -84,17 +84,9 @@ INSERT INTO transaction_types (txn_type_id, name, description, avg_duration_min,
 
 
 -- =============================================================================
--- Document Registry (required documents referenced by prescreen/booking flows)
+-- Document Registry
+-- Now populated from seed-docs.sql (generated from chatbot item-catalog.json).
 -- =============================================================================
-INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES
-    ('photo_id',       'Photo ID',                'Government-issued photo identification',         '{"passport","military_id"}'),
-    ('proof_address',  'Proof of Residency',      'Utility bill, bank statement, or lease within 60 days', '{}'),
-    ('ssn_proof',      'Social Security Proof',   'SSN card or W-2 showing full SSN',              '{"w2"}'),
-    ('birth_cert',     'Birth Certificate',       'Certified US birth certificate or passport',    '{"passport"}'),
-    ('learner_permit', 'Learner Permit',          'Valid FL learner permit',                        '{}'),
-    ('vision_cert',    'Vision Certificate',      'Vision test results from licensed provider',     '{}'),
-    ('vehicle_reg',    'Vehicle Registration',    'Current vehicle registration for test vehicle',  '{}'),
-    ('insurance_card', 'Insurance Card',          'Proof of insurance for test vehicle',            '{}');
 
 -- =============================================================================
 -- Hotbuttons (chatbot landing-screen quick-reply categories)

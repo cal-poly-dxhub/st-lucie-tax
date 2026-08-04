@@ -21,6 +21,18 @@ finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/schem
 echo "Loading seed data..."
 finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed.sql"
 
+echo "Loading document registry..."
+finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-docs.sql"
+
+echo "Loading sample appointments..."
+finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-appointments.sql"
+
+echo "Loading sample flows..."
+finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-flows.sql"
+
+echo "Loading history..."
+finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-history.sql"
+
 if [ -f "$SCRIPT_DIR/find-appt.sql" ]; then
   echo "Loading scheduling functions (find-appt.sql)..."
   finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/find-appt.sql"

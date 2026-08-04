@@ -9,7 +9,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/chatbot": {
-        target: "http://localhost:3000",
+        target: process.env.VITE_CHATBOT_PROXY || "http://localhost:3000",
         changeOrigin: true,
       },
     },

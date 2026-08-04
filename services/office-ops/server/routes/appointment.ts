@@ -38,6 +38,29 @@ router.get("/config", async (_req, res) => {
          WHERE office_id IS NULL
          ORDER BY id`,
       );
+      // Get required base documents per txn type from transaction_flows + document_registry
+      const reqDocs = await client.query<{ txn_type_id: number; doc_id: string; doc_name: string }>(
+        `SELECT tf.txn_type_id, dr.doc_id, dr.name AS doc_name
+         FROM transaction_flows tf
+         CROSS JOIN LATERAL jsonb_array_elements_text(tf.steps -> 'baseItems') AS item(doc_id)
+         JOIN document_registry dr ON dr.doc_id = item.doc_id
+         ORDER BY tf.txn_type_id`,
+      );
+      // Group by txn_type_id
+      const docsByTxn = new Map<number, { docId: string; name: string }[]>();
+      for (const row of reqDocs.rows) {
+        let arr = docsByTxn.get(row.txn_type_id);
+        if (!arr) {
+          arr = [];
+          docsByTxn.set(row.txn_type_id, arr);
+        }
+        arr.push({ docId: row.doc_id, name: row.doc_name });
+      }
+      // Attach requiredDocs to each txn type
+      const txnTypesWithDocs = txnTypes.rows.map((row: Record<string, unknown>) => ({
+        ...row,
+        requiredDocs: docsByTxn.get(row.id as number) ?? [],
+      }));
       const lunchShifts = await client.query(
         `SELECT id, office_id, shift_num, start_time::text, end_time::text
          FROM office_lunch_shifts
@@ -49,7 +72,7 @@ router.get("/config", async (_req, res) => {
       );
       return {
         offices: offices.rows,
-        txnTypes: txnTypes.rows,
+        txnTypes: txnTypesWithDocs,
         lunchShifts: lunchShifts.rows,
         officeHours: officeHours.rows,
         demoDate: DEFAULT_DATE,
@@ -374,21 +397,15 @@ router.post("/walk-in", async (req, res) => {
     const txnTypeIds = txnRows.map((r: { id: number }) => r.id);
     if (!txnTypeIds.length) return res.status(400).json({ error: "No valid transaction types" });
 
-    const txnDocMap: Record<string, string[]> = {
-      "road-test": ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
-      "id-card": ["birth_cert", "proof_address", "ssn_proof"],
-      "license-original": ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
-    };
-    const seen = new Set<string>();
-    const requiredDocs: string[] = [];
-    for (const row of txnRows) {
-      for (const d of txnDocMap[(row as { txn_type_id: string }).txn_type_id] || []) {
-        if (!seen.has(d)) {
-          seen.add(d);
-          requiredDocs.push(d);
-        }
-      }
-    }
+    // Get baseItems from transaction_flows, deduped across all selected txn types
+    const { rows: docRows } = await pool.query<{ doc_id: string }>(
+      `SELECT DISTINCT item.doc_id
+       FROM transaction_flows tf
+       CROSS JOIN LATERAL jsonb_array_elements_text(tf.steps -> 'baseItems') AS item(doc_id)
+       WHERE tf.txn_type_id = ANY($1::int[])`,
+      [txnTypeIds],
+    );
+    const requiredDocs = docRows.map((r) => r.doc_id);
     const { rows } = await pool.query(
       `INSERT INTO appointments (
         office_id, first_name, last_name, contact_email, contact_phone,
@@ -648,26 +665,14 @@ router.post("/demo-book", async (req, res) => {
     }
 
     // Determine required docs for the selected transactions
-    const { rows: txnRows } = await pool.query<{ id: number; txn_type_id: string }>(
-      `SELECT id, txn_type_id FROM transaction_types
-       WHERE id = ANY($1::int[]) AND office_id IS NULL`,
+    const { rows: docRows } = await pool.query<{ doc_id: string }>(
+      `SELECT DISTINCT item.doc_id
+       FROM transaction_flows tf
+       CROSS JOIN LATERAL jsonb_array_elements_text(tf.steps -> 'baseItems') AS item(doc_id)
+       WHERE tf.txn_type_id = ANY($1::int[])`,
       [txnTypeIds],
     );
-    const txnDocMap: Record<string, string[]> = {
-      "road-test": ["learner_permit", "photo_id", "vision_cert", "vehicle_reg", "insurance_card"],
-      "id-card": ["birth_cert", "proof_address", "ssn_proof"],
-      "license-original": ["learner_permit", "photo_id", "proof_address", "ssn_proof"],
-    };
-    const seen = new Set<string>();
-    const requiredDocs: string[] = [];
-    for (const row of txnRows) {
-      for (const d of txnDocMap[row.txn_type_id] || []) {
-        if (!seen.has(d)) {
-          seen.add(d);
-          requiredDocs.push(d);
-        }
-      }
-    }
+    const requiredDocs = docRows.map((r) => r.doc_id);
 
     // Find the best available slot — search from tomorrow onward
     const startDate = new Date();
@@ -746,6 +751,7 @@ router.post("/demo-book", async (req, res) => {
       appointmentTime: timeStr,
       officeName,
       qrCodeDataUrl: qrDataUrl,
+      baseUrl: BASE_URL,
       fromEmail: EMAIL,
     });
     let emailSent = false;
