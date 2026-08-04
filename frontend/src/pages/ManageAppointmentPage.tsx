@@ -11,7 +11,17 @@ interface AppointmentInfo {
   time: string | null;
   status: string;
   officeName: string;
+  officeId: number;
+  txnTypeIds: number[];
   maskedEmail: string;
+}
+
+interface SlotResult {
+  slotDate: string;
+  slotTime: string;
+  officeName: string;
+  dateFormatted: string;
+  timeFormatted: string;
 }
 
 async function lookupAppointment(code: string): Promise<AppointmentInfo> {
@@ -31,6 +41,27 @@ async function cancelAppointment(code: string, email: string): Promise<{ ok: boo
   });
   const data = await res.json();
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "Cancel failed");
+  return data;
+}
+
+async function findSlot(
+  code: string,
+  email: string,
+  preferredTime: string | null,
+  preferredDow: number | null,
+): Promise<SlotResult> {
+  const res = await fetch(`${API_BASE}/api/appointment/find-slot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      confirmationCode: code,
+      email,
+      preferredTime: preferredTime || null,
+      preferredDow,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "No slots found");
   return data;
 }
 
@@ -61,10 +92,11 @@ export function ManageAppointmentPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<Mode>("view");
   const [email, setEmail] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const [newTime, setNewTime] = useState("");
+  const [preferredTime, setPreferredTime] = useState<"morning" | "afternoon" | "">("");
+  const [preferredDow, setPreferredDow] = useState<string>("");
   const [actionLoading, setActionLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [foundSlot, setFoundSlot] = useState<SlotResult | null>(null);
 
   async function load(c: string) {
     if (!c) return;
@@ -72,6 +104,7 @@ export function ManageAppointmentPage() {
     setError(null);
     setSuccess(null);
     setMode("view");
+    setFoundSlot(null);
     try {
       const result = await lookupAppointment(c);
       setInfo(result);
@@ -116,17 +149,45 @@ export function ManageAppointmentPage() {
     }
   }
 
-  async function handleChange() {
-    if (!lookupCode || !email || !newDate || !newTime) return;
+  async function handleFindSlot() {
+    if (!lookupCode || !email) return;
+    setActionLoading(true);
+    setError(null);
+    setFoundSlot(null);
+    try {
+      const slot = await findSlot(
+        lookupCode,
+        email,
+        preferredTime || null,
+        preferredDow ? Number(preferredDow) : null,
+      );
+      setFoundSlot(slot);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No slots found";
+      if (msg.includes("no_available_slots")) {
+        setError("No available slots in the next 30 days. Try different preferences.");
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleConfirmReschedule() {
+    if (!lookupCode || !email || !foundSlot) return;
     setActionLoading(true);
     setError(null);
     try {
-      await changeAppointment(lookupCode, email, newDate, newTime);
-      setSuccess(`Your appointment has been rescheduled to ${newDate} at ${newTime}.`);
+      await changeAppointment(lookupCode, email, foundSlot.slotDate, foundSlot.slotTime);
+      setSuccess(
+        `Your appointment has been rescheduled to ${foundSlot.dateFormatted} at ${foundSlot.timeFormatted}.`,
+      );
       setMode("view");
       setEmail("");
-      setNewDate("");
-      setNewTime("");
+      setPreferredTime("");
+      setPreferredDow("");
+      setFoundSlot(null);
       // Reload to show updated info
       await load(lookupCode);
     } catch (e) {
@@ -252,14 +313,14 @@ export function ManageAppointmentPage() {
             </div>
           )}
 
-          {/* Reschedule form */}
+          {/* Reschedule form — preference-based slot selection */}
           {mode === "change" && (
             <div className="mt-6 space-y-3 rounded-lg border border-civic-200 bg-civic-50/50 p-4">
               <p className="text-sm font-medium text-civic-700">
                 Reschedule appointment
               </p>
               <p className="text-xs text-civic-500">
-                Enter your email ({info.maskedEmail}) and choose a new date/time.
+                Enter your email ({info.maskedEmail}) and set your preferences. We'll find the best available slot for you.
               </p>
               <input
                 type="email"
@@ -269,30 +330,90 @@ export function ManageAppointmentPage() {
                 className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
                 aria-label="Email for verification"
               />
-              <input
-                type="date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-                min={new Date().toISOString().slice(0, 10)}
-                className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
-                aria-label="New date"
-              />
-              <input
-                type="time"
-                value={newTime}
-                onChange={(e) => setNewTime(e.target.value)}
-                className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
-                aria-label="New time"
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-civic-600">
+                    Preferred Time
+                  </label>
+                  <select
+                    value={preferredTime}
+                    onChange={(e) => setPreferredTime(e.target.value as "" | "morning" | "afternoon")}
+                    className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
+                    aria-label="Preferred time of day"
+                  >
+                    <option value="">No preference</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-civic-600">
+                    Preferred Day
+                  </label>
+                  <select
+                    value={preferredDow}
+                    onChange={(e) => setPreferredDow(e.target.value)}
+                    className="w-full rounded-lg border border-civic-200 px-3 py-2 text-sm focus:border-civic-500 focus:outline-none"
+                    aria-label="Preferred day of week"
+                  >
+                    <option value="">No preference</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Found slot display */}
+              {foundSlot && (
+                <div className="rounded-lg border border-go-200 bg-go-50 p-3">
+                  <p className="text-sm font-medium text-go-700">Available slot found:</p>
+                  <div className="mt-1 space-y-1 text-sm text-go-800">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} />
+                      <span>{foundSlot.dateFormatted}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock size={14} />
+                      <span>{foundSlot.timeFormatted}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} />
+                      <span>{foundSlot.officeName}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <Button
-                  loading={actionLoading}
-                  disabled={!email.trim() || !newDate || !newTime}
-                  onClick={handleChange}
-                >
-                  Confirm Reschedule
-                </Button>
-                <Button variant="outline" onClick={() => { setMode("view"); setError(null); }}>
+                {!foundSlot ? (
+                  <Button
+                    loading={actionLoading}
+                    disabled={!email.trim()}
+                    onClick={handleFindSlot}
+                  >
+                    Find Available Slot
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      loading={actionLoading}
+                      onClick={handleConfirmReschedule}
+                    >
+                      Confirm Reschedule
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={actionLoading}
+                      onClick={() => { setFoundSlot(null); setError(null); }}
+                    >
+                      Try Different Preferences
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" onClick={() => { setMode("view"); setError(null); setFoundSlot(null); }}>
                   Back
                 </Button>
               </div>
