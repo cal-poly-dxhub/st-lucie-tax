@@ -15,6 +15,7 @@ import {
   buildPrescreenLinkEmail,
   buildQrConfirmationEmail,
   buildRescheduleEmail,
+  buildCancellationEmail,
   sendEmail,
 } from "../../src/email.js";
 import { findAppointment } from "../../src/find-appt.js";
@@ -1013,8 +1014,11 @@ publicRouter.post("/appointment/cancel", async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT id, status FROM appointments
-       WHERE confirmation_code = $1 AND LOWER(contact_email) = LOWER($2)`,
+      `SELECT a.id, a.status, a.first_name, a.appointment_date::text, a.appointment_time::text,
+              a.contact_email, o.name AS office_name
+       FROM appointments a
+       JOIN offices o ON o.id = a.office_id
+       WHERE a.confirmation_code = $1 AND LOWER(a.contact_email) = LOWER($2)`,
       [confirmationCode, email],
     );
     if (!rows.length) {
@@ -1029,6 +1033,23 @@ publicRouter.post("/appointment/cancel", async (req, res) => {
     }
 
     await pool.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [appt.id]);
+
+    // Send cancellation confirmation email (fire-and-forget)
+    try {
+      const cancellationEmail = buildCancellationEmail({
+        recipientEmail: appt.contact_email,
+        firstName: appt.first_name,
+        confirmationCode,
+        appointmentDate: appt.appointment_date,
+        appointmentTime: appt.appointment_time,
+        officeName: appt.office_name,
+        fromEmail: EMAIL,
+      });
+      await sendEmail(ses, cancellationEmail);
+    } catch (emailErr) {
+      console.error("Failed to send cancellation email (non-blocking):", emailErr);
+    }
+
     res.json({ ok: true });
   } catch (err: unknown) {
     sendError(res, err, "appointment");
@@ -1092,7 +1113,7 @@ publicRouter.get("/appointment/lookup/:confirmationCode", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT a.id, a.first_name, a.appointment_date::text, a.appointment_time::text,
-              a.status, a.contact_email, o.name AS office_name
+              a.status, a.contact_email, a.office_id, a.txn_type_ids, o.name AS office_name
        FROM appointments a
        JOIN offices o ON o.id = a.office_id
        WHERE a.confirmation_code = $1`,
@@ -1109,7 +1130,81 @@ publicRouter.get("/appointment/lookup/:confirmationCode", async (req, res) => {
       time: a.appointment_time,
       status: a.status,
       officeName: a.office_name,
+      officeId: a.office_id,
+      txnTypeIds: a.txn_type_ids,
       maskedEmail,
+    });
+  } catch (err: unknown) {
+    sendError(res, err, "appointment");
+  }
+});
+
+// ─── POST /api/appointment/find-slot ─────────────────────────────────────────
+// Public: find the best available slot for rescheduling an existing appointment.
+publicRouter.post("/appointment/find-slot", async (req, res) => {
+  try {
+    const { confirmationCode, email, preferredTime, preferredDow } = req.body ?? {};
+    if (!confirmationCode || !email) {
+      return res.status(400).json({ error: "confirmationCode and email required" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, office_id, txn_type_ids, status FROM appointments
+       WHERE confirmation_code = $1 AND LOWER(contact_email) = LOWER($2)`,
+      [confirmationCode, email],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: "Appointment not found or email does not match" });
+    }
+    const appt = rows[0];
+    if (appt.status !== "scheduled") {
+      return res.status(400).json({ error: "Only scheduled appointments can be rescheduled" });
+    }
+
+    const startDate = new Date();
+    startDate.setUTCDate(startDate.getUTCDate() + 1);
+
+    const slot = await findAppointment(pool, {
+      targetTxns: appt.txn_type_ids,
+      asap: !preferredTime && preferredDow == null,
+      preferredOffice: appt.office_id,
+      preferredDow: preferredDow ?? null,
+      preferredTime: preferredTime ?? null,
+      startDate,
+      days: 30,
+    });
+
+    if (!slot) {
+      return res.status(409).json({ error: "no_available_slots" });
+    }
+
+    // Get office name
+    const { rows: officeRows } = await pool.query<{ name: string }>(
+      `SELECT name FROM offices WHERE id = $1`,
+      [slot.officeId],
+    );
+    const officeName = officeRows[0]?.name ?? "St. Lucie County";
+
+    // Format date/time for display
+    const apptDate = new Date(slot.slotDate + "T00:00:00");
+    const dateFormatted = apptDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+    const [h, m] = slot.slotTime.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    const timeFormatted = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+    res.json({
+      slotDate: slot.slotDate,
+      slotTime: slot.slotTime,
+      officeName,
+      dateFormatted,
+      timeFormatted,
     });
   } catch (err: unknown) {
     sendError(res, err, "appointment");

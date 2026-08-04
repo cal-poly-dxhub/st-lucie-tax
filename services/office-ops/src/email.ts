@@ -47,6 +47,8 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
   const office = escapeHtml(input.officeName);
   const queueStatusUrl = `${input.baseUrl}/queue-status/${input.confirmationCode}`;
   const escapedQueueStatusUrl = escapeHtml(queueStatusUrl);
+  const manageUrl = `${input.baseUrl}/manage/${input.confirmationCode}`;
+  const escapedManageUrl = escapeHtml(manageUrl);
 
   const html = `<p>Hi ${name},</p>
 <p>Your appointment is confirmed:</p>
@@ -60,6 +62,8 @@ export function buildQrConfirmationEmail(input: QrConfirmationInput): EmailInput
 <img src="${input.qrCodeDataUrl}" alt="QR Code" width="200" height="200" />
 <p>You can check your status in the queue here:<br>
 <a href="${escapedQueueStatusUrl}">${escapedQueueStatusUrl}</a></p>
+<p>Need to reschedule or cancel? Manage your appointment here:<br>
+<a href="${escapedManageUrl}">${escapedManageUrl}</a></p>
 <p>Thank you,<br>St. Lucie County Tax Collector</p>`;
 
   const text = `Hi ${input.firstName},
@@ -74,6 +78,9 @@ Please present your QR code at check-in (see attached image in the HTML version 
 
 You can check your status in the queue here:
 ${queueStatusUrl}
+
+Need to reschedule or cancel? Manage your appointment here:
+${manageUrl}
 
 Thank you,
 St. Lucie County Tax Collector`;
@@ -155,6 +162,56 @@ St. Lucie County Tax Collector`;
     to: input.recipientEmail,
     from: input.fromEmail,
     subject: "Complete Your Pre-Screen Questions",
+    html,
+    text,
+  };
+}
+
+export interface CancellationEmailInput {
+  recipientEmail: string;
+  firstName: string;
+  confirmationCode: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  officeName: string;
+  fromEmail: string;
+}
+
+export function buildCancellationEmail(input: CancellationEmailInput): EmailInput {
+  const name = escapeHtml(input.firstName);
+  const code = escapeHtml(input.confirmationCode);
+  const date = escapeHtml(input.appointmentDate);
+  const time = escapeHtml(input.appointmentTime);
+  const office = escapeHtml(input.officeName);
+
+  const html = `<p>Hi ${name},</p>
+<p>Your appointment has been cancelled.</p>
+<ul>
+  <li><strong>Confirmation Code:</strong> ${code}</li>
+  <li><strong>Original Date:</strong> ${date}</li>
+  <li><strong>Original Time:</strong> ${time}</li>
+  <li><strong>Location:</strong> ${office}</li>
+</ul>
+<p>If you did not request this cancellation, or would like to book a new appointment, please visit our scheduling page or contact our office.</p>
+<p>Thank you,<br>St. Lucie County Tax Collector</p>`;
+
+  const text = `Hi ${input.firstName},
+
+Your appointment has been cancelled.
+- Confirmation Code: ${input.confirmationCode}
+- Original Date: ${input.appointmentDate}
+- Original Time: ${input.appointmentTime}
+- Location: ${input.officeName}
+
+If you did not request this cancellation, or would like to book a new appointment, please visit our scheduling page or contact our office.
+
+Thank you,
+St. Lucie County Tax Collector`;
+
+  return {
+    to: input.recipientEmail,
+    from: input.fromEmail,
+    subject: "Appointment Cancelled",
     html,
     text,
   };
