@@ -45,7 +45,9 @@
 
   --color-stop-50: #fef2f2;
   --color-stop-200: #fecaca;
+  --color-stop-300: #fca5a5;
   --color-stop-500: #dc2626;
+  --color-stop-600: #b91c1c;
   --color-stop-700: #991b1b;
 
   /* Paper / surface neutrals — warm slate, not cold gray */

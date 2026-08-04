@@ -1,6 +1,11 @@
 import { PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { type Queryable } from "./utils.js";
 import { camelRows } from "./utils.js";
+
+/** Root directory for local file uploads when DOCUMENTS_BUCKET is not set. */
+const LOCAL_UPLOADS_DIR = join(process.cwd(), "uploads");
 
 export interface UploadDocInput {
   appointmentId: number;
@@ -23,14 +28,16 @@ export async function uploadDocument(
   db: Queryable,
   input: UploadDocInput,
 ): Promise<UploadDocResult> {
-  const s3Key = await uploadToS3(
-    s3,
-    bucket,
-    input.appointmentId,
-    input.name,
-    input.fileBuffer,
-    input.contentType,
-  );
+  const s3Key = bucket
+    ? await uploadToS3(
+        s3,
+        bucket,
+        input.appointmentId,
+        input.name,
+        input.fileBuffer,
+        input.contentType,
+      )
+    : await uploadToLocal(input.appointmentId, input.name, input.fileBuffer);
 
   const { rows } = await db.query<{ id: number }>(
     `INSERT INTO documents (appointment_id, doc_id, name, s3_key, ai_review_status, ai_review_notes)
@@ -68,6 +75,25 @@ async function uploadToS3(
       ContentType: contentType,
     }),
   );
+
+  return key;
+}
+
+/**
+ * Write the file to the local filesystem under ./uploads/ using the same key
+ * structure as S3. Used for local development without AWS credentials.
+ */
+async function uploadToLocal(
+  appointmentId: number,
+  fileName: string,
+  buffer: Buffer,
+): Promise<string> {
+  const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const key = `appointments/${appointmentId}/${Date.now()}_${sanitized}`;
+  const filePath = join(LOCAL_UPLOADS_DIR, key);
+
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, buffer);
 
   return key;
 }

@@ -34,6 +34,9 @@ tests/screenshots
 # Logs
 *.log
 
+# Local document uploads (dev only)
+uploads/
+
 # CDK context
 cdk.context.json
 
