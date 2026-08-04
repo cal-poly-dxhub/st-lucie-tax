@@ -42,6 +42,7 @@ describe("getClerkServiceRecord", () => {
       {
         rows: [
           {
+            id: 9001,
             doc_id: "photo_id",
             name: "Photo ID",
             uploaded: true,
@@ -51,6 +52,7 @@ describe("getClerkServiceRecord", () => {
             clerk_validated: true,
           },
           {
+            id: null,
             doc_id: "proof_address",
             name: "Proof of Address",
             uploaded: false,
@@ -82,6 +84,7 @@ describe("getClerkServiceRecord", () => {
       prescreenResponses: { "1": true },
       docs: [
         {
+          id: 9001,
           docId: "photo_id",
           name: "Photo ID",
           uploaded: true,
@@ -91,6 +94,7 @@ describe("getClerkServiceRecord", () => {
           clerkValidated: true,
         },
         {
+          id: null,
           docId: "proof_address",
           name: "Proof of Address",
           uploaded: false,
