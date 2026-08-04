@@ -1066,8 +1066,11 @@ publicRouter.post("/appointment/change", async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT id, office_id, txn_type_ids, status FROM appointments
-       WHERE confirmation_code = $1 AND LOWER(contact_email) = LOWER($2)`,
+      `SELECT a.id, a.office_id, a.txn_type_ids, a.status, a.first_name, a.contact_email,
+              o.name AS office_name
+       FROM appointments a
+       JOIN offices o ON o.id = a.office_id
+       WHERE a.confirmation_code = $1 AND LOWER(a.contact_email) = LOWER($2)`,
       [confirmationCode, email],
     );
     if (!rows.length) {
@@ -1100,6 +1103,22 @@ publicRouter.post("/appointment/change", async (req, res) => {
       `UPDATE appointments SET appointment_date = $2, appointment_time = $3 WHERE id = $1`,
       [appt.id, newDate, newTime],
     );
+
+    // Send reschedule confirmation email (fire-and-forget)
+    try {
+      const rescheduleEmail = buildRescheduleEmail({
+        recipientEmail: appt.contact_email,
+        firstName: appt.first_name,
+        confirmationCode,
+        newDate,
+        newTime,
+        officeName: appt.office_name,
+        fromEmail: EMAIL,
+      });
+      await sendEmail(ses, rescheduleEmail);
+    } catch (emailErr) {
+      console.error("Failed to send reschedule email (non-blocking):", emailErr);
+    }
 
     res.json({ ok: true, newDate, newTime });
   } catch (err: unknown) {
