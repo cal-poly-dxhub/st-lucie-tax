@@ -103,3 +103,12 @@ CROSS JOIN generate_series(
 WHERE EXTRACT(DOW FROM d.schedule_date) BETWEEN 1 AND 5
   AND c.first_name IN ('Maria', 'James', 'Angela', 'Jennifer', 'Thomas', 'Nancy')
 ON CONFLICT (clerk_id, schedule_date) DO NOTHING;
+
+-- Test document IDs used by end-to-end-flow tests. Insert only if they don't
+-- already exist in the document_registry (the seed-docs.sql catalog may not
+-- include these synthetic test values).
+INSERT INTO document_registry (doc_id, name, description, alternatives)
+VALUES
+  ('photo_id', 'Photo ID', 'Government-issued photo identification', '{}'),
+  ('proof_address', 'Proof of Address', 'Utility bill or bank statement showing current address', '{}')
+ON CONFLICT (doc_id) DO NOTHING;

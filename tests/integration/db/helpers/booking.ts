@@ -59,19 +59,17 @@ export function bookParams(
 
 // Deletes all appointments from an office on a given date
 export async function clearOfficeDay(client: Client, office = 1, date = TEST_DATE) {
-  await client.query(
-    `DELETE FROM documents
-      WHERE appointment_id IN (
-        SELECT id FROM appointments
-        WHERE office_id=$1 AND appointment_date=$2
-      )`,
-    [office, date],
-  );
-  await client.query(
-    `DELETE FROM appointments
-      WHERE office_id=$1 AND appointment_date=$2`,
-    [office, date],
-  );
+  const subquery = `SELECT id FROM appointments WHERE office_id=$1 AND appointment_date=$2`;
+  await client.query(`DELETE FROM service_history WHERE appointment_id IN (${subquery})`, [
+    office,
+    date,
+  ]);
+  await client.query(`DELETE FROM queue WHERE appointment_id IN (${subquery})`, [office, date]);
+  await client.query(`DELETE FROM documents WHERE appointment_id IN (${subquery})`, [office, date]);
+  await client.query(`DELETE FROM appointments WHERE office_id=$1 AND appointment_date=$2`, [
+    office,
+    date,
+  ]);
 }
 
 // Attempt to book a given appointment and rollback if fails so that test can continue

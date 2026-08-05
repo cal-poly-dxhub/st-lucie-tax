@@ -10,6 +10,7 @@ export default defineConfig({
       "**/cdk-lint-out/**",
       "**/dist/**",
       "tests/e2e/**",
+      "tests/unit-legacy/**",
     ],
     coverage: {
       provider: "v8",

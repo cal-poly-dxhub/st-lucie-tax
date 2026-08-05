@@ -208,73 +208,98 @@ describe("findSlot — chatbot scheduling adapter", () => {
     expect(rows[0].id).toBeGreaterThan(0);
   });
 
-  test("packs back-to-back on duration boundaries, not a 15-minute grid", async () => {
-    // The design rejects a fixed grid: the next appointment starts when the
-    // previous one ends (plus config.scheduling_block_padding). id-card is 15
-    // minutes, so booking it at 09:05 must make 09:20 reachable — a time a
-    // 15-minute grid (:00/:15/:30/:45) could never offer.
-    const { rows: cfg } = await client.query<{ scheduling_block_padding: number }>(
-      `SELECT scheduling_block_padding FROM config`,
-    );
-    const padding = cfg[0].scheduling_block_padding;
-
-    // Saturate every desk at BOTH offices from 08:00 (open) with a 15-minute
-    // id-card, but starting 5 minutes in. The first free capacity is then the
-    // 08:20 boundary those appointments create — a time no 15-minute grid
-    // (:00/:15/:30/:45) can express.
-    const fillFrom = "08:05";
-
-    // findSlot() runs on the shared pool, not this test's transaction, so the
-    // fill has to be committed to be visible to it — and cleaned up by hand.
-    const pool = getPool();
-    const { rows: offices } = await pool.query<{ id: number; effective_desks: number }>(
-      `SELECT id, FLOOR(total_desks * run_rate_pct / 100.0)::int AS effective_desks
-         FROM offices ORDER BY id`,
-    );
-
-    try {
-      for (const office of offices) {
-        for (let i = 0; i < office.effective_desks; i++) {
-          await pool.query(BOOK_SQL, [
-            office.id,
-            TEST_DATE,
-            fillFrom,
-            [ID_CARD],
-            [],
-            "Filler",
-            `Desk${i}`,
-            "filler@example.com",
-            "555-0001",
-            TEST_FROZEN_NOW,
-          ]);
-        }
-      }
-
-      const result = await findSlot({
-        chatbotTxnIds: [ID_CARD_TXN_ID],
-        startDate: TEST_DATE,
-        maxDays: 1,
-        nowTs: TEST_FROZEN_NOW,
-      });
-
-      expect(result.slot).not.toBeNull();
-      expect(result.slot!.date).toBe(TEST_DATE);
-
-      const offered = toMinutes(result.slot!.time);
-      const boundary = toMinutes(fillFrom) + 15 + padding;
-
-      // The engine must land exactly on the boundary the prior appointments
-      // created, rather than rounding up to the next quarter hour.
-      expect(offered).toBe(boundary);
-      expect(offered % 15).not.toBe(0);
-    } finally {
-      await pool.query(
-        `DELETE FROM appointments
-          WHERE appointment_date = $1 AND contact_phone = '555-0001'`,
-        [TEST_DATE],
+  test(
+    "packs back-to-back on duration boundaries, not a 15-minute grid",
+    { timeout: 15000 },
+    async () => {
+      // The design rejects a fixed grid: the next appointment starts when the
+      // previous one ends (plus config.scheduling_block_padding). id-card is 15
+      // minutes, so booking it at 09:05 must make 09:20 reachable — a time a
+      // 15-minute grid (:00/:15/:30/:45) could never offer.
+      const { rows: cfg } = await client.query<{ scheduling_block_padding: number }>(
+        `SELECT scheduling_block_padding FROM config`,
       );
-    }
-  });
+      const padding = cfg[0].scheduling_block_padding;
+
+      // Release the transaction opened by beforeEach — this test operates via
+      // the shared pool (committed data) because findSlot() itself uses it.
+      await client.query("ROLLBACK");
+
+      // Saturate every desk at BOTH offices from 08:00 (open) with a 15-minute
+      // id-card, but starting 5 minutes in. The first free capacity is then the
+      // 08:20 boundary those appointments create — a time no 15-minute grid
+      // (:00/:15/:30/:45) can express.
+      const fillFrom = "08:05";
+
+      // findSlot() runs on the shared pool, not this test's transaction, so the
+      // fill has to be committed to be visible to it — and cleaned up by hand.
+      const pool = getPool();
+      const { rows: offices } = await pool.query<{ id: number; effective_desks: number }>(
+        `SELECT id, FLOOR(total_desks * run_rate_pct / 100.0)::int AS effective_desks
+         FROM offices ORDER BY id`,
+      );
+
+      try {
+        // Clear any seed appointments on TEST_DATE so the fill starts from a
+        // known-empty state (the pool sees committed data, not the rolled-back
+        // transactional cleanup in beforeEach).
+        await pool.query(
+          `DELETE FROM service_history WHERE appointment_id IN (SELECT id FROM appointments WHERE appointment_date = $1)`,
+          [TEST_DATE],
+        );
+        await pool.query(
+          `DELETE FROM queue WHERE appointment_id IN (SELECT id FROM appointments WHERE appointment_date = $1)`,
+          [TEST_DATE],
+        );
+        await pool.query(
+          `DELETE FROM documents WHERE appointment_id IN (SELECT id FROM appointments WHERE appointment_date = $1)`,
+          [TEST_DATE],
+        );
+        await pool.query(`DELETE FROM appointments WHERE appointment_date = $1`, [TEST_DATE]);
+
+        for (const office of offices) {
+          for (let i = 0; i < office.effective_desks; i++) {
+            await pool.query(BOOK_SQL, [
+              office.id,
+              TEST_DATE,
+              fillFrom,
+              [ID_CARD],
+              [],
+              "Filler",
+              `Desk${i}`,
+              "filler@example.com",
+              "555-0001",
+              TEST_FROZEN_NOW,
+            ]);
+          }
+        }
+
+        const result = await findSlot({
+          chatbotTxnIds: [ID_CARD_TXN_ID],
+          startDate: TEST_DATE,
+          maxDays: 1,
+          nowTs: TEST_FROZEN_NOW,
+        });
+
+        expect(result.slot).not.toBeNull();
+        expect(result.slot!.date).toBe(TEST_DATE);
+
+        const offered = toMinutes(result.slot!.time);
+        const boundary = toMinutes(fillFrom) + 15 + padding;
+
+        // The engine must land exactly on the boundary the prior appointments
+        // created, rather than rounding up to the next quarter hour.
+        expect(offered).toBe(boundary);
+        expect(offered % 15).not.toBe(0);
+      } finally {
+        await pool.query(
+          `DELETE FROM appointments
+          WHERE appointment_date = $1 AND contact_phone = '555-0001'`,
+          [TEST_DATE],
+        );
+      }
+    },
+  );
 });
 
 describe("book — chatbot scheduling adapter", () => {
