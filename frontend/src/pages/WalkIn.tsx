@@ -124,10 +124,14 @@ export function WalkIn() {
 
         // Upload any scanned documents now that the appointment exists
         const filesToUpload = Object.entries(docFiles);
-        if (filesToUpload.length > 0 && res.appointmentId) {
+        // Hoist the narrowed id into a const — the `res.appointmentId` guard
+        // doesn't survive into the .map() closure below, so TS widens it back
+        // to number | undefined without this.
+        const appointmentId = res.appointmentId;
+        if (filesToUpload.length > 0 && appointmentId) {
           const results = await Promise.allSettled(
             filesToUpload.map(([docId, file]) =>
-              api.uploadDocument({ appointmentId: res.appointmentId, docId, file }),
+              api.uploadDocument({ appointmentId, docId, file }),
             ),
           );
           const failed = results.filter((r) => r.status === "rejected").length;
