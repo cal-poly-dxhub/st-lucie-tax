@@ -34,6 +34,16 @@ export interface ChatbotStackProps extends StackProps {
   dbSecret: rds.DatabaseSecret;
   lambdaSg: ec2.SecurityGroup;
   officeApiUrl: string;
+  /**
+   * Physical name of the office-ops documents bucket (BackOffice
+   * `DocumentsBucket`). Passed as a plain string — NOT a cross-stack Bucket
+   * reference — so the chatbot's read/write grant stays inside ChatbotStack and
+   * deploys with `cdk deploy Chatbot` alone (no BackOffice/Docker rebuild). The
+   * chatbot doc-bridge copies validated uploads into this bucket via the
+   * office-ops uploadDocument() writer. Safe because the bucket is S3_MANAGED
+   * (AES256) — an identity grant suffices, no KMS key grant needed.
+   */
+  documentsBucketName: string;
   webAclArn: string;
   userPoolId: string;
   userPoolClientId: string;
@@ -232,6 +242,10 @@ export class ChatbotStack extends Stack {
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
         DOC_BUCKET: docBucket.bucketName,
+        // Office-ops documents bucket — the doc-bridge (scheduling/
+        // bridge-documents.ts) copies validated chatbot uploads here so the
+        // clerk view can presign them. Plain string (see props doc).
+        DOCUMENTS_BUCKET: props.documentsBucketName,
         // Sonnet 4.6 (cross-region inference profile). Chosen over Sonnet 4.0
         // for the 30× tokens-per-minute quota headroom (6M vs 200k) that ends
         // the throttle-driven 504s, and over Sonnet 5 to avoid a large
@@ -328,6 +342,19 @@ export class ChatbotStack extends Stack {
     dbSecret.grantRead(chatbotFn);
     dbSecret.grantRead(adminFn);
     docBucket.grantReadWrite(chatbotFn);
+
+    // Office-ops documents bucket — imported by NAME (not a cross-stack Bucket
+    // ref) so this grant is a plain identity-policy statement on the ChatbotFn
+    // role, entirely within ChatbotStack: deployable with `cdk deploy Chatbot`,
+    // no BackOffice export/Docker rebuild. Read+Write because the doc-bridge
+    // reads the chatbot upload and PUTs the copy into this bucket. Sufficient
+    // without a KMS grant because the bucket is S3_MANAGED (AES256).
+    const documentsBucket = s3.Bucket.fromBucketName(
+      this,
+      "OfficeDocumentsBucketImport",
+      props.documentsBucketName,
+    );
+    documentsBucket.grantReadWrite(chatbotFn);
 
     chatbotFn.addToRolePolicy(
       new iam.PolicyStatement({

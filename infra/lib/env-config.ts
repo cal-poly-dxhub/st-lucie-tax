@@ -12,6 +12,12 @@ export interface EnvConfig {
   // imported from us-east-1 because CloudFront certificates are region-bound.
   customDomainName?: string;
   customDomainCertificateArn?: string;
+  // Physical name of the BackOffice DocumentsBucket. Passed to ChatbotStack as
+  // a plain string (not a cross-stack Bucket ref) so the chatbot doc-bridge's
+  // read/write grant stays inside ChatbotStack and deploys without a BackOffice
+  // (Docker) rebuild. Defaults to the deployed name; override via env if the
+  // bucket is ever recreated.
+  documentsBucketName: string;
   // Aurora Serverless v2 capacity (ACUs)
   dbMinCapacity: number;
   dbMaxCapacity: number;
@@ -60,6 +66,9 @@ export function envConfig(): EnvConfig {
       (customDomainName ? `https://${customDomainName}` : "https://d3a20qrc894vkj.cloudfront.net"),
     customDomainName,
     customDomainCertificateArn,
+    documentsBucketName:
+      process.env.DOCUMENTS_BUCKET_NAME?.trim() ||
+      "backoffice-documentsbucket9ec9deb9-gqtbxxdxcyow",
     dbMinCapacity: 0.5,
     dbMaxCapacity: 2,
     dbDeletionProtection: false,
