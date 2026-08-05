@@ -366,11 +366,11 @@ export function ConfirmationPage() {
               className="mt-1 w-full rounded-lg border border-civic-200 bg-white px-3 py-2 text-sm"
             >
               <option value="">No preference</option>
-              <option value="1">Monday</option>
-              <option value="2">Tuesday</option>
-              <option value="3">Wednesday</option>
-              <option value="4">Thursday</option>
-              <option value="5">Friday</option>
+              <option value="1">Mondays</option>
+              <option value="2">Tuesdays</option>
+              <option value="3">Wednesdays</option>
+              <option value="4">Thursdays</option>
+              <option value="5">Fridays</option>
             </select>
           </div>
         </div>
