@@ -38,7 +38,9 @@ function loadFromFilesystem(): Map<string, DecisionTree> {
 }
 
 /**
- * Try to load approved trees from the database.
+ * Try to load decision trees from the database.
+ * Reads from transaction_flows.steps (the canonical source seeded by seed-flows.sql),
+ * joining transaction_types for the slug used as the tree key.
  * Returns null if the database is not available or no trees exist.
  */
 async function loadFromDatabase(): Promise<Map<string, DecisionTree> | null> {
@@ -46,14 +48,16 @@ async function loadFromDatabase(): Promise<Map<string, DecisionTree> | null> {
     // Dynamically import to avoid hard dependency — if data-access isn't available, fall back
     const { getPool } = await import("@st-lucie/data-access");
     const pool = getPool();
-    const { rows } = await pool.query<{ tree_id: string; content: DecisionTree }>(
-      `SELECT tree_id, content FROM decision_trees WHERE status = 'approved'`,
+    const { rows } = await pool.query<{ txn_type_id: string; steps: DecisionTree }>(
+      `SELECT tt.txn_type_id, tf.steps
+       FROM transaction_flows tf
+       JOIN transaction_types tt ON tt.id = tf.txn_type_id`,
     );
     if (rows.length === 0) return null;
     const trees = new Map<string, DecisionTree>();
     for (const row of rows) {
-      const tree = row.content;
-      tree.txnTypeId = row.tree_id; // Ensure consistency
+      const tree = row.steps;
+      tree.txnTypeId = row.txn_type_id; // Ensure consistency with the txn_type_id key
       synthesizeBranchBlocking(tree);
       trees.set(tree.txnTypeId, tree);
     }
