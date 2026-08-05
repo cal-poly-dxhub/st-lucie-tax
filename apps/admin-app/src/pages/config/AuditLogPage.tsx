@@ -136,8 +136,12 @@ function AuditDetailsCell({
 export function AuditLogPage() {
   const [entityFilter, setEntityFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [startAt, setStartAt] = useState(thirtyDaysAgoLocalDateTime);
-  const [endAt, setEndAt] = useState(() => toLocalDateTimeInput(new Date()));
+  const [startAt, setStartAt] = useState(() => toLocalDateTimeInput(new Date()));
+  const [endAt, setEndAt] = useState(() => {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() + 5);
+    return toLocalDateTimeInput(date);
+  });
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
 
