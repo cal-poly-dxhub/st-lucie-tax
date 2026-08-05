@@ -113,6 +113,47 @@ describe("getClerkServiceRecord", () => {
     expect(db.calls[2].values).toEqual([501, ["photo_id", "proof_address"]]);
   });
 
+  // Guards the chatbot doc-bridge (scheduling/bridge-documents.ts) wiring: a
+  // doc_id the bridge appended to required_doc_ids, with the documents row it
+  // inserted, must surface to the clerk as uploaded. This is the W1 contract —
+  // the clerk read is gated by required_doc_ids, so the bridge's set-union
+  // UPDATE is what makes a chatbot upload visible here.
+  test("surfaces a bridged chatbot upload (in required_doc_ids + documents row) as uploaded", async () => {
+    const db = mockDb([
+      { rows: [queueJoinRow({ required_doc_ids: ["address-proof-1"] })] },
+      { rows: [{ id: 3, name: "Driver License Renewal" }] },
+      {
+        rows: [
+          {
+            id: 9100,
+            doc_id: "address-proof-1",
+            name: "recent.jpg",
+            uploaded: true,
+            s3_key: "appointments/501/recent.jpg",
+            ai_review_status: "accept",
+            ai_review_notes: "clear photo",
+            clerk_validated: false,
+          },
+        ],
+      },
+    ]);
+
+    const record = await getClerkServiceRecord(db, QUEUE_ID);
+
+    expect(record.docs).toEqual([
+      {
+        id: 9100,
+        docId: "address-proof-1",
+        name: "recent.jpg",
+        uploaded: true,
+        s3Key: "appointments/501/recent.jpg",
+        aiReviewStatus: "accept",
+        aiReviewNotes: "clear photo",
+        clerkValidated: false,
+      },
+    ]);
+  });
+
   test("skips the doc query when the appointment requires no documents", async () => {
     const db = mockDb([
       { rows: [queueJoinRow({ required_doc_ids: [] })] },

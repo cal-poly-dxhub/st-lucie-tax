@@ -59,6 +59,7 @@ import {
   checkEmailVerified,
   sendConfirmationEmail,
 } from "./scheduling/email.js";
+import { bridgeSessionDocuments } from "./scheduling/bridge-documents.js";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 
 export const app = express();
@@ -1123,6 +1124,17 @@ app.post("/chatbot/sessions/:sessionId/scheduling/book", async (req, res) => {
       qrCodeUrl: "",
     };
     await updateSession(session);
+
+    // Bridge any chatbot-uploaded documents into the clerk-visible documents
+    // table now that an appointmentId exists. MUST be awaited: under
+    // serverless-express the Lambda invocation ends when res.json() resolves,
+    // so a fire-and-forget promise would be frozen/dropped before the S3 copy
+    // + DB writes finish. bridgeSessionDocuments is internally fail-open (never
+    // throws), so awaiting it cannot break the booking. The .catch() is a
+    // redundant belt-and-suspenders.
+    await bridgeSessionDocuments(session, result.appointmentId).catch((err) =>
+      console.error("Doc bridge failed (non-fatal):", err),
+    );
 
     // Format date/time for email
     const apptDate = new Date(result.slot.date + "T00:00:00");

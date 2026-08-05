@@ -37,6 +37,7 @@ new ChatbotStack(app, "Chatbot", {
   dbSecret: backOfficeStack.dbSecret,
   lambdaSg: backOfficeStack.lambdaSg,
   officeApiUrl: backOfficeStack.httpApiUrl,
+  documentsBucketName: config.documentsBucketName,
   webAclArn: backOfficeStack.webAclArn,
   userPoolId: backOfficeStack.userPoolId,
   userPoolClientId: backOfficeStack.userPoolClientId,
