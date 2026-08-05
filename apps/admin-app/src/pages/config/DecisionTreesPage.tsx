@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Table, TBody, TD, TEmpty, TH, THead, TR } from "@st-lucie/ui";
 import {
   approveDecisionTree,
@@ -32,6 +32,8 @@ export function DecisionTreesPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [viewDetail, setViewDetail] = useState<DecisionTreeDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   async function handleUpload() {
     setUploadError(null);
@@ -65,15 +67,22 @@ export function DecisionTreesPage() {
 
   async function viewTree(id: number) {
     setDetailLoading(true);
+    setDetailError(null);
     try {
       const detail = await fetchDecisionTree(id);
       setViewDetail(detail);
-    } catch {
-      // Ignore
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "Failed to load decision tree.");
     } finally {
       setDetailLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (viewDetail && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [viewDetail]);
 
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
   if (loading && !data) return <Spinner />;
@@ -159,6 +168,27 @@ export function DecisionTreesPage() {
         </p>
       </Section>
 
+      {/* Detail view */}
+      {detailLoading && <Spinner />}
+      {detailError && <ErrorBanner>{detailError}</ErrorBanner>}
+      {viewDetail && (
+        <div ref={detailRef}>
+          <Section
+            title={`Tree: ${viewDetail.tree_id} v${viewDetail.version}`}
+            description={`Status: ${viewDetail.status} | Created by: ${viewDetail.created_by}`}
+            actions={
+              <Button variant="outline" onClick={() => setViewDetail(null)}>
+                Close
+              </Button>
+            }
+          >
+            <pre className="max-h-96 overflow-auto rounded-lg bg-civic-50 p-4 font-mono text-xs text-civic-700">
+              {JSON.stringify(viewDetail.content, null, 2)}
+            </pre>
+          </Section>
+        </div>
+      )}
+
       {/* Upload section */}
       <Section
         title="Upload new tree"
@@ -204,24 +234,6 @@ export function DecisionTreesPage() {
         </div>
       </Section>
 
-      {/* Detail view modal */}
-      {viewDetail && (
-        <Section
-          title={`Tree: ${viewDetail.tree_id} v${viewDetail.version}`}
-          description={`Status: ${viewDetail.status} | Created by: ${viewDetail.created_by}`}
-          actions={
-            <Button variant="outline" onClick={() => setViewDetail(null)}>
-              Close
-            </Button>
-          }
-        >
-          <pre className="max-h-96 overflow-auto rounded-lg bg-civic-50 p-4 font-mono text-xs text-civic-700">
-            {JSON.stringify(viewDetail.content, null, 2)}
-          </pre>
-        </Section>
-      )}
-
-      {detailLoading && <Spinner />}
     </div>
   );
 }

@@ -1087,13 +1087,22 @@ router.get("/audit-log", async (req, res) => {
 });
 
 // ─── Decision Trees ──────────────────────────────────────────────────────────
+// Canonical source is transaction_flows.steps (seeded by db/seed-flows.sql).
 
 router.get("/decision-trees", async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, tree_id, version, status, created_by, created_at, approved_by, approved_at
-       FROM decision_trees
-       ORDER BY tree_id, version DESC`,
+      `SELECT tf.id,
+              tt.txn_type_id AS tree_id,
+              1 AS version,
+              'approved' AS status,
+              'system' AS created_by,
+              NOW() AS created_at,
+              NULL AS approved_by,
+              NULL AS approved_at
+       FROM transaction_flows tf
+       JOIN transaction_types tt ON tt.id = tf.txn_type_id
+       ORDER BY tt.txn_type_id`,
     );
     res.json(rows);
   } catch (err) {
@@ -1105,8 +1114,18 @@ router.get("/decision-trees/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { rows } = await pool.query(
-      `SELECT id, tree_id, version, content, status, created_by, created_at, approved_by, approved_at
-       FROM decision_trees WHERE id = $1`,
+      `SELECT tf.id,
+              tt.txn_type_id AS tree_id,
+              1 AS version,
+              tf.steps AS content,
+              'approved' AS status,
+              'system' AS created_by,
+              NOW() AS created_at,
+              NULL AS approved_by,
+              NULL AS approved_at
+       FROM transaction_flows tf
+       JOIN transaction_types tt ON tt.id = tf.txn_type_id
+       WHERE tf.id = $1`,
       [id],
     );
     if (!rows.length) return res.status(404).json({ error: "Decision tree not found" });
@@ -1131,74 +1150,49 @@ router.post("/decision-trees", async (req, res) => {
       });
     }
 
-    // Determine next version
-    const verRes = await pool.query(
-      `SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM decision_trees WHERE tree_id = $1`,
+    // Resolve txn_type_id FK from the slug
+    const ttRes = await pool.query(
+      `SELECT id FROM transaction_types WHERE txn_type_id = $1 LIMIT 1`,
       [treeId],
     );
-    const nextVersion = verRes.rows[0].next_version;
+    if (!ttRes.rows.length) {
+      return res
+        .status(400)
+        .json({ error: `No transaction type found for '${treeId}'. Create it first.` });
+    }
+    const txnTypeDbId = ttRes.rows[0].id;
 
-    const userEmail = req.user?.email ?? req.user?.sub ?? "unknown";
+    // Upsert into transaction_flows
     const { rows } = await pool.query(
-      `INSERT INTO decision_trees (tree_id, version, content, status, created_by)
-       VALUES ($1, $2, $3, 'draft', $4)
+      `INSERT INTO transaction_flows (txn_type_id, steps)
+       VALUES ($1, $2)
+       ON CONFLICT (txn_type_id) DO UPDATE SET steps = EXCLUDED.steps
        RETURNING id`,
-      [treeId, nextVersion, JSON.stringify(tree), userEmail],
+      [txnTypeDbId, JSON.stringify(tree)],
     );
 
+    const userEmail = req.user?.email ?? req.user?.sub ?? "unknown";
     await logAuditEvent(req, {
       action: "create",
       entityType: "decision_tree",
       entityId: rows[0].id,
-      details: { treeId, version: nextVersion },
+      details: { treeId, upsertedBy: userEmail },
     });
 
-    res.json({ ok: true, id: rows[0].id, version: nextVersion });
+    res.json({ ok: true, id: rows[0].id, version: 1 });
   } catch (err) {
     fail(res, err);
   }
 });
 
+// Approve is a no-op now — transaction_flows rows are always live.
 router.post("/decision-trees/:id/approve", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const userEmail = req.user?.email ?? req.user?.sub ?? "unknown";
-
-    // Get the tree details
-    const { rows: treeRows } = await pool.query(
-      `SELECT id, tree_id, status, approved_by, approved_at FROM decision_trees WHERE id = $1`,
-      [id],
-    );
-    if (!treeRows.length) return res.status(404).json({ error: "Decision tree not found" });
-    if (treeRows[0].status !== "draft") {
-      return res.status(400).json({ error: "Only draft trees can be approved" });
-    }
-
-    const after = await withTransaction(async (client) => {
-      // Archive any previously approved version of this tree
-      await client.query(
-        `UPDATE decision_trees SET status = 'archived' WHERE tree_id = $1 AND status = 'approved'`,
-        [treeRows[0].tree_id],
-      );
-      // Approve this version
-      const { rows } = await client.query(
-        `UPDATE decision_trees
-         SET status = 'approved', approved_by = $2, approved_at = NOW()
-         WHERE id = $1
-         RETURNING id, tree_id, status, approved_by, approved_at`,
-        [id, userEmail],
-      );
-      return rows[0] ?? null;
-    });
-
-    await logAuditEvent(req, {
-      action: "update",
-      entityType: "decision_tree",
-      entityId: id,
-      before: treeRows[0],
-      after,
-    });
-
+    const { rows } = await pool.query(`SELECT tf.id FROM transaction_flows tf WHERE tf.id = $1`, [
+      id,
+    ]);
+    if (!rows.length) return res.status(404).json({ error: "Decision tree not found" });
     res.json({ ok: true });
   } catch (err) {
     fail(res, err);
@@ -1209,18 +1203,16 @@ router.delete("/decision-trees/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
-    // Only allow deleting drafts
     const { rows } = await pool.query(
-      `SELECT id, tree_id, version, status, created_by, created_at, approved_by, approved_at
-       FROM decision_trees WHERE id = $1`,
+      `SELECT tf.id, tt.txn_type_id AS tree_id
+       FROM transaction_flows tf
+       JOIN transaction_types tt ON tt.id = tf.txn_type_id
+       WHERE tf.id = $1`,
       [id],
     );
     if (!rows.length) return res.status(404).json({ error: "Decision tree not found" });
-    if (rows[0].status === "approved") {
-      return res.status(400).json({ error: "Cannot delete approved trees. Archive them instead." });
-    }
 
-    await pool.query(`DELETE FROM decision_trees WHERE id = $1`, [id]);
+    await pool.query(`DELETE FROM transaction_flows WHERE id = $1`, [id]);
     await logAuditEvent(req, {
       action: "delete",
       entityType: "decision_tree",
