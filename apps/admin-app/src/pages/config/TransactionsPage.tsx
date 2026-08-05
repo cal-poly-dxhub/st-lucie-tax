@@ -87,7 +87,7 @@ function TypesSection({
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
   const [newDuration, setNewDuration] = useState("");
-  const [newDescription, setNewDescription] = useState("");
+  const [newSummary, setNewSummary] = useState("");
 
   // Only global rows are editable here; per-office rows are overrides managed by
   // the availability matrix below.
@@ -122,7 +122,7 @@ function TypesSection({
       () =>
         updateTransactionType(t.id, {
           name: d.name,
-          description: d.description ?? undefined,
+          summary: d.summary ?? undefined,
           avgDurationMin: Number(d.avg_duration_min),
           status: d.status,
           availableFrom: d.available_from,
@@ -142,7 +142,7 @@ function TypesSection({
           txnTypeId: newSlug.trim(),
           name: newName.trim(),
           avgDurationMin: Number(newDuration),
-          description: newDescription.trim() || undefined,
+          summary: newSummary.trim() || undefined,
         }),
       "Transaction created.",
     );
@@ -150,7 +150,7 @@ function TypesSection({
       setNewSlug("");
       setNewName("");
       setNewDuration("");
-      setNewDescription("");
+      setNewSummary("");
     }
   }
 
@@ -164,6 +164,7 @@ function TypesSection({
           <THead>
             <TR className="hover:bg-transparent">
               <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
+              <TH>Description</TH>
               <SortableTH column="txn_type_id" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-44">ID</SortableTH>
               <SortableTH column="avg_duration_min" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Min</SortableTH>
               <SortableTH column="status" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-28">Status</SortableTH>
@@ -176,7 +177,7 @@ function TypesSection({
           </THead>
           <TBody>
             {sortedTxns.length === 0 ? (
-              <TEmpty colSpan={7}>No transaction types configured yet.</TEmpty>
+              <TEmpty colSpan={8}>No transaction types configured yet.</TEmpty>
             ) : (
               sortedTxns.map((t) => {
                 const d = draft(t);
@@ -187,6 +188,14 @@ function TypesSection({
                         value={d.name ?? ""}
                         onChange={(e) => edit(t.id, { name: e.target.value })}
                         aria-label="Transaction name"
+                      />
+                    </TD>
+                    <TD>
+                      <InlineInput
+                        value={d.summary ?? ""}
+                        onChange={(e) => edit(t.id, { summary: e.target.value })}
+                        placeholder="What the AI matches customers on…"
+                        aria-label="Description (AI routing summary)"
                       />
                     </TD>
                     <TD className="font-mono text-xs text-civic-500">{t.txn_type_id}</TD>
@@ -207,7 +216,8 @@ function TypesSection({
                         className="px-2 py-1 text-xs"
                       >
                         <option value="active">active</option>
-                        <option value="inactive">inactive</option>
+                        <option value="hidden">hidden</option>
+                        <option value="internal">internal</option>
                       </Select>
                     </TD>
                     <TD align="center">
@@ -297,11 +307,16 @@ function TypesSection({
           >
             Add
           </Button>
-          <Field label="Description" htmlFor="tt-desc" className="sm:col-span-4">
+          <Field
+            label="Description"
+            htmlFor="tt-desc"
+            className="sm:col-span-4"
+            hint="One line the AI uses to route customers to this service"
+          >
             <Input
               id="tt-desc"
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
+              value={newSummary}
+              onChange={(e) => setNewSummary(e.target.value)}
             />
           </Field>
         </div>
