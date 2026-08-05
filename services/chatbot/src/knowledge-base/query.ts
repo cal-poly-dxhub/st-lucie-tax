@@ -43,7 +43,7 @@ const KB_ID = process.env.BEDROCK_KB_ID || "";
 const REGION = process.env.AWS_REGION || "us-east-1";
 const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || "111122223333";
 // Model ARN for RetrieveAndGenerate — needs inference profile ARN for cross-region models
-const rawModelId = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-20250514-v1:0";
+const rawModelId = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-6";
 const MODEL_ARN = rawModelId.startsWith("us.")
   ? `arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:inference-profile/${rawModelId}`
   : `arn:aws:bedrock:${REGION}::foundation-model/${rawModelId}`;

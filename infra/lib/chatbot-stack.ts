@@ -232,7 +232,13 @@ export class ChatbotStack extends Stack {
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
         DOC_BUCKET: docBucket.bucketName,
-        BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+        // Sonnet 4.6 (cross-region inference profile). Chosen over Sonnet 4.0
+        // for the 30× tokens-per-minute quota headroom (6M vs 200k) that ends
+        // the throttle-driven 504s, and over Sonnet 5 to avoid a large
+        // behavioral delta before the partner handoff (4.6 keeps the same
+        // tokenizer and accepts `temperature`, so no inference-config change).
+        // The 4.0 ARNs stay in the IAM grant below for instant rollback.
+        BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-6",
         // Cheap vision model for the document-upload pass/reject screen
         // (upload/validate-document.ts). Runs in its OWN region: Haiku 4.5
         // model access is enabled in us-east-2, NOT us-east-1, in this account.
@@ -327,6 +333,14 @@ export class ChatbotStack extends Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
         resources: [
+          // Sonnet 4.6 — the active conversation + KB-RetrieveAndGenerate model
+          // (BEDROCK_MODEL_ID). Cross-region profile fans out to us-east-1/2/
+          // west-2, so the foundation-model ARN is region-wildcarded and the
+          // inference-profile ARN is version-wildcarded.
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*",
+          `arn:aws:bedrock:*:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6*`,
+          // Sonnet 4.0 — retained for instant rollback (flip BEDROCK_MODEL_ID
+          // back and redeploy without an IAM change).
           "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0",
           `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0`,
           // Haiku 4.5 vision model for the document-upload screen

@@ -224,10 +224,16 @@ export default function App() {
       }
     } catch (err) {
       console.error("Send message failed:", err);
+      // A 503 (transient model-capacity throttle) carries an honest "busy,
+      // resend" displayMessage; everything else falls back to the generic snag.
+      const isBusy = (err as { status?: number } | undefined)?.status === 503;
+      const busyMessage = (err as { displayMessage?: string } | undefined)?.displayMessage;
       updateFromResponse({
         sessionId: session.sessionId || "",
         message:
-          "We hit a snag on our side — that one didn't go through. Try sending it again, and if it keeps happening, refresh the page or come back in a few minutes.",
+          isBusy && busyMessage
+            ? busyMessage
+            : "We hit a snag on our side — that one didn't go through. Try sending it again, and if it keeps happening, refresh the page or come back in a few minutes.",
         state: session.state,
         structuredContext: session.context || {
           transactions: [],

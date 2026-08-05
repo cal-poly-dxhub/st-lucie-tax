@@ -226,11 +226,19 @@ export async function sendMessage(sessionId: string, message: string): Promise<C
     headers: await buildHeaders(),
     body: JSON.stringify({ message }),
   });
-  if (!res.ok)
+  if (!res.ok) {
+    // 503 = transient model-capacity throttle (server sets retryable:true).
+    // Surface an honest "busy, resend" message rather than a hard-failure snag.
+    if (res.status === 503)
+      throw httpError(
+        503,
+        "The assistant is briefly at capacity. Please send that again in a moment.",
+      );
     throw httpError(
       res.status,
       "We couldn't send that message. Try again, or refresh if it keeps happening.",
     );
+  }
   return res.json();
 }
 
