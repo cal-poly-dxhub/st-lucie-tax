@@ -36,7 +36,7 @@ interface BookingConfirmation {
   email: string;
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_NAMES = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 export function SchedulePanel({ sessionId, defaultName, onBooked }: Props) {
   const [phase, setPhase] = useState<Phase>("loading");
