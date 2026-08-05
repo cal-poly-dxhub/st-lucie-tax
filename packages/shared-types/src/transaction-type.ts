@@ -21,7 +21,7 @@ export interface TransactionType {
   description: TransactionTypeMetadata;
   averageDurationMinutes: number;
   serviceHours?: { start: string; end: string };
-  status: "active" | "inactive" | "hidden";
+  status: "active" | "internal" | "hidden";
   locationAvailability?: string[];
 }
 

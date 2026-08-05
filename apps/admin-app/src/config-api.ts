@@ -170,8 +170,15 @@ export interface TransactionType {
   id: number;
   txn_type_id: string;
   office_id: number | null;
-  name: string;
+  /** Raw metadata JSON blob the chatbot parses for routing. Not edited directly. */
   description: string | null;
+  /**
+   * Human-facing routing summary, extracted server-side from `description`.
+   * This is the only description sub-field the admin edits; the server
+   * parse-merges it back so keywords/commonPhrases/requiredDocuments survive.
+   */
+  summary: string;
+  name: string;
   avg_duration_min: number;
   status: string;
   available_from: string | null;
@@ -187,7 +194,7 @@ export const createTransactionType = (body: {
   txnTypeId: string;
   officeId?: number | null;
   name: string;
-  description?: string;
+  summary?: string;
   avgDurationMin: number;
   status?: string;
   availableFrom?: string | null;
@@ -200,7 +207,7 @@ export const updateTransactionType = (
   id: number,
   body: {
     name?: string;
-    description?: string;
+    summary?: string;
     avgDurationMin?: number;
     status?: string;
     availableFrom?: string | null;

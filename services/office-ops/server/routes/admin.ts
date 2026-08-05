@@ -14,6 +14,60 @@ const optionalQueryString = (value: unknown): string | undefined =>
 const isValidAuditTimestamp = (value: string | undefined) =>
   value === undefined || !Number.isNaN(Date.parse(value));
 
+// ─── Transaction-type description (routing metadata) ───────────────────────────
+//
+// transaction_types.description stores a JSON blob of TransactionTypeMetadata
+// (summary, keywords, commonPhrases, requiredDocuments, …) that the chatbot
+// parses for routing. The admin only edits the human-facing `summary`, so the
+// write path parse-merges: read the existing blob, replace ONLY `.summary`, and
+// re-serialize — never clobbering the structured siblings. A naive plain-string
+// overwrite would make the chatbot's parseDescription fall back to defaults and
+// silently wipe keywords/commonPhrases/requiredDocuments.
+
+/** Pull the human-facing summary out of a description JSON blob for display. */
+export const extractSummary = (description: string | null): string => {
+  if (!description) return "";
+  try {
+    const parsed: unknown = JSON.parse(description);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof (parsed as { summary?: unknown }).summary === "string"
+    ) {
+      return (parsed as { summary: string }).summary;
+    }
+    return "";
+  } catch {
+    // Legacy plain-string description — the whole value is the summary.
+    return description;
+  }
+};
+
+/**
+ * Merge a new summary into an existing description blob, preserving all other
+ * metadata fields. Returns the existing value unchanged when no summary is
+ * supplied (so callers can COALESCE), and a well-formed `{summary}` object when
+ * the existing value is missing or legacy-non-JSON.
+ */
+export const mergeSummaryIntoDescription = (
+  existing: string | null,
+  summary: string | undefined,
+): string | null => {
+  if (summary === undefined) return existing;
+  let meta: Record<string, unknown> = {};
+  if (existing) {
+    try {
+      const parsed: unknown = JSON.parse(existing);
+      if (parsed && typeof parsed === "object") meta = parsed as Record<string, unknown>;
+    } catch {
+      // Legacy plain-string description: start fresh; the string was itself the
+      // summary and is being replaced anyway, so nothing structured is lost.
+    }
+  }
+  meta.summary = summary;
+  return JSON.stringify(meta);
+};
+
 // ─── Offices ─────────────────────────────────────────────────────────────────
 router.get("/offices", async (_req, res) => {
   try {
@@ -209,7 +263,9 @@ router.get("/transaction-types", async (_req, res) => {
               is_online_eligible, online_redirect_url
        FROM transaction_types ORDER BY office_id NULLS FIRST, id`,
     );
-    res.json(rows);
+    // Surface the human-facing summary so the admin UI can edit it without
+    // parsing the metadata JSON blob itself.
+    res.json(rows.map((r) => ({ ...r, summary: extractSummary(r.description) })));
   } catch (err) {
     fail(res, err);
   }
@@ -221,7 +277,7 @@ router.post("/transaction-types", async (req, res) => {
       txnTypeId,
       officeId,
       name,
-      description,
+      summary,
       avgDurationMin,
       status,
       availableFrom,
@@ -231,6 +287,9 @@ router.post("/transaction-types", async (req, res) => {
     } = req.body;
     if (!txnTypeId || !name || !avgDurationMin)
       return res.status(400).json({ error: "txnTypeId, name, avgDurationMin required" });
+    // Seed the metadata blob from the given summary (empty siblings, matching the
+    // chatbot's DEFAULT_METADATA shape); null when no summary supplied.
+    const description = mergeSummaryIntoDescription(null, summary);
     const { rows } = await pool.query(
       `INSERT INTO transaction_types (txn_type_id, office_id, name, description, avg_duration_min, status, available_from, available_until, is_online_eligible, online_redirect_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
@@ -238,7 +297,7 @@ router.post("/transaction-types", async (req, res) => {
         txnTypeId,
         officeId || null,
         name,
-        description || null,
+        description,
         avgDurationMin,
         status || "active",
         availableFrom || null,
@@ -264,7 +323,7 @@ router.put("/transaction-types/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const {
       name,
-      description,
+      summary,
       avgDurationMin,
       status,
       availableFrom,
@@ -279,6 +338,10 @@ router.put("/transaction-types/:id", async (req, res) => {
        FROM transaction_types WHERE id = $1`,
       [id],
     );
+    // Parse-merge: replace only the summary sub-field, preserving keywords,
+    // commonPhrases, requiredDocuments, etc. Undefined summary → COALESCE keeps
+    // the existing blob unchanged.
+    const description = mergeSummaryIntoDescription(beforeRows[0]?.description ?? null, summary);
     const { rows: afterRows } = await pool.query(
       `UPDATE transaction_types SET
        name = COALESCE($2, name),

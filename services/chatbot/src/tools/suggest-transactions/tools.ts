@@ -327,9 +327,11 @@ export const LIFE_EVENT_CLUSTERS: LifeEventCluster[] = [
 ];
 
 let cachedTypes: TransactionType[] | null = null;
+let cachedTypesTimestamp = 0;
+const TXN_TYPES_CACHE_TTL_MS = 60_000; // Re-read DB every 60s so admin edits propagate.
 
 async function loadTransactionTypes(): Promise<TransactionType[]> {
-  if (cachedTypes) return cachedTypes;
+  if (cachedTypes && Date.now() - cachedTypesTimestamp < TXN_TYPES_CACHE_TTL_MS) return cachedTypes;
 
   const { getPool } = await import("@st-lucie/data-access");
   const pool = getPool();
@@ -359,6 +361,7 @@ async function loadTransactionTypes(): Promise<TransactionType[]> {
         : undefined,
     status: row.status as TransactionType["status"],
   }));
+  cachedTypesTimestamp = Date.now();
 
   return cachedTypes;
 }
