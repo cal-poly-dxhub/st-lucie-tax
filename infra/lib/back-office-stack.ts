@@ -298,6 +298,7 @@ export class BackOfficeStack extends Stack {
       dbSecret.grantRead(fn);
     }
     documentsBucket.grantReadWrite(appointmentFn); // presign + inline upload
+    documentsBucket.grantRead(queueFn); // presign for document preview/download
     emailQueue.grantSendMessages(queueFn); // summon emails
     const sesIdentityArn = `arn:aws:ses:${this.region}:${this.account}:identity/*`;
     for (const fn of [appointmentFn, queueFn]) {
