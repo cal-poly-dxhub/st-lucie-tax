@@ -102,7 +102,7 @@ describe("book_appt: lock + recheck + insert", () => {
   });
 
   test("succeeds when booking for the next day", async () => {
-    await clearOfficeDay(db.client);
+    await clearOfficeDay(db.client, 1, "2026-05-13");
 
     const ok = await db.client.query(
       BOOK_SQL,

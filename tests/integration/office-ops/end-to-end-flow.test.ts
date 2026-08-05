@@ -98,6 +98,10 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
     await db.client.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
     await db.client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
     await db.client.query(
+      `DELETE FROM service_history WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
+      [OFFICE, DATE],
+    );
+    await db.client.query(
       `DELETE FROM documents WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
       [OFFICE, DATE],
     );
@@ -317,6 +321,10 @@ describe("Flow B: Walk-In — end to end", () => {
     await db.client.query(`DELETE FROM queue WHERE office_id = $1`, [OFFICE]);
     await db.client.query(`DELETE FROM clerk_sessions WHERE office_id = $1`, [OFFICE]);
     await db.client.query(
+      `DELETE FROM service_history WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
+      [OFFICE, DATE],
+    );
+    await db.client.query(
       `DELETE FROM documents WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
       [OFFICE, DATE],
     );
@@ -466,6 +474,14 @@ describe("Flow B: Walk-In — end to end", () => {
 
 describe("Lookup — QR code and name search", () => {
   beforeEach(async () => {
+    await db.client.query(
+      `DELETE FROM queue WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
+      [OFFICE, DATE],
+    );
+    await db.client.query(
+      `DELETE FROM service_history WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
+      [OFFICE, DATE],
+    );
     await db.client.query(
       `DELETE FROM documents WHERE appointment_id IN (SELECT id FROM appointments WHERE office_id = $1 AND appointment_date = $2)`,
       [OFFICE, DATE],
