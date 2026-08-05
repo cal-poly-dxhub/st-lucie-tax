@@ -15,7 +15,7 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 app.listen(PORT, () => {
   console.log(`St. Lucie Chatbot Service running at http://localhost:${PORT}`);
   console.log(
-    `Using Bedrock model: ${process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-20250514-v1:0"}`,
+    `Using Bedrock model: ${process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-6"}`,
   );
   console.log(
     `PostgreSQL: ${process.env.PGHOST || "127.0.0.1"}:${process.env.PGPORT || "5432"}/${process.env.PGDATABASE || "stlucie"}`,

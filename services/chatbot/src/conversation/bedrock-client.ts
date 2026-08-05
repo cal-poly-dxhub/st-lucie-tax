@@ -69,21 +69,47 @@ const LEAKED_TOOLCALL_CORRECTION =
 const LEAKED_TOOLCALL_FALLBACK = "Thanks — let me pull up your next question.";
 
 // Bedrock returns ThrottlingException/ServiceUnavailableException during bursts;
-// retry transparently with exponential backoff. Tuned to absorb 4-8× concurrent
-// eval pressure: 7 attempts, 500ms→32s exponential, total ~62s worst-case.
+// retry transparently with exponential backoff.
+//
+// DEADLINE-BOUND: the API Gateway in front of this Lambda has a hard 29s
+// integration timeout. If retries run past that, the gateway 504s the customer
+// while the Lambda is still (pointlessly) retrying — AND those doomed retries
+// keep hammering the same tokens-per-minute bucket during the exact burst
+// that's throttling, prolonging the incident. So every retry decision checks a
+// wall-clock deadline (default ~24s, leaving headroom under 29s across the
+// whole callBedrock turn) and stops early with a clean throttle error instead
+// of blocking to ~62s. Full jitter (not additive) de-correlates concurrent
+// Lambdas so a burst doesn't retry in lockstep and re-collide.
 const RETRYABLE_ERROR_NAMES = new Set([
   "ThrottlingException",
   "ServiceUnavailableException",
-  "ModelTimeoutException",
   "ModelStreamErrorException",
-  "InternalServerException",
   "TooManyRequestsException",
+  // NOTE: ModelTimeoutException / InternalServerException are deliberately NOT
+  // retried — under a 29s ceiling a retried timeout just burns the budget and
+  // 504s anyway. Fail fast instead.
 ]);
 const MAX_BEDROCK_ATTEMPTS = 7;
+// Wall-clock budget for a whole callBedrock turn (all tool rounds + retries).
+// Must stay under the 29s API Gateway integration timeout with headroom for
+// request/response transit and post-processing.
+const BEDROCK_DEADLINE_MS = 24_000;
+const MAX_BACKOFF_MS = 8_000;
+
+/** Thrown when the wall-clock deadline is hit mid-retry. Distinct name so the
+ *  handler can surface an honest "busy, resend" message rather than a generic
+ *  500 that reads as a hard failure. */
+export class BedrockDeadlineError extends Error {
+  readonly name = "BedrockDeadlineError";
+  constructor(readonly lastError: unknown) {
+    super("Bedrock retries exhausted the request deadline");
+  }
+}
 
 export async function sendWithRetry(
   cmd: ConverseCommand,
   abortSignal?: AbortSignal,
+  deadline = Date.now() + BEDROCK_DEADLINE_MS,
 ): Promise<ConverseCommandOutput> {
   let attempt = 0;
   let lastErr: unknown;
@@ -96,11 +122,22 @@ export async function sendWithRetry(
       if (!RETRYABLE_ERROR_NAMES.has(name)) throw err;
       attempt += 1;
       if (attempt >= MAX_BEDROCK_ATTEMPTS) break;
-      // Exponential backoff with jitter: 500ms, 1s, 2s, 4s, 8s, 16s, 32s
-      const delayMs = 500 * Math.pow(2, attempt - 1) + Math.random() * 250;
+      // Full jitter: uniformly random in [0, min(cappedExp, remaining)). Never
+      // schedule a sleep that would run past the deadline — if there's no room
+      // left to retry, stop now rather than sleeping into a guaranteed 504.
+      const cappedExp = Math.min(500 * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const delayMs = Math.random() * Math.min(cappedExp, remaining);
+      // If even the minimum useful wait would overshoot, don't bother retrying.
+      if (Date.now() + delayMs >= deadline) break;
       await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     }
   }
+  const name = (lastErr as { name?: string } | undefined)?.name ?? "";
+  // A retryable error that ran out the clock → typed deadline error so the
+  // handler can distinguish "we're busy" from a genuine bug.
+  if (RETRYABLE_ERROR_NAMES.has(name)) throw new BedrockDeadlineError(lastErr);
   throw lastErr;
 }
 
@@ -148,6 +185,9 @@ export async function callBedrock(
   logCtx?: LogContext,
 ): Promise<ConversationResult> {
   const workingMessages = [...messages];
+  // One deadline for the entire turn (all tool rounds share it), so a
+  // multi-round turn can't sum past the 29s API Gateway ceiling either.
+  const deadline = Date.now() + BEDROCK_DEADLINE_MS;
   let lastAssistantText = "";
   let shouldAdvance = false;
   const allToolResults: Record<string, unknown> = {};
@@ -191,6 +231,8 @@ export async function callBedrock(
           temperature: 0.3,
         },
       }),
+      undefined,
+      deadline,
     );
 
     const stopReason = response.stopReason;

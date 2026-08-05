@@ -335,10 +335,28 @@ app.post("/chatbot/sessions/:sessionId/messages", messageLimiter, async (req, re
   } catch (error) {
     console.error("Chat error:", error);
     const isDev = process.env.NODE_ENV !== "production";
+    const errName = error instanceof Error ? error.name : "";
     const detail =
       error instanceof Error
         ? { name: error.name, message: error.message }
         : { value: String(error) };
+    // A model-capacity throttle (or our own deadline stopping the retry storm
+    // before the 29s gateway ceiling) is transient, not a bug — return 503 with
+    // a retryable flag so the client can show an honest "busy, resend" message
+    // instead of the generic hard-failure snag.
+    const isTransientCapacity =
+      errName === "BedrockDeadlineError" ||
+      errName === "ThrottlingException" ||
+      errName === "TooManyRequestsException" ||
+      errName === "ServiceUnavailableException";
+    if (isTransientCapacity) {
+      res.status(503).json({
+        error: "The assistant is briefly at capacity. Please send that again in a moment.",
+        retryable: true,
+        ...(isDev ? { detail } : {}),
+      });
+      return;
+    }
     res.status(500).json({
       error: "An error occurred processing your message.",
       ...(isDev ? { detail } : {}),
