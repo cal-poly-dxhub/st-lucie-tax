@@ -17,6 +17,9 @@ import {
   buildRescheduleEmail,
   buildCancellationEmail,
   sendEmail,
+  formatAppointmentDateTime,
+  verifyEmailIdentity,
+  checkEmailVerified,
 } from "../../src/email.js";
 import { findAppointment } from "../../src/find-appt.js";
 import { bookAppointment } from "../../src/book-appt.js";
@@ -715,28 +718,13 @@ router.post("/demo-book", async (req, res) => {
     const officeName = officeRows[0]?.name ?? "St. Lucie County";
 
     // Format date/time for email
-    const apptDate = new Date(slot.slotDate + "T00:00:00");
-    const dateStr = apptDate.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    const [h, m] = slot.slotTime.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+    const { dateStr, timeStr } = formatAppointmentDateTime(slot.slotDate, slot.slotTime);
 
     // Verify email in SES (non-fatal if already verified)
     try {
-      const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
-      await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+      await verifyEmailIdentity(email, ses);
     } catch (sesErr: unknown) {
-      const code = (sesErr as { name?: string }).name;
-      if (code !== "AlreadyExistsException") {
-        console.error("SES verify failed (non-fatal):", sesErr);
-      }
+      console.error("SES verify failed (non-fatal):", sesErr);
     }
 
     // Build and send confirmation email with QR code
@@ -784,14 +772,9 @@ router.post("/verify-email", async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "email required" });
 
-    const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
-    await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
-    res.json({ ok: true, status: "verification_sent" });
+    const status = await verifyEmailIdentity(email, ses);
+    res.json({ ok: true, status });
   } catch (err: unknown) {
-    const code = (err as { name?: string }).name;
-    if (code === "AlreadyExistsException") {
-      return res.json({ ok: true, status: "already_verified" });
-    }
     sendError(res, err, "appointment");
   }
 });
@@ -803,15 +786,9 @@ router.get("/verify-email-status", async (req, res) => {
     const email = req.query.email as string;
     if (!email) return res.status(400).json({ error: "email query param required" });
 
-    const { GetEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
-    const result = await ses.send(new GetEmailIdentityCommand({ EmailIdentity: email }));
-    const verified = result.VerifiedForSendingStatus === true;
+    const verified = await checkEmailVerified(email, ses);
     res.json({ email, verified });
   } catch (err: unknown) {
-    const code = (err as { name?: string }).name;
-    if (code === "NotFoundException") {
-      return res.json({ email: req.query.email, verified: false });
-    }
     sendError(res, err, "appointment");
   }
 });
@@ -831,16 +808,13 @@ router.post("/set-demo-email", requireAuth("admin"), async (req, res) => {
 
     let sesNote = "Check inbox for SES verification email";
     try {
-      const { CreateEmailIdentityCommand } = await import("@aws-sdk/client-sesv2");
-      await ses.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
-    } catch (sesErr: unknown) {
-      const code = (sesErr as { name?: string }).name;
-      if (code === "AlreadyExistsException") {
+      const status = await verifyEmailIdentity(email, ses);
+      if (status === "already_verified") {
         sesNote = "Email already verified in SES";
-      } else {
-        console.error("SES verify failed (non-fatal):", sesErr);
-        sesNote = "Email updated but SES verification failed — verify manually if needed";
       }
+    } catch (sesErr: unknown) {
+      console.error("SES verify failed (non-fatal):", sesErr);
+      sesNote = "Email updated but SES verification failed — verify manually if needed";
     }
 
     res.json({ ok: true, email, note: sesNote });
@@ -1208,18 +1182,10 @@ publicRouter.post("/appointment/find-slot", async (req, res) => {
     const officeName = officeRows[0]?.name ?? "St. Lucie County";
 
     // Format date/time for display
-    const apptDate = new Date(slot.slotDate + "T00:00:00");
-    const dateFormatted = apptDate.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    const [h, m] = slot.slotTime.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    const timeFormatted = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+    const { dateStr: dateFormatted, timeStr: timeFormatted } = formatAppointmentDateTime(
+      slot.slotDate,
+      slot.slotTime,
+    );
 
     res.json({
       slotDate: slot.slotDate,

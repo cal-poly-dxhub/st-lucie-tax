@@ -57,8 +57,10 @@ import {
 import {
   verifyEmailIdentity,
   checkEmailVerified,
-  sendConfirmationEmail,
-} from "./scheduling/email.js";
+  sendEmail,
+  buildQrConfirmationEmail,
+  formatAppointmentDateTime,
+} from "@st-lucie/office-ops/email";
 import { bridgeSessionDocuments } from "./scheduling/bridge-documents.js";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 
@@ -1158,28 +1160,26 @@ app.post("/chatbot/sessions/:sessionId/scheduling/book", async (req, res) => {
     );
 
     // Format date/time for email
-    const apptDate = new Date(result.slot.date + "T00:00:00");
-    const dateStr = apptDate.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-    const [h, m] = result.slot.time.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+    const { dateStr, timeStr } = formatAppointmentDateTime(result.slot.date, result.slot.time);
 
     // Send confirmation email (non-blocking — don't fail the booking)
-    sendConfirmationEmail({
+    const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(result.qrCode)}`;
+    const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+    const fromEmail = process.env.EMAIL || "noreply@localhost";
+    const emailInput = buildQrConfirmationEmail({
       recipientEmail: email,
       firstName,
       confirmationCode: result.qrCode,
       appointmentDate: dateStr,
       appointmentTime: timeStr,
       officeName: result.slot.officeName,
-    }).catch((err) => console.error("Confirmation email failed (non-fatal):", err));
+      qrCodeDataUrl: qrDataUrl,
+      baseUrl,
+      fromEmail,
+    });
+    sendEmail(emailInput).catch((err) =>
+      console.error("Confirmation email failed (non-fatal):", err),
+    );
 
     res.json({
       status: "booked",

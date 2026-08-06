@@ -1,5 +1,30 @@
-import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import {
+  SESv2Client,
+  SendEmailCommand,
+  CreateEmailIdentityCommand,
+  GetEmailIdentityCommand,
+} from "@aws-sdk/client-sesv2";
 import { escapeHtml } from "./utils.js";
+
+// ─── SES Client ──────────────────────────────────────────────────────────────
+
+/**
+ * Create a SESv2Client. Callers that already manage their own client (e.g.
+ * office-ops config.ts) can pass it to `sendEmail`; callers that don't (e.g.
+ * chatbot) can use this factory or rely on the module-level default.
+ */
+export function createSesClient(region?: string): SESv2Client {
+  return new SESv2Client({ region: region ?? process.env.AWS_REGION ?? "us-east-1" });
+}
+
+/** Module-level default client — lazy-initialized on first use. */
+let _defaultClient: SESv2Client | undefined;
+function getDefaultClient(): SESv2Client {
+  if (!_defaultClient) _defaultClient = createSesClient();
+  return _defaultClient;
+}
+
+// ─── sendEmail ───────────────────────────────────────────────────────────────
 
 export interface EmailInput {
   to: string;
@@ -9,23 +34,113 @@ export interface EmailInput {
   text: string;
 }
 
-export async function sendEmail(ses: SESv2Client, input: EmailInput): Promise<void> {
-  await ses.send(
+/**
+ * Send an email via SESv2. The `ses` parameter is optional — when omitted a
+ * module-level default client is used (region from AWS_REGION env).
+ */
+export async function sendEmail(
+  sesOrInput: SESv2Client | EmailInput,
+  input?: EmailInput,
+): Promise<void> {
+  let client: SESv2Client;
+  let email: EmailInput;
+
+  if (input) {
+    // Called as sendEmail(client, input)
+    client = sesOrInput as SESv2Client;
+    email = input;
+  } else {
+    // Called as sendEmail(input)
+    client = getDefaultClient();
+    email = sesOrInput as EmailInput;
+  }
+
+  await client.send(
     new SendEmailCommand({
-      FromEmailAddress: input.from,
-      Destination: { ToAddresses: [input.to] },
+      FromEmailAddress: email.from,
+      Destination: { ToAddresses: [email.to] },
       Content: {
         Simple: {
-          Subject: { Data: input.subject },
+          Subject: { Data: email.subject },
           Body: {
-            Html: { Data: input.html },
-            Text: { Data: input.text },
+            Html: { Data: email.html },
+            Text: { Data: email.text },
           },
         },
       },
     }),
   );
 }
+
+// ─── Email Verification ──────────────────────────────────────────────────────
+
+/**
+ * Trigger SES email identity verification. Returns "already_verified" if the
+ * identity is already verified, otherwise sends the verification email.
+ */
+export async function verifyEmailIdentity(
+  email: string,
+  ses?: SESv2Client,
+): Promise<"verification_sent" | "already_verified"> {
+  const client = ses ?? getDefaultClient();
+  try {
+    const result = await client.send(new GetEmailIdentityCommand({ EmailIdentity: email }));
+    if (result.VerifiedForSendingStatus) return "already_verified";
+  } catch {
+    // Identity doesn't exist yet
+  }
+  try {
+    await client.send(new CreateEmailIdentityCommand({ EmailIdentity: email }));
+  } catch (err: unknown) {
+    if ((err as { name?: string }).name === "AlreadyExistsException") return "already_verified";
+    throw err;
+  }
+  return "verification_sent";
+}
+
+/**
+ * Check whether an email address is verified for sending in SES.
+ */
+export async function checkEmailVerified(email: string, ses?: SESv2Client): Promise<boolean> {
+  const client = ses ?? getDefaultClient();
+  try {
+    const result = await client.send(new GetEmailIdentityCommand({ EmailIdentity: email }));
+    return result.VerifiedForSendingStatus === true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Date/Time Formatting ────────────────────────────────────────────────────
+
+export interface FormattedDateTime {
+  dateStr: string;
+  timeStr: string;
+}
+
+/**
+ * Format an appointment date (YYYY-MM-DD) and time (HH:MM or HH:MM:SS) into
+ * human-readable strings suitable for emails.
+ *
+ * Example: "2026-08-10", "14:30" → "Monday, August 10, 2026", "2:30 PM"
+ */
+export function formatAppointmentDateTime(date: string, time: string): FormattedDateTime {
+  const apptDate = new Date(date + "T00:00:00");
+  const dateStr = apptDate.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const [h, m] = time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  return { dateStr, timeStr };
+}
+
+// ─── Email Templates ─────────────────────────────────────────────────────────
 
 export interface QrConfirmationInput {
   recipientEmail: string;
