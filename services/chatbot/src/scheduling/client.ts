@@ -77,13 +77,18 @@ export async function findSlot(opts: {
   const hasPreference =
     opts.preferredOffice != null || opts.preferredDow != null || opts.preferredTime != null;
 
+  // Default to tomorrow — book_appointment rejects same-day slots (slot_in_past),
+  // so offering today's slots would always fail at booking time.
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
   const slot = await findAppointment(pool, {
     targetTxns: txnTypeIds,
     asap: !hasPreference,
     preferredOffice: opts.preferredOffice ?? null,
     preferredDow: opts.preferredDow ?? null,
     preferredTime: opts.preferredTime ?? null,
-    startDate: opts.startDate ? new Date(`${opts.startDate}T00:00:00Z`) : new Date(),
+    startDate: opts.startDate ? new Date(`${opts.startDate}T00:00:00Z`) : tomorrow,
     days: opts.maxDays ?? DEFAULT_LOOKAHEAD_DAYS,
     nowTs: opts.nowTs,
   });
