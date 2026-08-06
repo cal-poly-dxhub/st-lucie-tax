@@ -233,10 +233,11 @@ router.get("/clerk/document-url/:documentId", async (req, res) => {
       return;
     }
 
+    const disposition = req.query.disposition === "attachment" ? "attachment" : "inline";
     const command = new GetObjectCommand({
       Bucket: DOCUMENTS_BUCKET,
       Key: rows[0].s3_key,
-      ResponseContentDisposition: `inline; filename="${rows[0].name}"`,
+      ResponseContentDisposition: `${disposition}; filename="${rows[0].name}"`,
     });
     const url = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5-minute expiry
 

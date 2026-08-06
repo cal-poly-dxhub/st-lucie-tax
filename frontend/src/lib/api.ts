@@ -191,8 +191,10 @@ export const api = {
   validateDocument: (documentId: number) =>
     post<{ ok: boolean }>("/api/validate-document", { documentId }),
 
-  getDocumentUrl: (documentId: number) =>
-    get<{ url: string; name: string }>(`/api/clerk/document-url/${documentId}`),
+  getDocumentUrl: (documentId: number, disposition?: "inline" | "attachment") =>
+    get<{ url: string; name: string }>(
+      `/api/clerk/document-url/${documentId}${disposition ? `?disposition=${disposition}` : ""}`,
+    ),
 
   uploadDocument: async (input: { appointmentId: number; docId: string; file: File }) => {
     const bytes = new Uint8Array(await input.file.arrayBuffer());
