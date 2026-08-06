@@ -19,7 +19,14 @@ import {
 } from "../../authid/client.js";
 import { updateSession } from "../../session/update-session.js";
 
-const DL_DOC_TYPE_CODE = process.env.AUTHID_DL_DOC_TYPE_CODE ?? "5";
+// AuthID document-type code that tells the Proof portal WHICH credential to
+// scan. This is per-tenant — verified against our tenant's
+// GET /v1/idDocumentTypes: 2 = "US Driver's License", 5 = "Passport". The
+// fallback MUST default to the driver-license code (2): an unset env var should
+// fail toward scanning a DL, never a passport. A "5" default previously shipped
+// to a deploy that didn't set the env var and left the portal stuck in passport
+// mode. Override per tenant via AUTHID_DL_DOC_TYPE_CODE if the code differs.
+const DL_DOC_TYPE_CODE = process.env.AUTHID_DL_DOC_TYPE_CODE ?? "2";
 
 export const verifyIdentityTools: Tool[] = [
   {
