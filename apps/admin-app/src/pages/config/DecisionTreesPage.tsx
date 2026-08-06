@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Table, TBody, TD, TEmpty, TH, THead, TR } from "@st-lucie/ui";
 import {
-  approveDecisionTree,
-  deleteDecisionTree,
   fetchDecisionTree,
   fetchDecisionTrees,
   uploadDecisionTree,
@@ -11,17 +9,6 @@ import {
 } from "@/config-api";
 import { useResource } from "./use-resource";
 import { ErrorBanner, Section, Spinner } from "./parts";
-
-function statusTone(status: string): "go" | "warn" | "neutral" {
-  switch (status) {
-    case "approved":
-      return "go";
-    case "draft":
-      return "warn";
-    default:
-      return "neutral";
-  }
-}
 
 export function DecisionTreesPage() {
   const { data, error, loading, saving, mutate } =
@@ -46,7 +33,7 @@ export function DecisionTreesPage() {
       }
       const ok = await mutate(
         () => uploadDecisionTree({ treeId, content: parsed }),
-        "Decision tree uploaded as draft.",
+        "Decision tree updated and live.",
       );
       if (ok) {
         setUploadTreeId("");
@@ -55,14 +42,6 @@ export function DecisionTreesPage() {
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Invalid JSON");
     }
-  }
-
-  async function handleApprove(id: number) {
-    await mutate(() => approveDecisionTree(id), "Decision tree approved.");
-  }
-
-  async function handleDelete(id: number) {
-    await mutate(() => deleteDecisionTree(id), "Decision tree deleted.");
   }
 
   async function viewTree(id: number) {
@@ -88,15 +67,13 @@ export function DecisionTreesPage() {
   if (loading && !data) return <Spinner />;
 
   const rows = data ?? [];
-
-  // Group by tree_id for cleaner display
   const treeIds = [...new Set(rows.map((r) => r.tree_id))].sort();
 
   return (
     <div className="flex flex-col gap-5">
       <Section
         title="Decision trees"
-        description="Upload JSON decision trees used by the chatbot to determine required documents. Trees go through a draft → approved workflow. Only approved trees are used by the chatbot."
+        description="Upload JSON decision trees used by the chatbot to determine required documents. Updates replace the live tree for that transaction type."
       >
         <Table>
           <THead>
@@ -120,42 +97,20 @@ export function DecisionTreesPage() {
                   <TD className="font-mono text-xs">{r.tree_id}</TD>
                   <TD className="text-center text-xs">v{r.version}</TD>
                   <TD>
-                    <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                    <Badge tone="go">live</Badge>
                   </TD>
                   <TD className="text-xs text-civic-500">{r.created_by}</TD>
                   <TD className="text-xs text-civic-500">
                     {new Date(r.created_at).toLocaleDateString()}
                   </TD>
                   <TD align="right">
-                    <span className="inline-flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        className="px-2 py-1 text-xs"
-                        onClick={() => viewTree(r.id)}
-                      >
-                        View
-                      </Button>
-                      {r.status === "draft" && (
-                        <>
-                          <Button
-                            variant="go"
-                            className="px-2 py-1 text-xs"
-                            loading={saving}
-                            onClick={() => handleApprove(r.id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="px-2 py-1 text-xs text-stop-600"
-                            loading={saving}
-                            onClick={() => handleDelete(r.id)}
-                          >
-                            Delete
-                          </Button>
-                        </>
-                      )}
-                    </span>
+                    <Button
+                      variant="outline"
+                      className="px-2 py-1 text-xs"
+                      onClick={() => viewTree(r.id)}
+                    >
+                      View
+                    </Button>
                   </TD>
                 </TR>
               ))
@@ -168,14 +123,13 @@ export function DecisionTreesPage() {
         </p>
       </Section>
 
-      {/* Detail view */}
       {detailLoading && <Spinner />}
       {detailError && <ErrorBanner>{detailError}</ErrorBanner>}
       {viewDetail && (
         <div ref={detailRef}>
           <Section
             title={`Tree: ${viewDetail.tree_id} v${viewDetail.version}`}
-            description={`Status: ${viewDetail.status} | Created by: ${viewDetail.created_by}`}
+            description={`Status: live | Created by: ${viewDetail.created_by}`}
             actions={
               <Button variant="outline" onClick={() => setViewDetail(null)}>
                 Close
@@ -189,10 +143,9 @@ export function DecisionTreesPage() {
         </div>
       )}
 
-      {/* Upload section */}
       <Section
-        title="Upload new tree"
-        description="Paste a decision-tree JSON file. It will be saved as a draft until approved."
+        title="Update decision tree"
+        description="Paste a decision-tree JSON file. Saving immediately replaces the live tree for that transaction type."
       >
         <div className="space-y-3">
           <div>
@@ -221,19 +174,12 @@ export function DecisionTreesPage() {
               className="w-full rounded-lg border border-civic-200 px-3 py-2 font-mono text-xs focus:border-civic-500 focus:outline-none"
             />
           </div>
-          {uploadError && (
-            <p className="text-sm text-stop-600">{uploadError}</p>
-          )}
-          <Button
-            loading={saving}
-            disabled={!uploadContent.trim()}
-            onClick={handleUpload}
-          >
-            Upload as draft
+          {uploadError && <p className="text-sm text-stop-600">{uploadError}</p>}
+          <Button loading={saving} disabled={!uploadContent.trim()} onClick={handleUpload}>
+            Update live tree
           </Button>
         </div>
       </Section>
-
     </div>
   );
 }

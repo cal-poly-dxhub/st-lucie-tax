@@ -66,10 +66,20 @@ function toLocalDateTimeInput(date: Date): string {
   return localTime.toISOString().slice(0, 16);
 }
 
-function thirtyDaysAgoLocalDateTime(): string {
-  const date = new Date();
-  date.setDate(date.getDate() - 30);
-  return toLocalDateTimeInput(date);
+function createInitialAuditLogDateRange(): { startAt: string; endAt: string } {
+  const endAt = new Date();
+  const startAt = new Date(endAt);
+  startAt.setDate(startAt.getDate() - 30);
+
+  return {
+    startAt: toLocalDateTimeInput(startAt),
+    endAt: toLocalDateTimeInput(endAt),
+  };
+}
+
+function isValidDateRange(startAt: string, endAt: string): boolean {
+  if (!startAt || !endAt) return true;
+  return new Date(startAt).getTime() < new Date(endAt).getTime();
 }
 
 function Snapshot({ label, value }: { label: string; value: AuditSnapshot | undefined }) {
@@ -136,21 +146,38 @@ function AuditDetailsCell({
 export function AuditLogPage() {
   const [entityFilter, setEntityFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [startAt, setStartAt] = useState(() => toLocalDateTimeInput(new Date()));
-  const [endAt, setEndAt] = useState(() => {
-    const date = new Date();
-    date.setMinutes(date.getMinutes() + 5);
-    return toLocalDateTimeInput(date);
-  });
+  const [dateRange, setDateRange] = useState(createInitialAuditLogDateRange);
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
+  const { startAt, endAt } = dateRange;
 
   const resetPage = () => setPage(0);
+  const updateStartAt = (nextStartAt: string) => {
+    if (!isValidDateRange(nextStartAt, endAt)) {
+      setDateRangeError("Start date and time must be before the end date and time.");
+      return;
+    }
+
+    setDateRange((range) => ({ ...range, startAt: nextStartAt }));
+    setDateRangeError(null);
+    resetPage();
+  };
+  const updateEndAt = (nextEndAt: string) => {
+    if (!isValidDateRange(startAt, nextEndAt)) {
+      setDateRangeError("End date and time must be after the start date and time.");
+      return;
+    }
+
+    setDateRange((range) => ({ ...range, endAt: nextEndAt }));
+    setDateRangeError(null);
+    resetPage();
+  };
   const clearFilters = () => {
     setEntityFilter("");
     setSearch("");
-    setStartAt("");
-    setEndAt("");
+    setDateRange({ startAt: "", endAt: "" });
+    setDateRangeError(null);
     setPage(0);
   };
 
@@ -167,7 +194,7 @@ export function AuditLogPage() {
     [endAt, entityFilter, page, pageSize, search, startAt],
   );
 
-  const { data, error, loading } = useResource<AuditLogResponse>(load);
+  const { data, error, loading, reload } = useResource<AuditLogResponse>(load);
 
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
   if (loading && !data) return <Spinner />;
@@ -214,20 +241,20 @@ export function AuditLogPage() {
           <Input
             type="datetime-local"
             aria-label="Show audit entries from date and time"
+            aria-describedby={dateRangeError ? "audit-log-date-range-error" : undefined}
+            invalid={Boolean(dateRangeError)}
+            max={endAt || undefined}
             value={startAt}
-            onChange={(e) => {
-              setStartAt(e.target.value);
-              resetPage();
-            }}
+            onChange={(e) => updateStartAt(e.target.value)}
           />
           <Input
             type="datetime-local"
             aria-label="Show audit entries through date and time"
+            aria-describedby={dateRangeError ? "audit-log-date-range-error" : undefined}
+            invalid={Boolean(dateRangeError)}
+            min={startAt || undefined}
             value={endAt}
-            onChange={(e) => {
-              setEndAt(e.target.value);
-              resetPage();
-            }}
+            onChange={(e) => updateEndAt(e.target.value)}
           />
           <div className="flex gap-2">
             <Select
@@ -244,6 +271,9 @@ export function AuditLogPage() {
                 </option>
               ))}
             </Select>
+            <Button variant="outline" onClick={reload} disabled={loading} className="shrink-0">
+              Refresh
+            </Button>
             {hasFilters && (
               <Button variant="outline" onClick={clearFilters} className="shrink-0">
                 Clear
@@ -251,6 +281,11 @@ export function AuditLogPage() {
             )}
           </div>
         </div>
+        {dateRangeError && (
+          <p id="audit-log-date-range-error" role="alert" className="-mt-3 text-xs text-stop-600">
+            {dateRangeError}
+          </p>
+        )}
 
         <p className="mb-3 text-xs text-civic-400">
           Showing {firstResult}–{lastResult} of {total} {total === 1 ? "entry" : "entries"}
