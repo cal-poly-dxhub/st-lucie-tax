@@ -12,6 +12,7 @@ import {
   TH,
   THead,
   TR,
+  useToast,
 } from "@st-lucie/ui";
 import {
   createLunchShift,
@@ -57,8 +58,12 @@ interface LunchDraft {
 
 const lunchKey = (l: LunchDraft) => `${l.start}|${l.end}`;
 
+const isValidRunRatePct = (value: number) =>
+  Number.isFinite(value) && value >= 1 && value <= 199;
+
 export function OfficesPage() {
   const { data, error, loading, saving, mutate } = useResource<OfficesResponse>(fetchOffices);
+  const notify = useToast();
 
   const [editing, setEditing] = useState<Record<number, Partial<Office>>>({});
   const [confirmId, setConfirmId] = useState<number | null>(null);
@@ -103,13 +108,19 @@ export function OfficesPage() {
 
   async function saveOffice(o: Office) {
     const d = draft(o);
+    const runRate = Number(d.run_rate_pct);
+    if (!isValidRunRatePct(runRate)) {
+      notify("error", "Run rate must be between 1% and 199%.");
+      return;
+    }
+
     const ok = await mutate(
       () =>
         updateOffice(o.id, {
           name: d.name,
           address: d.address ?? undefined,
           totalDesks: Number(d.total_desks),
-          runRatePct: Number(d.run_rate_pct),
+          runRatePct: runRate,
         }),
       "Office saved.",
     );
@@ -118,13 +129,18 @@ export function OfficesPage() {
 
   async function addOffice() {
     const runRate = Number(newRunRate);
+    if (newRunRate !== "" && !isValidRunRatePct(runRate)) {
+      notify("error", "Run rate must be between 1% and 199%.");
+      return;
+    }
+
     const ok = await mutate(
       () =>
         createOffice({
           name: newName.trim(),
           address: newAddress.trim() || undefined,
           totalDesks: Number(newDesks),
-          runRatePct: newRunRate !== "" && Number.isFinite(runRate) ? runRate : undefined,
+          runRatePct: newRunRate !== "" ? runRate : undefined,
         }),
       "Office created.",
     );
@@ -190,7 +206,7 @@ export function OfficesPage() {
                       <InlineInput
                         type="number"
                         min={1}
-                        max={100}
+                        max={199}
                         value={d.run_rate_pct ?? ""}
                         onChange={(e) => edit(o.id, { run_rate_pct: Number(e.target.value) })}
                         aria-label="Run rate percent"
@@ -265,7 +281,7 @@ export function OfficesPage() {
               id="of-runrate"
               type="number"
               min={1}
-              max={100}
+              max={199}
               value={newRunRate}
               onChange={(e) => setNewRunRate(e.target.value)}
             />
