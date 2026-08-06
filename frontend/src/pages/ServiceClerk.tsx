@@ -357,11 +357,8 @@ export function ServiceClerk() {
                           className="px-2 py-1.5 text-xs"
                           onClick={async () => {
                             try {
-                              const { url, name } = await api.getDocumentUrl(doc.id!);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = name;
-                              a.click();
+                              const { url } = await api.getDocumentUrl(doc.id!, "attachment");
+                              window.open(url, "_self");
                             } catch {
                               notify("error", "Could not download document.");
                             }
