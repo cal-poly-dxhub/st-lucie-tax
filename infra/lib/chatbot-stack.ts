@@ -270,7 +270,13 @@ export class ChatbotStack extends Stack {
         AUTHID_BASE_URL: process.env.AUTHID_BASE_URL || "https://id-uat.authid.ai",
         AUTHID_API_KEY_ID: process.env.AUTHID_API_KEY_ID || "",
         AUTHID_API_KEY_VALUE: process.env.AUTHID_API_KEY_VALUE || "",
-        AUTHID_DL_DOC_TYPE_CODE: process.env.AUTHID_DL_DOC_TYPE_CODE || "5",
+        // AuthID doc-type code selects which credential the Proof portal scans;
+        // per-tenant (verified against GET /v1/idDocumentTypes): 2 = "US Driver's
+        // License", 5 = "Passport". Default to 2 so an unset env var fails toward
+        // a DL scan, never passport — a "5" default previously left the portal
+        // stuck in passport mode. Re-verify against the prod tenant's list if the
+        // tenant changes.
+        AUTHID_DL_DOC_TYPE_CODE: process.env.AUTHID_DL_DOC_TYPE_CODE || "2",
         EMAIL: process.env.SENDER_EMAIL || "noreply@stlucie.local",
       },
       bundling: {
