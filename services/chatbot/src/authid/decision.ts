@@ -24,8 +24,19 @@ import type { Decision, ProofResultRaw, ExtractedIdentity } from "./types.js";
  * (tests + future per-tenant tuning) without env coupling.
  */
 export interface DecisionPolicy {
-  /** Absent / non-explicit-`PASS` / unrecognized REQUIRED signal. Default reject. */
-  missingSignalOutcome: "reject" | "review";
+  /**
+   * Absent / non-explicit-`PASS` / unrecognized REQUIRED signal.
+   *   "reject" — fail closed (a missing signal blocks). Strictest.
+   *   "review" — a missing signal downgrades to review (non-blocking).
+   *   "ignore" — a missing signal contributes NOTHING; the scan is judged only
+   *              on signals AuthID actually returned. Only an EXPLICIT `FAIL`
+   *              (or `Matched:false`/`IsLive:false`/expired doc) rejects.
+   * Default "ignore": our AuthID tenant's verification policy does not emit the
+   * tamper signals (SelfieInjection/Barcode/PAD/DocumentInjection) for ANY scan,
+   * so treating their absence as a failure rejected 100% of honest users. An
+   * explicit failure signal still rejects regardless of this setting.
+   */
+  missingSignalOutcome: "reject" | "review" | "ignore";
   /** `documentInjectionAttackDetectionResult === 'FAIL'`. Default review (backward-compat). */
   documentInjectionOutcome: "reject" | "review";
   /** `Payload.Data` not a usable object / decide() cannot evaluate. Default reject. */
@@ -34,12 +45,16 @@ export interface DecisionPolicy {
   minMatchScore: number | null;
 }
 
+function coerceMissing(v: string | undefined): "reject" | "review" | "ignore" {
+  return v === "reject" || v === "review" || v === "ignore" ? v : "ignore";
+}
+
 function coerceOutcome(v: string | undefined, fallback: "reject" | "review"): "reject" | "review" {
   return v === "reject" || v === "review" ? v : fallback;
 }
 
 const DEFAULT_POLICY: DecisionPolicy = {
-  missingSignalOutcome: coerceOutcome(process.env.AUTHID_MISSING_SIGNAL_OUTCOME, "reject"),
+  missingSignalOutcome: coerceMissing(process.env.AUTHID_MISSING_SIGNAL_OUTCOME),
   documentInjectionOutcome: coerceOutcome(process.env.AUTHID_DOC_INJECTION_OUTCOME, "review"),
   malformedPayloadOutcome: "reject",
   minMatchScore:
@@ -106,11 +121,21 @@ export function decide(result: ProofResultRaw, options?: DecideOptions): Decisio
 
   const rejectReasons: string[] = [];
   const reviewReasons: string[] = [];
-  const missingTier = policy.missingSignalOutcome === "reject" ? rejectReasons : reviewReasons;
+  // Where an ABSENT/unreadable required signal goes. "ignore" routes missing
+  // reasons to a throwaway sink so they never affect the outcome — an explicit
+  // FAIL still lands in rejectReasons regardless. reject/review keep the
+  // fail-closed behavior for stricter tenants.
+  const ignoredMissing: string[] = [];
+  const missingTier =
+    policy.missingSignalOutcome === "reject"
+      ? rejectReasons
+      : policy.missingSignalOutcome === "review"
+        ? reviewReasons
+        : ignoredMissing;
   const raw = data as Record<string, unknown>;
 
   // A4 — guarded Matched: explicit false → reject; explicit true → clean;
-  // anything else (undefined / non-boolean) → missing-signal, fail closed.
+  // anything else (undefined / non-boolean) → missing-signal tier.
   const matched = raw.Matched;
   if (matched === false) rejectReasons.push("selfie-document-mismatch");
   else if (matched !== true) missingTier.push("match-signal-missing");
