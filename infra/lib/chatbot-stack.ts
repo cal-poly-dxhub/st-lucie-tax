@@ -277,6 +277,14 @@ export class ChatbotStack extends Stack {
         // stuck in passport mode. Re-verify against the prod tenant's list if the
         // tenant changes.
         AUTHID_DL_DOC_TYPE_CODE: process.env.AUTHID_DL_DOC_TYPE_CODE || "2",
+        // How the identity-proof classifier treats a REQUIRED signal that AuthID
+        // did not return. Our tenant's verification policy doesn't emit the
+        // tamper signals (SelfieInjection/Barcode/PAD/DocumentInjection) for any
+        // scan, so "reject" (fail-closed) rejected 100% of honest users. "ignore"
+        // judges the scan only on signals actually present (Matched, liveness,
+        // expiry) — an EXPLICIT FAIL still rejects. Tighten to "reject" only
+        // against a tenant that genuinely emits every tamper signal.
+        AUTHID_MISSING_SIGNAL_OUTCOME: process.env.AUTHID_MISSING_SIGNAL_OUTCOME || "ignore",
         EMAIL: process.env.SENDER_EMAIL || "noreply@stlucie.local",
       },
       bundling: {
