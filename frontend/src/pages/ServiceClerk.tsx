@@ -358,7 +358,7 @@ export function ServiceClerk() {
                           onClick={async () => {
                             try {
                               const { url } = await api.getDocumentUrl(doc.id!, "attachment");
-                              window.open(url, "_self");
+                              window.open(url, "_blank");
                             } catch {
                               notify("error", "Could not download document.");
                             }
