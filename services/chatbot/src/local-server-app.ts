@@ -715,11 +715,32 @@ app.post("/chatbot/sessions/:sessionId/validate-document", async (req, res) => {
       const item = getCatalogItem(String(documentType));
       const label = (item?.label ?? String(documentType)).toLowerCase();
       const labelShort = label.split("(")[0].trim();
-      const doc = session.structuredContext.documents.find((d) => {
+      const docTypeRaw = String(documentType);
+      let doc = session.structuredContext.documents.find((d) => {
         const dt = d.documentType.toLowerCase();
-        return dt === label || dt.includes(labelShort) || labelShort.includes(dt);
+        // Match a coarse-seed entry by label, OR an entry we previously created
+        // keyed by the raw itemId (so a re-upload to the same slot updates in
+        // place rather than pushing a duplicate).
+        return (
+          d.documentType === docTypeRaw ||
+          dt === label ||
+          dt.includes(labelShort) ||
+          labelShort.includes(dt)
+        );
       });
-      if (doc) {
+      if (!doc) {
+        // No coarse-seed entry matched. This is the common case for itemId-keyed
+        // upload slots (e.g. "address-proof-1") whose catalog label doesn't
+        // substring-match the decision-tree's freeform doc string ("Two proofs
+        // of ... address"). Persist a fresh entry keyed by the itemId so the
+        // s3Key is recorded and the clerk doc-bridge (scheduling/
+        // bridge-documents.ts) can forward it at booking. The bridge derives
+        // doc_id from the s3Key path, not from documentType, so the itemId here
+        // is just a stable label.
+        doc = { documentType: docTypeRaw, txnTypeId: "", status: "pending" };
+        session.structuredContext.documents.push(doc);
+      }
+      {
         const validationResult = JSON.stringify(result);
         // Branch on the FINAL verdict, not the plausibility gate: an expiry
         // reject carries verdict:'reject' with a sub-0.85 (accept-level)
