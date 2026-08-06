@@ -10,7 +10,7 @@
 import { getSession } from "../session/get-session.js";
 import { getChatSession, getChatMessages } from "@st-lucie/data-access";
 import { buildTranscriptEmail } from "./transcript-template.js";
-import { sendEmail } from "./ses-client.js";
+import { sendEmail } from "@st-lucie/office-ops/email";
 
 export interface SendTranscriptResult {
   status: "sent" | "skipped" | "failed";
@@ -51,14 +51,14 @@ export async function sendTranscriptForSession(
   }
 
   try {
-    const messageId = await sendEmail({
+    await sendEmail({
       from: fromAddress,
       to,
       subject: email.subject,
-      textBody: email.textBody,
-      htmlBody: email.htmlBody,
+      html: email.htmlBody,
+      text: email.textBody,
     });
-    return { status: "sent", messageId };
+    return { status: "sent" };
   } catch (err) {
     console.error("SES send failed:", err);
     return { status: "failed", reason: err instanceof Error ? err.message : String(err) };

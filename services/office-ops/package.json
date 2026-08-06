@@ -5,7 +5,8 @@
   "private": true,
   "exports": {
     "./scheduling": "./src/scheduling.ts",
-    "./documents": "./src/documents.ts"
+    "./documents": "./src/documents.ts",
+    "./email": "./src/email.ts"
   },
   "scripts": {
     "dev": "tsx server/index.ts",

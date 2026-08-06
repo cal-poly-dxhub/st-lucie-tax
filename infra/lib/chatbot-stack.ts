@@ -512,6 +512,15 @@ function handler(event) {
     // Use a wildcard for CloudFront to avoid a circular dependency
     // (DocBucket → Distribution → ChatbotApi → ChatbotFn → DocBucket).
     const cfnDocBucket = docBucket.node.defaultChild as s3.CfnBucket;
+
+    // ── BASE_URL for email links (queue-status, manage/reschedule) ───────────
+    // Must be set after the distribution is created. Uses custom domain if
+    // provided, otherwise the CloudFront distribution domain.
+    const baseUrl = props.customDomainName
+      ? `https://${props.customDomainName}`
+      : `https://${distribution.distributionDomainName}`;
+    chatbotFn.addEnvironment("BASE_URL", baseUrl);
+
     cfnDocBucket.addPropertyOverride("CorsConfiguration", {
       CorsRules: [
         {
