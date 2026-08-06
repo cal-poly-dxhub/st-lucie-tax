@@ -257,18 +257,25 @@ export interface PrescreenLinkInput {
 
 export function buildPrescreenLinkEmail(input: PrescreenLinkInput): EmailInput {
   const prescreenUrl = `${input.baseUrl}/prescreen/${input.confirmationCode}`;
+  const queueStatusUrl = `${input.baseUrl}/queue-status/${input.confirmationCode}`;
   const name = escapeHtml(input.firstName);
   const escapedUrl = escapeHtml(prescreenUrl);
+  const escapedQueueStatusUrl = escapeHtml(queueStatusUrl);
 
   const html = `<p>Hi ${name},</p>
 <p>Please complete your pre-screen questions before your appointment:</p>
 <p><a href="${escapedUrl}">${escapedUrl}</a></p>
+<p>You can check your status in the queue here:<br>
+<a href="${escapedQueueStatusUrl}">${escapedQueueStatusUrl}</a></p>
 <p>Thank you,<br>St. Lucie County Tax Collector</p>`;
 
   const text = `Hi ${input.firstName},
 
 Please complete your pre-screen questions before your appointment:
 ${prescreenUrl}
+
+You can check your status in the queue here:
+${queueStatusUrl}
 
 Thank you,
 St. Lucie County Tax Collector`;
