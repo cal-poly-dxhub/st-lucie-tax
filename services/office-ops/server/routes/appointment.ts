@@ -182,6 +182,7 @@ router.post("/schedule/reschedule", async (req, res) => {
         );
         const row = info.rows[0];
         if (row?.contact_email) {
+          const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(row.confirmation_code)}`;
           const email = buildRescheduleEmail({
             recipientEmail: row.contact_email,
             firstName: row.first_name,
@@ -189,6 +190,8 @@ router.post("/schedule/reschedule", async (req, res) => {
             newDate,
             newTime,
             officeName: row.office_name,
+            qrCodeDataUrl: qrDataUrl,
+            baseUrl: FRONTEND_URL,
             fromEmail: EMAIL,
           });
           await sendEmail(ses, email);
@@ -1080,6 +1083,7 @@ publicRouter.post("/appointment/change", async (req, res) => {
 
     // Send reschedule confirmation email (fire-and-forget)
     try {
+      const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(confirmationCode)}`;
       const rescheduleEmail = buildRescheduleEmail({
         recipientEmail: appt.contact_email,
         firstName: appt.first_name,
@@ -1087,6 +1091,8 @@ publicRouter.post("/appointment/change", async (req, res) => {
         newDate,
         newTime,
         officeName: appt.office_name,
+        qrCodeDataUrl: qrDataUrl,
+        baseUrl: FRONTEND_URL,
         fromEmail: EMAIL,
       });
       await sendEmail(ses, rescheduleEmail);

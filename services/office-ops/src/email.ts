@@ -339,6 +339,8 @@ export interface RescheduleEmailInput {
   newDate: string;
   newTime: string;
   officeName: string;
+  qrCodeDataUrl: string;
+  baseUrl: string;
   fromEmail: string;
 }
 
@@ -348,27 +350,42 @@ export function buildRescheduleEmail(input: RescheduleEmailInput): EmailInput {
   const date = escapeHtml(input.newDate);
   const time = escapeHtml(input.newTime);
   const office = escapeHtml(input.officeName);
+  const queueStatusUrl = `${input.baseUrl}/queue-status/${input.confirmationCode}`;
+  const escapedQueueStatusUrl = escapeHtml(queueStatusUrl);
+  const manageUrl = `${input.baseUrl}/manage/${input.confirmationCode}`;
+  const escapedManageUrl = escapeHtml(manageUrl);
 
   const html = `<p>Hi ${name},</p>
 <p>Your appointment has been rescheduled:</p>
 <ul>
+  <li><strong>Confirmation Code:</strong> ${code}</li>
   <li><strong>New Date:</strong> ${date}</li>
   <li><strong>New Time:</strong> ${time}</li>
   <li><strong>Location:</strong> ${office}</li>
-  <li><strong>Confirmation Code:</strong> ${code}</li>
 </ul>
-<p>If you did not request this change, please contact our office.</p>
+<p>Present this QR code at check-in:</p>
+<img src="${input.qrCodeDataUrl}" alt="QR Code" width="200" height="200" />
+<p>You can check your status in the queue here:<br>
+<a href="${escapedQueueStatusUrl}">${escapedQueueStatusUrl}</a></p>
+<p>Need to reschedule or cancel? Manage your appointment here:<br>
+<a href="${escapedManageUrl}">${escapedManageUrl}</a></p>
 <p>Thank you,<br>St. Lucie County Tax Collector</p>`;
 
   const text = `Hi ${input.firstName},
 
 Your appointment has been rescheduled:
+- Confirmation Code: ${input.confirmationCode}
 - New Date: ${input.newDate}
 - New Time: ${input.newTime}
 - Location: ${input.officeName}
-- Confirmation Code: ${input.confirmationCode}
 
-If you did not request this change, please contact our office.
+Please present your QR code at check-in (see attached image in the HTML version of this email).
+
+You can check your status in the queue here:
+${queueStatusUrl}
+
+Need to reschedule or cancel? Manage your appointment here:
+${manageUrl}
 
 Thank you,
 St. Lucie County Tax Collector`;
