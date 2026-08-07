@@ -43,22 +43,27 @@ router.get("/config", async (_req, res) => {
          ORDER BY id`,
       );
       // Get required base documents per txn type from transaction_flows + document_registry
-      const reqDocs = await client.query<{ txn_type_id: number; doc_id: string; doc_name: string }>(
-        `SELECT tf.txn_type_id, dr.doc_id, dr.name AS doc_name
+      const reqDocs = await client.query<{
+        txn_type_id: number;
+        doc_id: string;
+        doc_name: string;
+        bucket: string;
+      }>(
+        `SELECT tf.txn_type_id, dr.doc_id, dr.name AS doc_name, dr.bucket
          FROM transaction_flows tf
          CROSS JOIN LATERAL jsonb_array_elements_text(tf.steps -> 'baseItems') AS item(doc_id)
          JOIN document_registry dr ON dr.doc_id = item.doc_id
          ORDER BY tf.txn_type_id`,
       );
       // Group by txn_type_id
-      const docsByTxn = new Map<number, { docId: string; name: string }[]>();
+      const docsByTxn = new Map<number, { docId: string; name: string; bucket: string }[]>();
       for (const row of reqDocs.rows) {
         let arr = docsByTxn.get(row.txn_type_id);
         if (!arr) {
           arr = [];
           docsByTxn.set(row.txn_type_id, arr);
         }
-        arr.push({ docId: row.doc_id, name: row.doc_name });
+        arr.push({ docId: row.doc_id, name: row.doc_name, bucket: row.bucket });
       }
       // Attach requiredDocs to each txn type
       const txnTypesWithDocs = txnTypes.rows.map((row: Record<string, unknown>) => ({

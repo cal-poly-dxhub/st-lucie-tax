@@ -352,7 +352,7 @@ export function ServiceClerk() {
                         <Badge
                           tone={doc.clerkValidated ? "go" : doc.uploaded ? "warn" : "neutral"}
                         >
-                          {doc.clerkValidated ? "Validated" : doc.uploaded ? "Needs validation" : "Not uploaded"}
+                          {doc.clerkValidated ? "Validated" : doc.uploaded ? "Needs validation" : doc.bucket === "bring_in" ? "Bring to visit" : doc.bucket === "form" ? "Form to complete" : "Not uploaded"}
                         </Badge>
                       </div>
                     </div>
