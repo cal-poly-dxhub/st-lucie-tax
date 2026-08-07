@@ -304,7 +304,9 @@ function DocRow({
           <div className="truncate text-sm font-semibold text-ink">{doc.name}</div>
           <div className="flex items-center gap-1.5 text-xs">
             {!doc.uploaded ? (
-              <span className="text-civic-400">Not uploaded</span>
+              <span className="text-civic-400">
+                {doc.bucket === "bring_in" ? "Bring to visit" : doc.bucket === "form" ? "Form to complete" : "Not uploaded"}
+              </span>
             ) : rejected ? (
               <span className="flex items-center gap-1 text-stop-500">
                 <FileWarning size={11} /> AI flagged

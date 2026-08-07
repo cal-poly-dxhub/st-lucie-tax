@@ -36,7 +36,7 @@ export function WalkIn() {
 
   const requiredDocs = (() => {
     const seen = new Set<string>();
-    const docs: { docId: string; name: string }[] = [];
+    const docs: { docId: string; name: string; bucket: string }[] = [];
     for (const slug of selectedTxns) {
       const txn = config?.txnTypes.find((t) => t.slug === slug);
       for (const d of txn?.requiredDocs ?? []) {
@@ -322,6 +322,7 @@ export function WalkIn() {
           <div className="space-y-2">
             {requiredDocs.map((d) => {
               const file = docFiles[d.docId];
+              const isUploadable = d.bucket === "optional_upload";
               return (
                 <div
                   key={d.docId}
@@ -341,7 +342,13 @@ export function WalkIn() {
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-ink">{d.name}</div>
                       <div className="text-xs text-civic-400">
-                        {file ? file.name : "Not uploaded"}
+                        {file
+                          ? file.name
+                          : d.bucket === "bring_in"
+                            ? "Bring to visit"
+                            : d.bucket === "form"
+                              ? "Form to complete"
+                              : "Not uploaded"}
                       </div>
                     </div>
                   </div>
@@ -359,7 +366,7 @@ export function WalkIn() {
                     >
                       Remove
                     </button>
-                  ) : (
+                  ) : isUploadable ? (
                     <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-700 hover:border-civic-400 hover:bg-civic-50">
                       <Upload size={13} /> Upload
                       <input
@@ -373,7 +380,7 @@ export function WalkIn() {
                         }}
                       />
                     </label>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
