@@ -114,6 +114,7 @@ CREATE TABLE document_registry (
     doc_id          TEXT NOT NULL,
     name            TEXT NOT NULL,
     description     TEXT,
+    bucket          TEXT NOT NULL DEFAULT 'bring_in',
     alternatives    TEXT[] NOT NULL DEFAULT '{}',
     PRIMARY KEY (doc_id)
 );

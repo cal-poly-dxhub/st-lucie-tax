@@ -356,7 +356,7 @@ export function ServiceClerk() {
                         </Badge>
                       </div>
                     </div>
-                    {!doc.uploaded && (
+                    {!doc.uploaded && doc.bucket === "optional_upload" && (
                       <label
                         className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-700 hover:border-civic-400 hover:bg-civic-50 ${
                           busy === `upload-${doc.docId}` ? "cursor-wait opacity-60" : ""

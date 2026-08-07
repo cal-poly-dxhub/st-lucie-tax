@@ -102,6 +102,7 @@ export interface DocStatus {
   id: number | null;
   docId: string;
   name: string;
+  bucket: string;
   uploaded: boolean;
   s3Key: string | null;
   aiReviewStatus: "accept" | "reject" | null;
@@ -114,7 +115,7 @@ export async function getRequiredDocsStatus(
   appointmentId: number,
 ): Promise<DocStatus[]> {
   const { rows } = await db.query(
-    `SELECT d.id, dr.doc_id, dr.name,
+    `SELECT d.id, dr.doc_id, dr.name, dr.bucket,
             (d.id IS NOT NULL) AS uploaded,
             d.s3_key,
             d.ai_review_status,
