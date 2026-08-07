@@ -172,7 +172,11 @@ SELECT c.id, 1, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
+    FROM generate_series(
+        date_trunc('week', CURRENT_DATE)::date,  -- Monday of current week
+        CURRENT_DATE + interval '1 year',
+        '1 day'
+    ) d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 1 AND 3;
@@ -187,7 +191,11 @@ SELECT c.id, 2, d.dt,
 FROM clerks c
 CROSS JOIN (
     SELECT d::date AS dt
-    FROM generate_series(CURRENT_DATE, CURRENT_DATE + interval '1 year', '1 day') d
+    FROM generate_series(
+        date_trunc('week', CURRENT_DATE)::date,  -- Monday of current week
+        CURRENT_DATE + interval '1 year',
+        '1 day'
+    ) d
     WHERE EXTRACT(DOW FROM d) BETWEEN 1 AND 5
 ) d
 WHERE c.id BETWEEN 4 AND 6;

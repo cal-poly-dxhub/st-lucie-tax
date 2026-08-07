@@ -3,7 +3,7 @@ import { propagateLunchTemplate } from "../../../services/office-ops/src/lunch-t
 import { mockDb } from "./helpers/mock-db.js";
 
 describe("propagateLunchTemplate", () => {
-  test("updates every future schedule row matching each configured weekday", async () => {
+  test("upserts every future schedule row matching each configured weekday", async () => {
     const db = mockDb([{}, {}]);
 
     await propagateLunchTemplate(db, [
@@ -12,8 +12,12 @@ describe("propagateLunchTemplate", () => {
     ]);
 
     expect(db.calls).toHaveLength(2);
-    expect(db.calls[0].sql).toContain("schedule_date >= CURRENT_DATE");
-    expect(db.calls[0].sql).toContain("EXTRACT(ISODOW FROM schedule_date)");
+    // Verify UPSERT pattern: INSERT ... ON CONFLICT ... DO UPDATE
+    expect(db.calls[0].sql).toContain("INSERT INTO clerk_schedules");
+    expect(db.calls[0].sql).toContain("generate_series");
+    expect(db.calls[0].sql).toContain("ON CONFLICT (clerk_id, schedule_date)");
+    expect(db.calls[0].sql).toContain("DO UPDATE SET lunch_shift_id");
+    expect(db.calls[0].sql).toContain("d >= CURRENT_DATE");
     expect(db.calls[0].values).toEqual([1, 2, "2026-07-27", 3]);
     expect(db.calls[1].values).toEqual([1, 2, "2026-07-28", null]);
   });
