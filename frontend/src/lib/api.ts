@@ -110,6 +110,7 @@ export interface LiveQueueResponse {
 }
 
 export interface ServiceRecord {
+  appointmentId: number;
   queueId: number;
   queueNumber: number;
   firstName: string;
