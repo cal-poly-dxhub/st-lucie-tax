@@ -104,12 +104,22 @@ export async function bridgeSessionDocuments(
     // builds its doc list from `appointments.required_doc_ids` LEFT JOIN
     // `documents`. Chatbot booking passes `requiredDocIds: []`, so if we only
     // union in uploaded docs, customers who skipped uploads appear to need zero
-    // documents at the desk. Fix: union ALL session document types (regardless
-    // of upload status) so check-in and service clerks always see what's
-    // required.
-    const allRequiredDocIds = [
-      ...new Set(session.structuredContext.documents.map((d) => d.documentType)),
-    ];
+    // documents at the desk. Fix: union ALL resolved item IDs (regardless of
+    // upload status) so check-in and service clerks always see what's required.
+    //
+    // IMPORTANT: We use `resolvedBuckets` (catalog itemIds like "primary-id-passport")
+    // rather than `documents[].documentType` (which contains human-readable strings
+    // from txn_types.description). Only catalog itemIds match `document_registry.doc_id`.
+    const buckets = session.structuredContext.resolvedBuckets;
+    const allRequiredDocIds = buckets
+      ? [
+          ...new Set([
+            ...buckets.bringIns.map((i) => i.itemId),
+            ...buckets.optionalUploads.map((i) => i.itemId),
+            ...buckets.forms.map((i) => i.itemId),
+          ]),
+        ]
+      : [];
 
     if (allRequiredDocIds.length > 0) {
       await pool.query(
