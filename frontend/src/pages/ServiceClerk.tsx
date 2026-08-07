@@ -10,6 +10,7 @@ import {
   FileCheck2,
   UserCheck,
   Download,
+  Upload,
 } from "lucide-react";
 import { api, type Clerk, type ServiceRecord, type DocStatus } from "@/lib/api";
 import { Badge, Button, Card, SectionLabel, useToast } from "@st-lucie/ui";
@@ -156,6 +157,34 @@ export function ServiceClerk() {
       notify("success", `${doc.name} validated.`);
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Server error.");
+    }
+  }
+
+  async function uploadDoc(doc: DocStatus, file: File) {
+    if (!record) return;
+    setBusy(`upload-${doc.docId}`);
+    try {
+      const res = await api.uploadDocument({
+        appointmentId: record.appointmentId,
+        docId: doc.docId,
+        file,
+      });
+      setRecord((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          docs: prev.docs.map((d) =>
+            d.docId === doc.docId
+              ? { ...d, id: res.documentId, uploaded: true, s3Key: res.s3Key }
+              : d,
+          ),
+        };
+      });
+      notify("success", `${doc.name} uploaded.`);
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -327,6 +356,26 @@ export function ServiceClerk() {
                         </Badge>
                       </div>
                     </div>
+                    {!doc.uploaded && (
+                      <label
+                        className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-civic-200 px-3 py-1.5 text-xs font-semibold text-civic-700 hover:border-civic-400 hover:bg-civic-50 ${
+                          busy === `upload-${doc.docId}` ? "cursor-wait opacity-60" : ""
+                        }`}
+                      >
+                        <Upload size={13} /> {busy === `upload-${doc.docId}` ? "Uploading…" : "Upload"}
+                        <input
+                          type="file"
+                          accept=".pdf,image/jpeg,image/png"
+                          className="sr-only"
+                          disabled={busy === `upload-${doc.docId}`}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            event.currentTarget.value = "";
+                            if (file) uploadDoc(doc, file);
+                          }}
+                        />
+                      </label>
+                    )}
                     {doc.uploaded && !doc.clerkValidated && (
                       <Button
                         variant="go"
