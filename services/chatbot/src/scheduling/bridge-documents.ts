@@ -96,17 +96,42 @@ export async function bridgeSessionDocuments(
     // (same env pair as generate-url.ts); OFFICE = office-ops copy target.
     const sourceBucket = process.env.DOC_BUCKET_NAME || process.env.DOC_BUCKET || "";
     const officeBucket = process.env.DOCUMENTS_BUCKET || "";
+
+    const pool = getPool();
+
+    // ─── W1 FIX: Always persist ALL required doc_ids ─────────────────────────
+    // The clerk read path (`getRequiredDocsStatus`, `getClerkServiceRecord`)
+    // builds its doc list from `appointments.required_doc_ids` LEFT JOIN
+    // `documents`. Chatbot booking passes `requiredDocIds: []`, so if we only
+    // union in uploaded docs, customers who skipped uploads appear to need zero
+    // documents at the desk. Fix: union ALL session document types (regardless
+    // of upload status) so check-in and service clerks always see what's
+    // required.
+    const allRequiredDocIds = [
+      ...new Set(session.structuredContext.documents.map((d) => d.documentType)),
+    ];
+
+    if (allRequiredDocIds.length > 0) {
+      await pool.query(
+        `UPDATE appointments
+         SET required_doc_ids = ARRAY(
+           SELECT DISTINCT unnest(required_doc_ids || $2::text[])
+         )
+         WHERE id = $1`,
+        [appointmentId, allRequiredDocIds],
+      );
+    }
+
+    // ─── Bridge uploaded documents into office-ops bucket ────────────────────
     if (!officeBucket) {
-      console.error("[doc-bridge] DOCUMENTS_BUCKET not set — skipping bridge");
+      console.error("[doc-bridge] DOCUMENTS_BUCKET not set — skipping file bridge");
       return;
     }
+
     const docs = session.structuredContext.documents.filter(
       (d) => d.status === "validated" && d.s3Key,
     );
     if (docs.length === 0) return;
-
-    const pool = getPool();
-    const bridgedDocIds: string[] = [];
 
     for (const doc of docs) {
       try {
@@ -129,10 +154,7 @@ export async function bridgeSessionDocuments(
           `SELECT 1 FROM documents WHERE appointment_id = $1 AND doc_id = $2 LIMIT 1`,
           [appointmentId, docId],
         );
-        if ((existing.rowCount ?? 0) > 0) {
-          bridgedDocIds.push(docId); // still ensure it's in required_doc_ids
-          continue;
-        }
+        if ((existing.rowCount ?? 0) > 0) continue;
 
         const obj = await s3.send(new GetObjectCommand({ Bucket: sourceBucket, Key: s3Key }));
         if (!obj.Body) {
@@ -152,7 +174,6 @@ export async function bridgeSessionDocuments(
           aiReviewStatus: "accept",
           aiReviewNotes: reasonFromValidation(doc.validationResult),
         });
-        bridgedDocIds.push(docId);
       } catch (docErr) {
         // One bad file must not drop the others or the booking.
         console.error(
@@ -160,19 +181,6 @@ export async function bridgeSessionDocuments(
           docErr,
         );
       }
-    }
-
-    if (bridgedDocIds.length > 0) {
-      // W1: the clerk read is gated by required_doc_ids. Union the bridged
-      // doc_ids in (idempotent set-union) so the LEFT JOIN surfaces them.
-      await pool.query(
-        `UPDATE appointments
-         SET required_doc_ids = ARRAY(
-           SELECT DISTINCT unnest(required_doc_ids || $2::text[])
-         )
-         WHERE id = $1`,
-        [appointmentId, bridgedDocIds],
-      );
     }
   } catch (err) {
     // Function-level guarantee: never throw into the booking path.

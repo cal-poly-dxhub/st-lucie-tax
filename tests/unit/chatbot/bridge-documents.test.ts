@@ -38,11 +38,19 @@ function sessionWith(docs: unknown[]): Session {
 
 function validatedDoc(itemId: string, filename: string, reason = "looks good") {
   return {
-    documentType: "freeform label that should NOT be used",
+    documentType: itemId,
     txnTypeId: "dl-renewal",
     status: "validated",
     s3Key: `uploads/stlucie/sess-abc/${itemId}/${filename}`,
     validationResult: JSON.stringify({ verdict: "accept", reason }),
+  };
+}
+
+function pendingDoc(itemId: string) {
+  return {
+    documentType: itemId,
+    txnTypeId: "dl-renewal",
+    status: "pending",
   };
 }
 
@@ -90,10 +98,11 @@ describe("bridgeSessionDocuments", () => {
     expect(Buffer.isBuffer(input.fileBuffer)).toBe(true);
   });
 
-  it("unions the bridged doc_ids into appointments.required_doc_ids (W1)", async () => {
+  it("unions ALL session doc_ids into appointments.required_doc_ids regardless of upload status", async () => {
     const session = sessionWith([
       validatedDoc("address-proof-1", "a.pdf"),
-      validatedDoc("address-proof-2", "b.pdf"),
+      pendingDoc("photo-id-all-applicants"),
+      pendingDoc("address-proof-2"),
     ]);
 
     await bridgeSessionDocuments(session, APPT);
@@ -104,11 +113,36 @@ describe("bridgeSessionDocuments", () => {
     expect(updateCall).toBeTruthy();
     expect(String(updateCall![0])).toContain("required_doc_ids");
     expect(String(updateCall![0])).toContain("DISTINCT");
-    // second bind param is the array of bridged doc_ids
-    expect(updateCall![1]).toEqual([APPT, ["address-proof-1", "address-proof-2"]]);
+    // second bind param contains ALL doc types, not just the uploaded ones
+    const docIds = updateCall![1][1] as string[];
+    expect(docIds).toContain("address-proof-1");
+    expect(docIds).toContain("photo-id-all-applicants");
+    expect(docIds).toContain("address-proof-2");
+    expect(docIds).toHaveLength(3);
   });
 
-  it("skips failed and pending docs (only validated+s3Key are bridged)", async () => {
+  it("updates required_doc_ids even when NO documents were uploaded", async () => {
+    const session = sessionWith([
+      pendingDoc("photo-id-all-applicants"),
+      pendingDoc("address-proof-1"),
+    ]);
+
+    await bridgeSessionDocuments(session, APPT);
+
+    // required_doc_ids should still be updated
+    const updateCall = poolQuery.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE appointments"),
+    );
+    expect(updateCall).toBeTruthy();
+    const docIds = updateCall![1][1] as string[];
+    expect(docIds).toContain("photo-id-all-applicants");
+    expect(docIds).toContain("address-proof-1");
+
+    // but no file uploads should occur
+    expect(uploadDocument).not.toHaveBeenCalled();
+  });
+
+  it("skips failed and pending docs for file bridge (only validated+s3Key are bridged)", async () => {
     const session = sessionWith([
       { documentType: "x", txnTypeId: "t", status: "failed", validationResult: "{}" },
       { documentType: "y", txnTypeId: "t", status: "pending" },
@@ -133,7 +167,7 @@ describe("bridgeSessionDocuments", () => {
     await bridgeSessionDocuments(session, APPT);
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    // still ensures the doc_id is in required_doc_ids
+    // required_doc_ids is still updated (separately from file bridge)
     const updateCall = poolQuery.mock.calls.find(([sql]) =>
       String(sql).includes("UPDATE appointments"),
     );
@@ -152,24 +186,57 @@ describe("bridgeSessionDocuments", () => {
 
     await expect(bridgeSessionDocuments(session, APPT)).resolves.toBeUndefined();
     expect(uploadDocument).toHaveBeenCalledTimes(2);
-    // only the successful doc_id is unioned in
+    // required_doc_ids is updated with ALL doc types upfront (before file bridge)
     const updateCall = poolQuery.mock.calls.find(([sql]) =>
       String(sql).includes("UPDATE appointments"),
     );
-    expect(updateCall![1]).toEqual([APPT, ["address-proof-2"]]);
+    expect(updateCall![1]).toEqual([APPT, ["address-proof-1", "address-proof-2"]]);
   });
 
-  it("no validated docs → no uploadDocument, no UPDATE", async () => {
+  it("empty documents array → no UPDATE, no uploadDocument", async () => {
     await bridgeSessionDocuments(sessionWith([]), APPT);
     expect(uploadDocument).not.toHaveBeenCalled();
     expect(poolQuery).not.toHaveBeenCalled();
   });
 
-  it("missing DOCUMENTS_BUCKET → skips entirely, never throws", async () => {
+  it("missing DOCUMENTS_BUCKET → still updates required_doc_ids, skips file bridge", async () => {
     delete process.env.DOCUMENTS_BUCKET;
-    await expect(
-      bridgeSessionDocuments(sessionWith([validatedDoc("x", "y.pdf")]), APPT),
-    ).resolves.toBeUndefined();
+    const session = sessionWith([
+      pendingDoc("photo-id-all-applicants"),
+      validatedDoc("address-proof-1", "a.pdf"),
+    ]);
+
+    await expect(bridgeSessionDocuments(session, APPT)).resolves.toBeUndefined();
+
+    // required_doc_ids is updated regardless of DOCUMENTS_BUCKET
+    const updateCall = poolQuery.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE appointments"),
+    );
+    expect(updateCall).toBeTruthy();
+    const docIds = updateCall![1][1] as string[];
+    expect(docIds).toContain("photo-id-all-applicants");
+    expect(docIds).toContain("address-proof-1");
+
+    // but no file uploads
     expect(uploadDocument).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates documentType values before updating required_doc_ids", async () => {
+    const session = sessionWith([
+      pendingDoc("photo-id-all-applicants"),
+      // same documentType, different txnTypeId — should deduplicate
+      { documentType: "photo-id-all-applicants", txnTypeId: "vehicle-reg", status: "pending" },
+      pendingDoc("address-proof-1"),
+    ]);
+
+    await bridgeSessionDocuments(session, APPT);
+
+    const updateCall = poolQuery.mock.calls.find(([sql]) =>
+      String(sql).includes("UPDATE appointments"),
+    );
+    const docIds = updateCall![1][1] as string[];
+    expect(docIds).toHaveLength(2);
+    expect(docIds).toContain("photo-id-all-applicants");
+    expect(docIds).toContain("address-proof-1");
   });
 });
