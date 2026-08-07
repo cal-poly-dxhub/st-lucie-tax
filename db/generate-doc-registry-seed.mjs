@@ -19,19 +19,21 @@ const lines = [
   "-- Uses ON CONFLICT to upsert so existing FK references are preserved.",
   "-- Old entries not in the catalog are left in place (orphan-safe).",
   "",
-  "INSERT INTO document_registry (doc_id, name, description, alternatives) VALUES",
+  "INSERT INTO document_registry (doc_id, name, description, bucket, alternatives) VALUES",
 ];
 
 const values = catalog.map((item, i) => {
   const docId = item.itemId.replace(/'/g, "''");
   const label = item.label.replace(/'/g, "''");
   const notes = (item.notes || "").replace(/'/g, "''");
+  const bucket = item.bucket || "bring_in";
   const comma = i < catalog.length - 1 ? "," : "";
-  return `  ('${docId}', '${label}', '${notes}', '{}')${comma}`;
+  return `  ('${docId}', '${label}', '${notes}', '${bucket}', '{}')${comma}`;
 });
 lines.push(...values);
 lines.push("ON CONFLICT (doc_id) DO UPDATE SET");
 lines.push("  name = EXCLUDED.name,");
-lines.push("  description = EXCLUDED.description;");
+lines.push("  description = EXCLUDED.description,");
+lines.push("  bucket = EXCLUDED.bucket;");
 
 console.log(lines.join("\n"));

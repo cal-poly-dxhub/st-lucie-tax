@@ -6,6 +6,7 @@ export interface DocStatus {
   id: number | null;
   docId: string;
   name: string;
+  bucket: string;
   uploaded: boolean;
   s3Key: string | null;
   aiReviewStatus: "accept" | "reject" | null;
