@@ -39,6 +39,9 @@ export class BackOfficeStack extends Stack {
   public readonly webAclArn: string;
   public readonly userPoolId: string;
   public readonly userPoolClientId: string;
+  // Physical name of the DocumentsBucket, exposed so ChatbotStack wires the
+  // doc-bridge to the REAL bucket for this account instead of a hardcoded name.
+  public readonly documentsBucketName: string;
 
   constructor(scope: Construct, id: string, props: BackOfficeStackProps) {
     super(scope, id, props);
@@ -121,6 +124,19 @@ export class BackOfficeStack extends Stack {
       path: path.join(repoRoot, "db", "schema.sql"),
     });
 
+    // Operational seed data, applied by DbInitFn ONLY on a fresh (empty) DB,
+    // right after the schema, in this order (flows/docs reference seed.sql rows).
+    // Without these a fresh deploy comes up with zero offices/transactions/
+    // clerks and is unusable. Uploaded as individual assets sharing one bucket;
+    // SEED_KEYS is the ordered comma-separated list of object keys.
+    const seedFiles = ["seed.sql", "seed-docs.sql", "seed-flows.sql"];
+    const seedAssets = seedFiles.map(
+      (f) =>
+        new s3assets.Asset(this, `SeedAsset-${f.replace(/\W/g, "-")}`, {
+          path: path.join(repoRoot, "db", f),
+        }),
+    );
+
     const dbInitFn = new lambdaNode.NodejsFunction(this, "DbInitFn", {
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
@@ -145,6 +161,9 @@ export class BackOfficeStack extends Stack {
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         SCHEMA_BUCKET: schemaAsset.s3BucketName,
         SCHEMA_KEY: schemaAsset.s3ObjectKey,
+        // Seed assets share the CDK asset bucket; SEED_KEYS is the ORDERED list.
+        SEED_BUCKET: seedAssets[0].s3BucketName,
+        SEED_KEYS: seedAssets.map((a) => a.s3ObjectKey).join(","),
       },
       bundling: {
         format: lambdaNode.OutputFormat.ESM,
@@ -155,6 +174,7 @@ export class BackOfficeStack extends Stack {
     proxy.grantConnect(dbInitFn, "stlucie");
     dbSecret.grantRead(dbInitFn);
     schemaAsset.grantRead(dbInitFn);
+    for (const a of seedAssets) a.grantRead(dbInitFn);
 
     // DbInitFn is deployed but NOT run at deploy time. Apply the schema by
     // invoking it manually once the DB/proxy are up:
@@ -233,6 +253,7 @@ export class BackOfficeStack extends Stack {
       removalPolicy: config.dbRemovalPolicy,
       autoDeleteObjects: true,
     });
+    this.documentsBucketName = documentsBucket.bucketName;
 
     // ── Async: SQS email queue + worker ───────────────────────────────────────
     const emailDlq = new sqs.Queue(this, "EmailDlq", { retentionPeriod: Duration.days(14) });

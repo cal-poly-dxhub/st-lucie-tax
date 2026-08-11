@@ -13,14 +13,38 @@ async function getDbPassword(): Promise<string> {
   return parsed.password as string;
 }
 
+const s3 = new S3Client({ region: process.env.AWS_REGION ?? "us-west-2" });
+
+async function getSqlObject(bucket: string, key: string): Promise<string> {
+  const resp = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!resp.Body) throw new Error(`S3 object s3://${bucket}/${key} returned empty Body`);
+  return await resp.Body.transformToString("utf-8");
+}
+
 async function getSchemaSql(): Promise<string> {
   const bucket = process.env.SCHEMA_BUCKET;
   const key = process.env.SCHEMA_KEY;
   if (!bucket || !key) throw new Error("SCHEMA_BUCKET/SCHEMA_KEY not set");
-  const s3 = new S3Client({ region: process.env.AWS_REGION ?? "us-west-2" });
-  const resp = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-  if (!resp.Body) throw new Error(`S3 object s3://${bucket}/${key} returned empty Body`);
-  return await resp.Body.transformToString("utf-8");
+  return getSqlObject(bucket, key);
+}
+
+/**
+ * Operational seed SQL, applied ONLY on a fresh (empty) database right after the
+ * schema. SEED_BUCKET + SEED_KEYS (comma-separated, ordered) are wired by CDK to
+ * the seed assets (seed.sql, seed-docs.sql, seed-flows.sql). Order matters —
+ * flows/docs reference rows created by seed.sql. Returns [] when unconfigured
+ * (backward-compatible: schema-only apply).
+ */
+async function getSeedSqls(): Promise<{ key: string; sql: string }[]> {
+  const bucket = process.env.SEED_BUCKET;
+  const keys = (process.env.SEED_KEYS ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  if (!bucket || keys.length === 0) return [];
+  const out: { key: string; sql: string }[] = [];
+  for (const key of keys) out.push({ key, sql: await getSqlObject(bucket, key) });
+  return out;
 }
 
 // Plain invokable handler — NOT a CloudFormation custom resource. Deployed by
@@ -28,12 +52,16 @@ async function getSchemaSql(): Promise<string> {
 // once the DB/proxy are up, e.g.:
 //   aws lambda invoke --function-name <DbInitFnName> /dev/stdout
 // Idempotent: skips if the schema is already present. Pass { force: true } to
-// re-apply regardless.
+// re-apply the schema regardless. On a FRESH (empty) DB it also loads the
+// operational seed data so the app is usable immediately; on an already-seeded
+// DB it never re-seeds (avoids duplicate rows).
 export async function handler(event?: { force?: boolean }): Promise<{
   status: "applied" | "skipped";
+  seeded?: boolean;
 }> {
   const password = await getDbPassword();
   const sql = await getSchemaSql();
+  const seeds = await getSeedSqls();
 
   // RDS Proxy reaches CREATE_COMPLETE before its target DB finishes
   // registering, so the first connections after a fresh deploy can be dropped
@@ -81,7 +109,24 @@ export async function handler(event?: { force?: boolean }): Promise<{
     console.log("Applying schema...");
     await client.query(sql);
     console.log("Schema applied successfully.");
-    return { status: "applied" };
+
+    // Load operational seed data on a fresh apply so the app is usable
+    // immediately (offices, transaction types, clerks, document registry,
+    // decision-tree flows). Skipped when nothing is wired (schema-only mode).
+    // Order matters: SEED_KEYS lists seed.sql (transaction_types) before
+    // seed-flows.sql (which JOINs transaction_types). Each query() runs as its
+    // own implicit transaction, which is fine — a later file failing does not
+    // roll back an earlier one, and the whole apply only runs on an empty DB.
+    let seeded = false;
+    if (seeds.length > 0) {
+      for (const { key, sql: seedSql } of seeds) {
+        console.log(`Applying seed ${key}...`);
+        await client.query(seedSql);
+      }
+      seeded = true;
+      console.log(`Seed data applied (${seeds.length} file(s)).`);
+    }
+    return { status: "applied", seeded };
   } finally {
     await client.end();
   }
