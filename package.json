@@ -21,7 +21,7 @@
     "build:frontends": "./scripts/build-frontends.sh --no-upload",
     "deploy:frontends": "./scripts/build-frontends.sh",
     "predeploy": "npm run build:frontends",
-    "deploy": "cdk deploy"
+    "deploy": "cdk deploy --all"
   },
   "lint-staged": {
     "*.ts": [

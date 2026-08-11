@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import * as fs from "node:fs";
 import { Construct } from "constructs";
 import { Stack, StackProps, Duration, CfnOutput, RemovalPolicy } from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
@@ -58,6 +59,23 @@ export class ChatbotStack extends Stack {
     super(scope, id, props);
     const { vpc, proxy, dbSecret, lambdaSg } = props;
     const repoRoot = path.join(__dirname, "..", "..");
+
+    // The three SPA BucketDeployments below package each app's dist/ directory,
+    // which is gitignored and built separately. On a fresh clone those dirs do
+    // not exist and s3deploy.Source.asset throws a cryptic "Cannot find asset"
+    // at synth. Fail early with the exact fix instead.
+    const spaDists = [
+      path.join(repoRoot, "frontend", "dist"),
+      path.join(repoRoot, "apps", "chatbot-app", "dist"),
+      path.join(repoRoot, "apps", "admin-app", "dist"),
+    ];
+    const missingDists = spaDists.filter((d) => !fs.existsSync(path.join(d, "index.html")));
+    if (missingDists.length > 0) {
+      throw new Error(
+        `Frontend build output missing before synth:\n  ${missingDists.join("\n  ")}\n` +
+          `Build the SPAs first: \`npm run build:frontends\` (from the repo root), then re-run cdk.`,
+      );
+    }
 
     // ── Frontend bucket (shared across all SPAs) ─────────────────────────────
     const frontendBucket = new s3.Bucket(this, "FrontendBucket", {
@@ -256,8 +274,9 @@ export class ChatbotStack extends Stack {
         // Cheap vision model for the document-upload pass/reject screen
         // (upload/validate-document.ts). Runs in its OWN region: Haiku 4.5
         // model access is enabled in us-east-2, NOT us-east-1, in this account.
-        BEDROCK_VISION_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        BEDROCK_VISION_REGION: "us-east-2",
+        BEDROCK_VISION_MODEL_ID:
+          process.env.BEDROCK_VISION_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        BEDROCK_VISION_REGION: process.env.BEDROCK_VISION_REGION || "us-east-2",
         // Doc-screen tuning (upload/validate-document.ts). REJECT_THRESHOLD: min
         // model confidence for a plausibility reject to block. EXPIRY_ENABLED:
         // kill-switch for date-based (expiry/recency) rejection.

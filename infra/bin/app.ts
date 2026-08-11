@@ -37,7 +37,11 @@ new ChatbotStack(app, "Chatbot", {
   dbSecret: backOfficeStack.dbSecret,
   lambdaSg: backOfficeStack.lambdaSg,
   officeApiUrl: backOfficeStack.httpApiUrl,
-  documentsBucketName: config.documentsBucketName,
+  // Wire the doc-bridge to the REAL DocumentsBucket for THIS account. An
+  // explicit env override (DOCUMENTS_BUCKET_NAME) wins for pointing at a
+  // pre-existing bucket; otherwise use the live cross-stack reference so a
+  // fresh deploy self-heals in one pass (BackOffice → Chatbot, no cycle).
+  documentsBucketName: config.documentsBucketName || backOfficeStack.documentsBucketName,
   webAclArn: backOfficeStack.webAclArn,
   userPoolId: backOfficeStack.userPoolId,
   userPoolClientId: backOfficeStack.userPoolClientId,

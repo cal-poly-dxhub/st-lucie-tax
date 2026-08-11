@@ -8,8 +8,13 @@ BEGIN;
 -- =============================================================================
 -- Config (single row)
 -- =============================================================================
-INSERT INTO config (timezone, scheduling_block_padding, default_lookahead_days) VALUES
-    ('America/New_York', 0, 14);
+-- schema.sql always runs before this file and inserts the singleton config row
+-- (so a schema-only apply is already bookable). UPDATE that row rather than a
+-- plain INSERT, which would violate the singleton unique index.
+UPDATE config SET
+    timezone = 'America/New_York',
+    scheduling_block_padding = 0,
+    default_lookahead_days = 14;
 
 -- =============================================================================
 -- Offices (2 locations, 3 desks each)

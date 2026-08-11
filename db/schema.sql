@@ -37,6 +37,14 @@ CREATE TABLE config (
 );
 CREATE UNIQUE INDEX idx_config_singleton ON config ((TRUE));
 
+-- Guarantee the singleton config row exists with column defaults. The
+-- scheduling functions read `(SELECT timezone FROM config)` (book_appointment,
+-- register_walk_in, slot search); with no row that subquery is NULL and every
+-- booking fails. seed.sql overwrites this row with real values, but this makes
+-- a schema-only apply (DbInitFn on a fresh deploy) already bookable. Idempotent
+-- via the singleton index.
+INSERT INTO config DEFAULT VALUES ON CONFLICT DO NOTHING;
+
 CREATE TABLE offices (
     id              SERIAL PRIMARY KEY,
     name            TEXT NOT NULL,
