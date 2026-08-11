@@ -25,15 +25,12 @@ curl smoke checks, dev-time exploration). The flag on the SESSION row is
   `route-newdealer-${Date.now()}@example.com`, etc.). Maintain that.
 - For curl smoke tests, also use `@example.com`. The header is optional
   and redundant when the email already does the job.
-- Don't add backfill prefixes to `scripts/backfill-test-sessions.ts`
-  unless you've created a test-style session with a non-@example.com
-  email — that should be the rare exception, not the norm.
 
 The verification you should run after a Playwright spec lands sessions:
 log into the admin dashboard, toggle "Show test sessions" on, confirm
 your sessions show the gray TEST badge. If they show without the badge
 under "Show test sessions" off, your spec didn't use @example.com — fix
-the spec, don't patch the backfill.
+the spec's email.
 
 ## Trees as source of truth
 
@@ -83,35 +80,38 @@ mean two different transactions?" If yes, build a disambiguator parent
 
 ## Deploys and AWS state
 
-The deployed Lambda lives at:
-`https://b4ki4882va.execute-api.us-east-1.amazonaws.com/api/`
+The system is **two CDK stacks** defined in `infra/bin/app.ts`: `BackOffice`
+(VPC, Aurora + RDS Proxy, Cognito, DocumentsBucket, DbInitFn, the two Docker
+Lambdas) and `Chatbot` (S3 frontends, CloudFront + WAF, ChatbotFn/AdminFn,
+Bedrock KB). BackOffice deploys first; Chatbot consumes its outputs. There is no
+`StLucieBackendStack`/`Foundation`/`Backend`/`Security` stack and no DynamoDB —
+if you see those names in older notes, they're dead.
 
-Frontend SPA: `https://d2ewptrrn0hvd3.cloudfront.net`
-Admin SPA: `https://d2kfwcgztht3zc.cloudfront.net`
-
-CDK pulls from the working tree, not from a specific git ref. Whatever's
-in `services/chatbot/src/` and `services/admin/src/` at deploy time is
-what runs. To deploy:
+**The authoritative deploy runbook is `infra/DEPLOY.md`.** Summary:
 
 ```bash
-cd infra
-npm run cdk -- deploy StLucieBackendStack --require-approval never \
-  --profile AdministratorAccess-522814693903
+export CDK_DEFAULT_REGION=us-east-1   # required (CloudFront WAF/ACM)
+cp .env.example .env                  # set SENDER_EMAIL + a real ORIGIN_SECRET
+npm run build:frontends               # dist/ is gitignored; build before synth
+npx cdk deploy --all                  # BackOffice then Chatbot (order auto-resolved)
+scripts/post-deploy.sh                # DbInit (schema + seed on empty DB) + upload SPAs + config.json
+scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk
 ```
 
-SEC-02: secrets (BETA_PASSWORD, BETA_AUTH_SECRET, AUTHID_API_KEY_ID/VALUE; admin:
-ADMIN_PASSWORD, ADMIN_AUTH_SECRET) are NO LONGER passed as `BETA_PASSWORD=… cdk
-deploy` env vars. They live in AWS Secrets Manager (`stlucie/chatbot/app-secrets`,
-`stlucie/admin/app-secrets`), fetched at Lambda cold start by
-`services/{chatbot,admin}/src/auth/load-secrets.ts`. CDK creates each secret with
-a placeholder; populate real values out-of-band via `aws secretsmanager
-put-secret-value` + a forced cold start. Full runbook in `infra/DEPLOY.md`
-("Secrets (SEC-02)"). The Lambda fails closed (500s) if the secret is empty —
-never runs with auth silently disabled.
+Docker must be running (BackOffice builds container images at deploy). A fresh
+account also needs Bedrock model access enabled (Sonnet 4.6 us-east-1, Titan
+Embed v2 us-east-1, Haiku 4.5 us-east-2) and SES sender verification — see
+`infra/DEPLOY.md` §0.
 
-Frontend changes need a separate `npm run build` in `apps/chatbot-app/`
-or `apps/admin-app/` with the right `VITE_API_URL` + `VITE_API_KEY`,
-THEN a `cdk deploy StLucieFrontendStack` (or `StLucieAdminStack`).
+CDK pulls from the working tree, not a git ref. Whatever's in `services/*/src/`
+at deploy time is what runs. Auth is **Cognito** (staff) + `ORIGIN_SECRET`
+(CloudFront→origin); the DB password is CDK-managed (`DatabaseSecret`) and read
+at Lambda cold start. There is no separate Secrets-Manager app-auth step in this
+architecture (the old SEC-02 `BETA_PASSWORD`/`ADMIN_PASSWORD` scheme is gone).
+
+Frontend-only changes: `scripts/build-frontends.sh` (builds + uploads + CloudFront
+invalidation, resolving the live bucket from stack outputs). Frontends are
+runtime-config-driven (`config.json`), not `VITE_API_KEY`-baked.
 
 The `aws sso login` token expires every few hours. When you see
 `The SSO session associated with this profile has expired`, ask the
@@ -122,33 +122,29 @@ user to re-login interactively — don't try to authenticate yourself.
 Run lint + relevant unit tests:
 
 ```bash
-npm run lint:trees
-npx tsx tests/unit/trailer-registration-tree.test.ts   # or the relevant tree's test
+npx tsx scripts/lint-decision-trees.ts
+npx tsx tests/unit-legacy/trees/new-vehicle-title.test.ts   # or the relevant tree's test in tests/unit-legacy/trees/
 ```
 
-After a meaningful structural change, re-run the audit:
-
-```bash
-AWS_PROFILE=AdministratorAccess-522814693903 npx tsx scripts/audit-tree-exhaustiveness.ts
-npm run audit:trees:report
-```
-
-The audit takes ~10-15 minutes and costs ~$1 in Bedrock Haiku tokens.
-Don't run it speculatively.
+Then re-read the per-tree `<txn>.review.md` for anything you changed —
+many "findings" are intentional and documented there.
 
 ## When you add a new transaction
 
 1. Author the tree (`services/chatbot/src/data/decision-trees/<txn>.json`).
 2. Add facts to `fact-definitions.json` and items to `item-catalog.json`.
-3. Add a TXNTYPE entry to `scripts/seed-data/transaction-types.json` with
-   `commonPhrases`, `keywords`, `summary`, `category`. Re-seed DDB:
-   `DYNAMODB_TABLE_NAME=st-lucie-platform npx tsx scripts/seed-data.ts`.
+3. Add an `INSERT INTO transaction_types` row to `db/seed.sql`. The
+   `description` column is a JSON blob carrying `summary`, `keywords`,
+   `commonPhrases`, and `category` (the chatbot parses it for routing). It
+   loads on an empty DB via DbInitFn; on a live DB add it through the admin
+   config **transactions** tab. There is no DynamoDB and no
+   `scripts/seed-data.ts`.
 4. Add a routing cluster to
    `services/chatbot/src/tools/suggest-transactions/tools.ts`. If the
    intent could be ambiguous, build it as a disambiguator + children
    (see Conservative routing above).
-5. Tree-resolution unit test under `tests/unit/`. Mirror an existing tree's
-   test for the call signature.
+5. Tree-resolution unit test under `tests/unit-legacy/trees/`. Mirror an
+   existing tree's test for the call signature.
 6. Playwright e2e under `tests/e2e/` if the routing or flow is novel.
    Use `@example.com` emails. Existing specs are the template.
 7. Write a `<txn>.review.md` next to the tree explaining scope and
@@ -161,10 +157,11 @@ Don't run it speculatively.
   `@example.com` emails instead.
 - Don't introduce per-test patches to the SPA's fetch behavior. The SPA
   serves real users; tests must work against it as-is.
-- Don't fix audit findings without reading the per-tree review doc
+- Don't fix tree findings without reading the per-tree review doc
   first. Many findings are intentional (e.g., the
   `certified-weight-slip` baseItem on trailer-registration is genuinely
   always required).
-- Don't run `npm run seed` against production DDB without confirming the
-  source-data file contents. The script overwrites by PK so a careless
-  run can corrupt routing.
+- Don't re-run DbInitFn seeding (`scripts/post-deploy.sh`) against a
+  populated DB. The seed SQL (`db/seed.sql` / `seed-docs.sql` /
+  `seed-flows.sql`) only loads on an empty DB; confirm contents before
+  editing so a careless change doesn't corrupt routing.

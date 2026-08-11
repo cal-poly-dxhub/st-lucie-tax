@@ -1,9 +1,18 @@
 # Production Handoff Notes
 
 For the partner team taking this prototype to production. **`infra/DEPLOY.md`
-covers the mechanics of `cdk deploy`** — this doc captures everything else:
-what's deployed today, the secrets you'll need to rotate, traps that won't
-fire in UAT but will in production, and tasks intentionally left for you.
+is the authoritative from-zero deploy runbook** (fresh account, prerequisites,
+ordered steps). This doc captures everything else: what's deployed today, the
+secrets you'll need to rotate, traps that won't fire in UAT but will in
+production, and tasks intentionally left for you.
+
+> **Doc-accuracy note (2026-08):** earlier revisions of this file described a
+> four-stack architecture (`Foundation`/`Backend`/`Frontend`/`Security`), a
+> DynamoDB `st-lucie-platform` table, a `VITE_API_KEY`, and "booking not wired."
+> **All of that is dead.** The current system is two CDK stacks (`BackOffice`,
+> `Chatbot`), Cognito auth, Aurora Postgres (no DDB), and end-to-end booking.
+> Where sections below still reference the old model, trust `infra/DEPLOY.md`
+> and `README.md` over this file.
 
 ---
 
@@ -12,21 +21,20 @@ fire in UAT but will in production, and tasks intentionally left for you.
 **Environment:** UAT only.
 
 **AWS:** account `522814693903`, region `us-east-1`. SSO via the
-`AdministratorAccess-522814693903` profile. All four core stacks are
-deployed (`Foundation`, `Backend`, `Frontend`, `Security`) plus the admin
-stack.
+`AdministratorAccess-522814693903` profile.
 
-**Live URLs:**
+**Architecture:** two CDK stacks (`infra/bin/app.ts`):
 
-| Surface        | URL                                                         |
-| -------------- | ----------------------------------------------------------- |
-| Customer SPA   | https://d2ewptrrn0hvd3.cloudfront.net                       |
-| Admin SPA      | https://d2kfwcgztht3zc.cloudfront.net                       |
-| API Gateway    | https://b4ki4882va.execute-api.us-east-1.amazonaws.com/api/ |
-| Chatbot Lambda | `st-lucie-chatbot-express-app`                              |
-| Admin Lambda   | `st-lucie-admin-app`                                        |
-| DDB table      | `st-lucie-platform`                                         |
-| S3 doc bucket  | published in SSM under `/stlucie/doc-bucket-name`           |
+- **BackOffice** — VPC, Aurora Serverless v2 (PostgreSQL 17.4) + RDS Proxy,
+  Cognito, DocumentsBucket, SQS email worker, DbInitFn, and two Docker Lambdas
+  (AppointmentFn / QueueFn).
+- **Chatbot** — S3 frontends, single CloudFront distribution + WAF, ChatbotFn /
+  AdminFn, Bedrock Knowledge Base (S3 Vectors). Serves the citizen chatbot
+  (`/chat`), admin (`/admin`), and office-ops (`/`) SPAs, and routes `/api/*`.
+
+The persistence store is **Aurora PostgreSQL** (`db/schema.sql`) — there is no
+DynamoDB. Auth is **Cognito** (staff groups admin/checkin_clerk/service_clerk)
+plus an `ORIGIN_SECRET` header enforcing CloudFront-only access to the APIs.
 
 **State of in-flight work:**
 
@@ -36,43 +44,36 @@ stack.
   removed; the S3-trigger pattern that fed it is gone. AuthID replaces it
   entirely.
 - The conversation flow is end-to-end: landing → identify-transaction →
-  universal-blockers (eligibility check) → verify-identity (AuthID) →
-  resolve-facts (decision-tree-driven Q&A) → confirm-facts → upload-docs →
-  checkout-check → schedule. The `schedule` state is currently a terminal
-  stub — booking isn't wired up.
+  universal-blockers (eligibility check) → resolve-facts (decision-tree-driven
+  Q&A) → verify-identity (AuthID) → confirm-facts → upload-docs → checkout-check
+  → schedule. **Booking is fully wired** (`book_appointment` in `db/schema.sql`),
+  and chatbot document uploads bridge to the clerk view.
 
 ---
 
-## 2. Secrets you need to rotate before production
+## 2. Secrets and how auth works
 
-**SEC-02 changed where secrets live.** The 4 chatbot secrets + 2 admin secrets
-are now in **AWS Secrets Manager** (`stlucie/chatbot/app-secrets`,
-`stlucie/admin/app-secrets`), fetched at Lambda cold start — NOT read by CDK at
-synth and NOT in the Lambda env. Rotate them with `aws secretsmanager
-put-secret-value` + a forced cold start (runbook: `infra/DEPLOY.md` →
-"Secrets (SEC-02)"); no redeploy needed. `infra/.env.deploy` keeps these values
-only as the operator's source for the populate command, plus the NON-secret
-config CDK still reads (`AUTHID_BASE_URL`, `AUTHID_DL_DOC_TYPE_CODE`, `SCHEDULING_*`).
+Auth is **Cognito** (staff pool, groups `admin`/`checkin_clerk`/`service_clerk`)
+plus the **`ORIGIN_SECRET`** header that CloudFront injects and the Lambdas
+validate to block direct API-Gateway access. There is **no** application-auth
+password scheme (no `BETA_PASSWORD`/`ADMIN_PASSWORD`, no Secrets-Manager
+app-secret, no `VITE_API_KEY`/API-Gateway key) — any older note describing those
+is dead.
 
-| Variable                               | Where it lives                       | What you need to do                                            |
-| -------------------------------------- | ------------------------------------ | -------------------------------------------------------------- |
-| `AUTHID_BASE_URL`                      | env var (CDK, non-secret)            | Change to `https://id.authid.ai` for prod                      |
-| `AUTHID_API_KEY_ID`                    | **Secrets Manager** (chatbot secret) | Generate a fresh prod-tenant key; `put-secret-value`           |
-| `AUTHID_API_KEY_VALUE`                 | **Secrets Manager** (chatbot secret) | Same — generate fresh; AuthID shows the value ONCE             |
-| `AUTHID_DL_DOC_TYPE_CODE`              | env var (CDK, non-secret)            | Re-verify against your prod tenant's doc-type list; may differ |
-| `BETA_PASSWORD`                        | **Secrets Manager** (chatbot secret) | Rotate via `put-secret-value`; gates the SPA login             |
-| `BETA_AUTH_SECRET`                     | **Secrets Manager** (chatbot secret) | Rotate via `put-secret-value`; HMAC key for the bearer token   |
-| `ADMIN_PASSWORD` / `ADMIN_AUTH_SECRET` | **Secrets Manager** (admin secret)   | Rotate via `put-secret-value` on `stlucie/admin/app-secrets`   |
+- **`ORIGIN_SECRET`** — a plain `.env` value read at synth. Rotate by editing
+  `.env` and redeploying the Chatbot stack (`npx cdk deploy Chatbot`). No SPA
+  rebuild needed; it's server-side only.
+- **DB password** — CDK-managed (`DatabaseSecret`, `back-office-stack.ts`),
+  auto-rotatable via RDS/Secrets Manager. Nothing manual.
+- **AuthID keys** (`AUTHID_API_KEY_ID` / `AUTHID_API_KEY_VALUE`) — plain `.env`
+  values injected into `ChatbotFn` at deploy (`chatbot-stack.ts`). For prod,
+  generate fresh prod-tenant keys, flip `AUTHID_BASE_URL` to
+  `https://id.authid.ai`, re-verify `AUTHID_DL_DOC_TYPE_CODE` against the prod
+  tenant's doc-type list, and redeploy the Chatbot stack. **Treat the UAT keys
+  as compromised** (they appear in development transcripts) — disable the UAT
+  key in the AuthID portal once prod keys exist.
 
-The UAT keys have been embedded in development conversation transcripts.
-Treat them as compromised once you have prod keys — disable the UAT key in
-the AuthID portal, generate a fresh one for any continued UAT work.
-
-**API Gateway key** — the value the SPA bakes into builds as `VITE_API_KEY`.
-The current value is in `/stlucie/beta-api-key-id` (just the ID; fetch the
-value via `aws apigateway get-api-key --include-value`). Rotate by deleting
-and recreating the usage-plan key. See `infra/DEPLOY.md` §"Retrieve API key
-value".
+See `infra/DEPLOY.md` → "Secrets".
 
 ---
 
@@ -109,30 +110,30 @@ production-side "internal staff smoke test" exemption, add a header-driven
 override (`x-test-session: 1`); the SPA can't send custom headers (CORS
 strips them), but `curl` and CI scripts can.
 
-**Email transcripts.** The SPA has a "Submit Transcript" button. Today the
-backend builds a PDF and posts it to a feedback DDB row. There's a
-`sendTranscriptForSession` helper wired to an SES sender, but **SES is in
-sandbox mode for the AWS account** — recipients have to be verified
-identities. To go live: move the account out of SES sandbox AND verify
-the sending identity.
+**Email (confirmations, reschedule, queue, transcripts).** All customer email
+is sent via SES from the BackOffice functions, and **SES starts in sandbox mode**
+on a fresh account — sends silently no-op (booking still succeeds) until you
+verify the sender identity AND request production access. Per-message feedback /
+transcript content is stored in Postgres (`feedback` table), not DynamoDB. To go
+live: move the account out of SES sandbox and verify `SENDER_EMAIL`.
 
-**Bedrock cost alarms.** `StLucieSecurityStack` provisions billing alarms
-that fire to SNS topic `stlucie-beta-alarms`. The original developer's
-email is subscribed; **AWS sends a confirmation email and won't deliver
-alerts until you click it**. Add your own on-call recipients (see
-`infra/DEPLOY.md` §"Confirm alarm topic email subscription"). Also enable
-billing-metrics emission in the AWS console (one-time per account).
+**Bedrock / error alarms.** The Chatbot stack (`chatbot-stack.ts`) provisions
+Bedrock spend/error/throttle alarms wired to an SNS topic. **No recipient is
+subscribed unless you set `ALARM_EMAIL` in `.env` before deploy** (it defaults
+empty); then click the AWS confirmation email. Also enable billing-metrics
+emission in the console (one-time per account) if you want billing alarms.
 
-**Knowledge Base ID is hardcoded.** `BEDROCK_KB_ID = 'DREJTMKWRM'` in
-`infra/backend-stack.ts`. This is the FLHSMV ops-manual KB built during
-prototype work. If you want to point at a different/refreshed KB, edit
-that line and redeploy. The KB ingestion pipeline is in
-`scripts/ingest-flhsmv-ops-manual.ts` and `scripts/scrape-kb-*.ts`.
+**Knowledge Base is provisioned by CDK, not hardcoded.** The KB is created in
+`infra/lib/chatbot-stack.ts`; its id reaches the Lambda as `BEDROCK_KB_ID` via a
+CloudFormation attribute (`knowledgeBase.attrKnowledgeBaseId`) — nothing to edit.
+The KB starts **empty** on a fresh deploy; loading content (e.g. FLHSMV
+ops-manual) is a separate, optional step — see `infra/DEPLOY.md` §8.
 
-**API Gateway requires `x-api-key`.** Every endpoint has `apiKeyRequired: true`.
-The SPA bakes the value in at build time (`VITE_API_KEY`). Curl smoke tests
-must include the header. If you rotate the key, **rebuild + redeploy the SPA**
-or browser users will hit 403.
+**APIs are CloudFront-only, not API-key-gated.** No endpoint requires an API key
+(there is no `apiKeyRequired`/`VITE_API_KEY`). Access control is the
+`x-origin-secret` header CloudFront injects (`chatbot-stack.ts`); a direct curl
+to the raw API-Gateway origin URL is rejected. Smoke-test against the CloudFront
+domain, not the origin.
 
 ---
 
@@ -145,20 +146,21 @@ deploy from your own credentials.
       and value (value shown ONCE).
 - [ ] Verify the prod-tenant doc-type code for "US Driver's License" via
       `GET /IDCompleteBackendEngine/Default/AdministrationServiceRest/v1/idDocumentTypes`.
-- [ ] Update `infra/.env.deploy` with prod values + flip `AUTHID_BASE_URL`
+- [ ] Update `.env` with prod AuthID values + flip `AUTHID_BASE_URL`
       to `https://id.authid.ai`.
-- [ ] Rotate `BETA_PASSWORD` and `BETA_AUTH_SECRET` to fresh values.
-- [ ] Rotate the API Gateway key (delete the existing usage-plan key,
-      let CDK recreate it).
-- [ ] `cdk deploy` all four stacks (`Foundation`, `Backend`, `Frontend`,
-      `Security`) + admin stack.
-- [ ] Confirm SNS subscription for billing alarms (click the AWS email).
+- [ ] Set a fresh `ORIGIN_SECRET` in `.env` (`openssl rand -base64 32`).
+- [ ] `npx cdk deploy --all` (BackOffice then Chatbot — order auto-resolved),
+      then `scripts/post-deploy.sh`. Full steps: `infra/DEPLOY.md`.
+- [ ] Create staff Cognito users: `scripts/create-user.sh <email> <pw> <groups>`.
+- [ ] Confirm SNS subscription for the Chatbot stack's alarms (set `ALARM_EMAIL`
+      and click the AWS confirmation email).
 - [ ] Enable `Receive Billing Alerts` in AWS console (Billing → Billing
       preferences).
-- [ ] Move SES out of sandbox if email transcripts are required for
-      production. Otherwise document that they'll silently no-op.
-- [ ] Rebuild the customer SPA with the new `VITE_API_KEY` and deploy
-      (`StLucieFrontendStack`).
+- [ ] Move SES out of sandbox (and verify the sender identity) — otherwise ALL
+      customer emails (confirmation/reschedule/queue/transcripts) silently
+      no-op, not just transcripts.
+- [ ] Set `BASE_URL` (or a custom domain) so email links resolve to this
+      deployment — see `infra/DEPLOY.md` §7.
 - [ ] Smoke-test verify-identity end-to-end with a real DL on a real
       device. The first Proof transaction also creates the AuthID account
       record, so the second visit (rehydrate) should trigger Verified.
@@ -169,29 +171,28 @@ deploy from your own credentials.
 
 ## 6. Things you'll find in the repo that are NOT production code
 
-- `legacy/` — design-time AIDLC artifacts, prior-iteration plans, demo
-  scripts. Read `legacy/README.md` if you want context on how the system
-  evolved; **none of it is authoritative**.
+- Design/iteration context lives in `docs/` (design docs, `database-design.md`,
+  `aws-serverless-architecture.md`) and `docs/superpowers/plans/` (prior-iteration
+  plans). These explain _how_ the system evolved; the code is the authority.
 - `services/chatbot/src/handlers/express-app.handler.ts` is the Lambda
   entrypoint. Every other `*.handler.ts` was deleted in the cleanup pass —
   routes live inline in `local-server-app.ts`.
 - `local-server.ts` (20 lines) is just the dev-mode `app.listen()` runner;
   the real Express app is `local-server-app.ts`. Both export the same
   shared `app` instance.
-- The `tests/eval/` and `tests/test-pass/` directories contain LLM-as-judge
-  evals + tree-audit fixtures. They're useful for regression but aren't
-  required for deploy.
+- Tests live under `tests/unit`, `tests/integration`, and `tests/e2e`
+  (Playwright), with legacy tree tests under `tests/unit-legacy/`. See
+  `tests/TESTING.md`. They're useful for regression but aren't required for deploy.
 
 ---
 
 ## 7. Open known limitations
 
-- `schedule` state is a terminal stub. Booking integration is unbuilt.
-- Email transcripts depend on SES being out of sandbox.
-- The KB is FLHSMV ops-manual content from May 2026; not auto-refreshed.
-- `services/admin` is read-only — no write operations on session rows.
-- No auth on the admin SPA other than the same beta password — fine for
-  prototype, will need real RBAC for production staff use.
+- Email delivery depends on SES being out of sandbox (see §4).
+- The KB starts empty; content is loaded out-of-band and not auto-refreshed
+  (`infra/DEPLOY.md` §8).
+- `services/admin` is nearly read-only; the only write is
+  `PATCH /admin/sessions/:id/reviewed` (marks a session reviewed).
 - Walk-in / SMS channels (`channel: 'walkin' | 'sms'`) have partial
   implementations; only the `web` channel is fully exercised.
 
@@ -200,9 +201,9 @@ deploy from your own credentials.
 ## 8. Who built what
 
 This prototype was built by Mason Lewis under the Cal Poly DxHub umbrella
-(`mlewis77@calpoly.edu`). All design decisions are the developer's; the
-AIDLC artifacts under `legacy/aidlc-docs/` reflect the original design
-intent but the system has diverged from them substantially.
+(`mlewis77@calpoly.edu`). All design decisions are the developer's; the design
+docs under `docs/` reflect the original intent but the system has diverged from
+them substantially — the code and `git log` are the authority.
 
 For questions about specific design choices, the commit history under
 `git log` is the most accurate authority — commits are individually
