@@ -4,6 +4,23 @@ import { fetchConfig, updateConfig, type GlobalConfig } from "@/config-api";
 import { useResource } from "./use-resource";
 import { ErrorBanner, Section, Spinner } from "./parts";
 
+// Bounds on the two numeric scheduling knobs. These feed the slot finder
+// directly, so out-of-range values are a havoc vector: a huge padding starves
+// the day of slots, and a huge lookahead makes the booking search enumerate
+// months of availability. Keep both to sane operational ranges.
+const PADDING_MIN = 0;
+const PADDING_MAX = 120; // minutes of buffer between appointments
+const LOOKAHEAD_MIN = 1;
+const LOOKAHEAD_MAX = 365; // days a citizen can book ahead
+
+function rangeError(label: string, raw: string, min: number, max: number): string | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
+    return `${label} must be a whole number between ${min} and ${max}.`;
+  }
+  return null;
+}
+
 export function GlobalConfigPage() {
   const { data, error, loading, saving, mutate } = useResource<GlobalConfig>(fetchConfig);
 
@@ -19,15 +36,21 @@ export function GlobalConfigPage() {
     setLookahead(String(data.default_lookahead_days ?? ""));
   }, [data]);
 
+  const paddingErr = rangeError("Block padding", padding, PADDING_MIN, PADDING_MAX);
+  const lookaheadErr = rangeError("Lookahead days", lookahead, LOOKAHEAD_MIN, LOOKAHEAD_MAX);
+  const formError = paddingErr ?? lookaheadErr;
+
   const save = useCallback(() => {
-    const paddingNum = Number(padding);
-    const lookaheadNum = Number(lookahead);
+    // Guard again at save time — the browser min/max on <input type=number> is
+    // advisory (a typed value can exceed it), so never trust it alone.
+    if (rangeError("Block padding", padding, PADDING_MIN, PADDING_MAX)) return;
+    if (rangeError("Lookahead days", lookahead, LOOKAHEAD_MIN, LOOKAHEAD_MAX)) return;
     mutate(
       () =>
         updateConfig({
           timezone: timezone.trim() || undefined,
-          schedulingBlockPadding: Number.isFinite(paddingNum) ? paddingNum : undefined,
-          defaultLookaheadDays: Number.isFinite(lookaheadNum) ? lookaheadNum : undefined,
+          schedulingBlockPadding: Number(padding),
+          defaultLookaheadDays: Number(lookahead),
         }),
       "Global settings saved.",
     );
@@ -48,29 +71,41 @@ export function GlobalConfigPage() {
         <Field
           label="Block padding"
           htmlFor="padding"
-          hint="Minutes added to each appointment block"
+          hint={`Minutes added to each appointment block (${PADDING_MIN}–${PADDING_MAX})`}
         >
           <Input
             id="padding"
             type="number"
-            min={0}
+            min={PADDING_MIN}
+            max={PADDING_MAX}
             value={padding}
             onChange={(e) => setPadding(e.target.value)}
           />
         </Field>
-        <Field label="Lookahead days" htmlFor="lookahead" hint="How far ahead citizens can book">
+        <Field
+          label="Lookahead days"
+          htmlFor="lookahead"
+          hint={`How far ahead citizens can book (${LOOKAHEAD_MIN}–${LOOKAHEAD_MAX})`}
+        >
           <Input
             id="lookahead"
             type="number"
-            min={1}
+            min={LOOKAHEAD_MIN}
+            max={LOOKAHEAD_MAX}
             value={lookahead}
             onChange={(e) => setLookahead(e.target.value)}
           />
         </Field>
       </div>
 
+      {formError && (
+        <p className="mt-3 text-sm font-medium text-stop-600" role="alert">
+          {formError}
+        </p>
+      )}
+
       <div className="mt-5">
-        <Button variant="go" loading={saving} onClick={save}>
+        <Button variant="go" loading={saving} disabled={formError !== null} onClick={save}>
           Save settings
         </Button>
       </div>

@@ -1,14 +1,17 @@
 import { NavLink, Outlet } from "react-router-dom";
 
+// Admin-facing tabs only. Deliberately EXCLUDED (engineer-owned, high blast
+// radius — edited in the repo, not the UI): Decision Trees (raw-JSON paste that
+// silently breaks routing), and Pre-Screen (dormant on the web bot). See the
+// editability split: admins tweak high-level config; all logic/JSON/catalog is
+// engineer-managed.
 const TABS = [
   { to: "global", label: "Global" },
   { to: "offices", label: "Offices" },
   { to: "transactions", label: "Transactions" },
   { to: "clerks", label: "Clerks" },
   { to: "hotbuttons", label: "Hotbuttons" },
-  { to: "prescreen", label: "Pre-Screen" },
   { to: "documents", label: "Documents" },
-  { to: "decision-trees", label: "Decision Trees" },
   { to: "audit-log", label: "Audit Log" },
 ];
 

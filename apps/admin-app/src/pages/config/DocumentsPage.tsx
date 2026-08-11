@@ -2,9 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Badge,
   Button,
-  Field,
   InlineInput,
-  Input,
   Table,
   TBody,
   TD,
@@ -14,8 +12,6 @@ import {
   TR,
 } from "@st-lucie/ui";
 import {
-  createDocument,
-  deleteDocument,
   fetchDocumentRegistry,
   fetchTransactionFlows,
   updateDocument,
@@ -23,7 +19,7 @@ import {
   type TransactionFlow,
 } from "@/config-api";
 import { useResource } from "./use-resource";
-import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { ErrorBanner, Section, Spinner } from "./parts";
 import { useSortableTable } from "@/hooks/useSortableTable";
 import { SortableTH } from "@/components/SortableTH";
 
@@ -45,6 +41,16 @@ interface TreeSteps {
 const asTree = (steps: unknown): TreeSteps =>
   steps && typeof steps === "object" ? (steps as TreeSteps) : {};
 
+/**
+ * Document registry — admin-facing surface is name + description only.
+ *
+ * Deliberately NOT exposed here (engineer-owned, edited in the repo): the
+ * `doc_id` slug, the `alternatives` list (references other doc IDs — a brittle
+ * field where a typo silently breaks acceptance), and creating/deleting
+ * registry rows (the decision trees reference doc_ids by name, so an admin
+ * delete would orphan a tree branch). Admins can rename a document and rewrite
+ * its citizen-facing description; nothing else.
+ */
 export function DocumentsPage() {
   const load = useCallback(async (): Promise<Data> => {
     const [docs, flows] = await Promise.all([fetchDocumentRegistry(), fetchTransactionFlows()]);
@@ -54,20 +60,13 @@ export function DocumentsPage() {
   const { data, error, loading, saving, mutate } = useResource<Data>(load);
 
   const [editing, setEditing] = useState<Record<string, Partial<DocumentRegistryEntry>>>({});
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [newId, setNewId] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newAlternatives, setNewAlternatives] = useState("");
 
   const docs = data?.docs ?? [];
 
-  const { sortCol, sortDir, toggle, sorted } = useSortableTable("doc_id");
+  const { sortCol, sortDir, toggle, sorted } = useSortableTable("name");
   const sortedDocs = sorted(docs, {
-    doc_id: (d) => d.doc_id,
     name: (d) => d.name,
     description: (d) => d.description,
-    alternatives: (d) => d.alternatives?.join(", "),
   });
 
   const draft = (d: DocumentRegistryEntry) => ({ ...d, ...editing[d.doc_id] });
@@ -92,34 +91,10 @@ export function DocumentsPage() {
         updateDocument(d.doc_id, {
           name: v.name,
           description: v.description ?? undefined,
-          alternatives: v.alternatives,
         }),
       "Document saved.",
     );
     if (ok) discard(d.doc_id);
-  }
-
-  async function add() {
-    const alternatives = newAlternatives
-      .split(",")
-      .map((a) => a.trim())
-      .filter(Boolean);
-    const ok = await mutate(
-      () =>
-        createDocument({
-          docId: newId.trim(),
-          name: newName.trim(),
-          description: newDescription.trim() || undefined,
-          alternatives: alternatives.length ? alternatives : undefined,
-        }),
-      "Document created.",
-    );
-    if (ok) {
-      setNewId("");
-      setNewName("");
-      setNewDescription("");
-      setNewAlternatives("");
-    }
   }
 
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
@@ -129,27 +104,24 @@ export function DocumentsPage() {
     <div className="flex flex-col gap-5">
       <Section
         title="Document registry"
-        description="The catalog of documents a citizen can be asked to bring. Alternatives are accepted in place of the primary document."
+        description="The documents a citizen can be asked to bring. Edit a document's name and description; the catalog itself is managed by the engineering team."
       >
         <Table>
           <THead>
             <TR className="hover:bg-transparent">
-              <SortableTH column="doc_id" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-56">ID</SortableTH>
-              <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
+              <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-72">Name</SortableTH>
               <SortableTH column="description" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Description</SortableTH>
-              <SortableTH column="alternatives" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Alternatives</SortableTH>
-              <TH align="right" className="w-48" />
+              <TH align="right" className="w-40" />
             </TR>
           </THead>
           <TBody>
             {sortedDocs.length === 0 ? (
-              <TEmpty colSpan={5}>No documents in the registry yet.</TEmpty>
+              <TEmpty colSpan={3}>No documents in the registry yet.</TEmpty>
             ) : (
               sortedDocs.map((d) => {
                 const v = draft(d);
                 return (
                   <TR key={d.doc_id}>
-                    <TD className="font-mono text-xs text-civic-500">{d.doc_id}</TD>
                     <TD>
                       <InlineInput
                         value={v.name ?? ""}
@@ -161,58 +133,31 @@ export function DocumentsPage() {
                       <InlineInput
                         value={v.description ?? ""}
                         onChange={(e) => edit(d.doc_id, { description: e.target.value })}
+                        placeholder="What the citizen should bring…"
                         aria-label="Description"
                       />
                     </TD>
-                    <TD>
-                      <InlineInput
-                        value={(v.alternatives ?? []).join(", ")}
-                        onChange={(e) =>
-                          edit(d.doc_id, {
-                            alternatives: e.target.value
-                              .split(",")
-                              .map((a) => a.trim())
-                              .filter(Boolean),
-                          })
-                        }
-                        placeholder="comma separated doc ids"
-                        aria-label="Alternatives"
-                        className="font-mono text-xs"
-                      />
-                    </TD>
                     <TD align="right">
-                      <span className="inline-flex items-center gap-1">
-                        {isDirty(d) && (
-                          <>
-                            <Button
-                              variant="go"
-                              disabled={saving}
-                              onClick={() => save(d)}
-                              className="px-2 py-1"
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              disabled={saving}
-                              onClick={() => discard(d.doc_id)}
-                              className="px-2 py-1"
-                            >
-                              Revert
-                            </Button>
-                          </>
-                        )}
-                        <DeleteButton
-                          confirming={confirmId === d.doc_id}
-                          disabled={saving}
-                          onArm={() => setConfirmId(d.doc_id)}
-                          onCancel={() => setConfirmId(null)}
-                          onConfirm={async () => {
-                            await mutate(() => deleteDocument(d.doc_id), "Document deleted.");
-                            setConfirmId(null);
-                          }}
-                        />
-                      </span>
+                      {isDirty(d) && (
+                        <span className="inline-flex items-center gap-1">
+                          <Button
+                            variant="go"
+                            disabled={saving}
+                            onClick={() => save(d)}
+                            className="px-2 py-1"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            disabled={saving}
+                            onClick={() => discard(d.doc_id)}
+                            className="px-2 py-1"
+                          >
+                            Revert
+                          </Button>
+                        </span>
+                      )}
                     </TD>
                   </TR>
                 );
@@ -220,49 +165,6 @@ export function DocumentsPage() {
             )}
           </TBody>
         </Table>
-      </Section>
-
-      <Section title="Add document">
-        <div className="grid max-w-5xl gap-4 sm:grid-cols-[14rem_1fr_auto] sm:items-end">
-          <Field label="ID" htmlFor="doc-id" required hint="Stable slug, e.g. fl-insurance-proof">
-            <Input
-              id="doc-id"
-              value={newId}
-              onChange={(e) => setNewId(e.target.value)}
-              placeholder="fl-insurance-proof"
-            />
-          </Field>
-          <Field label="Name" htmlFor="doc-name" required>
-            <Input id="doc-name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          </Field>
-          <Button
-            variant="go"
-            loading={saving}
-            disabled={!newId.trim() || !newName.trim()}
-            onClick={add}
-          >
-            Add
-          </Button>
-          <Field label="Description" htmlFor="doc-desc" className="sm:col-span-2">
-            <Input
-              id="doc-desc"
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Alternatives"
-            htmlFor="doc-alts"
-            hint="Comma-separated document IDs"
-            className="sm:col-span-3"
-          >
-            <Input
-              id="doc-alts"
-              value={newAlternatives}
-              onChange={(e) => setNewAlternatives(e.target.value)}
-            />
-          </Field>
-        </div>
       </Section>
 
       <TransactionDocuments docs={docs} flows={data?.flows ?? []} />

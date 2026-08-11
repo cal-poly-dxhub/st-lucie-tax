@@ -14,6 +14,17 @@ const optionalQueryString = (value: unknown): string | undefined =>
 const isValidAuditTimestamp = (value: string | undefined) =>
   value === undefined || !Number.isNaN(Date.parse(value));
 
+// Run rate scales an office's scheduling capacity in the slot finder, so a
+// bogus value (0, negative, 800, a fraction) corrupts availability math for
+// every transaction booked there. The admin UI already guards this, but the
+// server must too — defense in depth for a Chris-editable field. `undefined`
+// is allowed (COALESCE keeps the current value); anything present must be a
+// whole percent in [1, 199].
+const RUN_RATE_ERROR = "runRatePct must be an integer between 1 and 199";
+const isValidRunRatePct = (value: unknown): boolean =>
+  value === undefined ||
+  (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 199);
+
 // ─── Transaction-type description (routing metadata) ───────────────────────────
 //
 // transaction_types.description stores a JSON blob of TransactionTypeMetadata
@@ -91,6 +102,7 @@ router.post("/offices", async (req, res) => {
     const { name, address, totalDesks, runRatePct } = req.body;
     if (!name || !totalDesks)
       return res.status(400).json({ error: "name and totalDesks required" });
+    if (!isValidRunRatePct(runRatePct)) return res.status(400).json({ error: RUN_RATE_ERROR });
     const { rows } = await pool.query(
       `INSERT INTO offices (name, address, total_desks, run_rate_pct) VALUES ($1, $2, $3, $4) RETURNING id`,
       [name, address || null, totalDesks, runRatePct || 100],
@@ -111,6 +123,7 @@ router.put("/offices/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, address, totalDesks, runRatePct } = req.body;
+    if (!isValidRunRatePct(runRatePct)) return res.status(400).json({ error: RUN_RATE_ERROR });
     const { rows: beforeRows } = await pool.query(
       `SELECT id, name, address, total_desks, run_rate_pct FROM offices WHERE id = $1`,
       [id],

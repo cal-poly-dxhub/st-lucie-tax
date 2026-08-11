@@ -3,10 +3,7 @@ import {
   Badge,
   Button,
   Check,
-  Field,
   InlineInput,
-  Input,
-  Select,
   StatusMatrix,
   Table,
   TBody,
@@ -21,8 +18,6 @@ import {
   type TimeBounds,
 } from "@st-lucie/ui";
 import {
-  createTransactionType,
-  deleteTransactionType,
   deleteTxnOfficeOverride,
   fetchTransactionFlows,
   fetchTransactionTypes,
@@ -34,7 +29,7 @@ import {
   type TxnOfficeMatrix,
 } from "@/config-api";
 import { useResource } from "./use-resource";
-import { DeleteButton, ErrorBanner, Section, Spinner } from "./parts";
+import { ErrorBanner, Section, Spinner } from "./parts";
 import { useSortableTable } from "@/hooks/useSortableTable";
 import { SortableTH } from "@/components/SortableTH";
 
@@ -71,6 +66,33 @@ export function TransactionsPage() {
 
 type Mutate = (action: () => Promise<unknown>, successMessage?: string) => Promise<boolean>;
 
+/**
+ * Validate an online-redirect URL before it can be saved.
+ *
+ * This is a havoc vector: the value is rendered as a link citizens click from
+ * the chatbot, so a malformed or non-web URL (`javascript:`, a bare word, an
+ * internal address) is worse than no URL. Empty is allowed — many transactions
+ * are not online-eligible. Returns an error string to show, or null if valid.
+ */
+function redirectUrlError(url: string | null | undefined): string | null {
+  const trimmed = (url ?? "").trim();
+  if (!trimmed) return null; // empty is fine — not every transaction is online
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "Enter a full URL, e.g. https://example.gov/renew";
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return "URL must start with https://";
+  }
+  return null;
+}
+
+/** Duration is a booked-block length in minutes; keep it sane. */
+const MIN_DURATION = 1;
+const MAX_DURATION = 480; // 8 hours — a generous ceiling for any single visit
+
 // ─── Transaction types ───────────────────────────────────────────────────────
 
 function TypesSection({
@@ -83,11 +105,6 @@ function TypesSection({
   mutate: Mutate;
 }) {
   const [editing, setEditing] = useState<Record<number, Partial<TransactionType>>>({});
-  const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [newSlug, setNewSlug] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newDuration, setNewDuration] = useState("");
-  const [newSummary, setNewSummary] = useState("");
 
   // Only global rows are editable here; per-office rows are overrides managed by
   // the availability matrix below.
@@ -96,7 +113,6 @@ function TypesSection({
   const { sortCol, sortDir, toggle, sorted } = useSortableTable("name");
   const sortedTxns = sorted(globalTxns, {
     name: (t) => t.name,
-    txn_type_id: (t) => t.txn_type_id,
     avg_duration_min: (t) => t.avg_duration_min,
     status: (t) => t.status,
   });
@@ -116,6 +132,17 @@ function TypesSection({
     });
   }
 
+  /** Reasons a draft cannot be saved yet (bad URL, out-of-range duration). */
+  function draftError(d: TransactionType): string | null {
+    const urlErr = redirectUrlError(d.online_redirect_url);
+    if (urlErr) return urlErr;
+    const dur = Number(d.avg_duration_min);
+    if (!Number.isFinite(dur) || dur < MIN_DURATION || dur > MAX_DURATION) {
+      return `Duration must be between ${MIN_DURATION} and ${MAX_DURATION} minutes.`;
+    }
+    return null;
+  }
+
   async function save(t: TransactionType) {
     const d = draft(t);
     const ok = await mutate(
@@ -128,200 +155,132 @@ function TypesSection({
           availableFrom: d.available_from,
           availableUntil: d.available_until,
           isOnlineEligible: d.is_online_eligible,
-          onlineRedirectUrl: d.online_redirect_url,
+          onlineRedirectUrl: (d.online_redirect_url ?? "").trim() || null,
         }),
       "Transaction saved.",
     );
     if (ok) discard(t.id);
   }
 
-  async function add() {
-    const ok = await mutate(
-      () =>
-        createTransactionType({
-          txnTypeId: newSlug.trim(),
-          name: newName.trim(),
-          avgDurationMin: Number(newDuration),
-          summary: newSummary.trim() || undefined,
-        }),
-      "Transaction created.",
-    );
-    if (ok) {
-      setNewSlug("");
-      setNewName("");
-      setNewDuration("");
-      setNewSummary("");
-    }
-  }
-
   return (
-    <>
-      <Section
-        title="Transaction types"
-        description="Average duration drives how long a booked block is. Online-eligible transactions send citizens to the redirect URL instead of booking a visit."
-      >
-        <Table>
-          <THead>
-            <TR className="hover:bg-transparent">
-              <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
-              <TH>Description</TH>
-              <SortableTH column="txn_type_id" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-44">ID</SortableTH>
-              <SortableTH column="avg_duration_min" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Min</SortableTH>
-              <SortableTH column="status" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-28">Status</SortableTH>
-              <TH className="w-20" align="center">
-                Online
-              </TH>
-              <TH>Redirect URL</TH>
-              <TH align="right" className="w-48" />
-            </TR>
-          </THead>
-          <TBody>
-            {sortedTxns.length === 0 ? (
-              <TEmpty colSpan={8}>No transaction types configured yet.</TEmpty>
-            ) : (
-              sortedTxns.map((t) => {
-                const d = draft(t);
-                return (
-                  <TR key={t.id}>
-                    <TD>
-                      <InlineInput
-                        value={d.name ?? ""}
-                        onChange={(e) => edit(t.id, { name: e.target.value })}
-                        aria-label="Transaction name"
-                      />
-                    </TD>
-                    <TD>
-                      <InlineInput
-                        value={d.summary ?? ""}
-                        onChange={(e) => edit(t.id, { summary: e.target.value })}
-                        placeholder="What the AI matches customers on…"
-                        aria-label="Description (AI routing summary)"
-                      />
-                    </TD>
-                    <TD className="font-mono text-xs text-civic-500">{t.txn_type_id}</TD>
-                    <TD>
-                      <InlineInput
-                        type="number"
-                        min={1}
-                        value={d.avg_duration_min ?? ""}
-                        onChange={(e) => edit(t.id, { avg_duration_min: Number(e.target.value) })}
-                        aria-label="Average duration in minutes"
-                      />
-                    </TD>
-                    <TD>
-                      <Select
-                        value={d.status ?? "active"}
-                        onChange={(e) => edit(t.id, { status: e.target.value })}
-                        aria-label="Status"
-                        className="px-2 py-1 text-xs"
-                      >
-                        <option value="active">active</option>
-                        <option value="hidden">hidden</option>
-                        <option value="internal">internal</option>
-                      </Select>
-                    </TD>
-                    <TD align="center">
-                      <Check
-                        checked={d.is_online_eligible ?? false}
-                        onChange={(e) => edit(t.id, { is_online_eligible: e.target.checked })}
-                        aria-label="Online eligible"
-                      />
-                    </TD>
-                    <TD>
-                      <InlineInput
-                        value={d.online_redirect_url ?? ""}
-                        onChange={(e) => edit(t.id, { online_redirect_url: e.target.value })}
-                        placeholder="https://…"
-                        aria-label="Online redirect URL"
-                      />
-                    </TD>
-                    <TD align="right">
-                      <span className="inline-flex items-center gap-1">
-                        {isDirty(t) && (
-                          <>
-                            <Button
-                              variant="go"
-                              disabled={saving}
-                              onClick={() => save(t)}
-                              className="px-2 py-1"
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              disabled={saving}
-                              onClick={() => discard(t.id)}
-                              className="px-2 py-1"
-                            >
-                              Revert
-                            </Button>
-                          </>
-                        )}
-                        <DeleteButton
-                          confirming={confirmId === t.id}
-                          disabled={saving}
-                          onArm={() => setConfirmId(t.id)}
-                          onCancel={() => setConfirmId(null)}
-                          onConfirm={async () => {
-                            await mutate(() => deleteTransactionType(t.id), "Transaction deleted.");
-                            setConfirmId(null);
-                          }}
+    <Section
+      title="Transaction types"
+      description="Rename services, tune the description the AI matches on, set how long a visit takes, and control whether citizens see each service. Online-eligible transactions send citizens to the redirect URL instead of booking a visit. The catalog itself is managed by the engineering team."
+    >
+      <Table>
+        <THead>
+          <TR className="hover:bg-transparent">
+            <SortableTH column="name" currentColumn={sortCol} direction={sortDir} onToggle={toggle}>Name</SortableTH>
+            <TH>Description</TH>
+            <SortableTH column="avg_duration_min" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-20">Min</SortableTH>
+            <SortableTH column="status" currentColumn={sortCol} direction={sortDir} onToggle={toggle} className="w-32">Visible</SortableTH>
+            <TH className="w-20" align="center">
+              Online
+            </TH>
+            <TH>Redirect URL</TH>
+            <TH align="right" className="w-40" />
+          </TR>
+        </THead>
+        <TBody>
+          {sortedTxns.length === 0 ? (
+            <TEmpty colSpan={7}>No transaction types configured yet.</TEmpty>
+          ) : (
+            sortedTxns.map((t) => {
+              const d = draft(t);
+              const err = isDirty(t) ? draftError(d) : null;
+              return (
+                <TR key={t.id}>
+                  <TD>
+                    <InlineInput
+                      value={d.name ?? ""}
+                      onChange={(e) => edit(t.id, { name: e.target.value })}
+                      aria-label="Transaction name"
+                    />
+                  </TD>
+                  <TD>
+                    <InlineInput
+                      value={d.summary ?? ""}
+                      onChange={(e) => edit(t.id, { summary: e.target.value })}
+                      placeholder="What the AI matches customers on…"
+                      aria-label="Description (AI routing summary)"
+                    />
+                  </TD>
+                  <TD>
+                    <InlineInput
+                      type="number"
+                      min={MIN_DURATION}
+                      max={MAX_DURATION}
+                      value={d.avg_duration_min ?? ""}
+                      onChange={(e) => edit(t.id, { avg_duration_min: Number(e.target.value) })}
+                      aria-label="Average duration in minutes"
+                    />
+                  </TD>
+                  <TD>
+                    {(d.status ?? "active") === "internal" ? (
+                      // "internal" is an engineer-only state (staff-facing, never
+                      // routed to citizens). Show it read-only rather than letting
+                      // a visibility toggle silently clobber it.
+                      <Badge tone="neutral">Internal</Badge>
+                    ) : (
+                      <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-civic-600">
+                        <Check
+                          checked={(d.status ?? "active") === "active"}
+                          onChange={(e) =>
+                            edit(t.id, { status: e.target.checked ? "active" : "hidden" })
+                          }
+                          aria-label="Visible to citizens"
                         />
+                        {(d.status ?? "active") === "active" ? "Visible" : "Hidden"}
+                      </label>
+                    )}
+                  </TD>
+                  <TD align="center">
+                    <Check
+                      checked={d.is_online_eligible ?? false}
+                      onChange={(e) => edit(t.id, { is_online_eligible: e.target.checked })}
+                      aria-label="Online eligible"
+                    />
+                  </TD>
+                  <TD>
+                    <InlineInput
+                      value={d.online_redirect_url ?? ""}
+                      onChange={(e) => edit(t.id, { online_redirect_url: e.target.value })}
+                      placeholder="https://…"
+                      aria-label="Online redirect URL"
+                    />
+                  </TD>
+                  <TD align="right">
+                    {isDirty(t) && (
+                      <span className="inline-flex flex-col items-end gap-1">
+                        <span className="inline-flex items-center gap-1">
+                          <Button
+                            variant="go"
+                            disabled={saving || err !== null}
+                            onClick={() => save(t)}
+                            className="px-2 py-1"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            disabled={saving}
+                            onClick={() => discard(t.id)}
+                            className="px-2 py-1"
+                          >
+                            Revert
+                          </Button>
+                        </span>
+                        {err && <span className="text-xs text-stop-600">{err}</span>}
                       </span>
-                    </TD>
-                  </TR>
-                );
-              })
-            )}
-          </TBody>
-        </Table>
-      </Section>
-
-      <Section title="Add transaction type">
-        <div className="grid max-w-5xl gap-4 sm:grid-cols-[12rem_1fr_6rem_auto] sm:items-end">
-          <Field label="ID" htmlFor="tt-slug" required hint="Stable slug, e.g. dl-renewal">
-            <Input
-              id="tt-slug"
-              value={newSlug}
-              onChange={(e) => setNewSlug(e.target.value)}
-              placeholder="dl-renewal"
-            />
-          </Field>
-          <Field label="Name" htmlFor="tt-name" required>
-            <Input id="tt-name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          </Field>
-          <Field label="Minutes" htmlFor="tt-min" required>
-            <Input
-              id="tt-min"
-              type="number"
-              min={1}
-              value={newDuration}
-              onChange={(e) => setNewDuration(e.target.value)}
-            />
-          </Field>
-          <Button
-            variant="go"
-            loading={saving}
-            disabled={!newSlug.trim() || !newName.trim() || !newDuration}
-            onClick={add}
-          >
-            Add
-          </Button>
-          <Field
-            label="Description"
-            htmlFor="tt-desc"
-            className="sm:col-span-4"
-            hint="One line the AI uses to route customers to this service"
-          >
-            <Input
-              id="tt-desc"
-              value={newSummary}
-              onChange={(e) => setNewSummary(e.target.value)}
-            />
-          </Field>
-        </div>
-      </Section>
-    </>
+                    )}
+                  </TD>
+                </TR>
+              );
+            })
+          )}
+        </TBody>
+      </Table>
+    </Section>
   );
 }
 
