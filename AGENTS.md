@@ -14,7 +14,7 @@ This is a unified npm-workspaces monorepo deployed as two CDK stacks sharing one
 
 1. **BackOffice stack** — VPC, Aurora Serverless v2 (PostgreSQL 17.4), RDS Proxy, and two fault-isolated ARM64 Express-on-Lambda container functions. `AppointmentFn` handles citizen and booking routes; `QueueFn` handles in-office queue and clerk routes. A single API Gateway HTTP API routes requests by path. The stack also deploys Cognito staff authentication, the CloudFront WAF Web ACL, a document bucket, an SQS email worker, a nightly EventBridge duration-recommendation worker, the schema-init Lambda, and an SSM bastion for database port forwarding. Office Operations runs unchanged on Lambda through the AWS Lambda Web Adapter (LWA).
 
-2. **Chatbot stack** — Reuses the BackOffice VPC, RDS Proxy, database secret, security group, WAF, and Cognito client. `ChatbotFn` is an Express 4 Lambda (1536 MB, 120 seconds) using Claude Sonnet 4 through the Bedrock Converse API. `AdminFn` is an Express 4 Lambda (512 MB, 30 seconds) for dashboard APIs. Separate API Gateway REST APIs serve `/api/chat/*` and `/api/admin/*`; CloudFront supplies an `x-origin-secret` header to prevent direct API Gateway access. The stack deploys a single frontend S3 bucket and CloudFront distribution for all three SPAs, a chatbot document-upload bucket, and a Bedrock Knowledge Base with S3 data source and S3 Vectors/Titan Text Embeddings v2 storage. SNS alarms cover Bedrock invocation volume, chatbot errors, and throttling.
+2. **Chatbot stack** — Reuses the BackOffice VPC, RDS Proxy, database secret, security group, WAF, and Cognito client. `ChatbotFn` is an Express 4 Lambda (1536 MB, 120 seconds) using Claude Sonnet 4.6 through the Bedrock Converse API. `AdminFn` is an Express 4 Lambda (512 MB, 30 seconds) for dashboard APIs. Separate API Gateway REST APIs serve `/api/chat/*` and `/api/admin/*`; CloudFront supplies an `x-origin-secret` header to prevent direct API Gateway access. The stack deploys a single frontend S3 bucket and CloudFront distribution for all three SPAs, a chatbot document-upload bucket, and a Bedrock Knowledge Base with S3 data source and S3 Vectors/Titan Text Embeddings v2 storage. SNS alarms cover Bedrock invocation volume, chatbot errors, and throttling.
 
 All three services (Office Ops, Chatbot, and Admin) use the same Aurora instance through RDS Proxy. The chatbot uses `@st-lucie/data-access` to persist session state in PostgreSQL; DynamoDB is not part of the current architecture.
 
@@ -89,7 +89,7 @@ tests/                    # Unit, integration, and Playwright E2E tests
 | File                                  | Purpose                                                           |
 | ------------------------------------- | ----------------------------------------------------------------- |
 | `src/conversation/process-message.ts` | Core message pipeline: scrub, prompt, Bedrock, advance, and guard |
-| `src/conversation/bedrock-client.ts`  | Bedrock Converse API client for Sonnet 4                          |
+| `src/conversation/bedrock-client.ts`  | Bedrock Converse API client for Sonnet 4.6                        |
 | `src/state-machine/states.ts`         | Conversation-state definitions and transitions                    |
 | `src/prompts/default-prompts.ts`      | State-specific system prompts                                     |
 | `src/conversation/state-tools.ts`     | State-specific tool selection and handlers                        |
@@ -119,14 +119,14 @@ which CloudFront routes to the chatbot `AdminFn`. Presentation comes from the sh
 `@st-lucie/ui` workspace package, consumed as raw `.tsx` source through a Vite alias
 and a tsconfig path.
 
-| File                               | Purpose                                                                              |
-| ---------------------------------- | ------------------------------------------------------------------------------------ |
-| `src/config-api.ts`                | Typed client for every `/ops-admin/*` route                                          |
-| `src/pages/config/`                | Config tabs: global, offices, transactions, clerks, documents, hotbuttons, prescreen |
-| `src/pages/config/use-resource.ts` | Load/mutate hook shared by every config tab                                          |
-| `src/pages/PerformancePage.tsx`    | KPI tiles and Recharts views over `/performance-metrics`                             |
-| `src/pages/OverviewPage.tsx`       | Session list, summary cards, and review toggles                                      |
-| `packages/ui/src/`                 | Civic design tokens, form primitives, table, and matrix                              |
+| File                               | Purpose                                                                                                                                                                                                                |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config-api.ts`                | Typed client for every `/ops-admin/*` route                                                                                                                                                                            |
+| `src/pages/config/`                | Config tabs (nav): global, offices, transactions, clerks, hotbuttons, documents, audit-log. The `prescreen` and `decision-trees` pages exist in this directory but are intentionally hidden from nav (engineer-owned). |
+| `src/pages/config/use-resource.ts` | Load/mutate hook shared by every config tab                                                                                                                                                                            |
+| `src/pages/PerformancePage.tsx`    | KPI tiles and Recharts views over `/performance-metrics`                                                                                                                                                               |
+| `src/pages/OverviewPage.tsx`       | Session list, summary cards, and review toggles                                                                                                                                                                        |
+| `packages/ui/src/`                 | Civic design tokens, form primitives, table, and matrix                                                                                                                                                                |
 
 Required documents are **read-only** in this SPA. They live in the chatbot's decision
 trees (`services/chatbot/src/data/decision-trees/*.json`) as `baseItems` plus branch
@@ -175,16 +175,19 @@ npm -w @st-lucie/admin-service run dev # Backend on :3100
 cd apps/admin-app && npm run dev       # Admin SPA on :5181
 ```
 
-For a first deployment, build frontends without upload, deploy both stacks, then run the post-deploy script:
+**For a from-zero deploy to a new AWS account, follow the authoritative runbook [`infra/DEPLOY.md`](infra/DEPLOY.md) end to end.** It covers the hard prerequisites a fresh account needs — us-east-1 region, a running Docker daemon (BackOffice builds container images at deploy), Bedrock model access (Sonnet 4.6 + Titan-embed-v2 in us-east-1, Haiku 4.5 in us-east-2), SES sender verification, `cdk bootstrap`, `.env` setup, and **creating the first Cognito user (self-signup is disabled, so every SPA including the citizen `/chat` is locked out without it)**. Condensed sequence:
 
 ```bash
+export CDK_DEFAULT_REGION=us-east-1 AWS_REGION=us-east-1
+cp .env.example .env                    # set SENDER_EMAIL + a real ORIGIN_SECRET
+npm install
 npm run build:frontends
-npx cdk synth
-npx cdk deploy --all
-scripts/post-deploy.sh
+npx cdk deploy --all                    # BackOffice then Chatbot (order auto-resolved)
+scripts/post-deploy.sh                  # DB schema + seed (empty DB), upload SPAs, config.json
+scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk
 ```
 
-`npm run deploy` invokes the frontend upload script first and therefore requires a previously deployed `Chatbot` stack with its frontend bucket and CloudFront distribution.
+`npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — safe for a first deploy, no pre-existing stack required. For frontend-only redeploys use `scripts/build-frontends.sh`.
 
 ## Personas & Surfaces
 
@@ -200,7 +203,7 @@ scripts/post-deploy.sh
 
 ## Tech Stack
 
-TypeScript; npm workspaces; Node.js 22; Express 5 for Office Operations and Express 4 for Chatbot/Admin; React 19; Vite 8; Tailwind CSS 4; PostgreSQL 16 for local Compose and Aurora PostgreSQL 17.4 (Serverless v2) in AWS; AWS Bedrock (Claude Sonnet 4); Bedrock Knowledge Bases with S3 Vectors and Titan Text Embeddings v2; Lambda/LWA on ARM64; Aurora; RDS Proxy; S3; API Gateway HTTP and REST APIs; SES; SQS; SNS; Cognito; CloudFront and CloudFront Functions; WAF; EventBridge; Secrets Manager; Systems Manager; CDK v2; AuthID; Docker; Vitest; and Playwright.
+TypeScript; npm workspaces; Node.js 22; Express 5 for Office Operations and Express 4 for Chatbot/Admin; React 19; Vite 8; Tailwind CSS 4; PostgreSQL 16 for local Compose and Aurora PostgreSQL 17.4 (Serverless v2) in AWS; AWS Bedrock (Claude Sonnet 4.6 for conversation, Claude Haiku 4.5 for document vision); Bedrock Knowledge Bases with S3 Vectors and Titan Text Embeddings v2; Lambda/LWA on ARM64; Aurora; RDS Proxy; S3; API Gateway HTTP and REST APIs; SES; SQS; SNS; Cognito; CloudFront and CloudFront Functions; WAF; EventBridge; Secrets Manager; Systems Manager; CDK v2; AuthID; Docker; Vitest; and Playwright.
 
 ## Design Principles
 
@@ -237,7 +240,7 @@ Use the current repository documentation rather than the removed `.agents/applic
 - `docs/st-lucie-design-doc.md` — requirements, user stories, and architecture decisions
 - `docs/database-design.md` — schema, capacity model, and access patterns
 - `docs/aws-serverless-architecture.md` — AWS architecture reference
-- `docs/scheduling-design.md` and `docs/scheduling-to-service-flow.md` — scheduling behavior and service flow
+- `docs/scheduling-design.md` — scheduling behavior and service flow
 - `docs/queue-design.md` — queue behavior
 - `tests/TESTING.md` — targeted unit, integration, and E2E commands
 - `demos/run_demo.md` — prototype instructions

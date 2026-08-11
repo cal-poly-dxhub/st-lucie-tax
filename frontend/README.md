@@ -1,32 +1,34 @@
-# React + TypeScript + Vite
+# Office Operations SPA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React (Vite) single-page app for the St. Lucie County Tax Collector **office
+operations** surfaces — served at the CloudFront root (`/`). It hosts the
+check-in desk, service-clerk dashboard, lobby display, citizen scheduling,
+walk-in registration, prescreen, and appointment-management pages
+(`src/pages/*`). Staff pages authenticate against Cognito; public pages
+(scheduling, queue status, confirmation) do not.
 
-Currently, two official plugins are available:
+## Develop
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm run dev      # Vite dev server on :5173, proxies /api to the office-ops backend on :3000
+npm run build    # tsc -b && vite build → dist/ (packaged by the Chatbot CDK stack)
+npm run lint     # oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Run the office-ops backend alongside it (`npm -w @st-lucie/office-ops run dev`
+from the repo root). See the root `README.md` for the full local-dev flow.
+
+## Runtime configuration
+
+This app is **runtime-config-driven**, not build-time-baked. At load it fetches
+`/config.json` (Cognito pool/client ids + API base paths) rather than reading
+`VITE_*` values — so the same built bundle works across environments. `config.json`
+is written by CDK (`RuntimeConfig`) and `scripts/post-deploy.sh`. The shared UI
+package `@st-lucie/ui` is consumed as raw `.tsx` source via a Vite alias +
+tsconfig path (`vite.config.ts`), so changes there hot-reload without a rebuild.
+
+## Deploy
+
+Frontends deploy as part of the Chatbot CDK stack (CDK packages the `dist/`
+directories). For a from-zero deploy follow the root [`infra/DEPLOY.md`](../infra/DEPLOY.md);
+for a frontend-only push use `scripts/build-frontends.sh`.
