@@ -1,0 +1,19 @@
+# gitleaks configuration for st-lucie-tax.
+# Uses the built-in ruleset, plus a narrow allowlist for known false positives
+# so `gitleaks detect` / `gitleaks dir` come back clean on the published tree.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives"
+# Domain fact key (Heavy Vehicle Use Tax trigger). The "55k_gvw" token trips the
+# generic-api-key entropy rule but is not a secret.
+regexTarget = "match"
+regexes = [
+  '''is_heavy_truck_55k_gvw''',
+]
+# Build artifacts and local env files are gitignored and never published.
+paths = [
+  '''cdk\.out/.*''',
+  '''\.env(\..*)?$''',
+]

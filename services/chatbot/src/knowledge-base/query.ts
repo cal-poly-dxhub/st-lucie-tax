@@ -41,12 +41,29 @@ function getClient(): BedrockAgentRuntimeClient {
 
 const KB_ID = process.env.BEDROCK_KB_ID || "";
 const REGION = process.env.AWS_REGION || "us-east-1";
-const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || "111122223333";
-// Model ARN for RetrieveAndGenerate — needs inference profile ARN for cross-region models
-const rawModelId = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-6";
-const MODEL_ARN = rawModelId.startsWith("us.")
-  ? `arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:inference-profile/${rawModelId}`
-  : `arn:aws:bedrock:${REGION}::foundation-model/${rawModelId}`;
+
+/**
+ * Build the model ARN for RetrieveAndGenerate. Cross-region ("us.*") models
+ * need an inference-profile ARN, which requires the account ID. That ID is
+ * injected by CDK at deploy time (chatbot-stack.ts sets
+ * `AWS_ACCOUNT_ID: this.account`); we resolve it lazily and fail loudly if it
+ * is missing rather than shipping a literal account as a fallback. Resolving
+ * here (not at module load) keeps the other exports of this file importable in
+ * tests/tooling that don't hit Bedrock.
+ */
+function resolveModelArn(): string {
+  const rawModelId = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-6";
+  if (!rawModelId.startsWith("us.")) {
+    return `arn:aws:bedrock:${REGION}::foundation-model/${rawModelId}`;
+  }
+  const accountId = process.env.AWS_ACCOUNT_ID;
+  if (!accountId) {
+    throw new Error(
+      "AWS_ACCOUNT_ID is required (injected by CDK) to build the Bedrock inference-profile ARN",
+    );
+  }
+  return `arn:aws:bedrock:${REGION}:${accountId}:inference-profile/${rawModelId}`;
+}
 
 export interface KBSource {
   title: string;
@@ -89,7 +106,7 @@ export async function queryKnowledgeBase(query: string): Promise<KBQueryResult> 
           type: "KNOWLEDGE_BASE",
           knowledgeBaseConfiguration: {
             knowledgeBaseId: KB_ID,
-            modelArn: MODEL_ARN,
+            modelArn: resolveModelArn(),
             retrievalConfiguration: {
               vectorSearchConfiguration: {
                 numberOfResults: 5,

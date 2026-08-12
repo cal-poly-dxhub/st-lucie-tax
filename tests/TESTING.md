@@ -24,11 +24,15 @@ Start the local PostgreSQL database first:
 docker compose up -d db
 ```
 
-The integration global setup resets the DB by running `db/reset.sh`, which uses
-the **`finch`** container runtime (not `docker`) and psql's in as user/db
-`stlucie`/`stlucie` (it ignores the `.env` values). If you use Docker rather than
-finch, either install finch or change the `finch exec` calls in `db/reset.sh` to
-`docker exec`.
+The integration global setup resets the DB by running `db/reset.sh`, which
+`exec`s into the running Postgres container and psql's in as user/db
+`stlucie`/`stlucie` (it ignores the `.env` values). The container runtime
+defaults to **`docker`** (matching `compose.yml`); set `CONTAINER_CLI=finch`
+(or `nerdctl`/`podman`) to use a different one:
+
+```bash
+CONTAINER_CLI=finch npm test
+```
 
 Run Office Operations integration tests:
 

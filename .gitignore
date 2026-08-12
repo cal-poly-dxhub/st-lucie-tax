@@ -29,7 +29,12 @@ Thumbs.db
 
 # Test & coverage
 coverage/
-tests/screenshots
+# Screenshot artifacts at any depth (root tests/ and per-app tests/, e.g.
+# apps/chatbot-app/tests/screenshots) — these are generated, never committed.
+**/tests/screenshots/
+**/screenshots/e2e/
+# Local livetest / debug probe scripts (dev-only, not part of the suite)
+scripts/livetest/
 
 # Logs
 *.log

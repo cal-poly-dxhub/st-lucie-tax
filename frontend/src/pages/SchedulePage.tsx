@@ -4,9 +4,18 @@ import { api, type ConfigResponse, type ScheduleAppointment } from "@/lib/api";
 import { Button, Card, useToast } from "@st-lucie/ui";
 
 const TXN_COLORS = [
-  "#22c55e", "#c2410c", "#16a34a", "#7c3aed", "#a855f7",
-  "#0891b2", "#dc2626", "#e11d48", "#0284c7", "#d97706",
-  "#2563eb", "#db2777",
+  "#22c55e",
+  "#c2410c",
+  "#16a34a",
+  "#7c3aed",
+  "#a855f7",
+  "#0891b2",
+  "#dc2626",
+  "#e11d48",
+  "#0284c7",
+  "#d97706",
+  "#2563eb",
+  "#db2777",
 ];
 
 function timeToMin(t: string) {
@@ -33,7 +42,20 @@ function getMondayOfWeek(d: Date) {
 }
 function formatDate(d: Date) {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
 }
 
@@ -48,12 +70,18 @@ export function SchedulePage() {
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [officeId, setOfficeId] = useState(1);
   const [weekStart, setWeekStart] = useState<Date | null>(null);
-  const [appointments, setAppointments] = useState<(ScheduleAppointment & { startMin: number; durationMin: number })[]>([]);
+  const [appointments, setAppointments] = useState<
+    (ScheduleAppointment & { startMin: number; durationMin: number })[]
+  >([]);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
   const [dropIndicator, setDropIndicator] = useState<{ date: string; pct: number } | null>(null);
-  const [tooltip, setTooltip] = useState<{ appt: typeof appointments[0]; x: number; y: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    appt: (typeof appointments)[0];
+    x: number;
+    y: number;
+  } | null>(null);
   const trackRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const openMin = (() => {
@@ -127,12 +155,12 @@ export function SchedulePage() {
     return { assignments, laneCount: Math.max(laneEnds.length, 1) };
   }
 
-  function handleHover(appt: typeof appointments[0], e: React.MouseEvent) {
+  function handleHover(appt: (typeof appointments)[0], e: React.MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setTooltip({ appt, x: rect.left + rect.width / 2, y: rect.top - 4 });
   }
 
-  function handleDragStart(appt: typeof appointments[0], e: React.MouseEvent) {
+  function handleDragStart(appt: (typeof appointments)[0], e: React.MouseEvent) {
     setTooltip(null);
     e.preventDefault();
     const initial: DragState = { appt, targetDate: null, targetMin: null };
@@ -142,7 +170,9 @@ export function SchedulePage() {
 
     const onMove = (me: MouseEvent) => {
       setGhostPos({ x: me.clientX + 12, y: me.clientY - 12 });
-      const el = document.elementFromPoint(me.clientX, me.clientY)?.closest("[data-track-date]") as HTMLElement | null;
+      const el = document
+        .elementFromPoint(me.clientX, me.clientY)
+        ?.closest("[data-track-date]") as HTMLElement | null;
       if (el) {
         const rect = el.getBoundingClientRect();
         const xPct = (me.clientX - rect.left) / rect.width;
@@ -150,7 +180,9 @@ export function SchedulePage() {
         const snapped = Math.round(minute / 5) * 5;
         setDropIndicator({ date: el.dataset.trackDate!, pct: pct(snapped) });
         setDragState((prev) => {
-          const next = prev ? { ...prev, targetDate: el.dataset.trackDate!, targetMin: snapped } : null;
+          const next = prev
+            ? { ...prev, targetDate: el.dataset.trackDate!, targetMin: snapped }
+            : null;
           dragStateRef.current = next;
           return next;
         });
@@ -225,17 +257,27 @@ export function SchedulePage() {
               className="rounded-lg border border-civic-200 bg-white px-3 py-1.5 text-sm"
             >
               {config.offices.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
               ))}
             </select>
             <div className="flex items-center gap-2">
-              <Button variant="outline" className="px-2 py-1" onClick={() => setWeekStart(addDays(weekStart, -7))}>
+              <Button
+                variant="outline"
+                className="px-2 py-1"
+                onClick={() => setWeekStart(addDays(weekStart, -7))}
+              >
                 <ChevronLeft size={16} />
               </Button>
               <span className="min-w-[180px] text-center text-sm font-bold text-civic-700">
                 {formatDate(weekStart)} — {formatDate(endDate)}
               </span>
-              <Button variant="outline" className="px-2 py-1" onClick={() => setWeekStart(addDays(weekStart, 7))}>
+              <Button
+                variant="outline"
+                className="px-2 py-1"
+                onClick={() => setWeekStart(addDays(weekStart, 7))}
+              >
                 <ChevronRight size={16} />
               </Button>
             </div>
@@ -255,11 +297,14 @@ export function SchedulePage() {
         <div className="mt-3 flex flex-wrap gap-3">
           {config.txnTypes
             .filter((t) => t.status === "active")
-            .map((t, i) => (
+            .map((t) => (
               <div key={t.id} className="flex items-center gap-1.5 text-xs text-civic-600">
                 <span
                   className="inline-block size-3 rounded-sm"
-                  style={{ background: TXN_COLORS[i % TXN_COLORS.length] }}
+                  // Color by the same key the calendar blocks use (txnColor keys
+                  // off the full txnTypes list) so the legend can't desync when
+                  // an inactive type precedes an active one.
+                  style={{ background: txnColor(t.id) }}
                 />
                 {t.name} ({t.duration}m)
               </div>
@@ -306,7 +351,9 @@ export function SchedulePage() {
 
                 {/* Track */}
                 <div
-                  ref={(el) => { if (el) trackRefs.current.set(dateStr, el); }}
+                  ref={(el) => {
+                    if (el) trackRefs.current.set(dateStr, el);
+                  }}
                   data-track-date={dateStr}
                   className="relative rounded border border-civic-100 bg-civic-50/30"
                   style={{ height: trackH }}
@@ -325,7 +372,10 @@ export function SchedulePage() {
                     <div
                       key={i}
                       className="absolute top-0 bottom-0 border-l border-r border-dashed border-civic-200 bg-civic-100/30"
-                      style={{ left: `${pct(ls.start)}%`, width: `${pctWidth(ls.end - ls.start)}%` }}
+                      style={{
+                        left: `${pct(ls.start)}%`,
+                        width: `${pctWidth(ls.end - ls.start)}%`,
+                      }}
                     >
                       <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] uppercase text-civic-400">
                         lunch
@@ -375,7 +425,11 @@ export function SchedulePage() {
                               <div
                                 key={tid}
                                 className="absolute top-0 h-full"
-                                style={{ left: `${segLeft}%`, width: `${segPct}%`, background: txnColor(tid) }}
+                                style={{
+                                  left: `${segLeft}%`,
+                                  width: `${segPct}%`,
+                                  background: txnColor(tid),
+                                }}
                               />
                             );
                           })}
@@ -422,14 +476,19 @@ export function SchedulePage() {
             {tooltip.appt.first_name} {tooltip.appt.last_name}
           </p>
           <p className="text-xs text-civic-500">
-            {minToTime(tooltip.appt.startMin)} – {minToTime(tooltip.appt.startMin + tooltip.appt.durationMin)} ({tooltip.appt.durationMin} min)
+            {minToTime(tooltip.appt.startMin)} –{" "}
+            {minToTime(tooltip.appt.startMin + tooltip.appt.durationMin)} (
+            {tooltip.appt.durationMin} min)
           </p>
           <ul className="mt-1 space-y-0.5">
             {tooltip.appt.txn_type_ids.map((tid) => {
               const txn = config?.txnTypes.find((t) => t.id === tid);
               return (
                 <li key={tid} className="flex items-center gap-1.5 text-xs text-civic-700">
-                  <span className="inline-block size-2 rounded-full" style={{ background: txnColor(tid) }} />
+                  <span
+                    className="inline-block size-2 rounded-full"
+                    style={{ background: txnColor(tid) }}
+                  />
                   {txn?.name ?? `Transaction #${tid}`}
                 </li>
               );
@@ -445,9 +504,10 @@ export function SchedulePage() {
           style={{
             left: ghostPos.x,
             top: ghostPos.y,
-            background: dragState.appt.txn_type_ids.length > 1
-              ? `linear-gradient(135deg, ${dragState.appt.txn_type_ids.map((id) => txnColor(id)).join(", ")})`
-              : txnColor(dragState.appt.txn_type_ids[0]),
+            background:
+              dragState.appt.txn_type_ids.length > 1
+                ? `linear-gradient(135deg, ${dragState.appt.txn_type_ids.map((id) => txnColor(id)).join(", ")})`
+                : txnColor(dragState.appt.txn_type_ids[0]),
           }}
         >
           {dragState.appt.first_name} {dragState.appt.last_name.charAt(0)}.

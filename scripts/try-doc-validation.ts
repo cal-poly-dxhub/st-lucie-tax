@@ -8,9 +8,9 @@
  * dates, all WITHOUT deploying.
  *
  * Usage:
- *   export AWS_PROFILE=AdministratorAccess-111122223333
+ *   export AWS_PROFILE=AdministratorAccess-<ACCOUNT_ID>
  *   export DOC_BUCKET_NAME=$(aws ssm get-parameter --name /stlucie/doc-bucket-name \
- *     --query Parameter.Value --output text --profile AdministratorAccess-111122223333)
+ *     --query Parameter.Value --output text --profile AdministratorAccess-<ACCOUNT_ID>)
  *   npx tsx scripts/try-doc-validation.ts ./real-license.jpg  fl-insurance-proof
  *   npx tsx scripts/try-doc-validation.ts ./registration.pdf  oos-registration
  *   npx tsx scripts/try-doc-validation.ts ./iphone-photo.heic address-proof-1
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
     console.error(
       "Set DOC_BUCKET_NAME first, e.g.\n" +
         "  export DOC_BUCKET_NAME=$(aws ssm get-parameter --name /stlucie/doc-bucket-name " +
-        "--query Parameter.Value --output text --profile AdministratorAccess-111122223333)",
+        "--query Parameter.Value --output text --profile AdministratorAccess-<ACCOUNT_ID>)",
     );
     process.exit(2);
   }

@@ -586,7 +586,7 @@
         <h3>Send Confirmation Email</h3>
         <p>
           Creates Jane's appointment in DB with the configured status and sends confirmation email
-          to njriley@calpoly.edu
+          to demo@example.com
         </p>
         <button class="btn btn-primary" onclick="sendConfirmation()">
           Send Confirmation Email
@@ -1279,7 +1279,7 @@
               "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" +
               encodeURIComponent(data.confirmationCode);
             document.getElementById("cfg-qr-code-text").textContent = data.confirmationCode;
-            showToast("Confirmation email sent! Check njriley@calpoly.edu");
+            showToast("Confirmation email sent! Check demo@example.com");
           } else {
             showToast("Error: " + data.error, true);
           }
@@ -1293,7 +1293,7 @@
           const res = await fetch("/api/send-prescreen", { method: "POST" });
           const data = await res.json();
           if (data.ok) {
-            showToast("Pre-screen link sent! Check njriley@calpoly.edu");
+            showToast("Pre-screen link sent! Check demo@example.com");
           } else {
             showToast("Error: " + data.error, true);
           }

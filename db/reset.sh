@@ -10,36 +10,39 @@ set -e
 CONTAINER="st-lucie-tax-db-1"
 DB_USER="stlucie"
 DB_NAME="stlucie"
+# Container runtime: defaults to docker (see README/compose.yml); set
+# CONTAINER_CLI=finch (or nerdctl/podman) to use a different one.
+CLI="${CONTAINER_CLI:-docker}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Dropping and recreating public schema..."
-finch exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+"$CLI" exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
 
 echo "Loading schema..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/schema.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/schema.sql"
 
 echo "Loading seed data..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed.sql"
 
 echo "Loading document registry..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-docs.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-docs.sql"
 
 echo "Loading sample appointments..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-appointments.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-appointments.sql"
 
 echo "Loading sample flows..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-flows.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-flows.sql"
 
 echo "Loading history..."
-finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-history.sql"
+"$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/seed-history.sql"
 
 if [ -f "$SCRIPT_DIR/find-appt.sql" ]; then
   echo "Loading scheduling functions (find-appt.sql)..."
-  finch exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/find-appt.sql"
+  "$CLI" exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$SCRIPT_DIR/find-appt.sql"
 fi
 
 echo "Done. Verifying row counts..."
-finch exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "
+"$CLI" exec "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -c "
 SELECT 'offices' AS tbl, COUNT(*) FROM offices
 UNION ALL SELECT 'office_hours', COUNT(*) FROM office_hours
 UNION ALL SELECT 'office_lunch_shifts', COUNT(*) FROM office_lunch_shifts
