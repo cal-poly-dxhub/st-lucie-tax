@@ -4,11 +4,11 @@ cd st-lucie-tax/
 
 ### Create Container
 
-finch compose up -d
+docker compose up -d
 
 ### Start Container
 
-finch start st-lucie-tax-db-1
+docker start st-lucie-tax-db-1
 
 ### Run Server
 

@@ -157,6 +157,21 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * Read a response body as JSON, tolerating empty bodies (e.g. 204 No Content)
+ * and non-JSON error payloads instead of throwing "Unexpected end of JSON
+ * input" — which would otherwise surface as a misleading toast.
+ */
+async function parseBody(res: Response): Promise<{ error?: string } | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 async function post<T>(url: string, body: unknown): Promise<T> {
   const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
   const res = await fetch(`${API_BASE}${url}`, {
@@ -164,7 +179,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
     headers,
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data = await parseBody(res);
   if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
   return data as T;
 }
@@ -172,7 +187,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 async function get<T>(url: string): Promise<T> {
   const headers = await authHeaders();
   const res = await fetch(`${API_BASE}${url}`, { headers });
-  const data = await res.json();
+  const data = await parseBody(res);
   if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
   return data as T;
 }

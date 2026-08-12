@@ -168,7 +168,7 @@ app.post("/api/schedule/reschedule", async (req, res) => {
 
 const ses = new SESv2Client({ region: "us-west-2" });
 
-const EMAIL = "njriley@calpoly.edu";
+const EMAIL = "demo@example.com";
 const BASE_URL = "http://localhost:3000";
 
 async function sendEmail(input: {

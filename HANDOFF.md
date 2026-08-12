@@ -20,8 +20,8 @@ production, and tasks intentionally left for you.
 
 **Environment:** UAT only.
 
-**AWS:** account `522814693903`, region `us-east-1`. SSO via the
-`AdministratorAccess-522814693903` profile.
+**AWS:** account `<ACCOUNT_ID>`, region `us-east-1`. SSO via an
+`AdministratorAccess-<ACCOUNT_ID>` profile (set `AWS_PROFILE` accordingly).
 
 **Architecture:** two CDK stacks (`infra/bin/app.ts`):
 
@@ -172,8 +172,8 @@ deploy from your own credentials.
 ## 6. Things you'll find in the repo that are NOT production code
 
 - Design/iteration context lives in `docs/` (design docs, `database-design.md`,
-  `aws-serverless-architecture.md`) and `docs/superpowers/plans/` (prior-iteration
-  plans). These explain _how_ the system evolved; the code is the authority.
+  `aws-serverless-architecture.md`). These explain _how_ the system evolved; the
+  code is the authority.
 - `services/chatbot/src/handlers/express-app.handler.ts` is the Lambda
   entrypoint. Every other `*.handler.ts` was deleted in the cleanup pass —
   routes live inline in `local-server-app.ts`.
@@ -200,10 +200,10 @@ deploy from your own credentials.
 
 ## 8. Who built what
 
-This prototype was built by Mason Lewis under the Cal Poly DxHub umbrella
-(`mlewis77@calpoly.edu`). All design decisions are the developer's; the design
-docs under `docs/` reflect the original intent but the system has diverged from
-them substantially — the code and `git log` are the authority.
+This prototype was built under the Cal Poly DxHub umbrella. All design decisions
+are the developer's; the design docs under `docs/` reflect the original intent
+but the system has diverged from them substantially — the code and `git log` are
+the authority.
 
 For questions about specific design choices, the commit history under
 `git log` is the most accurate authority — commits are individually

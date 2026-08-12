@@ -1,6 +1,7 @@
 {
   "type": "module",
   "private": true,
+  "license": "MIT",
   "workspaces": [
     "packages/*",
     "services/*",
@@ -15,11 +16,14 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "build:packages": "npm run build --workspace=packages/shared-types && npm run build --workspace=packages/data-access",
+    "postinstall": "npm run build:packages",
     "prepare": "husky",
     "cdk": "cdk",
     "synth": "cdk synth",
     "build:frontends": "./scripts/build-frontends.sh --no-upload",
     "deploy:frontends": "./scripts/build-frontends.sh",
+    "prebuild:frontends": "npm run build:packages",
     "predeploy": "npm run build:frontends",
     "deploy": "cdk deploy --all"
   },
@@ -52,6 +56,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.10.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
     "playwright": "^1.61.1",

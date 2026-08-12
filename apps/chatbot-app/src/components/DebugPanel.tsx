@@ -172,8 +172,7 @@ export function DebugPanel({ session, onNotesChange }: Props) {
           </button>
         </div>
         <div className="debug-feedback-contact">
-          Contact Mason directly at <a href="mailto:mlewis77@calpoly.edu">mlewis77@calpoly.edu</a>{" "}
-          for questions and concerns.
+          For questions or concerns about this prototype, please contact the project maintainers.
         </div>
       </section>
 

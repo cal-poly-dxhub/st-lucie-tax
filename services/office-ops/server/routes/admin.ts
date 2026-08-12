@@ -344,6 +344,12 @@ router.put("/transaction-types/:id", async (req, res) => {
       isOnlineEligible,
       onlineRedirectUrl,
     } = req.body;
+    // This is a partial update: fields absent from the body must be left
+    // untouched, while fields present as null/"" must be cleared. Distinguish
+    // the two by key presence (COALESCE alone can't — it would make clearing
+    // impossible), and normalize "" to null for the nullable columns.
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(req.body ?? {}, k);
+    const nullIfEmpty = (v: unknown) => (v === "" || v === undefined ? null : v);
     const { rows: beforeRows } = await pool.query(
       `SELECT id, txn_type_id, office_id, name, description, avg_duration_min,
               status, available_from::text, available_until::text,
@@ -361,10 +367,10 @@ router.put("/transaction-types/:id", async (req, res) => {
        description = COALESCE($3, description),
        avg_duration_min = COALESCE($4, avg_duration_min),
        status = COALESCE($5, status),
-       available_from = $6,
-       available_until = $7,
-       is_online_eligible = COALESCE($8, is_online_eligible),
-       online_redirect_url = $9
+       available_from = CASE WHEN $6::boolean THEN $7::time ELSE available_from END,
+       available_until = CASE WHEN $8::boolean THEN $9::time ELSE available_until END,
+       is_online_eligible = COALESCE($10, is_online_eligible),
+       online_redirect_url = CASE WHEN $11::boolean THEN $12 ELSE online_redirect_url END
        WHERE id = $1
        RETURNING id, txn_type_id, office_id, name, description, avg_duration_min,
                  status, available_from::text, available_until::text,
@@ -375,10 +381,13 @@ router.put("/transaction-types/:id", async (req, res) => {
         description,
         avgDurationMin || null,
         status || null,
-        availableFrom || null,
-        availableUntil || null,
+        has("availableFrom"),
+        nullIfEmpty(availableFrom),
+        has("availableUntil"),
+        nullIfEmpty(availableUntil),
         isOnlineEligible,
-        onlineRedirectUrl || null,
+        has("onlineRedirectUrl"),
+        nullIfEmpty(onlineRedirectUrl),
       ],
     );
     await logAuditEvent(req, {

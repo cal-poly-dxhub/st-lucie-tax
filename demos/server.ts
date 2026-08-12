@@ -652,7 +652,7 @@ app.get("/api/queue/txn-types", async (_req, res) => {
 
 // ─── Prototype (end-to-end workflow) ─────────────────────────────────────────
 const ses = new SESv2Client({ region: "us-west-2" });
-const PROTO_EMAIL = "njriley@calpoly.edu";
+const PROTO_EMAIL = "demo@example.com";
 
 app.get("/prototype", (_req, res) => {
   res.sendFile(path.resolve(__dirname, "prototype.html"));
