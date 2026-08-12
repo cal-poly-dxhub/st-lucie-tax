@@ -126,3 +126,62 @@ function parseIntOr(v: unknown, fallback: number | undefined): number | undefine
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : fallback;
 }
+
+// --- Terminal handlers (must stay LAST, after every route registered above) ---
+//
+// Not deletable boilerplate. A request that matches no route above — or that
+// throws outside a route's own try/catch — otherwise reaches Express's built-in
+// finalhandler, whose send() calls on-finished(req, …) → ee-first, which does
+// `socket.on("error", …)` on req.socket. Under @codegenie/serverless-express the
+// request is an http.IncomingMessage built over a PLAIN OBJECT stand-in for the
+// socket, so that call throws `TypeError: ee.on is not a function` and the
+// handler never produces the intended 404/500 JSON. The status the client ends
+// up with depends on where the throw surfaces; for this service the deployed
+// observation was a 500 HTML page containing that TypeError (GET
+// /api/admin/health, which the prefix rewrite above turns into /health, a path
+// no route claims). The chatbot service's identical crash was measured as an
+// opaque 502 through CloudFront/API Gateway, so don't rely on a specific code.
+// A real Node socket IS an EventEmitter, so `npm run dev` never reproduces it.
+// Answering here with res.status().json() keeps finalhandler unreachable.
+
+// Unmatched path. OPTIONS gets a 204 rather than a 404 because this middleware
+// runs ahead of Express's automatic OPTIONS/Allow reply and would otherwise
+// swallow it — the 204 carries the Access-Control-* headers set above.
+// Scope: UNMATCHED paths only. An OPTIONS to a guarded /admin/* path is
+// answered earlier by requireAdmin() (line ~61), which — unlike the chatbot
+// service's auth middleware — has no OPTIONS pass-through, so it 401s a
+// preflight. Not a live problem: post-deploy config.json gives the admin SPA a
+// RELATIVE adminApiUrl ("/api/admin") served by the same CloudFront
+// distribution as the SPA, and `npm run dev` goes through the Vite proxy, so
+// the browser treats admin API calls as same-origin and issues no preflight.
+app.use((req, res) => {
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  res.status(404).json({ error: "Not found" });
+});
+
+// Four parameters = Express error handler. The arity is load-bearing (three
+// would register an ordinary middleware), so `_req` stays even though unused.
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("[admin] unhandled request error:", err);
+    if (res.headersSent) {
+      // Already streaming a response; only Express can abort it now. Safe to
+      // delegate: finalhandler's headers-sent branch just calls
+      // req.socket.destroy(), which the mock socket does implement.
+      next(err);
+      return;
+    }
+    // Client faults arrive pre-tagged (express.json() marks a malformed body
+    // 400) — keep that status, collapse everything else to 500. The error text
+    // and stack stay in the log above; the response body says nothing specific.
+    const tagged = err as { status?: number; statusCode?: number };
+    const status = tagged.status ?? tagged.statusCode ?? 500;
+    const clientFault = status >= 400 && status < 500;
+    res
+      .status(clientFault ? status : 500)
+      .json({ error: clientFault ? "Bad request" : "Internal server error" });
+  },
+);

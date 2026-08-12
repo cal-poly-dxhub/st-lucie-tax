@@ -103,19 +103,19 @@ The system deploys as two CDK stacks sharing a single Aurora PostgreSQL database
 
 ## Environment Variables
 
-| Variable                                                                                  | When needed               | Description                                                                                                                                                                                                                           |
-| ----------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`                                       | Local Compose (optional)  | Database container settings; defaults are `stlucie`, `stlucie`, and `localdev`.                                                                                                                                                       |
-| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`                                  | Service database override | PostgreSQL connection settings. Local service defaults target `127.0.0.1:5432`, database/user `stlucie`, and password `localdev`.                                                                                                     |
-| `SENDER_EMAIL`                                                                            | CDK synthesis/deployment  | Verified SES sender identity; required by the BackOffice stack.                                                                                                                                                                       |
-| `ORIGIN_SECRET`                                                                           | CDK synthesis/deployment  | Required CloudFront-to-chatbot/admin origin header value. Use a strong secret.                                                                                                                                                        |
-| `BASE_URL`                                                                                | Deployment (optional)     | Public base URL for customer email links. **No default** — leave blank on first deploy; set it to the Chatbot `FrontendUrl` output (or a custom domain) and redeploy BackOffice before real email goes out. See `infra/DEPLOY.md` §7. |
-| `DOCUMENTS_BUCKET_NAME`                                                                   | Deployment (optional)     | Leave blank — the Chatbot stack imports the live BackOffice DocumentsBucket automatically. Set only to pin a pre-existing bucket.                                                                                                     |
-| `BEDROCK_VISION_MODEL_ID`, `BEDROCK_VISION_REGION`                                        | Deployment (optional)     | Document-screening vision model and its region (default `us-east-2`). Model access must be enabled in that region.                                                                                                                    |
-| `AUTHID_BASE_URL`, `AUTHID_API_KEY_ID`, `AUTHID_API_KEY_VALUE`, `AUTHID_DL_DOC_TYPE_CODE` | AuthID integration        | Optional biometric-verification configuration for the chatbot.                                                                                                                                                                        |
-| `CUSTOM_DOMAIN_NAME`, `CUSTOM_DOMAIN_CERTIFICATE_ARN`                                     | Deployment (optional)     | Custom domain: set **both or neither**. The ACM certificate must be in us-east-1. Omit to serve on the CloudFront default domain.                                                                                                     |
-| `ALARM_EMAIL`                                                                             | Deployment (optional)     | Email recipient for the Chatbot stack’s SNS alarms.                                                                                                                                                                                   |
-| `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`                                               | CDK deployment            | Target AWS environment. **`CDK_DEFAULT_REGION` must be `us-east-1`** (CloudFront WAF + ACM); synth throws otherwise.                                                                                                                  |
+| Variable                                                                                  | When needed               | Description                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`                                       | Local Compose (optional)  | Database container settings; defaults are `stlucie`, `stlucie`, and `localdev`.                                                                                                                                                                                     |
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`                                  | Service database override | PostgreSQL connection settings. Local service defaults target `127.0.0.1:5432`, database/user `stlucie`, and password `localdev`.                                                                                                                                   |
+| `SENDER_EMAIL`                                                                            | CDK synthesis/deployment  | Verified SES sender identity; required by the BackOffice stack.                                                                                                                                                                                                     |
+| `ORIGIN_SECRET`                                                                           | CDK synthesis/deployment  | Required CloudFront-to-chatbot/admin origin header value. Use a strong secret.                                                                                                                                                                                      |
+| `BASE_URL`                                                                                | Deployment (optional)     | Public base URL for customer email links. **No default** — leave blank on first deploy; set it to the Chatbot `FrontendUrl` output (or a custom domain) and redeploy **both** stacks (`npx cdk deploy --all`) before real email goes out. See `infra/DEPLOY.md` §7. |
+| `DOCUMENTS_BUCKET_NAME`                                                                   | Deployment (optional)     | Leave blank — the Chatbot stack imports the live BackOffice DocumentsBucket automatically. Set only to pin a pre-existing bucket.                                                                                                                                   |
+| `BEDROCK_VISION_MODEL_ID`, `BEDROCK_VISION_REGION`                                        | Deployment (optional)     | Document-screening vision model and its region (default `us-east-2`). Model access must be enabled in that region.                                                                                                                                                  |
+| `AUTHID_BASE_URL`, `AUTHID_API_KEY_ID`, `AUTHID_API_KEY_VALUE`, `AUTHID_DL_DOC_TYPE_CODE` | AuthID integration        | Optional biometric-verification configuration for the chatbot.                                                                                                                                                                                                      |
+| `CUSTOM_DOMAIN_NAME`, `CUSTOM_DOMAIN_CERTIFICATE_ARN`                                     | Deployment (optional)     | Custom domain: set **both or neither**. The ACM certificate must be in us-east-1. Omit to serve on the CloudFront default domain.                                                                                                                                   |
+| `ALARM_EMAIL`                                                                             | Deployment (optional)     | Email recipient for the Chatbot stack’s SNS alarms.                                                                                                                                                                                                                 |
+| `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`                                               | CDK deployment            | Target AWS environment. **`CDK_DEFAULT_REGION` must be `us-east-1`** (CloudFront WAF + ACM); synth throws otherwise.                                                                                                                                                |
 
 The CDK app loads the root `.env` file. Do not commit environment files containing credentials or origin secrets.
 
@@ -144,14 +144,22 @@ See [`tests/TESTING.md`](tests/TESTING.md) for targeted unit, integration, and P
 
 ## Deployment
 
-**For a from-zero deploy to a new AWS account, follow the authoritative runbook [`infra/DEPLOY.md`](infra/DEPLOY.md) end to end** — it covers every prerequisite (us-east-1, Docker at deploy, Bedrock model access, SES, `cdk bootstrap`) and post-deploy step (DB seed, Cognito user, KB ingestion, smoke test). The summary below assumes those prerequisites are already met.
+**For a from-zero deploy to a new AWS account, follow the authoritative runbook [`infra/DEPLOY.md`](infra/DEPLOY.md) end to end** — it covers every prerequisite (us-east-1, Docker at deploy, Bedrock model access, SES, the RDS service-linked role, `cdk bootstrap`) and post-deploy step (DB seed, Cognito user, KB ingestion, smoke test). The summary below assumes those prerequisites are already met.
 
 Run from the repository root:
 
 ```bash
-# One-time / per-shell: fresh account must be bootstrapped; region MUST be us-east-1
-export CDK_DEFAULT_REGION=us-east-1 AWS_REGION=us-east-1
-npx cdk bootstrap                       # only needed once per account/region
+# One-time / per-shell: pin the profile AND the region — the scripts/ calls below are plain
+# `aws` CLI wrappers that pass no --region of their own; region MUST be us-east-1
+export AWS_PROFILE=<your-profile>       # omit only if the default profile IS the target account
+export CDK_DEFAULT_REGION=us-east-1 AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
+
+# Prove the account: a wrong region fails loudly at synth, a wrong account does not
+aws sts get-caller-identity             # note the Account id for the bootstrap below
+
+# Fresh account only: RDS Proxy needs AWSServiceRoleForRDS, or BackOffice rolls back entirely
+aws iam get-role --role-name AWSServiceRoleForRDS \
+  || aws iam create-service-linked-role --aws-service-name rds.amazonaws.com
 
 # Configure: copy the template, then set SENDER_EMAIL + a real ORIGIN_SECRET
 cp .env.example .env                    # edit SENDER_EMAIL, ORIGIN_SECRET (openssl rand -base64 32)
@@ -160,22 +168,30 @@ cp .env.example .env                    # edit SENDER_EMAIL, ORIGIN_SECRET (open
 npm install
 npm run build:frontends
 
+# Bootstrap AFTER the build: `cdk bootstrap` synthesizes the app, so from a fresh clone with no
+# frontend dist/ it dies on the synth-time guard and nothing gets bootstrapped
+npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1   # ACCOUNT_ID from get-caller-identity; once per account/region
+
 # Validate and deploy the two CDK stacks (BackOffice then Chatbot; order auto-resolved)
 npx cdk synth
-npx cdk deploy --all
+npx cdk deploy --all --require-approval never   # both stacks create IAM roles; prompts hang CI
 
 # Initialize the DB (schema + seed on an empty DB), upload SPAs + runtime config, invalidate CloudFront
 scripts/post-deploy.sh
 
 # Create the first staff/admin user — REQUIRED: Cognito self-signup is disabled, so without
-# this EVERY SPA (including the citizen /chat) is locked out.
+# this EVERY SPA (including the citizen /chat) is locked out. The script echoes the groups it
+# attached and exits non-zero if any failed; a user in zero groups gets 403 from every API.
 scripts/create-user.sh you@example.com 'a-strong-password' admin,checkin_clerk,service_clerk
 ```
 
-`npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — equivalent to the manual `build:frontends` + `cdk deploy --all` above and safe for a first deploy. For frontend-only redeploys (build + upload + CloudFront invalidation against the live bucket) use `scripts/build-frontends.sh` (or `npm run deploy:frontends`).
+`npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — the same two steps as above and safe for a first deploy, with one difference: the script passes no `--require-approval never`, so it stops at the IAM approval prompt. Use it interactively; for a non-interactive or scripted run use `npx cdk deploy --all --require-approval never` directly. For frontend-only redeploys (build + upload + CloudFront invalidation against the live bucket) use `scripts/build-frontends.sh` (or `npm run deploy:frontends`).
+
+Customer email links take a second pass: set `BASE_URL` in `.env` to the Chatbot `FrontendUrl` output, then rerun `npx cdk deploy --all`. **Both** stacks read `BASE_URL` (the BackOffice functions and `ChatbotFn`), so redeploying BackOffice alone leaves the chatbot's booking-confirmation email on its first-pass value. Setting `CUSTOM_DOMAIN_NAME` before the first deploy skips this entirely — see [`infra/DEPLOY.md`](infra/DEPLOY.md) §7.
 
 # Collaboration
-Thanks for your interest in our solution.  Having specific examples of replication and cloning allows us to continue to grow and scale our work. If you clone or download this repository, kindly shoot us a quick email to let us know you are interested in this work!
+
+Thanks for your interest in our solution. Having specific examples of replication and cloning allows us to continue to grow and scale our work. If you clone or download this repository, kindly shoot us a quick email to let us know you are interested in this work!
 
 [wwps-cic@amazon.com]
 
@@ -203,13 +219,14 @@ Thanks for your interest in our solution.  Having specific examples of replicati
 
 **All work produced is open source. More information can be found in the GitHub repo.**
 
-
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
 
 ## Support
+
 For queries or issues:
+
 - Darren Kraker, Sr Solutions Architect - dkraker@amazon.com
 - Mason Lewis, Software Engineer Intern - mlewis@calpoly.edu
 - Nick Riley, Jr SDE - njriley@calpoly.edu

@@ -153,7 +153,8 @@ docker compose up -d db                # Start local PostgreSQL 16
 npm -w @st-lucie/office-ops run dev    # API server; SERVICE defaults to "all"
 cd frontend && npm run dev             # Office UI; /api proxies to :3000
 npx cdk deploy BackOffice              # Deploy from the repository root
-scripts/post-deploy.sh                 # Initialize DB and deploy all frontend assets after CDK
+scripts/post-deploy.sh                 # Needs BOTH stacks: it reads FrontendBucketName/DistributionId
+                                       #   from Chatbot and exits 1 if they're missing (infra/DEPLOY.md §5)
 scripts/build-frontends.sh             # Frontend-only rebuild, upload, and CloudFront invalidation
 ```
 
@@ -175,19 +176,26 @@ npm -w @st-lucie/admin-service run dev # Backend on :3100
 cd apps/admin-app && npm run dev       # Admin SPA on :5181
 ```
 
-**For a from-zero deploy to a new AWS account, follow the authoritative runbook [`infra/DEPLOY.md`](infra/DEPLOY.md) end to end.** It covers the hard prerequisites a fresh account needs — us-east-1 region, a running Docker daemon (BackOffice builds container images at deploy), Bedrock model access (Sonnet 4.6 + Titan-embed-v2 in us-east-1, Haiku 4.5 in us-east-2), SES sender verification, `cdk bootstrap`, `.env` setup, and **creating the first Cognito user (self-signup is disabled, so every SPA including the citizen `/chat` is locked out without it)**. Condensed sequence:
+**For a from-zero deploy to a new AWS account, follow the authoritative runbook [`infra/DEPLOY.md`](infra/DEPLOY.md) end to end.** It covers the hard prerequisites a fresh account needs — us-east-1 region, a running Docker daemon (BackOffice builds container images at deploy), Bedrock model access (Sonnet 4.6 + Titan-embed-v2 in us-east-1, Haiku 4.5 in us-east-2), SES sender verification, the RDS service-linked role (without it RDS Proxy rolls the entire BackOffice stack back), `cdk bootstrap`, `.env` setup, and **creating the first Cognito user (self-signup is disabled, so every SPA including the citizen `/chat` is locked out without it)**. Condensed sequence:
 
 ```bash
-export CDK_DEFAULT_REGION=us-east-1 AWS_REGION=us-east-1
+export AWS_PROFILE=<your-profile>       # scripts/*.sh are plain `aws` CLI wrappers
+export CDK_DEFAULT_REGION=us-east-1 AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
+aws sts get-caller-identity             # prove the account; note the id for bootstrap
+aws iam get-role --role-name AWSServiceRoleForRDS \
+  || aws iam create-service-linked-role --aws-service-name rds.amazonaws.com   # fresh account
 cp .env.example .env                    # set SENDER_EMAIL + a real ORIGIN_SECRET
 npm install
-npm run build:frontends
-npx cdk deploy --all                    # BackOffice then Chatbot (order auto-resolved)
+npm run build:frontends                 # before bootstrap: bootstrap synthesizes the app
+npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1   # once per account/region
+npx cdk deploy --all --require-approval never   # BackOffice then Chatbot (order auto-resolved)
 scripts/post-deploy.sh                  # DB schema + seed (empty DB), upload SPAs, config.json
-scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk
+scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk   # zero groups = 403 from every API
 ```
 
-`npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — safe for a first deploy, no pre-existing stack required. For frontend-only redeploys use `scripts/build-frontends.sh`.
+Email links come later: set `BASE_URL` from the Chatbot `FrontendUrl` output and rerun `npx cdk deploy --all` — both stacks consume it, so BackOffice alone is not enough (`infra/DEPLOY.md` §7).
+
+`npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — safe for a first deploy, no pre-existing stack required, but it carries no `--require-approval never`, so it stops at the IAM approval prompt. Use the explicit `npx cdk deploy --all --require-approval never` for any non-interactive run. For frontend-only redeploys use `scripts/build-frontends.sh`.
 
 ## Personas & Surfaces
 

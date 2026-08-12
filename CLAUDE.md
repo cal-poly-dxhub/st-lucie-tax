@@ -90,18 +90,39 @@ if you see those names in older notes, they're dead.
 **The authoritative deploy runbook is `infra/DEPLOY.md`.** Summary:
 
 ```bash
+export AWS_PROFILE=<target-account>   # the scripts below are plain `aws` calls
 export CDK_DEFAULT_REGION=us-east-1   # required (CloudFront WAF/ACM)
+export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
+aws sts get-caller-identity           # prove the account; note the id for bootstrap
+aws iam get-role --role-name AWSServiceRoleForRDS \
+  || aws iam create-service-linked-role --aws-service-name rds.amazonaws.com   # fresh account
 cp .env.example .env                  # set SENDER_EMAIL + a real ORIGIN_SECRET
-npm run build:frontends               # dist/ is gitignored; build before synth
-npx cdk deploy --all                  # BackOffice then Chatbot (order auto-resolved)
+npm install                           # postinstall builds packages/*/dist
+npm run build:frontends               # dist/ is gitignored; build before any synth
+npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1   # AFTER the build — bootstrap synthesizes too
+npx cdk deploy --all --require-approval never   # BackOffice then Chatbot (order auto-resolved)
 scripts/post-deploy.sh                # DbInit (schema + seed on empty DB) + upload SPAs + config.json
-scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk
+scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk   # zero groups = 403 from every API
 ```
+
+Order matters: `npm install` and `npm run build:frontends` come BEFORE
+`cdk bootstrap`, because bootstrap synthesizes the app and a missing frontend
+`dist/` trips the synth-time guard in `chatbot-stack.ts`. Both stacks create IAM
+roles, so a non-interactive `cdk deploy` needs `--require-approval never` or it
+hangs at the approval prompt.
 
 Docker must be running (BackOffice builds container images at deploy). A fresh
 account also needs Bedrock model access enabled (Sonnet 4.6 us-east-1, Titan
-Embed v2 us-east-1, Haiku 4.5 us-east-2) and SES sender verification — see
-`infra/DEPLOY.md` §0.
+Embed v2 us-east-1, Haiku 4.5 us-east-2), SES sender verification, and the RDS
+service-linked role above — without it RDS Proxy rolls the whole BackOffice
+stack back (the `get-role` guard skips the create when the role already exists;
+a bare create would exit non-zero on `InvalidInput` and abort a `set -e` run).
+See `infra/DEPLOY.md` §0.
+
+Email links are a second pass: set `BASE_URL` in `.env` from the Chatbot
+`FrontendUrl` output, then `npx cdk deploy --all` — **both** stacks read it
+(BackOffice functions and ChatbotFn), so redeploying BackOffice alone leaves the
+chatbot on its first-pass value. See `infra/DEPLOY.md` §7.
 
 CDK pulls from the working tree, not a git ref. Whatever's in `services/*/src/`
 at deploy time is what runs. Auth is **Cognito** (staff) + `ORIGIN_SECRET`

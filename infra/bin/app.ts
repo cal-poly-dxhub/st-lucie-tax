@@ -47,4 +47,5 @@ new ChatbotStack(app, "Chatbot", {
   userPoolClientId: backOfficeStack.userPoolClientId,
   customDomainName: config.customDomainName,
   customDomainCertificateArn: config.customDomainCertificateArn,
+  baseUrl: config.baseUrl,
 });

@@ -50,6 +50,17 @@ export interface ChatbotStackProps extends StackProps {
   userPoolClientId: string;
   customDomainName?: string;
   customDomainCertificateArn?: string;
+  /**
+   * Public base URL for the chatbot's own booking-confirmation email links
+   * (see local-server-app.ts). Plain string from `.env`/`config.baseUrl` —
+   * NOT the CloudFront distribution's own domain-name token. Referencing
+   * `distribution.distributionDomainName` here would make ChatbotFn depend on
+   * FrontendDist, which depends on ChatbotApi, which depends on ChatbotFn: an
+   * unresolvable synth-time circular dependency. Same two-pass model as
+   * BackOffice's BASE_URL (see infra/DEPLOY.md §7) — blank on the first
+   * deploy, set after the first FrontendUrl output exists, then redeploy.
+   */
+  baseUrl?: string;
 }
 
 export class ChatbotStack extends Stack {
@@ -259,6 +270,14 @@ export class ChatbotStack extends Stack {
         PGDATABASE: "stlucie",
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
+        // Without this, Express's `app.get("env")` defaults to "development"
+        // and finalhandler renders the raw error stack into the HTTP response
+        // body (node_modules/finalhandler/index.js getErrorMessage), leaking
+        // bundle paths and line numbers to any internet caller on an
+        // unhandled 500. Stacks still reach CloudWatch via express's own
+        // logerror. Also drops the `detail` field from chat error bodies
+        // (local-server-app.ts:340) — nothing in the SPAs reads it.
+        NODE_ENV: "production",
         DOC_BUCKET: docBucket.bucketName,
         // Office-ops documents bucket — the doc-bridge (scheduling/
         // bridge-documents.ts) copies validated chatbot uploads here so the
@@ -360,6 +379,12 @@ export class ChatbotStack extends Stack {
         PGDATABASE: "stlucie",
         PGPASSWORD_SECRET_ARN: dbSecret.secretArn,
         PGSSL: "true",
+        // Same reason as ChatbotFn above: suppresses finalhandler's
+        // stack-trace-in-response-body leak. admin-auth.ts's
+        // "ADMIN_AUTH_DISABLED must not be set in production" guard cannot
+        // fire here — that env var is never set by this stack, so `isDev` is
+        // already false via COGNITO_USER_POOL_ID below.
+        NODE_ENV: "production",
         COGNITO_USER_POOL_ID: props.userPoolId,
         COGNITO_CLIENT_ID: props.userPoolClientId,
       },
@@ -547,12 +572,16 @@ function handler(event) {
     const cfnDocBucket = docBucket.node.defaultChild as s3.CfnBucket;
 
     // ── BASE_URL for email links (queue-status, manage/reschedule) ───────────
-    // Must be set after the distribution is created. Uses custom domain if
-    // provided, otherwise the CloudFront distribution domain.
+    // Plain string, not a distribution.distributionDomainName token — see the
+    // ChatbotStackProps.baseUrl doc comment for why. Blank on the first
+    // deploy (no email links yet); set BASE_URL and redeploy once the
+    // FrontendUrl output exists (infra/DEPLOY.md §7).
     const baseUrl = props.customDomainName
       ? `https://${props.customDomainName}`
-      : `https://${distribution.distributionDomainName}`;
-    chatbotFn.addEnvironment("BASE_URL", baseUrl);
+      : props.baseUrl || "";
+    if (baseUrl) {
+      chatbotFn.addEnvironment("BASE_URL", baseUrl);
+    }
 
     cfnDocBucket.addPropertyOverride("CorsConfiguration", {
       CorsRules: [

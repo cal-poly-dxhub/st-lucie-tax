@@ -275,7 +275,13 @@ export class BackOfficeStack extends Stack {
       PGSSL: "true",
       NODE_ENV: "production",
       EMAIL: config.senderEmail,
-      BASE_URL: config.baseUrl,
+      // BASE_URL is OMITTED (not set to "") when config.baseUrl is blank, as in
+      // ChatbotStack. services/office-ops/server/config.ts reads it with `??`, so
+      // an explicit "" is not nullish and would suppress the app's own defaults —
+      // FRONTEND_URL would resolve to "" and email links to bare paths
+      // ("/prescreen/<code>"), which no mail client can follow. Set BASE_URL in
+      // .env and redeploy both stacks (infra/DEPLOY.md §7).
+      ...(config.baseUrl ? { BASE_URL: config.baseUrl } : {}),
       DOCUMENTS_BUCKET: documentsBucket.bucketName,
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
       COGNITO_USER_POOL_ID: userPool.userPoolId,

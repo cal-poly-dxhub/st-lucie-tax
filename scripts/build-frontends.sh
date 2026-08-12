@@ -25,12 +25,22 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+usage_die() {
+  echo "ERROR: $1"
+  echo "Usage: build-frontends.sh [--no-upload] [stack-name]"
+  exit 1
+}
+
 UPLOAD=true
 STACK_NAME="Chatbot"
+POSITIONAL=0
 for arg in "$@"; do
   case "$arg" in
     --no-upload) UPLOAD=false ;;
-    *) STACK_NAME="$arg" ;;
+    -*) usage_die "unknown option '${arg}'." ;;
+    *) POSITIONAL=$((POSITIONAL + 1))
+       [ "$POSITIONAL" -eq 1 ] || usage_die "too many arguments (unexpected '${arg}')."
+       STACK_NAME="$arg" ;;
   esac
 done
 

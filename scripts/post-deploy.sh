@@ -12,14 +12,23 @@ SKIP_DB=false
 BACK_OFFICE_STACK="BackOffice"
 CHATBOT_STACK="Chatbot"
 
+usage_die() {
+  echo "ERROR: $1"
+  echo "Usage: post-deploy.sh [--skip-db] [back-office-stack] [chatbot-stack]"
+  exit 1
+}
+
+POSITIONAL=0
 for arg in "$@"; do
   case "$arg" in
     --skip-db) SKIP_DB=true ;;
-    *) if [ "$BACK_OFFICE_STACK" = "BackOffice" ] && [ "$arg" != "BackOffice" ]; then
-         BACK_OFFICE_STACK="$arg"
-       else
-         CHATBOT_STACK="$arg"
-       fi ;;
+    -*) usage_die "unknown option '${arg}'." ;;
+    *) POSITIONAL=$((POSITIONAL + 1))
+       case "$POSITIONAL" in
+         1) BACK_OFFICE_STACK="$arg" ;;
+         2) CHATBOT_STACK="$arg" ;;
+         *) usage_die "too many arguments (unexpected '${arg}')." ;;
+       esac ;;
   esac
 done
 
@@ -40,7 +49,26 @@ if [ "$SKIP_DB" = false ]; then
   fi
 
   echo "==> Invoking DB schema init lambda: ${DB_INIT_FN}..."
-  aws lambda invoke --function-name "$DB_INIT_FN" --log-type Tail /dev/stdout | head -1
+  # `aws lambda invoke` exits 0 even when the handler throws — the failure only
+  # shows up as FunctionError in the response metadata. The payload goes to a
+  # temp file rather than /dev/stdout so it stays separable from that metadata
+  # (the CLI writes the payload with no trailing newline, which is what glued
+  # the two together and hid FunctionError from the old `head -1`).
+  DB_INIT_PAYLOAD="$(mktemp)"
+  trap 'rm -f "$DB_INIT_PAYLOAD"' EXIT
+  DB_INIT_META=$(aws lambda invoke --function-name "$DB_INIT_FN" \
+    --log-type Tail --output json "$DB_INIT_PAYLOAD")
+  cat "$DB_INIT_PAYLOAD"
+  echo ""
+
+  if grep -q '"FunctionError"' <<<"$DB_INIT_META" \
+    || ! grep -q '"StatusCode": *2[0-9][0-9]' <<<"$DB_INIT_META"; then
+    echo "$DB_INIT_META"
+    echo "ERROR: DbInitFn (${DB_INIT_FN}) failed — the schema/seed did NOT load."
+    echo "       The payload above is the handler's error. Full stack trace:"
+    echo "         aws logs tail /aws/lambda/${DB_INIT_FN} --since 10m"
+    exit 1
+  fi
   echo ""
 fi
 
