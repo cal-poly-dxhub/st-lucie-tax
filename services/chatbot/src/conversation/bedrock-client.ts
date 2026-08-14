@@ -223,9 +223,20 @@ export async function callBedrock(
     const response = await sendWithRetry(
       new ConverseCommand({
         modelId: MODEL_ID,
-        system: [{ text: systemPrompt }],
+        // Prompt caching: `systemPrompt` and `tools` are built once per user
+        // message (process-message.ts) and re-sent byte-identically on every
+        // one of up to MAX_TOOL_ROUNDS rounds here, so a cachePoint after each
+        // turns rounds 2..N (and later same-state turns) into ~0.1x cache reads
+        // instead of full-price re-sends. These markers do NOT change the bytes
+        // the model sees — output is identical; only billing/latency differ. A
+        // cache miss simply costs full price. Prefixes under Bedrock's ~1,024-
+        // token minimum (small states like landing) are silently not cached,
+        // which is harmless.
+        system: [{ text: systemPrompt }, { cachePoint: { type: "default" } }],
         messages: workingMessages,
-        ...(tools.length > 0 && { toolConfig: { tools } }),
+        ...(tools.length > 0 && {
+          toolConfig: { tools: [...tools, { cachePoint: { type: "default" } }] },
+        }),
         inferenceConfig: {
           maxTokens: 2048,
           temperature: 0.3,
