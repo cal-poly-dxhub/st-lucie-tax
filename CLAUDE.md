@@ -102,7 +102,7 @@ npm run build:frontends               # dist/ is gitignored; build before any sy
 npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1   # AFTER the build — bootstrap synthesizes too
 npx cdk deploy --all --require-approval never   # BackOffice then Chatbot (order auto-resolved)
 scripts/post-deploy.sh                # DbInit (schema + seed on empty DB) + upload SPAs + config.json
-scripts/create-user.sh you@example.com 'pw' admin,checkin_clerk,service_clerk   # zero groups = 403 from every API
+scripts/create-user.sh staff@yourcounty.gov 'Deploy2026temp' admin,checkin_clerk,service_clerk   # zero groups = 403 from every API; password needs min 8 + upper + lower + digit; avoid @example.com (flags sessions as test → hidden in admin)
 ```
 
 Order matters: `npm install` and `npm run build:frontends` come BEFORE

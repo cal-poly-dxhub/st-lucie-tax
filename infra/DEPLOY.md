@@ -74,9 +74,16 @@ arn:aws:iam::<acct>:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS
 rolling the **entire** BackOffice stack back:
 
 ```bash
-aws iam get-role --role-name AWSServiceRoleForRDS \
+aws iam get-role --role-name AWSServiceRoleForRDS >/dev/null 2>&1 \
   || aws iam create-service-linked-role --aws-service-name rds.amazonaws.com
 ```
+
+On a fresh account the `get-role` half legitimately fails with `NoSuchEntity`
+before the create runs — that error is the trigger, not a problem. Keep the
+`>/dev/null 2>&1` and run the line **as-is**: piping either half into another
+command (`| head`, `| tail`, `| jq`) makes bash report only the _pipeline's_
+exit status, the `||` never fires, the role is never created, and the entire
+BackOffice stack then rolls back on the DBProxy 10+ minutes later.
 
 Creating it when it already exists is harmless — the call returns an
 `InvalidInput` error saying the role name has been taken; ignore that.
@@ -242,8 +249,25 @@ Cognito self-signup is disabled; all three SPAs (including the citizen chatbot)
 require a login. Create an admin/clerk user:
 
 ```bash
-scripts/create-user.sh you@example.com 'a-strong-password' admin,checkin_clerk,service_clerk
+scripts/create-user.sh staff@yourcounty.gov 'Deploy2026temp' admin,checkin_clerk,service_clerk
 ```
+
+Substitute your own address and password. Both arguments have a constraint that
+will stop you if you ignore it:
+
+- **The password must satisfy the pool policy** (`back-office-stack.ts`):
+  minimum 8 characters with at least one uppercase, one lowercase and one digit;
+  symbols are allowed but not required. A non-compliant password fails at
+  `admin-set-user-password` with `InvalidPasswordException` — which happens
+  **after** the user has been created and **before** any group is attached, so
+  the script exits non-zero leaving a groupless user in
+  `FORCE_CHANGE_PASSWORD`. Re-run the same command with a compliant password;
+  it is idempotent and heals that state.
+- **Do not use an `@example.com` address.** That domain is the repo's
+  test-session marker (see `CLAUDE.md`): every chat session created by such an
+  account is flagged `isTestSession` and the admin dashboard hides it by
+  default. A partner who signs in as `you@example.com` sees an empty session
+  list on a perfectly healthy deploy and reasonably concludes the deploy failed.
 
 The third argument is a comma-separated group list (that same trio is the
 default). Those are the only groups that exist — BackOffice creates exactly
@@ -258,7 +282,7 @@ deploy rather than a broken user:
 USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name BackOffice \
   --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
 aws cognito-idp admin-list-groups-for-user \
-  --user-pool-id "$USER_POOL_ID" --username you@example.com \
+  --user-pool-id "$USER_POOL_ID" --username staff@yourcounty.gov \
   --query "Groups[].GroupName"
 ```
 
@@ -349,7 +373,22 @@ aws bedrock-agent start-ingestion-job \
   --knowledge-base-id "$KB_ID" --data-source-id "$DATA_SOURCE_ID"
 ```
 
-(The prototype's scraper/ingest scripts are not included in this repo.)
+**Corpus content and key naming.** The `<your-corpus>` above is plain files
+(`.txt`, `.md`, `.html`, `.pdf`, …) that you supply. Retrieval works regardless
+of key names, but the bot's **clickable citations** only render for S3 keys
+matching the prefixes decoded in
+`services/chatbot/src/knowledge-base/query.ts` (`mapS3ToSource`) — e.g.
+`tcslc-docs/{id}-{slug}.pdf`, `flhsmv-forms/{n}.pdf`,
+`flhsmv-statutes/{ch}-{sec}.txt`. A different county must edit `mapS3ToSource`
+to match its own sources.
+
+**How the original corpus was built.** The prototype's scraper/ingest suite
+(tcslc.com, FLHSMV, FDACS, FWC, Florida Statutes, and the FLHSMV ops manual) is
+checked in at `scripts/kb/` as **archived reference tooling** — see
+`scripts/kb/README.md`. ⚠️ It is **old and unmaintained**: lifted verbatim from
+the prototype, St.-Lucie/Florida-specific, and its account/bucket defaults are
+scrubbed placeholders you must set. Use it as a worked example of how to acquire
+content and name the keys, not as turnkey tooling.
 
 ---
 
@@ -398,12 +437,31 @@ echo "$FRONTEND_URL"
 
 ## Secrets
 
-Auth is enforced by **Cognito** (staff) and `ORIGIN_SECRET` (CloudFront→origin).
-There is no separate Secrets-Manager population step for app auth in this
-architecture. The DB password is auto-managed by CDK (`DatabaseSecret`) and read
-by the Lambdas at runtime. Rotate `ORIGIN_SECRET` by changing `.env` and
-redeploying the Chatbot stack (rebuild + re-upload the SPAs is not required —
-the secret is server-side only).
+Auth is enforced by **Cognito** (staff). There is no separate Secrets-Manager
+population step for app auth in this architecture. The DB password is
+auto-managed by CDK (`DatabaseSecret`) and read by the Lambdas at runtime.
+
+`ORIGIN_SECRET` is a CloudFront→origin shared secret, and it covers **only the
+two REST APIs** — ChatbotApi and AdminApi. CloudFront injects it as
+`x-origin-secret` and each app rejects requests that lack it, so a direct call
+to those two `execute-api` URLs returns `403 {"error":"Forbidden"}`.
+
+**The office-ops HTTP API is not covered.** Its origin is created without
+`customHeaders` (`chatbot-stack.ts`), so its `execute-api` URL answers the
+public internet directly — bypassing CloudFront and therefore bypassing the
+CloudFront-scoped WAF and its rate-based rule. What still protects it: Cognito
+on every authenticated route (unauthenticated calls get
+`401 {"error":"Authentication required"}`), the API Gateway stage throttle
+(`apiRateLimit`/`apiBurstLimit` in `env-config.ts`), and the fact that the
+public routes need an unguessable confirmation code — cancel/change additionally
+require a matching email. Treat the raw origin as internet-facing when you
+threat-model, and **do** include it in any security review. If you need it
+locked down, add `customHeaders` to that origin plus origin-secret middleware in
+office-ops — exempting the `/healthz` path, which the Lambda Web Adapter probes
+for readiness, and failing open when `ORIGIN_SECRET` is unset.
+
+Rotate `ORIGIN_SECRET` by changing `.env` and redeploying the Chatbot stack
+(rebuild + re-upload the SPAs is not required — the secret is server-side only).
 
 ## Region / cost notes
 

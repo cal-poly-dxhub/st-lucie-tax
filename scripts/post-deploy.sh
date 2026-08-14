@@ -66,7 +66,19 @@ if [ "$SKIP_DB" = false ]; then
     echo "$DB_INIT_META"
     echo "ERROR: DbInitFn (${DB_INIT_FN}) failed — the schema/seed did NOT load."
     echo "       The payload above is the handler's error. Full stack trace:"
-    echo "         aws logs tail /aws/lambda/${DB_INIT_FN} --since 10m"
+    # The stack assigns a custom log group, so the /aws/lambda/<fn> default does
+    # NOT exist here — printing it sends the reader to ResourceNotFoundException.
+    # Resolve the real group off the function config instead.
+    DB_INIT_LOG_GROUP=$(aws lambda get-function-configuration \
+      --function-name "$DB_INIT_FN" \
+      --query "LoggingConfig.LogGroup" --output text 2>/dev/null || true)
+    if [ -n "$DB_INIT_LOG_GROUP" ] && [ "$DB_INIT_LOG_GROUP" != "None" ]; then
+      echo "         aws logs tail ${DB_INIT_LOG_GROUP} --since 10m"
+    else
+      echo "         aws logs tail \"\$(aws lambda get-function-configuration \\"
+      echo "           --function-name ${DB_INIT_FN} \\"
+      echo "           --query LoggingConfig.LogGroup --output text)\" --since 10m"
+    fi
     exit 1
   fi
   echo ""
@@ -99,9 +111,15 @@ echo "==> Building frontends..."
 echo ""
 
 # ── 4. Upload frontends to S3 ─────────────────────────────────────────────────
+# Office Ops lives at the ROOT prefix, so this sync's --delete sees the whole
+# bucket — including chat/ and admin/, which belong to the two syncs below. The
+# aws CLI excludes filtered keys from deletion, so admin/* and chat/* must be
+# excluded here or every run deletes both staff SPAs and only restores them two
+# syncs later (a Ctrl-C in between leaves a live origin missing /admin + /chat).
+# config.json is owned by the separate RuntimeConfig deployment.
 echo "==> Syncing Office Operations frontend -> s3://${BUCKET_NAME}/"
 aws s3 sync "$REPO_ROOT/frontend/dist" "s3://${BUCKET_NAME}/" \
-  --delete --exclude "config.json"
+  --delete --exclude "config.json" --exclude "admin/*" --exclude "chat/*"
 
 echo "==> Syncing Chatbot frontend -> s3://${BUCKET_NAME}/chat/"
 aws s3 sync "$REPO_ROOT/apps/chatbot-app/dist" "s3://${BUCKET_NAME}/chat/" --delete

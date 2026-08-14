@@ -182,7 +182,10 @@ scripts/post-deploy.sh
 # Create the first staff/admin user — REQUIRED: Cognito self-signup is disabled, so without
 # this EVERY SPA (including the citizen /chat) is locked out. The script echoes the groups it
 # attached and exits non-zero if any failed; a user in zero groups gets 403 from every API.
-scripts/create-user.sh you@example.com 'a-strong-password' admin,checkin_clerk,service_clerk
+# The password must meet the pool policy (min 8, upper + lower + digit) or the script fails
+# after creating the user but before attaching groups. Avoid @example.com addresses: that
+# domain flags sessions as test sessions, which the admin dashboard hides by default.
+scripts/create-user.sh staff@yourcounty.gov 'Deploy2026temp' admin,checkin_clerk,service_clerk
 ```
 
 `npm run deploy` rebuilds the frontends (build-only, no upload) via the `predeploy` hook and then runs `cdk deploy --all` — the same two steps as above and safe for a first deploy, with one difference: the script passes no `--require-approval never`, so it stops at the IAM approval prompt. Use it interactively; for a non-interactive or scripted run use `npx cdk deploy --all --require-approval never` directly. For frontend-only redeploys (build + upload + CloudFront invalidation against the live bucket) use `scripts/build-frontends.sh` (or `npm run deploy:frontends`).
