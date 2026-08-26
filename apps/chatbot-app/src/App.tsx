@@ -12,6 +12,7 @@ import {
   getSessionState,
   submitMessageFeedback,
   skipVerifyIdentity,
+  skipState,
   setCachedToken,
   retryAuthIdProof,
   type HotButton,
@@ -316,6 +317,39 @@ export default function App() {
       .then((s) => updateState(s.state, s.structuredContext))
       .catch(() => {
         /* ignore */
+      });
+  };
+
+  // Deterministic skip for upload-docs. The OLD path sent a canned chat message
+  // ("I'll bring everything to the office") and RELIED on the LLM to call the
+  // skip_document_upload tool to advance — which it may not do (especially right
+  // after a rejected upload), stranding the resident in this state with no way
+  // out. This instead hits the /skip endpoint, which unconditionally advances
+  // the state machine (flags incomplete pre-work + marks pending docs skipped),
+  // so Skip ALWAYS moves forward regardless of upload state. Lands in the same
+  // next state (checkout-check) a completed upload would. Mirrors the
+  // verify-identity "Skip For Now" → skipVerifyIdentity pattern.
+  const handleSkipDocs = () => {
+    const sid = session.sessionId;
+    if (!sid) return;
+    // Hide the upload block immediately (feedback + guards against double-click).
+    setDocUploadsReady(false);
+    skipState(sid, "upload-docs")
+      .then((r) => {
+        // Optimistic: reflect the server's authoritative next state now.
+        updateState(r.newState, session.context ?? undefined);
+        // Best-effort reconcile of the full context (docs now marked skipped);
+        // the optimistic advance already applied, so ignore reconcile failures.
+        getSessionState(sid)
+          .then((s) => updateState(s.state, s.structuredContext))
+          .catch(() => {
+            /* ignore — optimistic state already applied */
+          });
+      })
+      .catch(() => {
+        // The skip itself failed — restore the upload block so the resident can
+        // retry (they are still in upload-docs server-side).
+        setDocUploadsReady(true);
       });
   };
 
@@ -693,10 +727,7 @@ export default function App() {
                         All uploaded — Continue
                       </button>
                     )}
-                    <button
-                      className="doc-skip-btn"
-                      onClick={() => handleSend("I'll bring everything to the office")}
-                    >
+                    <button className="doc-skip-btn" onClick={handleSkipDocs}>
                       Skip — I'll bring everything to the office
                     </button>
                   </div>
