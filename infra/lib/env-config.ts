@@ -106,10 +106,16 @@ export function envConfig(): EnvConfig {
 
   return {
     senderEmail: process.env.SENDER_EMAIL,
-    // BASE_URL feeds customer email links from the BackOffice functions. When a
-    // custom domain is set we derive it; otherwise leave it EMPTY so the caller
-    // (ChatbotStack) can substitute the live CloudFront distribution domain at
-    // deploy time — never a hardcoded foreign-account fallback.
+    // BASE_URL feeds customer email links from both the BackOffice functions
+    // and the chatbot's own booking-confirmation email. When a custom domain
+    // is set we derive it; otherwise leave it EMPTY on the first deploy (no
+    // hardcoded foreign-account fallback) — email links are non-functional
+    // until you set BASE_URL from the Chatbot FrontendUrl output and redeploy
+    // both stacks (infra/DEPLOY.md §7). Deliberately NOT auto-substituted from
+    // the live CloudFront domain: ChatbotStack referencing its own
+    // distribution's attribute in ChatbotFn's environment would make the
+    // Lambda depend on the distribution, which depends on the API Gateway
+    // that integrates the same Lambda — a synth-time circular dependency.
     baseUrl:
       process.env.BASE_URL?.trim() || (customDomainName ? `https://${customDomainName}` : ""),
     customDomainName,

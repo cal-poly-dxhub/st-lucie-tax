@@ -17,6 +17,10 @@ export default tseslint.config(
       "test-results/",
       "playwright-report/",
       "**/*.js",
+      // Archived KB scraper suite (lifted verbatim from the prototype; kept as
+      // reference tooling, not maintained to this repo's lint bar). See
+      // scripts/kb/README.md.
+      "scripts/kb/",
     ],
   },
   {

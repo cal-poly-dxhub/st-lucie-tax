@@ -11,7 +11,7 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 COPY services/office-ops/package.json ./services/office-ops/
 COPY services/office-ops/tsconfig.json ./services/office-ops/
-RUN npm ci --workspace=@st-lucie/office-ops --include-workspace-root
+RUN npm ci --workspace=@st-lucie/office-ops --include-workspace-root --ignore-scripts
 COPY services/office-ops/src ./services/office-ops/src
 COPY services/office-ops/server ./services/office-ops/server
 RUN npx tsc -p services/office-ops/tsconfig.json

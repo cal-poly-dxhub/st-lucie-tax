@@ -155,6 +155,7 @@ describe("Flow A: Scheduled Appointment — end to end", () => {
       appointmentTime: slot!.slotTime,
       officeName: "Fort Pierce Office",
       qrCodeDataUrl: "data:image/png;base64,FAKE",
+      baseUrl: "https://tax.stlucie.gov",
       fromEmail: "noreply@stlucie.gov",
     });
     await sendEmail(ses, emailInput);

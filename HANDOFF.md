@@ -127,13 +127,25 @@ emission in the console (one-time per account) if you want billing alarms.
 `infra/lib/chatbot-stack.ts`; its id reaches the Lambda as `BEDROCK_KB_ID` via a
 CloudFormation attribute (`knowledgeBase.attrKnowledgeBaseId`) — nothing to edit.
 The KB starts **empty** on a fresh deploy; loading content (e.g. FLHSMV
-ops-manual) is a separate, optional step — see `infra/DEPLOY.md` §8.
+ops-manual) is a separate, optional step — see `infra/DEPLOY.md` §8. The
+prototype's scraper/ingest suite that built the original corpus is checked in at
+`scripts/kb/` as **archived, unmaintained reference tooling** (old hardcoded
+account/bucket values, St.-Lucie/Florida-specific) — see `scripts/kb/README.md`.
 
-**APIs are CloudFront-only, not API-key-gated.** No endpoint requires an API key
-(there is no `apiKeyRequired`/`VITE_API_KEY`). Access control is the
-`x-origin-secret` header CloudFront injects (`chatbot-stack.ts`); a direct curl
-to the raw API-Gateway origin URL is rejected. Smoke-test against the CloudFront
-domain, not the origin.
+**No endpoint is API-key-gated.** There is no `apiKeyRequired`/`VITE_API_KEY`.
+Access control is Cognito, plus an `x-origin-secret` header CloudFront injects
+(`chatbot-stack.ts`) — but that header is configured on **only two of the three
+origins**. A direct curl to the raw ChatbotApi or AdminApi `execute-api` URL is
+rejected with `403 {"error":"Forbidden"}`; a direct curl to the **office-ops
+HTTP API** origin is **served**, because that origin is created without
+`customHeaders`. It therefore bypasses CloudFront and the CloudFront-scoped WAF;
+Cognito, the stage throttle, and unguessable confirmation codes are what protect
+it. This is pre-existing behavior, not a recent regression — see
+`infra/DEPLOY.md` → _Secrets_ for the full picture and the fix sketch.
+
+Smoke-test against the CloudFront domain for normal functional checks, and
+**also probe the raw origins directly** when you are reviewing security — the
+office-ops one is reachable and belongs in your threat model.
 
 ---
 

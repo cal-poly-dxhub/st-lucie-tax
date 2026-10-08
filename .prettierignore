@@ -3,3 +3,6 @@ node_modules/
 coverage/
 package-lock.json
 docs/
+# Archived KB scraper suite — kept verbatim from the prototype as reference
+# tooling, not reformatted to this repo's style. See scripts/kb/README.md.
+scripts/kb/

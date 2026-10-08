@@ -70,39 +70,42 @@ fi
 
 # ─── Common psql args ────────────────────────────────────────────────────────
 
-PSQL="psql -h localhost -p $LOCAL_PORT -U $DB_USER -d $DB_NAME -v ON_ERROR_STOP=1 --no-psqlrc"
+# An array, not a string: every value below is env-overridable, and unquoted
+# word-splitting would turn DB_NAME="my db" into two psql arguments.
+PSQL=(psql -h localhost -p "$LOCAL_PORT" -U "$DB_USER" -d "$DB_NAME" \
+  -v ON_ERROR_STOP=1 --no-psqlrc)
 
 # ─── Reset ───────────────────────────────────────────────────────────────────
 
 echo "==> Dropping and recreating public schema..."
-$PSQL -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+"${PSQL[@]}" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
 
 echo "==> Loading schema..."
-$PSQL < "$SCRIPT_DIR/schema.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/schema.sql"
 
 echo "==> Loading seed data..."
-$PSQL < "$SCRIPT_DIR/seed.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/seed.sql"
 
 echo "==> Loading document registry..."
-$PSQL < "$SCRIPT_DIR/seed-docs.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/seed-docs.sql"
 
 echo "==> Loading sample appointments..."
-$PSQL < "$SCRIPT_DIR/seed-appointments.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/seed-appointments.sql"
 
 echo "==> Loading sample flows..."
-$PSQL < "$SCRIPT_DIR/seed-flows.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/seed-flows.sql"
 
 echo "==> Loading history..."
-$PSQL < "$SCRIPT_DIR/seed-history.sql"
+"${PSQL[@]}" < "$SCRIPT_DIR/seed-history.sql"
 
 if [[ -f "$SCRIPT_DIR/find-appt.sql" ]]; then
   echo "==> Loading scheduling functions (find-appt.sql)..."
-  $PSQL < "$SCRIPT_DIR/find-appt.sql"
+  "${PSQL[@]}" < "$SCRIPT_DIR/find-appt.sql"
 fi
 
 echo ""
 echo "==> Verifying row counts..."
-$PSQL -c "
+"${PSQL[@]}" -c "
 SELECT 'offices' AS tbl, COUNT(*) FROM offices
 UNION ALL SELECT 'office_hours', COUNT(*) FROM office_hours
 UNION ALL SELECT 'office_lunch_shifts', COUNT(*) FROM office_lunch_shifts

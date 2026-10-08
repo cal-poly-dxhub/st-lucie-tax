@@ -1839,3 +1839,57 @@ app.post("/api/chatbot/prescreening", async (req, res) => {
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+// --- Terminal handlers (must stay LAST, after every route registered above) ---
+//
+// Not deletable boilerplate. Any request that matches no route above — or that
+// throws outside a route's own try/catch — otherwise falls through to Express's
+// built-in finalhandler, whose send() calls on-finished(req, …) → ee-first,
+// which does `socket.on("error", …)` on req.socket. Under
+// @codegenie/serverless-express the request is an http.IncomingMessage built
+// over a PLAIN OBJECT stand-in for the socket, so that call throws
+// `TypeError: ee.on is not a function` and the handler never produces the
+// intended 404/500 JSON. What the client sees depends on where the throw
+// surfaces: reproduced locally against the mock socket it is a 500 with an HTML
+// error page carrying that TypeError, while through CloudFront/API Gateway the
+// failed invocation becomes an opaque 502 (measured on two deployed
+// distributions: GET /api/chat/health → 502 "Internal server error"). A real
+// Node socket IS an EventEmitter, so `npm run dev` never reproduces it — the
+// crash needs the serverless-express mock socket. Answering here with
+// res.status().json() keeps finalhandler unreachable in both environments.
+
+// Unmatched path. OPTIONS gets a 204 rather than a 404 because this middleware
+// runs ahead of Express's automatic OPTIONS/Allow reply and would otherwise
+// swallow it — the 204 carries the Access-Control-* headers set above, so the
+// preflight a browser sends to the local dev server still succeeds.
+app.use((req, res) => {
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  res.status(404).json({ error: "Not found" });
+});
+
+// Four parameters = Express error handler. The arity is load-bearing (three
+// would register an ordinary middleware), so `_req` stays even though unused.
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled request error:", err);
+    if (res.headersSent) {
+      // Already streaming a response; only Express can abort it now. Safe to
+      // delegate: finalhandler's headers-sent branch just calls
+      // req.socket.destroy(), which the mock socket does implement.
+      next(err);
+      return;
+    }
+    // Client faults arrive pre-tagged (express.json() marks a malformed body
+    // 400) — keep that status, collapse everything else to 500. The error text
+    // and stack stay in the log above; the response body says nothing specific.
+    const tagged = err as { status?: number; statusCode?: number };
+    const status = tagged.status ?? tagged.statusCode ?? 500;
+    const clientFault = status >= 400 && status < 500;
+    res
+      .status(clientFault ? status : 500)
+      .json({ error: clientFault ? "Bad request" : "An unexpected error occurred." });
+  },
+);

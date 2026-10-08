@@ -25,12 +25,22 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+usage_die() {
+  echo "ERROR: $1"
+  echo "Usage: build-frontends.sh [--no-upload] [stack-name]"
+  exit 1
+}
+
 UPLOAD=true
 STACK_NAME="Chatbot"
+POSITIONAL=0
 for arg in "$@"; do
   case "$arg" in
     --no-upload) UPLOAD=false ;;
-    *) STACK_NAME="$arg" ;;
+    -*) usage_die "unknown option '${arg}'." ;;
+    *) POSITIONAL=$((POSITIONAL + 1))
+       [ "$POSITIONAL" -eq 1 ] || usage_die "too many arguments (unexpected '${arg}')."
+       STACK_NAME="$arg" ;;
   esac
 done
 
@@ -81,11 +91,16 @@ echo ""
 
 # Mirrors the destinationKeyPrefix values in infra/lib/chatbot-stack.ts
 # (OfficeFrontendDeploy="", ChatbotFrontendDeploy="chat", AdminFrontendDeploy="admin").
-# --delete removes stale files under each prefix; config.json (root-level, no
-# prefix) is left alone since it's owned by the separate RuntimeConfig deployment.
+# --delete removes stale files under each prefix. The chat/ and admin/ syncs are
+# genuinely scoped to their prefix, but Office Ops deploys to the ROOT prefix, so
+# its --delete sees the entire bucket. The aws CLI excludes filtered keys from
+# deletion, so admin/* and chat/* are excluded there or every run of this script
+# deletes both staff SPAs and only restores them two syncs later — and a Ctrl-C
+# in between leaves a live origin with no /admin and no /chat. config.json
+# (root-level) is left alone since the separate RuntimeConfig deployment owns it.
 echo "==> Syncing Office Operations frontend -> s3://${BUCKET_NAME}/"
 aws s3 sync "$REPO_ROOT/frontend/dist" "s3://${BUCKET_NAME}/" \
-  --delete --exclude "config.json"
+  --delete --exclude "config.json" --exclude "admin/*" --exclude "chat/*"
 
 echo "==> Syncing Chatbot frontend -> s3://${BUCKET_NAME}/chat/"
 aws s3 sync "$REPO_ROOT/apps/chatbot-app/dist" "s3://${BUCKET_NAME}/chat/" --delete

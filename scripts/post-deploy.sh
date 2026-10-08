@@ -12,14 +12,23 @@ SKIP_DB=false
 BACK_OFFICE_STACK="BackOffice"
 CHATBOT_STACK="Chatbot"
 
+usage_die() {
+  echo "ERROR: $1"
+  echo "Usage: post-deploy.sh [--skip-db] [back-office-stack] [chatbot-stack]"
+  exit 1
+}
+
+POSITIONAL=0
 for arg in "$@"; do
   case "$arg" in
     --skip-db) SKIP_DB=true ;;
-    *) if [ "$BACK_OFFICE_STACK" = "BackOffice" ] && [ "$arg" != "BackOffice" ]; then
-         BACK_OFFICE_STACK="$arg"
-       else
-         CHATBOT_STACK="$arg"
-       fi ;;
+    -*) usage_die "unknown option '${arg}'." ;;
+    *) POSITIONAL=$((POSITIONAL + 1))
+       case "$POSITIONAL" in
+         1) BACK_OFFICE_STACK="$arg" ;;
+         2) CHATBOT_STACK="$arg" ;;
+         *) usage_die "too many arguments (unexpected '${arg}')." ;;
+       esac ;;
   esac
 done
 
@@ -40,7 +49,38 @@ if [ "$SKIP_DB" = false ]; then
   fi
 
   echo "==> Invoking DB schema init lambda: ${DB_INIT_FN}..."
-  aws lambda invoke --function-name "$DB_INIT_FN" --log-type Tail /dev/stdout | head -1
+  # `aws lambda invoke` exits 0 even when the handler throws — the failure only
+  # shows up as FunctionError in the response metadata. The payload goes to a
+  # temp file rather than /dev/stdout so it stays separable from that metadata
+  # (the CLI writes the payload with no trailing newline, which is what glued
+  # the two together and hid FunctionError from the old `head -1`).
+  DB_INIT_PAYLOAD="$(mktemp)"
+  trap 'rm -f "$DB_INIT_PAYLOAD"' EXIT
+  DB_INIT_META=$(aws lambda invoke --function-name "$DB_INIT_FN" \
+    --log-type Tail --output json "$DB_INIT_PAYLOAD")
+  cat "$DB_INIT_PAYLOAD"
+  echo ""
+
+  if grep -q '"FunctionError"' <<<"$DB_INIT_META" \
+    || ! grep -q '"StatusCode": *2[0-9][0-9]' <<<"$DB_INIT_META"; then
+    echo "$DB_INIT_META"
+    echo "ERROR: DbInitFn (${DB_INIT_FN}) failed — the schema/seed did NOT load."
+    echo "       The payload above is the handler's error. Full stack trace:"
+    # The stack assigns a custom log group, so the /aws/lambda/<fn> default does
+    # NOT exist here — printing it sends the reader to ResourceNotFoundException.
+    # Resolve the real group off the function config instead.
+    DB_INIT_LOG_GROUP=$(aws lambda get-function-configuration \
+      --function-name "$DB_INIT_FN" \
+      --query "LoggingConfig.LogGroup" --output text 2>/dev/null || true)
+    if [ -n "$DB_INIT_LOG_GROUP" ] && [ "$DB_INIT_LOG_GROUP" != "None" ]; then
+      echo "         aws logs tail ${DB_INIT_LOG_GROUP} --since 10m"
+    else
+      echo "         aws logs tail \"\$(aws lambda get-function-configuration \\"
+      echo "           --function-name ${DB_INIT_FN} \\"
+      echo "           --query LoggingConfig.LogGroup --output text)\" --since 10m"
+    fi
+    exit 1
+  fi
   echo ""
 fi
 
@@ -71,9 +111,15 @@ echo "==> Building frontends..."
 echo ""
 
 # ── 4. Upload frontends to S3 ─────────────────────────────────────────────────
+# Office Ops lives at the ROOT prefix, so this sync's --delete sees the whole
+# bucket — including chat/ and admin/, which belong to the two syncs below. The
+# aws CLI excludes filtered keys from deletion, so admin/* and chat/* must be
+# excluded here or every run deletes both staff SPAs and only restores them two
+# syncs later (a Ctrl-C in between leaves a live origin missing /admin + /chat).
+# config.json is owned by the separate RuntimeConfig deployment.
 echo "==> Syncing Office Operations frontend -> s3://${BUCKET_NAME}/"
 aws s3 sync "$REPO_ROOT/frontend/dist" "s3://${BUCKET_NAME}/" \
-  --delete --exclude "config.json"
+  --delete --exclude "config.json" --exclude "admin/*" --exclude "chat/*"
 
 echo "==> Syncing Chatbot frontend -> s3://${BUCKET_NAME}/chat/"
 aws s3 sync "$REPO_ROOT/apps/chatbot-app/dist" "s3://${BUCKET_NAME}/chat/" --delete

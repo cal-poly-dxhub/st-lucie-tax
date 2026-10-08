@@ -275,7 +275,13 @@ export class BackOfficeStack extends Stack {
       PGSSL: "true",
       NODE_ENV: "production",
       EMAIL: config.senderEmail,
-      BASE_URL: config.baseUrl,
+      // BASE_URL is OMITTED (not set to "") when config.baseUrl is blank, as in
+      // ChatbotStack. services/office-ops/server/config.ts reads it with `??`, so
+      // an explicit "" is not nullish and would suppress the app's own defaults —
+      // FRONTEND_URL would resolve to "" and email links to bare paths
+      // ("/prescreen/<code>"), which no mail client can follow. Set BASE_URL in
+      // .env and redeploy both stacks (infra/DEPLOY.md §7).
+      ...(config.baseUrl ? { BASE_URL: config.baseUrl } : {}),
       DOCUMENTS_BUCKET: documentsBucket.bucketName,
       EMAIL_QUEUE_URL: emailQueue.queueUrl,
       COGNITO_USER_POOL_ID: userPool.userPoolId,
@@ -431,8 +437,15 @@ export class BackOfficeStack extends Stack {
       throttlingBurstLimit: config.apiBurstLimit,
     };
 
-    // ── WAF: CLOUDFRONT scope protects the distribution (covers both the
-    // S3 frontend and the API origin behind /api/*). ──────────────────────────
+    // ── WAF: CLOUDFRONT scope. It only ever sees traffic that arrives THROUGH
+    // the distribution — the S3 frontend and the /api/* behaviors. It does NOT
+    // protect any origin reached directly. The two REST origins (ChatbotApi,
+    // AdminApi) are covered in practice because chatbot-stack.ts gives them an
+    // x-origin-secret custom header and they 403 without it. The office-ops
+    // HTTP API origin has no such header, so its execute-api URL is reachable
+    // from the internet and this WAF (including the rate-based rule below)
+    // never applies to it. Cognito and the stage throttle above are what guard
+    // that path. See infra/DEPLOY.md → Secrets. ──────────────────────────────
     const webAcl = new wafv2.CfnWebACL(this, "WebAcl", {
       defaultAction: { allow: {} },
       scope: "CLOUDFRONT",
